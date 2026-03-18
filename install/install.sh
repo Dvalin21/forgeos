@@ -86,7 +86,7 @@ if ! $UNATTENDED; then
     fi
 
     # Timezone
-    local current_tz; current_tz=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "UTC")
+    current_tz=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "UTC")
     ask "Timezone" "$current_tz"
     timedatectl set-timezone "$REPLY" 2>/dev/null || true
     forgenas_set "TIMEZONE" "$REPLY"
@@ -176,11 +176,28 @@ forgenas_set "FEATURE_APPS"       "$FEAT_APPS"
 forgenas_set "FEATURE_HIPAA"      "$FEAT_HIPAA"
 
 # ── Module runner ────────────────────────────────────────────
+# SELECTED_MODULES: comma-separated list from --modules= flag.
+# When set, only modules whose script/name contains one of the
+# listed tokens are run. e.g. --modules=storage,docker,vpn
+# Base (01) and finalize (99) always run regardless of filter.
 run_module() {
     local num="$1" name="$2" script="$3"
     local feat="${4:-true}"
 
+    # Feature flag gate
     [[ "$feat" == "false" ]] && return 0
+
+    # --modules= filter gate
+    if [[ -n "$SELECTED_MODULES" ]]; then
+        local matched=false token
+        IFS=',' read -ra _mod_tokens <<< "$SELECTED_MODULES"
+        for token in "${_mod_tokens[@]}"; do
+            token="${token// /}"
+            [[ "$script" == *"$token"* || "$name" == *"$token"* ]] && matched=true && break
+        done
+        [[ "$script" == "01-base.sh" || "$script" == "99-finalize.sh" ]] && matched=true
+        [[ "$matched" == "false" ]] && return 0
+    fi
 
     echo ""
     echo -e "${ORANGE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
