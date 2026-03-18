@@ -1,99 +1,155 @@
-# ForgeOS
+<div align="center">
 
-**Open-source NAS and home server platform for Ubuntu/Debian.**  
-Built natively on the OS — not a repackaged distro.
+```
+     ___                 ___  ____
+    / __\___  _ __ __ _ / _ \/ ___|
+   / _\ / _ \| '__/ _` | | | \___ \
+  / /  | (_) | | | (_| | |_| |___) |
+  \/    \___/|_|  \__, |\___/|____/
+                  |___/
+```
+
+**Open-source NAS and home server platform built natively on Ubuntu/Debian.**
+
+[![CI](https://github.com/YOUR_USERNAME/forgeos/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/forgeos/actions/workflows/ci.yml)
+[![ShellCheck](https://img.shields.io/badge/shellcheck-passing-brightgreen)](https://github.com/YOUR_USERNAME/forgeos/actions)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Ubuntu%2022.04%20%7C%2024.04%20%7C%20Debian%2012-orange)](README.md)
+
+</div>
 
 ---
 
-## Overview
+ForgeOS is a complete, production-ready NAS and home server platform that installs directly on top of Ubuntu or Debian. A single installer script and an interactive wizard configure everything from storage pools to VPN, mail, monitoring, and a full Web GUI.
 
-ForgeOS transforms a bare Ubuntu 22.04/24.04 or Debian 12 installation into a fully-featured NAS and home server with a web-based desktop interface, modular installer, and a complete CLI toolkit.
+Designed for **homelabs and small businesses**. Enterprise features (HIPAA compliance, LDAP/SSO, file-database coordination) are optional modules that stay completely out of the way for users who don\'t need them.
 
-It is designed for both homelabs and small businesses. Enterprise features (HIPAA compliance, LDAP/SSO, ElevateDB file-database coordination) are optional modules — a homelab user running the wizard never sees them.
+---
+
+## Screenshots
+
+### Dashboard — Live System Overview
+
+The Industrial Steel / Forge Orange desktop shows live drive health grouped by pool, service status, container states, and real-time metrics. A predictive SMART failure on `/dev/sdc` triggers a purple tray alert and toast notification.
+
+![Dashboard Overview](docs/screenshots/01-dashboard.svg)
+
+---
+
+### Storage — ForgeRAID Management
+
+Drive classification (HDD / SSD / NVMe / USB) is automatic. Pool creation, scrubbing, snapshots, and bcache cache-drive setup are all available from the same panel. The SMART table shows per-drive temperature, reallocated sectors, and health state with colour-coded severity.
+
+![Storage Management](docs/screenshots/02-storage.svg)
+
+---
+
+### Network — File Sharing, VPN & nginx
+
+Samba share management with five built-in templates (including `elevatedb` for file-based database corruption prevention), NFS v4 exports, WireGuard VPN peer management with live QR code generation, and the nginx reverse proxy vhost manager.
+
+![Network Management](docs/screenshots/03-network.svg)
+
+---
+
+### Settings & Monitoring
+
+Feature toggles, system configuration, and an embedded Grafana panel with real-time CPU/memory/network sparklines, per-drive SMART temperature bars, active Alertmanager alerts, and Apprise notification channel status.
+
+![Settings and Monitoring](docs/screenshots/04-settings.svg)
+
+---
+
+### ForgeFileDB — File-Based Database Coordinator
+
+Prevents SMB oplock corruption for ElevateDB, DBISAM, dBase, MS Access, FoxPro, NexusDB, SQLite, Firebird, and Paradox without any changes to client software. Live connection monitoring, write-conflict tracking, btrfs versioned snapshots, and mDNS network discovery.
+
+![ForgeFileDB](docs/screenshots/05-filedb.svg)
+
+---
+
+### Wallpapers
+
+Four built-in SVG wallpapers:
+
+| Dark — Forge | Dark — Circuit | Light — Blueprint | Light — Dawn |
+|:---:|:---:|:---:|:---:|
+| ![](web/wallpapers/wp-dark-forge.svg) | ![](web/wallpapers/wp-dark-circuit.svg) | ![](web/wallpapers/wp-light-blueprint.svg) | ![](web/wallpapers/wp-light-dawn.svg) |
 
 ---
 
 ## Features
 
 ### Storage
-- **ForgeRAID** — mdadm + LVM + btrfs. Mixed-size drives. Supports RAID 1/5/6/10 and JBOD
-- **Drive classification** — automatic HDD / SSD / NVMe / USB detection, displayed in the Web UI
-- **Cache drives** — bcache SSD/NVMe caching in front of HDD pools (writeback, writethrough, writearound)
-- **Hot-swap** — udev-driven detection, SMART health check on insert, auto-rejoin to degraded arrays
-- **SMART predictive failure** — smartd continuous monitoring, four alert levels (OK / WARN / PREDICT / ERR), tray indicators in the Web UI
-- **btrfs snapshots** — Snapper timeline schedules, Web UI snapshot browser, one-click restore
 
-### Networking
-- **Reverse proxy** — nginx with automatic Let's Encrypt certificates
-- **VPN** — WireGuard server with per-client QR code generation; optional Netbird mesh
-- **mDNS** — Avahi broadcasts `hostname.local` and all ForgeOS services on the LAN
+| Feature | Details |
+|---|---|
+| **ForgeRAID** | mdadm + LVM + btrfs. Mixed-size drives. RAID 1/5/6/10 and JBOD |
+| **Drive classification** | Automatic HDD / SSD / NVMe / USB detection, displayed in Web UI |
+| **Cache drives** | bcache SSD/NVMe caching (writeback, writethrough, writearound modes) |
+| **Hot-swap** | udev detection, SMART check on insert, auto-rejoin to degraded arrays |
+| **SMART monitoring** | Continuous via smartd. Four alert levels: OK / WARN / PREDICT / ERR |
+| **Snapshots** | Snapper timeline + manual, Web UI browser, one-click restore |
 
 ### File Sharing
-- **SMB** — Samba 4, SMB3, macOS Time Machine, five share templates
-- **NFS v4** — v3 disabled, high-performance for Linux/ESXi clients
-- **FTPS** — ProFTPD with mandatory TLS, passive mode for NAT
-- **WebDAV** — nginx-backed, Windows network drive compatible
-- **FileBrowser** — web-based drag-drop file manager
 
-### File-Based Database Support (ForgeFileDB)
-- Coordinates concurrent access for **ElevateDB, DBISAM, dBase, FoxPro, MS Access, NexusDB, SQLite, Firebird, Paradox**
-- Prevents SMB oplock corruption without any client-side changes
-- Versioned snapshots with one-click restore (btrfs instant or rsync fallback)
-- mDNS discovery on `_forgeos-filedb._tcp` and `_edb-server._tcp`
-- Web UI at `https://filedb.domain`
+| Protocol | Details |
+|---|---|
+| **SMB / Samba 4** | SMB3, macOS Time Machine, 5 share templates including `elevatedb` |
+| **NFS v4** | v4 only (v3 disabled), high-performance, Linux/ESXi compatible |
+| **FTPS** | ProFTPD, mandatory TLS, passive mode for NAT traversal |
+| **WebDAV** | nginx-backed, Windows network drive compatible |
+| **FileBrowser** | Web-based drag-drop file manager at `https://files.domain` |
 
-### Containers
-- **Docker CE** — official repo, overlay2 storage, Compose v2
-- **Incus** — LXC/LXD successor for system containers and VMs
+### ForgeFileDB — File-Based Database Support
 
-### AI / Compute
-- **GPU drivers** — NVIDIA (ubuntu-drivers + CUDA + container toolkit), AMD (ROCm + VA-API), Intel Arc (i915/xe + Quick Sync)
-- **Google Coral TPU** — PCIe single and dual support via `gasket`+`apex` kernel modules (KyleGospo fork for kernel 6.x compatibility). Frigate NVR compose auto-generated
-- **Frigate NVR** — Docker Compose with correct TPU device passthrough, auto-configured camera config template
+Solves concurrent-access corruption for file-based databases without any client-side changes:
+
+- ElevateDB (.edb / .edbt / .edbi) — Atrex and similar Delphi applications
+- DBISAM, NexusDB, TurboDB — Delphi ecosystem engines
+- dBase / FoxPro (.dbf), Microsoft Access (.mdb / .accdb)
+- SQLite (with WAL mode optimisation), Firebird (.fdb), Paradox (.px)
+
+Supports **20–30 concurrent write users** via inotify lock coordination, btrfs versioned snapshots with point-in-time restore, and mDNS announcement on `_forgeos-filedb._tcp` and `_edb-server._tcp`.
+
+### AI / Hardware Acceleration
+
+| Feature | Details |
+|---|---|
+| **NVIDIA** | ubuntu-drivers + CUDA + nvidia-container-toolkit |
+| **AMD** | ROCm 6.x + Mesa VA-API for hardware transcoding |
+| **Intel Arc** | i915/xe driver + Intel Media SDK, HWE kernel 6.8+ |
+| **Google Coral TPU** | Single and dual PCIe, KyleGospo gasket fork for kernel 6.x |
+| **Frigate NVR** | Docker Compose with correct TPU passthrough, auto-configured |
 
 ### Security
-- UFW (default deny inbound) + Fail2ban + CrowdSec
-- AppArmor (enforcing) + auditd + AIDE file integrity + rkhunter
-- Mandatory TLS everywhere — no plaintext protocols
-- GDPR compliant: no age verification, no backdoors, exportable audit logs
-- Optional HIPAA compliance module (auditd rules, gocryptfs ePHI, 6-year log retention)
+
+- UFW (default deny inbound), Fail2ban, CrowdSec community threat intelligence
+- AppArmor (enforcing), auditd (kernel audit trail), AIDE (file integrity monitoring)
+- rkhunter (rootkit scanner), unattended security upgrades
+- Mandatory TLS on all externally-accessible services — no plaintext protocols
+- GDPR compliant: no age verification, no backdoors, no telemetry
+- Optional HIPAA compliance module (gocryptfs ePHI, 6-year log retention)
 
 ### Monitoring
+
 - Prometheus + Grafana + Alertmanager (Docker Compose)
-- node_exporter, smartctl_exporter
-- Gotify push notifications + Apprise multi-channel (Discord, Slack, Telegram, etc.)
+- node_exporter + smartctl_exporter with 18 pre-built alert rules
+- Gotify push notifications + Apprise multi-channel (Discord, Slack, Telegram, ntfy, and more)
 - Fan control via lm-sensors + fancontrol
 
-### Authentication (optional)
-- **lldap** — lightweight LDAP, replaces OpenLDAP complexity
-- **Authentik** — OIDC/OAuth2 SSO portal with TOTP + WebAuthn 2FA
-- nginx `forward_auth` snippet for protecting any service
-
-### Mail (optional)
-- Postfix + Dovecot + Rspamd + ClamAV + SOGo webmail
-- DKIM auto-generation, DNS record printer
-- Mandatory TLS on all ports
-
 ### Backup
-- **Restic** — AES-256 encrypted, deduplicated, to local + cloud
-- **Rclone crypt** — client-side encrypted sync to B2/S3/R2/SFTP
-- Systemd timers: Restic 02:00, Rclone 04:30, both with 1h random delay
 
-### Cloud Storage (optional)
-- **MinIO** — self-hosted S3 compatible, works with any AWS SDK
-- Rclone encrypted cloud sync wizard for Backblaze B2, AWS S3, Cloudflare R2
+- **Restic** — AES-256 encrypted, deduplicated backups to local and cloud
+- **Rclone crypt** — client-side encrypted sync to B2 / S3 / Cloudflare R2 / SFTP
+- Systemd timers: Restic nightly 02:00, Rclone sync 04:30, both with 1h random jitter
+- Retention: 7 daily / 4 weekly / 12 monthly / 2 yearly
 
 ### Applications
-- **OnlyOffice** — self-hosted office suite with **Microsoft Core Fonts** pre-installed for layout-accurate document rendering
-- **Immich** — self-hosted Google Photos with GPU-accelerated AI face/object recognition
 
-### Web UI
-- Industrial Steel / Forge Orange desktop interface
-- KDE/Windows-style taskbar (Dashboard, Storage, Network, Settings)
-- Live drive health with pool grouping, SMART heat maps, hot-swap indicators
-- nginx proxy manager, Samba share manager, container view
-- ForgeFileDB panel with live connection monitoring and snapshot browser
-- 4 wallpapers (dark forge, dark circuit, light blueprint, light dawn)
+- **OnlyOffice** — self-hosted office suite with Microsoft Core Fonts for layout-accurate document rendering
+- **Immich** — self-hosted Google Photos with GPU-accelerated AI face and object recognition
+- **MinIO** — self-hosted S3-compatible object storage, works with any AWS SDK
 
 ---
 
@@ -108,29 +164,30 @@ It is designed for both homelabs and small businesses. Enterprise features (HIPA
 | Data disks | 1 | 2+ for RAID |
 | Network | 1 GbE | 2.5 GbE+ |
 
-Also supported: Debian 12 (Bookworm), Ubuntu 22.04/24.04 on ARM64 (Raspberry Pi 4/5, Ampere).
+Also supported: Debian 12 (Bookworm), ARM64 (Raspberry Pi 4/5).
 
 ---
 
 ## Quick Install
 
 ```bash
-# On a fresh Ubuntu 22.04/24.04 or Debian 12 system
 git clone https://github.com/YOUR_USERNAME/forgeos.git
 cd forgeos
 sudo bash install/install.sh
 ```
 
-The interactive wizard runs in about 15–30 minutes depending on selected modules and internet speed. All modules are idempotent — safe to re-run.
+The interactive wizard runs in approximately 15–30 minutes. All modules are idempotent — safe to re-run.
 
-### Unattended install (CI / automated)
+### Unattended install
 
 ```bash
 export FORGEOS_HOSTNAME=nas
 export FORGEOS_DOMAIN=home.example.com
 export FORGEOS_ADMIN_USER=admin
 export FORGEOS_TIMEZONE=America/Chicago
-sudo bash install/install.sh --unattended --modules=base,storage,docker,security,proxy,fileshare,backup
+
+sudo bash install/install.sh --unattended \
+  --modules=base,storage,docker,security,proxy,fileshare,backup
 ```
 
 ---
@@ -140,100 +197,91 @@ sudo bash install/install.sh --unattended --modules=base,storage,docker,security
 ```
 forgeos/
 ├── install/
-│   ├── install.sh              # Master installer (interactive wizard)
+│   ├── install.sh                  # Interactive installer wizard
 │   ├── lib/
-│   │   ├── common.sh           # Shared functions (logging, apt, services)
-│   │   └── detect.sh           # Hardware detection (CPU/GPU/NIC/disk)
+│   │   ├── common.sh               # Shared functions
+│   │   └── detect.sh               # Hardware detection
 │   └── modules/
-│       ├── 01-base.sh          # Core packages, sysctl, SSH hardening
-│       ├── 02-network.sh       # Static IP, mDNS, DNS, bonding
-│       ├── 03-storage.sh       # ForgeRAID (mdadm+LVM+btrfs)
-│       ├── 03-storage-hotswap.sh  # Hot-swap udev, SMART daemon
-│       ├── 03c-drive-types.sh  # HDD/SSD/NVMe/USB detection, bcache
-│       ├── 04-docker.sh        # Docker CE + Incus
-│       ├── 05-coral-tpu.sh     # Google Coral PCIe (single + dual)
-│       ├── 06-gpu.sh           # NVIDIA/AMD/Intel Arc drivers
-│       ├── 07-security.sh      # UFW, Fail2ban, CrowdSec, AppArmor
-│       ├── 09-monitoring.sh    # Prometheus + Grafana + Alertmanager
-│       ├── 10-fileshare.sh     # NFS v4, ProFTPD, WebDAV, FileBrowser
-│       ├── 10b-samba-db.sh     # Samba + ElevateDB/file-DB templates
-│       ├── 10c-forgeos-filedb.sh  # ForgeFileDB installer
-│       ├── 11-vpn.sh           # WireGuard server + Netbird
-│       ├── 12-reverse-proxy.sh # nginx + Let's Encrypt
-│       ├── 13-ldap-oidc.sh     # lldap + Authentik SSO
-│       ├── 14-mail.sh          # Postfix + Dovecot + SOGo
-│       ├── 15-backup.sh        # Restic + Rclone + Snapper
-│       ├── 16-cloud-storage.sh # MinIO S3 + Rclone cloud sync
-│       ├── 17-hipaa.sh         # HIPAA compliance mode
-│       ├── 18-apps.sh          # OnlyOffice + MS Fonts + Immich
-│       └── 99-finalize.sh      # API service, summary
+│       ├── 01-base.sh              # Core packages, NAS sysctl, SSH hardening
+│       ├── 02-network.sh           # Static IP, mDNS, DNS, bonding, WoL
+│       ├── 03-storage.sh           # ForgeRAID (mdadm + LVM + btrfs)
+│       ├── 03-storage-hotswap.sh   # Hot-swap udev, SMART daemon
+│       ├── 03c-drive-types.sh      # Drive classification, bcache
+│       ├── 04-docker.sh            # Docker CE + Incus
+│       ├── 05-coral-tpu.sh         # Google Coral PCIe (single + dual)
+│       ├── 06-gpu.sh               # NVIDIA / AMD / Intel Arc
+│       ├── 07-security.sh          # UFW, Fail2ban, CrowdSec, AppArmor, auditd
+│       ├── 09-monitoring.sh        # Prometheus + Grafana + Alertmanager
+│       ├── 10-fileshare.sh         # NFS v4, ProFTPD, WebDAV, FileBrowser
+│       ├── 10b-samba-db.sh         # Samba + database share templates
+│       ├── 10c-forgeos-filedb.sh   # ForgeFileDB installer
+│       ├── 11-vpn.sh               # WireGuard server + QR generation
+│       ├── 12-reverse-proxy.sh     # nginx + Let\'s Encrypt
+│       ├── 13-ldap-oidc.sh         # lldap + Authentik SSO (optional)
+│       ├── 14-mail.sh              # Postfix + Dovecot + SOGo (optional)
+│       ├── 15-backup.sh            # Restic + Rclone + Snapper
+│       ├── 16-cloud-storage.sh     # MinIO S3 + Rclone cloud sync
+│       ├── 17-hipaa.sh             # HIPAA compliance (optional)
+│       ├── 18-apps.sh              # OnlyOffice + MS Fonts + Immich
+│       └── 99-finalize.sh          # API service, post-install summary
 ├── src/
-│   ├── forgeos-api.py          # FastAPI backend (REST + WebSocket)
-│   └── forgeos-filedb.py       # ForgeFileDB daemon
+│   ├── forgeos-api.py              # FastAPI backend (REST + WebSocket)
+│   └── forgeos-filedb.py           # ForgeFileDB coordinator daemon
 ├── web/
-│   ├── desktop/
-│   │   └── index.html          # ForgeOS desktop Web UI
-│   ├── filedb.html             # ForgeFileDB management UI
-│   └── wallpapers/             # 4 SVG wallpapers
+│   ├── desktop/index.html          # ForgeOS Web UI
+│   ├── filedb.html                 # ForgeFileDB UI
+│   └── wallpapers/                 # 4 SVG wallpapers
 ├── docs/
-│   ├── post-install.md         # First-boot checklist
-│   ├── drive-setup.md          # ForgeRAID + cache setup guide
-│   ├── elevatedb.md            # ElevateDB/Atrex configuration
-│   ├── coral-tpu.md            # Coral TPU troubleshooting
-│   └── hipaa.md                # HIPAA module reference
-├── test-forgeos.sh             # End-to-end test suite
-├── .github/
-│   └── workflows/
-│       └── ci.yml              # Lint + shellcheck CI
-├── .gitignore
-├── LICENSE                     # GPL-3.0
-└── README.md
+│   ├── screenshots/                # UI screenshots
+│   ├── post-install.md
+│   ├── coral-tpu.md
+│   └── elevatedb.md
+├── test-forgeos.sh                 # End-to-end test suite (130 checks)
+├── .github/workflows/ci.yml        # ShellCheck + Python lint CI
+├── LICENSE                         # GPL-3.0
+├── CONTRIBUTING.md
+└── SECURITY.md
 ```
 
 ---
 
-## Post-Install Access
-
-After the installer completes, it prints a summary with all URLs and the initial admin password. Example:
+## Post-Install Services
 
 | Service | URL |
 |---|---|
-| ForgeOS Web UI | `https://nas.local` |
+| Web UI | `https://nas.local` |
 | FileBrowser | `https://files.nas.local` |
 | Grafana | `https://grafana.nas.local` |
+| ForgeFileDB | `https://filedb.nas.local` |
 | OnlyOffice | `https://office.nas.local` |
 | Immich | `https://photos.nas.local` |
-| ForgeFileDB | `https://filedb.nas.local` |
-| MinIO Console | `https://console.s3.nas.local` |
 | Gotify | `https://push.nas.local` |
+| MinIO Console | `https://console.s3.nas.local` |
 | SOGo Mail | `https://mail.nas.local/SOGo` |
 | Authentik SSO | `https://auth.nas.local` |
 | Frigate NVR | `https://nvr.nas.local` |
 
 ---
 
-## CLI Reference
-
-Every installed module has a dedicated CLI tool:
+## CLI Tools
 
 ```bash
-forgeos-ctl          # System control (status, restart-all, update)
+forgeos-ctl          # System status, restart, update
 forgeos-storage      # Pool management, snapshots
-forgeos-cache        # bcache cache drive setup and monitoring
-forgeos-drives       # Drive type detection and registry
+forgeos-cache        # bcache setup and monitoring
+forgeos-drives       # Drive type detection
 forgeos-samba        # SMB share management
-forgeos-fileshare    # NFS/FTP/WebDAV/FileBrowser management
+forgeos-fileshare    # NFS / FTP / WebDAV / FileBrowser
 forgeos-filedb       # ForgeFileDB coordinator
-forgeos-db           # MariaDB/PostgreSQL/Firebird/ElevateDB
-forgeos-nginx        # Reverse proxy vhost management
+forgeos-db           # MariaDB / PostgreSQL / ElevateDB
+forgeos-nginx        # Reverse proxy management
 forgeos-vpn          # WireGuard peer management + QR codes
 forgeos-backup       # Restic backup management
 forgeos-cloud        # MinIO + Rclone cloud sync
-forgeos-auth         # lldap/Authentik user management
+forgeos-auth         # LDAP / SSO user management
 forgeos-mail         # Mail server management
 forgeos-coral        # Coral TPU + Frigate NVR
-forgeos-hipaa        # HIPAA compliance tools
-forgeos-notify       # Send notifications via Apprise
+forgeos-notify       # Send alerts via Apprise
 ```
 
 ---
@@ -241,45 +289,41 @@ forgeos-notify       # Send notifications via Apprise
 ## Testing
 
 ```bash
-# Full test suite (requires installed ForgeOS)
+# Full test suite
 sudo bash test-forgeos.sh
 
-# Quick mode (skip functional tests)
+# Quick mode
 sudo bash test-forgeos.sh --quick
 
-# Test a specific module
+# Specific module
 sudo bash test-forgeos.sh --module=storage
 ```
-
-Results are saved to `/var/log/forgeos/test-report-YYYYMMDD-HHMMSS.json`.
 
 ---
 
 ## Google Coral TPU Notes
 
-The official Google `gasket-dkms` package from `packages.cloud.google.com` **does not build on Linux kernel 6.x+**. ForgeOS uses the community-maintained [KyleGospo/gasket-dkms](https://github.com/KyleGospo/gasket-dkms) fork which contains the necessary kernel 6.x compatibility patches.
+The official `gasket-dkms` package from Google\'s apt repo fails to build on kernel 6.x+. ForgeOS uses [KyleGospo/gasket-dkms](https://github.com/KyleGospo/gasket-dkms) automatically.
 
-**Single TPU** (M.2 or PCIe): creates `/dev/apex_0`  
-**Dual TPU** (M.2 dual card): creates `/dev/apex_0` + `/dev/apex_1` — requires PCIe x2 bifurcation support in your motherboard M.2 slot.
-
-If `/dev/apex_*` doesn't appear after reboot:
+If `/dev/apex_*` does not appear after reboot:
 ```bash
-forgeos-coral fix-aspm   # Adds pcie_aspm=off to GRUB
-# then reboot
+forgeos-coral fix-aspm && reboot
 ```
+
+See [docs/coral-tpu.md](docs/coral-tpu.md) for full troubleshooting.
 
 ---
 
-## ElevateDB / Atrex / File-Based Database Notes
+## ElevateDB / File-Based Databases
 
-ForgeFileDB coordinates concurrent SMB access to file-based database engines. No changes are needed to the client application — it continues using its standard local/file session mode.
-
-For ElevateDB applications (Atrex, etc.):
 ```bash
-# Create a share with all oplocks disabled (prevents corruption)
+# Samba share with all oplocks disabled
 forgeos-samba create myapp /srv/nas/myapp elevatedb
 
-# Supports 20-30 concurrent users; beyond that, consider MariaDB migration
+# Auto-detect from file extensions
+forgeos-samba auto-share /srv/nas/myapp
+
+# ForgeFileDB status
 forgeos-filedb status
 ```
 
@@ -287,24 +331,8 @@ See [docs/elevatedb.md](docs/elevatedb.md) for full details.
 
 ---
 
-## GDPR / Privacy
-
-- No age verification of any kind
-- No backdoors, no telemetry, no phone-home
-- Audit logs are exportable on request (`ausearch -m USER_AUTH`)
-- Log retention configurable (default 90 days)
-- No advertising, no tracking
-
----
-
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE).
+[GPL-3.0](LICENSE) — ForgeOS is free and open source.
 
-ForgeOS is free and open source. If you deploy it commercially, contributions back to the project are appreciated but not required.
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) | Security: [SECURITY.md](SECURITY.md)

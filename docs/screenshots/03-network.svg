@@ -1,0 +1,225 @@
+<svg viewBox="0 0 1280 800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Blueprint light theme -->
+  <rect width="1280" height="800" fill="#e8ecf0"/>
+  <!-- Blueprint grid -->
+  <defs>
+    <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse">
+      <path d="M 24 0 L 0 0 0 24" fill="none" stroke="#b8c8d8" stroke-width="0.4" opacity="0.6"/>
+    </pattern>
+    <pattern id="grid-major" width="120" height="120" patternUnits="userSpaceOnUse">
+      <path d="M 120 0 L 0 0 0 120" fill="none" stroke="#a0b8cc" stroke-width="0.8" opacity="0.5"/>
+    </pattern>
+  </defs>
+  <rect width="1280" height="800" fill="url(#grid)"/>
+  <rect width="1280" height="800" fill="url(#grid-major)" opacity="0.6"/>
+
+  <!-- Taskbar -->
+  <rect x="0" y="756" width="1280" height="44" fill="#e0e8f0" opacity="0.97"/>
+  <line x1="0" y1="756" x2="1280" y2="756" stroke="#b0c0d0" stroke-width="1"/>
+  <polygon points="20,770 26,767 26,773" fill="#e85d04"/>
+  <text x="32" y="775" fill="#3a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="700" letter-spacing="2">FORGEOS</text>
+  <text x="145" y="779" fill="#8090a0" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">DASHBOARD</text>
+  <text x="235" y="779" fill="#8090a0" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">STORAGE</text>
+  <rect x="278" y="760" width="85" height="28" rx="3" fill="rgba(232,93,4,0.1)" stroke="#e85d04" stroke-width="1"/>
+  <text x="320" y="779" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">NETWORK</text>
+  <text x="415" y="779" fill="#8090a0" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">SETTINGS</text>
+  <text x="1220" y="773" fill="#8090a0" font-size="11" text-anchor="middle">14:38</text>
+  <circle cx="1253" cy="778" r="4" fill="#3daa60"/>
+  <circle cx="1266" cy="778" r="4" fill="#3daa60"/>
+
+  <!-- Left window: File Sharing -->
+  <rect x="30" y="20" width="580" height="720" rx="4" fill="white" stroke="#c0d0e0" stroke-width="1"/>
+  <rect x="30" y="20" width="580" height="32" rx="4" fill="#e8f0f8"/>
+  <rect x="30" y="40" width="580" height="12" fill="#e8f0f8"/>
+  <line x1="30" y1="52" x2="610" y2="52" stroke="#c0d0e0" stroke-width="1"/>
+  <text x="50" y="41" fill="#4a6a8a" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="2">FILE SHARING</text>
+  <text x="600" y="41" fill="#9090a0" font-size="11" text-anchor="end">—  ⬜  ✕</text>
+
+  <!-- Tabs -->
+  <rect x="30" y="52" width="580" height="28" fill="#f0f4f8"/>
+  <rect x="30" y="52" width="75" height="28" fill="#e8f0f8"/>
+  <text x="67" y="71" fill="#4a6a8a" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">SAMBA</text>
+  <text x="147" y="71" fill="#a0b0c0" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">NFS</text>
+  <text x="220" y="71" fill="#a0b0c0" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">FTPS</text>
+  <text x="295" y="71" fill="#a0b0c0" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">WEBDAV</text>
+  <line x1="30" y1="80" x2="610" y2="80" stroke="#c0d0e0" stroke-width="1"/>
+
+  <!-- SMB status banner -->
+  <rect x="44" y="90" width="552" height="30" rx="3" fill="#e8f8ee" stroke="#b0d8bc" stroke-width="1"/>
+  <circle cx="58" cy="105" r="5" fill="#3daa60"/>
+  <text x="70" y="109" fill="#2a7a40" font-size="11">Samba 4 running  ·  SMB3  ·  15 active connections  ·  mDNS: forgeos.local</text>
+
+  <!-- Shares list header -->
+  <text x="44" y="142" fill="#8090a0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">SHARES</text>
+  <rect x="514" y="130" width="80" height="22" rx="3" fill="rgba(232,93,4,0.08)" stroke="rgba(232,93,4,0.2)" stroke-width="1"/>
+  <text x="554" y="145" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="10" font-weight="600" letter-spacing="1" text-anchor="middle">+ ADD SHARE</text>
+  <line x1="44" y1="146" x2="596" y2="146" stroke="#d0dce8" stroke-width="1"/>
+
+  <!-- Share rows -->
+  <rect x="34" y="148" width="572" height="38" fill="#f8fafc"/>
+  <rect x="34" y="148" width="3" height="38" fill="#3daa60"/>
+  <text x="50" y="164" fill="#3a4a5a" font-size="11" font-weight="600">data</text>
+  <text x="50" y="178" fill="#7090a0" font-size="10">/srv/nas/data  ·  standard  ·  @users  ·  rw</text>
+  <rect x="530" y="154" width="66" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="563" y="166" fill="#3daa60" font-size="8" text-anchor="middle">CONNECTED  5</text>
+  <line x1="34" y1="186" x2="606" y2="186" stroke="#e8eef4" stroke-width="1"/>
+
+  <rect x="34" y="186" width="572" height="38" fill="white"/>
+  <rect x="34" y="186" width="3" height="38" fill="#3daa60"/>
+  <text x="50" y="202" fill="#3a4a5a" font-size="11" font-weight="600">media</text>
+  <text x="50" y="216" fill="#7090a0" font-size="10">/srv/nas/media  ·  standard  ·  @users  ·  rw</text>
+  <rect x="530" y="192" width="66" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="563" y="204" fill="#3daa60" font-size="8" text-anchor="middle">CONNECTED  3</text>
+  <line x1="34" y1="224" x2="606" y2="224" stroke="#e8eef4" stroke-width="1"/>
+
+  <rect x="34" y="224" width="572" height="38" fill="#f8fafc"/>
+  <rect x="34" y="224" width="3" height="38" fill="#9933cc"/>
+  <text x="50" y="240" fill="#3a4a5a" font-size="11" font-weight="600">atrex-data</text>
+  <text x="50" y="254" fill="#7090a0" font-size="10">/srv/nas/atrex  ·  elevatedb  ·  @users  ·  rw</text>
+  <rect x="510" y="230" width="86" height="16" rx="2" fill="rgba(153,51,204,0.08)" stroke="rgba(153,51,204,0.2)" stroke-width="1"/>
+  <text x="553" y="242" fill="#9933cc" font-size="8" text-anchor="middle">OPLOCKS DISABLED</text>
+  <line x1="34" y1="262" x2="606" y2="262" stroke="#e8eef4" stroke-width="1"/>
+
+  <rect x="34" y="262" width="572" height="38" fill="white"/>
+  <rect x="34" y="262" width="3" height="38" fill="#4a8ab0"/>
+  <text x="50" y="278" fill="#3a4a5a" font-size="11" font-weight="600">timemachine</text>
+  <text x="50" y="292" fill="#7090a0" font-size="10">/srv/nas/timemachine  ·  timemachine  ·  @users  ·  500GB quota</text>
+  <rect x="530" y="268" width="66" height="16" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="563" y="280" fill="#4a8ab0" font-size="8" text-anchor="middle">2 MAC CLIENTS</text>
+  <line x1="34" y1="300" x2="606" y2="300" stroke="#e8eef4" stroke-width="1"/>
+
+  <rect x="34" y="300" width="572" height="38" fill="#f8fafc"/>
+  <rect x="34" y="300" width="3" height="38" fill="#8090a0"/>
+  <text x="50" y="316" fill="#3a4a5a" font-size="11" font-weight="600">backups</text>
+  <text x="50" y="330" fill="#7090a0" font-size="10">/srv/nas/backups  ·  admin  ·  @admins  ·  rw</text>
+  <rect x="530" y="306" width="66" height="16" rx="2" fill="rgba(128,144,160,0.1)" stroke="rgba(128,144,160,0.2)" stroke-width="1"/>
+  <text x="563" y="318" fill="#6080a0" font-size="8" text-anchor="middle">CONNECTED  1</text>
+
+  <!-- NFS section below -->
+  <line x1="34" y1="352" x2="606" y2="352" stroke="#d0dce8" stroke-width="1"/>
+  <text x="44" y="372" fill="#8090a0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">NFS v4 EXPORTS</text>
+  <rect x="44" y="380" width="552" height="28" rx="2" fill="#f0f8ff" stroke="#c0d8e8" stroke-width="1"/>
+  <text x="56" y="398" fill="#3a4a5a" font-family="'IBM Plex Mono', monospace" font-size="10">/srv/nas  192.168.0.0/16(rw,fsid=0,no_subtree_check,async)</text>
+  <rect x="44" y="412" width="552" height="28" rx="2" fill="#f0f8ff" stroke="#c0d8e8" stroke-width="1"/>
+  <text x="56" y="430" fill="#3a4a5a" font-family="'IBM Plex Mono', monospace" font-size="10">/srv/nas/data  192.168.0.0/16(rw,no_root_squash,async)</text>
+  <text x="44" y="460" fill="#7090a0" font-size="10">Mount: mount -t nfs4 forgeos.local:/nas /mnt</text>
+
+  <!-- FTPS / WebDAV status -->
+  <line x1="34" y1="476" x2="606" y2="476" stroke="#d0dce8" stroke-width="1"/>
+  <text x="44" y="496" fill="#8090a0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">OTHER PROTOCOLS</text>
+  <rect x="44" y="504" width="120" height="36" rx="3" fill="#f0f8ff" stroke="#c0d8e8" stroke-width="1"/>
+  <circle cx="58" cy="518" r="5" fill="#3daa60"/>
+  <text x="70" y="522" fill="#3a4a5a" font-size="11" font-weight="600">FTPS</text>
+  <text x="58" y="534" fill="#7090a0" font-size="9">port 21 · TLS</text>
+  <rect x="174" y="504" width="120" height="36" rx="3" fill="#f0f8ff" stroke="#c0d8e8" stroke-width="1"/>
+  <circle cx="188" cy="518" r="5" fill="#3daa60"/>
+  <text x="200" y="522" fill="#3a4a5a" font-size="11" font-weight="600">WebDAV</text>
+  <text x="188" y="534" fill="#7090a0" font-size="9">dav.forgeos.local</text>
+  <rect x="304" y="504" width="130" height="36" rx="3" fill="#f0f8ff" stroke="#c0d8e8" stroke-width="1"/>
+  <circle cx="318" cy="518" r="5" fill="#3daa60"/>
+  <text x="330" y="522" fill="#3a4a5a" font-size="11" font-weight="600">FileBrowser</text>
+  <text x="318" y="534" fill="#7090a0" font-size="9">files.forgeos.local</text>
+
+  <!-- Right window: VPN -->
+  <rect x="670" y="20" width="580" height="720" rx="4" fill="white" stroke="#c0d0e0" stroke-width="1"/>
+  <rect x="670" y="20" width="580" height="32" rx="4" fill="#e8f0f8"/>
+  <rect x="670" y="40" width="580" height="12" fill="#e8f0f8"/>
+  <line x1="670" y1="52" x2="1250" y2="52" stroke="#c0d0e0" stroke-width="1"/>
+  <text x="690" y="41" fill="#4a6a8a" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="2">VPN — WIREGUARD SERVER</text>
+  <text x="1240" y="41" fill="#9090a0" font-size="11" text-anchor="end">—  ⬜  ✕</text>
+  <line x1="670" y1="80" x2="1250" y2="80" stroke="#c0d0e0" stroke-width="1"/>
+
+  <!-- VPN server status -->
+  <rect x="684" y="90" width="552" height="56" rx="3" fill="#e8f8ee" stroke="#b0d8bc" stroke-width="1"/>
+  <circle cx="704" cy="118" r="8" fill="#3daa60"/>
+  <text x="720" y="110" fill="#2a7a40" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="700" letter-spacing="1">WIREGUARD ACTIVE</text>
+  <text x="720" y="126" fill="#3a6a4a" font-size="10">Interface: wg0  ·  UDP 51820  ·  Network: 10.10.0.0/24</text>
+  <text x="720" y="140" fill="#3a6a4a" font-size="10">Server: forgeos.local  ·  Public IP: 203.0.113.42  ·  Peers: 4</text>
+
+  <!-- Peers header -->
+  <text x="684" y="170" fill="#8090a0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">CONNECTED PEERS</text>
+  <rect x="1160" y="158" width="76" height="22" rx="3" fill="rgba(232,93,4,0.08)" stroke="rgba(232,93,4,0.2)" stroke-width="1"/>
+  <text x="1198" y="173" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="10" font-weight="600" letter-spacing="1" text-anchor="middle">+ ADD PEER</text>
+  <line x1="684" y1="174" x2="1236" y2="174" stroke="#d0dce8" stroke-width="1"/>
+
+  <!-- Peer rows -->
+  <rect x="674" y="176" width="572" height="48" fill="#f8fafc"/>
+  <circle cx="694" cy="200" r="6" fill="#3daa60"/>
+  <text x="710" y="196" fill="#3a4a5a" font-size="11" font-weight="600">laptop-home</text>
+  <text x="710" y="210" fill="#7090a0" font-size="10">10.10.0.2  ·  Last handshake: 2 min ago  ·  ↓ 1.2 GB  ↑ 340 MB</text>
+  <rect x="1100" y="183" width="55" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1127" y="195" fill="#3daa60" font-size="8" text-anchor="middle">ONLINE</text>
+  <rect x="1162" y="183" width="70" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1197" y="195" fill="#4a8ab0" font-size="8" text-anchor="middle">SHOW QR</text>
+  <line x1="674" y1="224" x2="1246" y2="224" stroke="#e8eef4" stroke-width="1"/>
+
+  <rect x="674" y="224" width="572" height="48" fill="white"/>
+  <circle cx="694" cy="248" r="6" fill="#3daa60"/>
+  <text x="710" y="244" fill="#3a4a5a" font-size="11" font-weight="600">phone-ios</text>
+  <text x="710" y="258" fill="#7090a0" font-size="10">10.10.0.3  ·  Last handshake: 8 min ago  ·  ↓ 450 MB  ↑ 90 MB</text>
+  <rect x="1100" y="231" width="55" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1127" y="243" fill="#3daa60" font-size="8" text-anchor="middle">ONLINE</text>
+  <rect x="1162" y="231" width="70" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1197" y="243" fill="#4a8ab0" font-size="8" text-anchor="middle">SHOW QR</text>
+  <line x1="674" y1="272" x2="1246" y2="272" stroke="#e8eef4" stroke-width="1"/>
+
+  <rect x="674" y="272" width="572" height="48" fill="#f8fafc"/>
+  <circle cx="694" cy="296" r="6" fill="#d0d8e0"/>
+  <text x="710" y="292" fill="#3a4a5a" font-size="11" font-weight="600">tablet-work</text>
+  <text x="710" y="306" fill="#7090a0" font-size="10">10.10.0.4  ·  Last handshake: 3 hours ago  ·  ↓ 22 MB  ↑ 4 MB</text>
+  <rect x="1100" y="279" width="55" height="16" rx="2" fill="rgba(128,144,160,0.1)" stroke="rgba(128,144,160,0.2)" stroke-width="1"/>
+  <text x="1127" y="291" fill="#8090a0" font-size="8" text-anchor="middle">OFFLINE</text>
+  <rect x="1162" y="279" width="70" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1197" y="291" fill="#4a8ab0" font-size="8" text-anchor="middle">SHOW QR</text>
+  <line x1="674" y1="320" x2="1246" y2="320" stroke="#e8eef4" stroke-width="1"/>
+
+  <rect x="674" y="320" width="572" height="48" fill="white"/>
+  <circle cx="694" cy="344" r="6" fill="#d0d8e0"/>
+  <text x="710" y="340" fill="#3a4a5a" font-size="11" font-weight="600">server-remote</text>
+  <text x="710" y="354" fill="#7090a0" font-size="10">10.10.0.5  ·  Last handshake: 1 day ago  ·  ↓ 0 B  ↑ 0 B</text>
+  <rect x="1100" y="327" width="55" height="16" rx="2" fill="rgba(128,144,160,0.1)" stroke="rgba(128,144,160,0.2)" stroke-width="1"/>
+  <text x="1127" y="339" fill="#8090a0" font-size="8" text-anchor="middle">OFFLINE</text>
+  <rect x="1162" y="327" width="70" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1197" y="339" fill="#4a8ab0" font-size="8" text-anchor="middle">SHOW QR</text>
+
+  <!-- QR code preview panel -->
+  <rect x="684" y="382" width="552" height="200" rx="4" fill="#f8fafc" stroke="#c0d8e8" stroke-width="1"/>
+  <text x="960" y="404" fill="#4a6a8a" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="2" text-anchor="middle">QR CODE — laptop-home</text>
+  <line x1="684" y1="408" x2="1236" y2="408" stroke="#d0dce8" stroke-width="1"/>
+  <!-- QR code mockup -->
+  <rect x="820" y="420" width="120" height="120" rx="2" fill="white" stroke="#c0d0e0" stroke-width="1"/>
+  <!-- QR pattern simulation -->
+  <rect x="826" y="426" width="24" height="24" rx="1" fill="#3a4a5a"/>
+  <rect x="832" y="432" width="12" height="12" rx="1" fill="white"/>
+  <rect x="836" y="436" width="4" height="4" fill="#3a4a5a"/>
+  <rect x="890" y="426" width="24" height="24" rx="1" fill="#3a4a5a"/>
+  <rect x="896" y="432" width="12" height="12" rx="1" fill="white"/>
+  <rect x="900" y="436" width="4" height="4" fill="#3a4a5a"/>
+  <rect x="826" y="490" width="24" height="24" rx="1" fill="#3a4a5a"/>
+  <rect x="832" y="496" width="12" height="12" rx="1" fill="white"/>
+  <rect x="836" y="500" width="4" height="4" fill="#3a4a5a"/>
+  <rect x="856" y="430" width="6" height="6" fill="#3a4a5a"/>
+  <rect x="866" y="430" width="4" height="10" fill="#3a4a5a"/>
+  <rect x="874" y="434" width="6" height="6" fill="#3a4a5a"/>
+  <rect x="858" y="444" width="12" height="4" fill="#3a4a5a"/>
+  <rect x="856" y="452" width="4" height="8" fill="#3a4a5a"/>
+  <rect x="864" y="456" width="8" height="4" fill="#3a4a5a"/>
+  <rect x="876" y="450" width="4" height="12" fill="#3a4a5a"/>
+  <rect x="856" y="464" width="8" height="4" fill="#3a4a5a"/>
+  <rect x="868" y="464" width="4" height="8" fill="#3a4a5a"/>
+  <rect x="876" y="468" width="6" height="4" fill="#3a4a5a"/>
+  <rect x="886" y="442" width="4" height="20" fill="#3a4a5a"/>
+  <rect x="892" y="448" width="6" height="4" fill="#3a4a5a"/>
+  <rect x="832" y="516" width="6" height="12" fill="#3a4a5a"/>
+  <rect x="842" y="514" width="10" height="6" fill="#3a4a5a"/>
+  <rect x="856" y="510" width="6" height="16" fill="#3a4a5a"/>
+
+  <text x="960" y="436" fill="#3a4a5a" font-family="'IBM Plex Mono', monospace" font-size="10" text-anchor="middle">Scan with WireGuard mobile app</text>
+  <text x="960" y="492" fill="#7090a0" font-size="10" text-anchor="middle">10.10.0.2 · AllowedIPs: 0.0.0.0/0</text>
+  <text x="960" y="508" fill="#7090a0" font-size="10" text-anchor="middle">Endpoint: 203.0.113.42:51820</text>
+  <text x="960" y="524" fill="#7090a0" font-size="10" text-anchor="middle">DNS: 1.1.1.1 · Keepalive: 25s</text>
+  <rect x="890" y="536" width="140" height="24" rx="3" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.25)" stroke-width="1"/>
+  <text x="960" y="552" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="10" font-weight="600" letter-spacing="1" text-anchor="middle">DOWNLOAD .CONF</text>
+
+  <text x="640" y="790" fill="#a0b0c0" font-family="'Barlow Condensed', sans-serif" font-size="11" letter-spacing="3" text-anchor="middle">FORGEOS v1.0 · NETWORK MANAGEMENT</text>
+</svg>

@@ -1,0 +1,201 @@
+<svg viewBox="0 0 1280 800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="fdb-bg" x1="0" y1="0" x2="0.2" y2="1">
+      <stop offset="0%" stop-color="#0f0c18"/>
+      <stop offset="100%" stop-color="#08060f"/>
+    </linearGradient>
+    <radialGradient id="violet-glow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#7c4dff" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#7c4dff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="800" fill="url(#fdb-bg)"/>
+  <rect width="1280" height="800" fill="url(#violet-glow)"/>
+
+  <!-- Hex pattern subtle -->
+  <polygon points="100,50 115,42 130,50 130,66 115,74 100,66" fill="none" stroke="#7c4dff" stroke-width="0.4" opacity="0.15"/>
+  <polygon points="140,74 155,66 170,74 170,90 155,98 140,90" fill="none" stroke="#7c4dff" stroke-width="0.4" opacity="0.1"/>
+  <polygon points="1180,100 1195,92 1210,100 1210,116 1195,124 1180,116" fill="none" stroke="#7c4dff" stroke-width="0.4" opacity="0.15"/>
+
+  <!-- Top bar -->
+  <rect x="0" y="0" width="1280" height="52" fill="#0d0a15" opacity="0.98"/>
+  <line x1="0" y1="52" x2="1280" y2="52" stroke="#1a1428" stroke-width="1"/>
+
+  <!-- Logo -->
+  <polygon points="24,18 31,14 31,22" fill="#7c4dff"/>
+  <polygon points="36,22 43,18 43,26" fill="#7c4dff" opacity="0.6"/>
+  <text x="50" y="28" fill="#c8b8f0" font-family="'Barlow Condensed', sans-serif" font-size="16" font-weight="700" letter-spacing="3">ForgeFileDB</text>
+  <text x="190" y="28" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="10" letter-spacing="2">FILE-BASED DATABASE COORDINATOR</text>
+
+  <!-- Top stats -->
+  <rect x="700" y="8" width="70" height="36" fill="#140f20"/>
+  <text x="735" y="24" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="8" letter-spacing="2" text-anchor="middle">CLIENTS</text>
+  <text x="735" y="40" fill="#7c4dff" font-family="'IBM Plex Mono', monospace" font-size="18" font-weight="600" text-anchor="middle">8</text>
+  <rect x="778" y="8" width="70" height="36" fill="#140f20"/>
+  <text x="813" y="24" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="8" letter-spacing="2" text-anchor="middle">OPEN DBS</text>
+  <text x="813" y="40" fill="#3daa60" font-family="'IBM Plex Mono', monospace" font-size="18" font-weight="600" text-anchor="middle">3</text>
+  <rect x="856" y="8" width="80" height="36" fill="#140f20"/>
+  <text x="896" y="24" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="8" letter-spacing="2" text-anchor="middle">SNAPS/DAY</text>
+  <text x="896" y="40" fill="#4a8ab0" font-family="'IBM Plex Mono', monospace" font-size="18" font-weight="600" text-anchor="middle">47</text>
+  <rect x="944" y="8" width="80" height="36" fill="#140f20"/>
+  <text x="984" y="24" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="8" letter-spacing="2" text-anchor="middle">CONFLICTS</text>
+  <text x="984" y="40" fill="#d4860a" font-family="'IBM Plex Mono', monospace" font-size="18" font-weight="600" text-anchor="middle">12</text>
+  <circle cx="1260" cy="26" r="5" fill="#3daa60" opacity="0.9"/>
+
+  <!-- Sidebar nav -->
+  <rect x="0" y="52" width="200" height="748" fill="#0a0814"/>
+  <line x1="200" y1="52" x2="200" y2="800" stroke="#1a1428" stroke-width="1"/>
+
+  <text x="20" y="86" fill="#2a1a40" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">MONITOR</text>
+  <rect x="0" y="92" width="200" height="28" fill="#140f20"/>
+  <rect x="0" y="92" width="3" height="28" fill="#7c4dff"/>
+  <text x="20" y="111" fill="#7c4dff" font-size="12">📡  Overview</text>
+  <text x="150" y="111" fill="#7c4dff" font-family="'IBM Plex Mono', monospace" font-size="9">8</text>
+  <text x="20" y="140" fill="#4a3a60" font-size="12">🗄  Databases</text>
+  <text x="20" y="168" fill="#4a3a60" font-size="12">🔒  Active Locks</text>
+
+  <text x="20" y="200" fill="#2a1a40" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">VERSIONS</text>
+  <text x="20" y="226" fill="#4a3a60" font-size="12">📸  Snapshots</text>
+  <text x="150" y="226" fill="#3daa60" font-family="'IBM Plex Mono', monospace" font-size="9">47</text>
+  <text x="20" y="254" fill="#4a3a60" font-size="12">⏪  Restore</text>
+
+  <text x="20" y="286" fill="#2a1a40" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">SYSTEM</text>
+  <text x="20" y="312" fill="#4a3a60" font-size="12">ℹ  How It Works</text>
+  <text x="20" y="340" fill="#4a3a60" font-size="12">⚙  Settings</text>
+  <text x="20" y="368" fill="#4a3a60" font-size="12">📋  Logs</text>
+
+  <!-- Main content - Overview -->
+  <rect x="200" y="52" width="1080" height="748" fill="#0d0a18"/>
+
+  <text x="220" y="92" fill="#c8b8f0" font-family="'Barlow Condensed', sans-serif" font-size="22" font-weight="700" letter-spacing="1">Live Overview</text>
+  <text x="390" y="88" fill="#3a2a50" font-size="12">File-based database connections &amp; activity</text>
+
+  <!-- Stat cards row -->
+  <rect x="220" y="104" width="230" height="80" rx="4" fill="#140f20" stroke="#1e1430" stroke-width="1"/>
+  <rect x="220" y="178" width="230" height="2" fill="#7c4dff"/>
+  <text x="234" y="122" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">CONNECTED CLIENTS</text>
+  <text x="234" y="160" fill="#7c4dff" font-family="'IBM Plex Mono', monospace" font-size="36" font-weight="600">8</text>
+  <text x="234" y="174" fill="#3a2a50" font-size="10">SMB sessions with DB files open</text>
+
+  <rect x="462" y="104" width="230" height="80" rx="4" fill="#140f20" stroke="#1e1430" stroke-width="1"/>
+  <rect x="462" y="178" width="230" height="2" fill="#3daa60"/>
+  <text x="476" y="122" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">OPEN DATABASES</text>
+  <text x="476" y="160" fill="#3daa60" font-family="'IBM Plex Mono', monospace" font-size="36" font-weight="600">3</text>
+  <text x="476" y="174" fill="#3a2a50" font-size="10">Active file-based DB files</text>
+
+  <rect x="704" y="104" width="230" height="80" rx="4" fill="#140f20" stroke="#1e1430" stroke-width="1"/>
+  <rect x="704" y="178" width="230" height="2" fill="#4a8ab0"/>
+  <text x="718" y="122" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">SNAPSHOTS TODAY</text>
+  <text x="718" y="160" fill="#4a8ab0" font-family="'IBM Plex Mono', monospace" font-size="36" font-weight="600">47</text>
+  <text x="718" y="174" fill="#3a2a50" font-size="10">Versioned backups created</text>
+
+  <rect x="946" y="104" width="230" height="80" rx="4" fill="#140f20" stroke="#1e1430" stroke-width="1"/>
+  <rect x="946" y="178" width="230" height="2" fill="#d4860a"/>
+  <text x="960" y="122" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">WRITE CONFLICTS</text>
+  <text x="960" y="160" fill="#d4860a" font-family="'IBM Plex Mono', monospace" font-size="36" font-weight="600">12</text>
+  <text x="960" y="174" fill="#3a2a50" font-size="10">Serialized — no data lost</text>
+
+  <!-- Connected clients table -->
+  <text x="220" y="214" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">CONNECTED CLIENTS</text>
+  <line x1="310" y1="210" x2="1260" y2="210" stroke="#1e1430" stroke-width="1"/>
+
+  <!-- Table header -->
+  <rect x="200" y="216" width="1080" height="24" fill="#100d1c"/>
+  <text x="220" y="232" fill="#2a1a40" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">IP ADDRESS</text>
+  <text x="360" y="232" fill="#2a1a40" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">OPEN FILES</text>
+  <text x="700" y="232" fill="#2a1a40" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">DURATION</text>
+  <text x="820" y="232" fill="#2a1a40" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">ACCESS</text>
+
+  <!-- Client rows -->
+  <rect x="200" y="240" width="1080" height="32" fill="#140f20"/>
+  <text x="220" y="260" fill="#7c4dff" font-family="'IBM Plex Mono', monospace" font-size="11">192.168.1.42</text>
+  <text x="360" y="260" fill="#c8b8f0" font-size="11">customers.edbt, orders.edbt</text>
+  <text x="700" y="260" fill="#4a3a60" font-family="'IBM Plex Mono', monospace" font-size="10">47m</text>
+  <rect x="820" y="246" width="80" height="18" rx="2" fill="rgba(232,93,4,0.1)" stroke="rgba(232,93,4,0.25)" stroke-width="1"/>
+  <text x="860" y="258" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">READ/WRITE</text>
+
+  <rect x="200" y="272" width="1080" height="32" fill="#0d0a18"/>
+  <text x="220" y="292" fill="#7c4dff" font-family="'IBM Plex Mono', monospace" font-size="11">192.168.1.43</text>
+  <text x="360" y="292" fill="#c8b8f0" font-size="11">customers.edbt, inventory.edbt</text>
+  <text x="700" y="292" fill="#4a3a60" font-family="'IBM Plex Mono', monospace" font-size="10">32m</text>
+  <rect x="820" y="278" width="80" height="18" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.25)" stroke-width="1"/>
+  <text x="860" y="290" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">READ-ONLY</text>
+
+  <rect x="200" y="304" width="1080" height="32" fill="#140f20"/>
+  <text x="220" y="324" fill="#7c4dff" font-family="'IBM Plex Mono', monospace" font-size="11">192.168.1.50</text>
+  <text x="360" y="324" fill="#c8b8f0" font-size="11">orders.edbt, inventory.edbt</text>
+  <text x="700" y="324" fill="#4a3a60" font-family="'IBM Plex Mono', monospace" font-size="10">18m</text>
+  <rect x="820" y="310" width="80" height="18" rx="2" fill="rgba(232,93,4,0.1)" stroke="rgba(232,93,4,0.25)" stroke-width="1"/>
+  <text x="860" y="322" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">READ/WRITE</text>
+
+  <rect x="200" y="336" width="1080" height="32" fill="#0d0a18"/>
+  <text x="220" y="356" fill="#7c4dff" font-family="'IBM Plex Mono', monospace" font-size="11">192.168.1.51</text>
+  <text x="360" y="356" fill="#4a3a60" font-size="11">(no open files)</text>
+  <text x="700" y="356" fill="#4a3a60" font-family="'IBM Plex Mono', monospace" font-size="10">5m</text>
+  <rect x="820" y="342" width="60" height="18" rx="2" fill="rgba(58,42,80,0.3)" stroke="rgba(58,42,80,0.5)" stroke-width="1"/>
+  <text x="850" y="354" fill="#4a3a60" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">IDLE</text>
+
+  <!-- Active locks -->
+  <text x="220" y="394" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">ACTIVE FILE LOCKS</text>
+  <line x1="316" y1="390" x2="1260" y2="390" stroke="#1e1430" stroke-width="1"/>
+
+  <rect x="200" y="396" width="1080" height="32" fill="#140f20"/>
+  <div/>
+  <text x="220" y="412" fill="#c8b8f0" font-family="'IBM Plex Mono', monospace" font-size="11">customers.edbt</text>
+  <text x="220" y="424" fill="#4a3a60" font-family="'IBM Plex Mono', monospace" font-size="9">/srv/nas/atrex/</text>
+  <text x="500" y="416" fill="#7c4dff" font-family="'IBM Plex Mono', monospace" font-size="10">192.168.1.42</text>
+  <rect x="680" y="404" width="80" height="18" rx="2" fill="rgba(232,93,4,0.1)" stroke="rgba(232,93,4,0.3)" stroke-width="1"/>
+  <text x="720" y="416" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="9" text-anchor="middle">EXCLUSIVE</text>
+  <text x="820" y="416" fill="#4a3a60" font-size="10" font-family="'IBM Plex Mono', monospace">0 waiting</text>
+
+  <rect x="200" y="428" width="1080" height="32" fill="#0d0a18"/>
+  <text x="220" y="444" fill="#c8b8f0" font-family="'IBM Plex Mono', monospace" font-size="11">orders.edbt</text>
+  <text x="220" y="456" fill="#4a3a60" font-family="'IBM Plex Mono', monospace" font-size="9">/srv/nas/atrex/</text>
+  <text x="500" y="448" fill="#7c4dff" font-family="'IBM Plex Mono', monospace" font-size="10">192.168.1.42, 192.168.1.50</text>
+  <rect x="680" y="436" width="60" height="18" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.3)" stroke-width="1"/>
+  <text x="710" y="448" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="9" text-anchor="middle">SHARED</text>
+  <text x="820" y="448" fill="#4a3a60" font-size="10" font-family="'IBM Plex Mono', monospace">0 waiting</text>
+
+  <!-- Snapshot section -->
+  <text x="220" y="486" fill="#3a2a50" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">RECENT SNAPSHOTS</text>
+  <line x1="316" y1="482" x2="1260" y2="482" stroke="#1e1430" stroke-width="1"/>
+  <rect x="1108" y="470" width="140" height="22" rx="3" fill="rgba(124,77,255,0.1)" stroke="rgba(124,77,255,0.25)" stroke-width="1"/>
+  <text x="1178" y="485" fill="#7c4dff" font-family="'Barlow Condensed', sans-serif" font-size="10" font-weight="600" letter-spacing="1" text-anchor="middle">+ CREATE SNAPSHOT</text>
+
+  <rect x="200" y="490" width="1080" height="28" fill="#140f20"/>
+  <text x="220" y="508" fill="#c8b8f0" font-family="'IBM Plex Mono', monospace" font-size="10">20240318_140122</text>
+  <text x="420" y="508" fill="#4a3a60" font-size="10">/srv/nas/atrex</text>
+  <rect x="700" y="496" width="45" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="722" y="508" fill="#3daa60" font-size="8" text-anchor="middle">btrfs</text>
+  <text x="800" y="508" fill="#4a3a60" font-size="10">auto:write_close</text>
+  <rect x="1140" y="496" width="55" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1167" y="508" fill="#4a8ab0" font-size="8" text-anchor="middle">RESTORE</text>
+
+  <rect x="200" y="518" width="1080" height="28" fill="#0d0a18"/>
+  <text x="220" y="536" fill="#c8b8f0" font-family="'IBM Plex Mono', monospace" font-size="10">20240318_134508</text>
+  <text x="420" y="536" fill="#4a3a60" font-size="10">/srv/nas/atrex</text>
+  <rect x="700" y="524" width="45" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="722" y="536" fill="#3daa60" font-size="8" text-anchor="middle">btrfs</text>
+  <text x="800" y="536" fill="#4a3a60" font-size="10">auto:100_writes</text>
+  <rect x="1140" y="524" width="55" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1167" y="536" fill="#4a8ab0" font-size="8" text-anchor="middle">RESTORE</text>
+
+  <rect x="200" y="546" width="1080" height="28" fill="#140f20"/>
+  <text x="220" y="564" fill="#c8b8f0" font-family="'IBM Plex Mono', monospace" font-size="10">20240318_130000</text>
+  <text x="420" y="564" fill="#4a3a60" font-size="10">/srv/nas/atrex</text>
+  <rect x="700" y="552" width="45" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="722" y="564" fill="#3daa60" font-size="8" text-anchor="middle">btrfs</text>
+  <text x="800" y="564" fill="#4a3a60" font-size="10">manual:ui</text>
+  <rect x="1140" y="552" width="55" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1167" y="564" fill="#4a8ab0" font-size="8" text-anchor="middle">RESTORE</text>
+
+  <!-- mDNS announcement banner -->
+  <rect x="220" y="610" width="1020" height="50" rx="4" fill="#0d0814" stroke="#1e1430" stroke-width="1"/>
+  <rect x="220" y="610" width="4" height="50" fill="#7c4dff"/>
+  <text x="236" y="630" fill="#7c4dff" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="700" letter-spacing="1">mDNS ANNOUNCED</text>
+  <text x="236" y="648" fill="#6a5a80" font-size="10">Broadcasts: _forgeos-filedb._tcp:12010  ·  _edb-server._tcp:12010  ·  Visible to all LAN clients</text>
+  <text x="236" y="660" fill="#6a5a80" font-size="10">Supports: ElevateDB · DBISAM · dBase · FoxPro · MS Access · NexusDB · SQLite · Firebird · Paradox</text>
+
+  <text x="640" y="790" fill="#1e1430" font-family="'Barlow Condensed', sans-serif" font-size="11" letter-spacing="3" text-anchor="middle">FORGEFILEDB v1.0 · FILE-BASED DATABASE COORDINATOR</text>
+</svg>

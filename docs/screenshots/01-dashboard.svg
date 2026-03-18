@@ -1,0 +1,337 @@
+<svg viewBox="0 0 1280 800" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Mono', 'Courier New', monospace">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#141210"/>
+      <stop offset="100%" stop-color="#0d0b09"/>
+    </linearGradient>
+    <linearGradient id="pool-bar" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#e85d04"/>
+      <stop offset="100%" stop-color="#c44e03"/>
+    </linearGradient>
+    <linearGradient id="pool-bar2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#4a8ab0"/>
+      <stop offset="100%" stop-color="#3a7090"/>
+    </linearGradient>
+    <linearGradient id="stripe" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3daa60"/>
+      <stop offset="100%" stop-color="#2d8a50"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Desktop background - dark forge wallpaper gradient -->
+  <rect width="1280" height="800" fill="url(#bg)"/>
+  <!-- Subtle ember glow at bottom left -->
+  <radialGradient id="ember" cx="10%" cy="90%" r="40%">
+    <stop offset="0%" stop-color="#e85d04" stop-opacity="0.08"/>
+    <stop offset="100%" stop-color="#e85d04" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="1280" height="800" fill="url(#ember)"/>
+
+  <!-- Taskbar -->
+  <rect x="0" y="756" width="1280" height="44" fill="#0f0d0c" opacity="0.96"/>
+  <line x1="0" y1="756" x2="1280" y2="756" stroke="#2a2420" stroke-width="1"/>
+
+  <!-- Taskbar logo -->
+  <polygon points="20,770 26,767 26,773" fill="#e85d04"/>
+  <text x="32" y="775" fill="#f0ece4" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="700" letter-spacing="2">FORGEOS</text>
+
+  <!-- Taskbar items -->
+  <rect x="100" y="760" width="90" height="28" rx="3" fill="#e85d04" opacity="0.15"/>
+  <rect x="100" y="760" width="90" height="28" rx="3" fill="none" stroke="#e85d04" stroke-width="1"/>
+  <text x="145" y="779" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">DASHBOARD</text>
+
+  <rect x="196" y="760" width="80" height="28" rx="3" fill="transparent"/>
+  <text x="236" y="779" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">STORAGE</text>
+
+  <rect x="282" y="760" width="80" height="28" rx="3" fill="transparent"/>
+  <text x="322" y="779" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">NETWORK</text>
+
+  <rect x="368" y="760" width="80" height="28" rx="3" fill="transparent"/>
+  <text x="408" y="779" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">SETTINGS</text>
+
+  <!-- Clock -->
+  <text x="1220" y="773" fill="#9a8878" font-size="11" text-anchor="middle">14:32</text>
+  <text x="1220" y="783" fill="#5a4e46" font-size="9" text-anchor="middle">Tue 18</text>
+
+  <!-- Tray indicators -->
+  <circle cx="1240" cy="778" r="4" fill="#3daa60"/>
+  <circle cx="1253" cy="778" r="4" fill="#3daa60"/>
+  <circle cx="1266" cy="778" r="4" fill="#d4860a"/>
+
+  <!-- Main window: System Overview -->
+  <rect x="60" y="30" width="760" height="710" rx="4" fill="#161310" stroke="#2a2420" stroke-width="1"/>
+
+  <!-- Window titlebar -->
+  <rect x="60" y="30" width="760" height="32" rx="4" fill="#1e1916"/>
+  <rect x="60" y="50" width="760" height="12" fill="#1e1916"/>
+  <line x1="60" y1="62" x2="820" y2="62" stroke="#2a2420" stroke-width="1"/>
+  <text x="80" y="51" fill="#9a8878" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="2">SYSTEM OVERVIEW</text>
+  <text x="780" y="51" fill="#5a4e46" font-size="11" text-anchor="end">—  ⬜  ✕</text>
+
+  <!-- Window tabs -->
+  <rect x="60" y="62" width="760" height="28" fill="#161310"/>
+  <rect x="60" y="62" width="80" height="28" fill="#1e1916"/>
+  <text x="100" y="81" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">OVERVIEW</text>
+  <line x1="140" y1="62" x2="140" y2="90" stroke="#2a2420" stroke-width="1"/>
+  <text x="180" y="81" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">STORAGE</text>
+  <line x1="220" y1="62" x2="220" y2="90" stroke="#2a2420" stroke-width="1"/>
+  <text x="260" y="81" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">SENSORS</text>
+  <line x1="300" y1="62" x2="300" y2="90" stroke="#2a2420" stroke-width="1"/>
+  <text x="340" y="81" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">LOGS</text>
+  <line x1="60" y1="90" x2="820" y2="90" stroke="#2a2420" stroke-width="1"/>
+
+  <!-- Status sidebar -->
+  <rect x="60" y="90" width="140" height="650" fill="#0f0d0c"/>
+  <line x1="200" y1="90" x2="200" y2="740" stroke="#2a2420" stroke-width="1"/>
+
+  <text x="80" y="115" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">SERVICES</text>
+  <rect x="68" y="122" width="112" height="24" rx="2" fill="#1e1916"/>
+  <circle cx="80" cy="134" r="4" fill="#3daa60"/>
+  <text x="90" y="138" fill="#9a8878" font-size="10">Samba</text>
+  <rect x="68" y="150" width="112" height="24" rx="2" fill="#1e1916"/>
+  <circle cx="80" cy="162" r="4" fill="#3daa60"/>
+  <text x="90" y="166" fill="#9a8878" font-size="10">NFS v4</text>
+  <rect x="68" y="178" width="112" height="24" rx="2" fill="#1e1916"/>
+  <circle cx="80" cy="190" r="4" fill="#3daa60"/>
+  <text x="90" y="194" fill="#9a8878" font-size="10">nginx</text>
+  <rect x="68" y="206" width="112" height="24" rx="2" fill="#1e1916"/>
+  <circle cx="80" cy="218" r="4" fill="#3daa60"/>
+  <text x="90" y="222" fill="#9a8878" font-size="10">Docker</text>
+  <rect x="68" y="234" width="112" height="24" rx="2" fill="#1e1916"/>
+  <circle cx="80" cy="246" r="4" fill="#3daa60"/>
+  <text x="90" y="250" fill="#9a8878" font-size="10">WireGuard</text>
+  <rect x="68" y="262" width="112" height="24" rx="2" fill="#1e1916"/>
+  <circle cx="80" cy="274" r="4" fill="#3daa60"/>
+  <text x="90" y="278" fill="#9a8878" font-size="10">Prometheus</text>
+  <rect x="68" y="290" width="112" height="24" rx="2" fill="#1e1916"/>
+  <circle cx="80" cy="302" r="4" fill="#d4860a"/>
+  <text x="90" y="306" fill="#9a8878" font-size="10">Coral TPU</text>
+
+  <!-- Metrics in header area -->
+  <rect x="200" y="90" width="620" height="90" fill="#0f0d0c"/>
+  <line x1="200" y1="180" x2="820" y2="180" stroke="#2a2420" stroke-width="1"/>
+
+  <!-- CPU metric -->
+  <rect x="212" y="100" width="130" height="70" rx="3" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <text x="222" y="116" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">CPU</text>
+  <text x="222" y="148" fill="#e85d04" font-family="'IBM Plex Mono', monospace" font-size="28" font-weight="600">12%</text>
+  <text x="222" y="163" fill="#5a4e46" font-size="9">i7-12700 · 12c</text>
+
+  <!-- RAM metric -->
+  <rect x="352" y="100" width="130" height="70" rx="3" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <text x="362" y="116" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">MEMORY</text>
+  <text x="362" y="148" fill="#4a8ab0" font-family="'IBM Plex Mono', monospace" font-size="28" font-weight="600">34%</text>
+  <text x="362" y="163" fill="#5a4e46" font-size="9">5.4 / 16 GB</text>
+
+  <!-- Network metric -->
+  <rect x="492" y="100" width="130" height="70" rx="3" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <text x="502" y="116" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">NETWORK</text>
+  <text x="502" y="148" fill="#3daa60" font-family="'IBM Plex Mono', monospace" font-size="22" font-weight="600">1.2GB</text>
+  <text x="502" y="163" fill="#5a4e46" font-size="9">↑ 420 MB/s · 2.5GbE</text>
+
+  <!-- Uptime metric -->
+  <rect x="632" y="100" width="178" height="70" rx="3" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <text x="642" y="116" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">UPTIME</text>
+  <text x="642" y="148" fill="#9a8878" font-family="'IBM Plex Mono', monospace" font-size="22" font-weight="600">42 days</text>
+  <text x="642" y="163" fill="#5a4e46" font-size="9">forgeos.local · 192.168.1.10</text>
+
+  <!-- Pool section header -->
+  <text x="210" y="198" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">STORAGE POOLS</text>
+  <line x1="268" y1="194" x2="810" y2="194" stroke="#2a2420" stroke-width="1"/>
+
+  <!-- Pool 1: datapool -->
+  <rect x="200" y="204" width="610" height="120" fill="#161310"/>
+  <rect x="200" y="204" width="4" height="120" fill="#3daa60"/>
+
+  <text x="215" y="222" fill="#f0ece4" font-family="'Barlow Condensed', sans-serif" font-size="15" font-weight="700">datapool</text>
+  <rect x="330" y="211" width="50" height="16" rx="2" fill="rgba(61,170,96,0.15)" stroke="rgba(61,170,96,0.3)" stroke-width="1"/>
+  <text x="355" y="223" fill="#3daa60" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">HEALTHY</text>
+  <rect x="390" y="211" width="60" height="16" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="420" y="223" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">RAID-5</text>
+
+  <!-- Usage bar -->
+  <rect x="215" y="232" width="580" height="6" rx="3" fill="#272220"/>
+  <rect x="215" y="232" width="362" height="6" rx="3" fill="url(#pool-bar)"/>
+  <text x="215" y="250" fill="#5a4e46" font-size="9">7.24 TB used of 12 TB  ·  4.76 TB free  ·  Last scrub: 2 days ago</text>
+
+  <!-- Drives in pool -->
+  <!-- Drive 1 -->
+  <rect x="215" y="258" width="130" height="56" rx="3" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <text x="225" y="273" fill="#f0ece4" font-size="10" font-weight="600">/dev/sda</text>
+  <text x="225" y="285" fill="#5a4e46" font-size="9">WD Red 4TB</text>
+  <rect x="225" y="291" width="60" height="4" rx="2" fill="#272220"/>
+  <rect x="225" y="291" width="45" height="4" rx="2" fill="#3daa60"/>
+  <text x="289" y="295" fill="#3daa60" font-size="8">OK</text>
+  <text x="225" y="307" fill="#5a4e46" font-size="8">38°C · SMART OK</text>
+
+  <!-- Drive 2 -->
+  <rect x="355" y="258" width="130" height="56" rx="3" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <text x="365" y="273" fill="#f0ece4" font-size="10" font-weight="600">/dev/sdb</text>
+  <text x="365" y="285" fill="#5a4e46" font-size="9">WD Red 4TB</text>
+  <rect x="365" y="291" width="60" height="4" rx="2" fill="#272220"/>
+  <rect x="365" y="291" width="48" height="4" rx="2" fill="#3daa60"/>
+  <text x="429" y="295" fill="#3daa60" font-size="8">OK</text>
+  <text x="365" y="307" fill="#5a4e46" font-size="8">36°C · SMART OK</text>
+
+  <!-- Drive 3 - PREDICT warning -->
+  <rect x="495" y="258" width="130" height="56" rx="3" fill="#1e1916" stroke="#9933cc" stroke-width="1" stroke-opacity="0.4"/>
+  <text x="505" y="273" fill="#f0ece4" font-size="10" font-weight="600">/dev/sdc</text>
+  <text x="505" y="285" fill="#5a4e46" font-size="9">WD Red 4TB</text>
+  <rect x="505" y="291" width="60" height="4" rx="2" fill="#272220"/>
+  <rect x="505" y="291" width="52" height="4" rx="2" fill="#9933cc"/>
+  <text x="569" y="295" fill="#9933cc" font-size="8">⚠</text>
+  <text x="505" y="307" fill="#9933cc" font-size="8">Replace Soon</text>
+
+  <!-- Drive 4 -->
+  <rect x="635" y="258" width="130" height="56" rx="3" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <text x="645" y="273" fill="#f0ece4" font-size="10" font-weight="600">/dev/sdd</text>
+  <text x="645" y="285" fill="#5a4e46" font-size="9">WD Red 4TB</text>
+  <rect x="645" y="291" width="60" height="4" rx="2" fill="#272220"/>
+  <rect x="645" y="291" width="44" height="4" rx="2" fill="#3daa60"/>
+  <text x="709" y="295" fill="#3daa60" font-size="8">OK</text>
+  <text x="645" y="307" fill="#5a4e46" font-size="8">34°C · SMART OK</text>
+
+  <line x1="200" y1="324" x2="820" y2="324" stroke="#2a2420" stroke-width="1"/>
+
+  <!-- Pool 2: nvmepool -->
+  <rect x="200" y="324" width="610" height="100" fill="#161310"/>
+  <rect x="200" y="324" width="4" height="100" fill="#4a8ab0"/>
+
+  <text x="215" y="342" fill="#f0ece4" font-family="'Barlow Condensed', sans-serif" font-size="15" font-weight="700">nvmepool</text>
+  <rect x="320" y="331" width="50" height="16" rx="2" fill="rgba(61,170,96,0.15)" stroke="rgba(61,170,96,0.3)" stroke-width="1"/>
+  <text x="345" y="343" fill="#3daa60" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">HEALTHY</text>
+  <rect x="380" y="331" width="60" height="16" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="410" y="343" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">MIRROR</text>
+
+  <rect x="215" y="352" width="580" height="6" rx="3" fill="#272220"/>
+  <rect x="215" y="352" width="145" height="6" rx="3" fill="url(#pool-bar2)"/>
+  <text x="215" y="370" fill="#5a4e46" font-size="9">0.5 TB used of 2 TB  ·  1.5 TB free  ·  Cache: bcache writeback</text>
+
+  <rect x="215" y="378" width="130" height="36" rx="3" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <text x="225" y="393" fill="#f0ece4" font-size="10" font-weight="600">/dev/nvme0n1</text>
+  <text x="225" y="406" fill="#4a8ab0" font-size="8">Samsung 970 1TB · NVMe · 41°C</text>
+
+  <rect x="355" y="378" width="130" height="36" rx="3" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <text x="365" y="393" fill="#f0ece4" font-size="10" font-weight="600">/dev/nvme1n1</text>
+  <text x="365" y="406" fill="#4a8ab0" font-size="8">Samsung 970 1TB · NVMe · 39°C</text>
+
+  <line x1="200" y1="424" x2="820" y2="424" stroke="#2a2420" stroke-width="1"/>
+
+  <!-- Unassigned section -->
+  <text x="210" y="442" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">UNASSIGNED</text>
+  <rect x="215" y="450" width="130" height="36" rx="3" fill="#1e1916" stroke="#272220" stroke-width="1"/>
+  <text x="225" y="465" fill="#9a8878" font-size="10">/dev/sde</text>
+  <text x="225" y="478" fill="#5a4e46" font-size="8">Seagate 6TB · HDD · unformatted</text>
+
+  <!-- Docker containers section -->
+  <text x="210" y="510" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">CONTAINERS</text>
+  <line x1="268" y1="506" x2="810" y2="506" stroke="#2a2420" stroke-width="1"/>
+
+  <rect x="215" y="516" width="100" height="28" rx="2" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <circle cx="227" cy="530" r="3" fill="#3daa60"/>
+  <text x="235" y="534" fill="#9a8878" font-size="9">prometheus</text>
+
+  <rect x="321" y="516" width="90" height="28" rx="2" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <circle cx="333" cy="530" r="3" fill="#3daa60"/>
+  <text x="341" y="534" fill="#9a8878" font-size="9">grafana</text>
+
+  <rect x="417" y="516" width="80" height="28" rx="2" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <circle cx="429" cy="530" r="3" fill="#3daa60"/>
+  <text x="437" y="534" fill="#9a8878" font-size="9">gotify</text>
+
+  <rect x="503" y="516" width="80" height="28" rx="2" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <circle cx="515" cy="530" r="3" fill="#3daa60"/>
+  <text x="523" y="534" fill="#9a8878" font-size="9">minio</text>
+
+  <rect x="589" y="516" width="80" height="28" rx="2" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <circle cx="601" cy="530" r="3" fill="#3daa60"/>
+  <text x="609" y="534" fill="#9a8878" font-size="9">immich</text>
+
+  <rect x="675" y="516" width="90" height="28" rx="2" fill="#1e1916" stroke="#2a2420" stroke-width="1"/>
+  <circle cx="687" cy="530" r="3" fill="#3daa60"/>
+  <text x="695" y="534" fill="#9a8878" font-size="9">frigate</text>
+
+  <!-- Second window: nginx panel -->
+  <rect x="840" y="30" width="420" height="710" rx="4" fill="#161310" stroke="#2a2420" stroke-width="1"/>
+  <rect x="840" y="30" width="420" height="32" rx="4" fill="#1e1916"/>
+  <rect x="840" y="50" width="420" height="12" fill="#1e1916"/>
+  <line x1="840" y1="62" x2="1260" y2="62" stroke="#2a2420" stroke-width="1"/>
+  <text x="860" y="51" fill="#9a8878" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="2">NGINX · REVERSE PROXY</text>
+  <text x="1250" y="51" fill="#5a4e46" font-size="11" text-anchor="end">—  ⬜  ✕</text>
+
+  <line x1="840" y1="90" x2="1260" y2="90" stroke="#2a2420" stroke-width="1"/>
+
+  <!-- Vhost list header -->
+  <rect x="840" y="90" width="420" height="28" fill="#0f0d0c"/>
+  <text x="860" y="109" fill="#5a4e46" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">ACTIVE VHOSTS</text>
+
+  <!-- Vhost rows -->
+  <rect x="840" y="118" width="420" height="32" fill="#1e1916"/>
+  <circle cx="858" cy="134" r="4" fill="#3daa60"/>
+  <text x="870" y="138" fill="#f0ece4" font-size="10">forgeos.local</text>
+  <text x="1180" y="138" fill="#5a4e46" font-size="9" text-anchor="end">:5080</text>
+  <rect x="1190" y="125" width="30" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1205" y="137" fill="#3daa60" font-size="8" text-anchor="middle">TLS</text>
+  <line x1="840" y1="150" x2="1260" y2="150" stroke="#272220" stroke-width="1"/>
+
+  <rect x="840" y="150" width="420" height="32" fill="#161310"/>
+  <circle cx="858" cy="166" r="4" fill="#3daa60"/>
+  <text x="870" y="170" fill="#f0ece4" font-size="10">grafana.forgeos.local</text>
+  <text x="1180" y="170" fill="#5a4e46" font-size="9" text-anchor="end">:3000</text>
+  <rect x="1190" y="157" width="30" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1205" y="169" fill="#3daa60" font-size="8" text-anchor="middle">TLS</text>
+  <line x1="840" y1="182" x2="1260" y2="182" stroke="#272220" stroke-width="1"/>
+
+  <rect x="840" y="182" width="420" height="32" fill="#1e1916"/>
+  <circle cx="858" cy="198" r="4" fill="#3daa60"/>
+  <text x="870" y="202" fill="#f0ece4" font-size="10">photos.forgeos.local</text>
+  <text x="1180" y="202" fill="#5a4e46" font-size="9" text-anchor="end">:2283</text>
+  <rect x="1190" y="189" width="30" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1205" y="201" fill="#3daa60" font-size="8" text-anchor="middle">TLS</text>
+  <line x1="840" y1="214" x2="1260" y2="214" stroke="#272220" stroke-width="1"/>
+
+  <rect x="840" y="214" width="420" height="32" fill="#161310"/>
+  <circle cx="858" cy="230" r="4" fill="#3daa60"/>
+  <text x="870" y="234" fill="#f0ece4" font-size="10">office.forgeos.local</text>
+  <text x="1180" y="234" fill="#5a4e46" font-size="9" text-anchor="end">:8080</text>
+  <rect x="1190" y="221" width="30" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1205" y="233" fill="#3daa60" font-size="8" text-anchor="middle">TLS</text>
+  <line x1="840" y1="246" x2="1260" y2="246" stroke="#272220" stroke-width="1"/>
+
+  <rect x="840" y="246" width="420" height="32" fill="#1e1916"/>
+  <circle cx="858" cy="262" r="4" fill="#3daa60"/>
+  <text x="870" y="266" fill="#f0ece4" font-size="10">nvr.forgeos.local</text>
+  <text x="1180" y="266" fill="#5a4e46" font-size="9" text-anchor="end">:5001</text>
+  <rect x="1190" y="253" width="30" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1205" y="265" fill="#3daa60" font-size="8" text-anchor="middle">TLS</text>
+  <line x1="840" y1="278" x2="1260" y2="278" stroke="#272220" stroke-width="1"/>
+
+  <rect x="840" y="278" width="420" height="32" fill="#161310"/>
+  <circle cx="858" cy="294" r="4" fill="#3daa60"/>
+  <text x="870" y="298" fill="#f0ece4" font-size="10">s3.forgeos.local</text>
+  <text x="1180" y="298" fill="#5a4e46" font-size="9" text-anchor="end">:9000</text>
+  <rect x="1190" y="285" width="30" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1205" y="297" fill="#3daa60" font-size="8" text-anchor="middle">TLS</text>
+  <line x1="840" y1="310" x2="1260" y2="310" stroke="#272220" stroke-width="1"/>
+
+  <rect x="840" y="310" width="420" height="32" fill="#1e1916"/>
+  <circle cx="858" cy="326" r="4" fill="#3daa60"/>
+  <text x="870" y="330" fill="#f0ece4" font-size="10">filedb.forgeos.local</text>
+  <text x="1180" y="330" fill="#5a4e46" font-size="9" text-anchor="end">:12010</text>
+  <rect x="1190" y="317" width="30" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1205" y="329" fill="#3daa60" font-size="8" text-anchor="middle">TLS</text>
+  <line x1="840" y1="342" x2="1260" y2="342" stroke="#272220" stroke-width="1"/>
+
+  <!-- Add vhost button -->
+  <rect x="856" y="352" width="120" height="28" rx="3" fill="rgba(232,93,4,0.1)" stroke="rgba(232,93,4,0.3)" stroke-width="1"/>
+  <text x="916" y="371" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">+ ADD VHOST</text>
+
+  <!-- Notification toast -->
+  <rect x="880" y="680" width="360" height="52" rx="4" fill="#1e1916" stroke="#9933cc" stroke-width="1" stroke-opacity="0.5"/>
+  <rect x="880" y="680" width="4" height="52" rx="2" fill="#9933cc"/>
+  <text x="894" y="700" fill="#9933cc" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="700" letter-spacing="1">⚠ SMART PREDICTIVE FAILURE</text>
+  <text x="894" y="718" fill="#9a8878" font-size="10">/dev/sdc — Replace Soon · 7 reallocated sectors</text>
+
+  <!-- Label overlay -->
+  <text x="640" y="790" fill="#2a2420" font-family="'Barlow Condensed', sans-serif" font-size="11" letter-spacing="3" text-anchor="middle">FORGEOS v1.0 · DASHBOARD OVERVIEW</text>
+</svg>

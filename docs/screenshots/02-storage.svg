@@ -1,0 +1,269 @@
+<svg viewBox="0 0 1280 800" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0%" stop-color="#141210"/>
+      <stop offset="100%" stop-color="#0d0b09"/>
+    </linearGradient>
+    <linearGradient id="circuit" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a2535"/>
+      <stop offset="100%" stop-color="#0d1820"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background - circuit theme -->
+  <rect width="1280" height="800" fill="url(#circuit)"/>
+  <!-- Circuit trace accents -->
+  <line x1="0" y1="200" x2="400" y2="200" stroke="#4a8ab0" stroke-width="0.5" opacity="0.15"/>
+  <line x1="400" y1="200" x2="400" y2="600" stroke="#4a8ab0" stroke-width="0.5" opacity="0.15"/>
+  <line x1="1280" y1="400" x2="900" y2="400" stroke="#4a8ab0" stroke-width="0.5" opacity="0.1"/>
+  <circle cx="400" cy="200" r="4" fill="none" stroke="#4a8ab0" stroke-width="0.8" opacity="0.2"/>
+  <circle cx="400" cy="600" r="4" fill="none" stroke="#4a8ab0" stroke-width="0.8" opacity="0.2"/>
+
+  <!-- Taskbar -->
+  <rect x="0" y="756" width="1280" height="44" fill="#0d1015" opacity="0.97"/>
+  <line x1="0" y1="756" x2="1280" y2="756" stroke="#1a2535" stroke-width="1"/>
+  <polygon points="20,770 26,767 26,773" fill="#e85d04"/>
+  <text x="32" y="775" fill="#c8dde8" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="700" letter-spacing="2">FORGEOS</text>
+  <text x="145" y="779" fill="#5a7a8a" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">DASHBOARD</text>
+  <rect x="185" y="760" width="80" height="28" rx="3" fill="rgba(232,93,4,0.15)" stroke="#e85d04" stroke-width="1"/>
+  <text x="225" y="779" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">STORAGE</text>
+  <text x="315" y="779" fill="#5a7a8a" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">NETWORK</text>
+  <text x="405" y="779" fill="#5a7a8a" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="1" text-anchor="middle">SETTINGS</text>
+  <text x="1220" y="773" fill="#5a7a8a" font-size="11" text-anchor="middle">14:35</text>
+  <circle cx="1253" cy="778" r="4" fill="#3daa60"/>
+  <circle cx="1266" cy="778" r="4" fill="#9933cc"/>
+
+  <!-- Main storage window -->
+  <rect x="40" y="20" width="1200" height="720" rx="4" fill="#0f1520" stroke="#1a2535" stroke-width="1"/>
+  <rect x="40" y="20" width="1200" height="32" rx="4" fill="#141d2a"/>
+  <rect x="40" y="40" width="1200" height="12" fill="#141d2a"/>
+  <line x1="40" y1="52" x2="1240" y2="52" stroke="#1a2535" stroke-width="1"/>
+  <text x="60" y="41" fill="#8ab0c8" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="2">FORGEOS STORAGE — FORGERAID MANAGEMENT</text>
+  <text x="1230" y="41" fill="#2a3a4a" font-size="11" text-anchor="end">—  ⬜  ✕</text>
+
+  <!-- Tabs -->
+  <rect x="40" y="52" width="1200" height="28" fill="#0d1520"/>
+  <rect x="40" y="52" width="100" height="28" fill="#141d2a"/>
+  <text x="90" y="71" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">POOLS</text>
+  <text x="190" y="71" fill="#2a3a4a" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">DRIVES</text>
+  <text x="280" y="71" fill="#2a3a4a" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">SNAPSHOTS</text>
+  <text x="380" y="71" fill="#2a3a4a" font-family="'Barlow Condensed', sans-serif" font-size="11" font-weight="600" letter-spacing="1" text-anchor="middle">CACHE</text>
+  <line x1="40" y1="80" x2="1240" y2="80" stroke="#1a2535" stroke-width="1"/>
+
+  <!-- Action bar -->
+  <rect x="40" y="80" width="1200" height="36" fill="#0d1520"/>
+  <line x1="40" y1="116" x2="1240" y2="116" stroke="#1a2535" stroke-width="1"/>
+  <rect x="56" y="88" width="130" height="22" rx="3" fill="rgba(232,93,4,0.1)" stroke="rgba(232,93,4,0.3)" stroke-width="1"/>
+  <text x="121" y="103" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="10" font-weight="600" letter-spacing="1" text-anchor="middle">+ CREATE POOL</text>
+  <rect x="196" y="88" width="110" height="22" rx="3" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="251" y="103" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="10" font-weight="600" letter-spacing="1" text-anchor="middle">↺ SCRUB ALL</text>
+  <rect x="316" y="88" width="100" height="22" rx="3" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="366" y="103" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="10" font-weight="600" letter-spacing="1" text-anchor="middle">📸 SNAPSHOT</text>
+
+  <!-- Pool 1 detail card -->
+  <rect x="56" y="126" width="560" height="180" rx="4" fill="#141d2a" stroke="#1a2535" stroke-width="1"/>
+  <rect x="56" y="126" width="4" height="180" rx="2" fill="#3daa60"/>
+  <rect x="56" y="126" width="560" height="36" rx="4" fill="#182030"/>
+  <rect x="56" y="146" width="560" height="16" fill="#182030"/>
+
+  <text x="76" y="150" fill="#c8dde8" font-family="'Barlow Condensed', sans-serif" font-size="16" font-weight="700">datapool</text>
+  <rect x="178" y="138" width="55" height="18" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.3)" stroke-width="1"/>
+  <text x="205" y="151" fill="#3daa60" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">HEALTHY</text>
+  <rect x="243" y="138" width="55" height="18" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="270" y="151" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">RAID-5</text>
+  <rect x="308" y="138" width="65" height="18" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="340" y="151" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">mdadm+btrfs</text>
+  <text x="580" y="143" fill="#3daa60" font-size="9" text-anchor="end">Last scrub: 2024-03-16 · 0 errors</text>
+
+  <!-- Usage bar large -->
+  <rect x="76" y="172" width="520" height="10" rx="5" fill="#1a2535"/>
+  <rect x="76" y="172" width="325" height="10" rx="5" fill="#4a8ab0"/>
+  <text x="76" y="196" fill="#5a7a8a" font-size="10">7.24 TB used</text>
+  <text x="596" y="196" fill="#5a7a8a" font-size="10" text-anchor="end">12 TB total · 4.76 TB free</text>
+
+  <!-- Drive row headers -->
+  <text x="76" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">DEVICE</text>
+  <text x="180" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">MODEL</text>
+  <text x="340" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">TYPE</text>
+  <text x="400" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">TEMP</text>
+  <text x="450" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">SMART</text>
+  <text x="520" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">STATUS</text>
+  <line x1="76" y1="222" x2="606" y2="222" stroke="#1a2535" stroke-width="1"/>
+
+  <!-- Drive rows -->
+  <rect x="60" y="224" width="552" height="22" fill="#182030"/>
+  <text x="76" y="238" fill="#c8dde8" font-size="10">/dev/sda</text>
+  <text x="180" y="238" fill="#8ab0c8" font-size="10">WD Red Plus 4TB</text>
+  <rect x="340" y="227" width="32" height="14" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="356" y="238" fill="#4a8ab0" font-size="8" text-anchor="middle">HDD</text>
+  <text x="400" y="238" fill="#3daa60" font-size="10">38°C</text>
+  <text x="450" y="238" fill="#3daa60" font-size="10">PASSED</text>
+  <rect x="520" y="227" width="55" height="14" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="547" y="238" fill="#3daa60" font-size="8" text-anchor="middle">ACTIVE</text>
+
+  <rect x="60" y="246" width="552" height="22" fill="#141d2a"/>
+  <text x="76" y="260" fill="#c8dde8" font-size="10">/dev/sdb</text>
+  <text x="180" y="260" fill="#8ab0c8" font-size="10">WD Red Plus 4TB</text>
+  <rect x="340" y="249" width="32" height="14" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="356" y="260" fill="#4a8ab0" font-size="8" text-anchor="middle">HDD</text>
+  <text x="400" y="260" fill="#3daa60" font-size="10">36°C</text>
+  <text x="450" y="260" fill="#3daa60" font-size="10">PASSED</text>
+  <rect x="520" y="249" width="55" height="14" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="547" y="260" fill="#3daa60" font-size="8" text-anchor="middle">ACTIVE</text>
+
+  <rect x="60" y="268" width="552" height="22" fill="#182030"/>
+  <text x="76" y="282" fill="#c8dde8" font-size="10">/dev/sdc</text>
+  <text x="180" y="282" fill="#8ab0c8" font-size="10">WD Red Plus 4TB</text>
+  <rect x="340" y="271" width="32" height="14" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="356" y="282" fill="#4a8ab0" font-size="8" text-anchor="middle">HDD</text>
+  <text x="400" y="282" fill="#d4860a" font-size="10">44°C</text>
+  <text x="450" y="282" fill="#9933cc" font-size="10">PREDICT</text>
+  <rect x="520" y="271" width="80" height="14" rx="2" fill="rgba(153,51,204,0.12)" stroke="rgba(153,51,204,0.3)" stroke-width="1"/>
+  <text x="560" y="282" fill="#9933cc" font-size="8" text-anchor="middle">REPLACE SOON</text>
+
+  <rect x="60" y="290" width="552" height="22" fill="#141d2a"/>
+  <text x="76" y="304" fill="#c8dde8" font-size="10">/dev/sdd</text>
+  <text x="180" y="304" fill="#8ab0c8" font-size="10">WD Red Plus 4TB</text>
+  <rect x="340" y="293" width="32" height="14" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="356" y="304" fill="#4a8ab0" font-size="8" text-anchor="middle">HDD</text>
+  <text x="400" y="304" fill="#3daa60" font-size="10">34°C</text>
+  <text x="450" y="304" fill="#3daa60" font-size="10">PASSED</text>
+  <rect x="520" y="293" width="55" height="14" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="547" y="304" fill="#3daa60" font-size="8" text-anchor="middle">ACTIVE</text>
+
+  <!-- Pool 2 card -->
+  <rect x="636" y="126" width="584" height="180" rx="4" fill="#141d2a" stroke="#1a2535" stroke-width="1"/>
+  <rect x="636" y="126" width="4" height="180" rx="2" fill="#4a8ab0"/>
+  <rect x="636" y="126" width="584" height="36" rx="4" fill="#182030"/>
+  <rect x="636" y="146" width="584" height="16" fill="#182030"/>
+
+  <text x="656" y="150" fill="#c8dde8" font-family="'Barlow Condensed', sans-serif" font-size="16" font-weight="700">nvmepool</text>
+  <rect x="758" y="138" width="55" height="18" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.3)" stroke-width="1"/>
+  <text x="785" y="151" fill="#3daa60" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">HEALTHY</text>
+  <rect x="823" y="138" width="55" height="18" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="850" y="151" fill="#4a8ab0" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">MIRROR</text>
+
+  <rect x="656" y="172" width="540" height="10" rx="5" fill="#1a2535"/>
+  <rect x="656" y="172" width="135" height="10" rx="5" fill="#e85d04"/>
+  <text x="656" y="196" fill="#5a7a8a" font-size="10">0.5 TB used</text>
+  <text x="1176" y="196" fill="#5a7a8a" font-size="10" text-anchor="end">2 TB total · 1.5 TB free</text>
+
+  <text x="656" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">DEVICE</text>
+  <text x="760" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">MODEL</text>
+  <text x="950" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">TYPE</text>
+  <text x="1010" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">TEMP</text>
+  <text x="1060" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">SMART</text>
+  <text x="1140" y="218" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">STATUS</text>
+  <line x1="656" y1="222" x2="1200" y2="222" stroke="#1a2535" stroke-width="1"/>
+
+  <rect x="640" y="224" width="576" height="22" fill="#182030"/>
+  <text x="656" y="238" fill="#c8dde8" font-size="10">/dev/nvme0n1</text>
+  <text x="760" y="238" fill="#8ab0c8" font-size="10">Samsung 970 EVO Plus 1TB</text>
+  <rect x="950" y="227" width="38" height="14" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="969" y="238" fill="#3daa60" font-size="8" text-anchor="middle">NVMe</text>
+  <text x="1010" y="238" fill="#3daa60" font-size="10">41°C</text>
+  <text x="1060" y="238" fill="#3daa60" font-size="10">PASSED</text>
+  <rect x="1140" y="227" width="55" height="14" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1167" y="238" fill="#3daa60" font-size="8" text-anchor="middle">ACTIVE</text>
+
+  <rect x="640" y="246" width="576" height="22" fill="#141d2a"/>
+  <text x="656" y="260" fill="#c8dde8" font-size="10">/dev/nvme1n1</text>
+  <text x="760" y="260" fill="#8ab0c8" font-size="10">Samsung 970 EVO Plus 1TB</text>
+  <rect x="950" y="249" width="38" height="14" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="969" y="260" fill="#3daa60" font-size="8" text-anchor="middle">NVMe</text>
+  <text x="1010" y="260" fill="#3daa60" font-size="10">39°C</text>
+  <text x="1060" y="260" fill="#3daa60" font-size="10">PASSED</text>
+  <rect x="1140" y="249" width="55" height="14" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="1167" y="260" fill="#3daa60" font-size="8" text-anchor="middle">ACTIVE</text>
+
+  <!-- Cache setup card -->
+  <rect x="56" y="320" width="560" height="140" rx="4" fill="#141d2a" stroke="#1a2535" stroke-width="1"/>
+  <text x="76" y="344" fill="#8ab0c8" font-family="'Barlow Condensed', sans-serif" font-size="13" font-weight="700">bcache Cache Drive</text>
+  <rect x="240" y="332" width="70" height="18" rx="2" fill="rgba(232,93,4,0.1)" stroke="rgba(232,93,4,0.25)" stroke-width="1"/>
+  <text x="275" y="345" fill="#e85d04" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="1" text-anchor="middle">WRITEBACK</text>
+  <text x="76" y="366" fill="#5a7a8a" font-size="10">Cache: /dev/nvme0n1  →  Backing: /dev/md0 (datapool)</text>
+  <!-- Hit rate bar -->
+  <text x="76" y="388" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">CACHE HIT RATE</text>
+  <rect x="76" y="396" width="380" height="8" rx="4" fill="#1a2535"/>
+  <rect x="76" y="396" width="318" height="8" rx="4" fill="#e85d04"/>
+  <text x="470" y="404" fill="#e85d04" font-size="10">83.6%</text>
+  <text x="76" y="420" fill="#5a7a8a" font-size="10">Cache hits: 14,820  ·  Misses: 2,918  ·  Mode: writeback</text>
+  <text x="76" y="436" fill="#5a7a8a" font-size="10">Dirty data: 2.1 GB  ·  Cache size: 512 GB</text>
+  <text x="76" y="452" fill="#5a7a8a" font-size="10">Change mode:  writeback  writethrough  writearound</text>
+
+  <!-- Drive inventory card -->
+  <rect x="636" y="320" width="584" height="140" rx="4" fill="#141d2a" stroke="#1a2535" stroke-width="1"/>
+  <text x="656" y="344" fill="#8ab0c8" font-family="'Barlow Condensed', sans-serif" font-size="13" font-weight="700">Drive Inventory</text>
+  <!-- Type legend -->
+  <rect x="656" y="354" width="40" height="18" rx="2" fill="rgba(74,138,176,0.1)" stroke="rgba(74,138,176,0.2)" stroke-width="1"/>
+  <text x="676" y="367" fill="#4a8ab0" font-size="9" text-anchor="middle">HDD</text>
+  <text x="706" y="367" fill="#5a7a8a" font-size="10">×4  (4TB each)</text>
+  <rect x="776" y="354" width="40" height="18" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.25)" stroke-width="1"/>
+  <text x="796" y="367" fill="#3daa60" font-size="9" text-anchor="middle">NVMe</text>
+  <text x="826" y="367" fill="#5a7a8a" font-size="10">×2  (1TB each)</text>
+  <rect x="896" y="354" width="45" height="18" rx="2" fill="rgba(212,134,10,0.1)" stroke="rgba(212,134,10,0.2)" stroke-width="1"/>
+  <text x="918" y="367" fill="#d4860a" font-size="9" text-anchor="middle">SSD</text>
+  <text x="951" y="367" fill="#5a7a8a" font-size="10">×1  (512GB)</text>
+  <text x="656" y="394" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">TOTAL RAW CAPACITY</text>
+  <text x="656" y="416" fill="#c8dde8" font-family="'IBM Plex Mono', monospace" font-size="26" font-weight="600">18.5 TB</text>
+  <text x="656" y="436" fill="#5a7a8a" font-size="10">Usable (RAID-5 + Mirror): 13 TB  ·  Overhead: 5.5 TB</text>
+  <text x="656" y="452" fill="#5a7a8a" font-size="10">System disk excluded: /dev/nvme2n1  ·  USB drives: 0 detected</text>
+
+  <!-- Snapshots section -->
+  <rect x="56" y="474" width="1164" height="230" rx="4" fill="#141d2a" stroke="#1a2535" stroke-width="1"/>
+  <rect x="56" y="474" width="1164" height="28" rx="4" fill="#182030"/>
+  <rect x="56" y="488" width="1164" height="14" fill="#182030"/>
+  <text x="76" y="492" fill="#8ab0c8" font-family="'Barlow Condensed', sans-serif" font-size="12" font-weight="600" letter-spacing="2">BTRFS SNAPSHOTS</text>
+  <line x1="56" y1="502" x2="1220" y2="502" stroke="#1a2535" stroke-width="1"/>
+
+  <!-- Snapshot table headers -->
+  <text x="76" y="522" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">DATE</text>
+  <text x="230" y="522" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">POOL</text>
+  <text x="370" y="522" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">TYPE</text>
+  <text x="500" y="522" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">DESCRIPTION</text>
+  <text x="900" y="522" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">SIZE</text>
+  <text x="1000" y="522" fill="#2a4a5a" font-family="'Barlow Condensed', sans-serif" font-size="9" letter-spacing="2">ACTION</text>
+  <line x1="56" y1="526" x2="1220" y2="526" stroke="#1a2535" stroke-width="1"/>
+
+  <rect x="60" y="528" width="1156" height="24" fill="#182030"/>
+  <text x="76" y="544" fill="#c8dde8" font-size="10">2024-03-18 02:00</text>
+  <text x="230" y="544" fill="#8ab0c8" font-size="10">datapool</text>
+  <rect x="370" y="531" width="55" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.2)" stroke-width="1"/>
+  <text x="397" y="543" fill="#3daa60" font-size="8" text-anchor="middle">timeline</text>
+  <text x="500" y="544" fill="#5a7a8a" font-size="10">Nightly auto-snapshot</text>
+  <text x="900" y="544" fill="#8ab0c8" font-size="10">0 bytes</text>
+  <rect x="1000" y="531" width="55" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1027" y="543" fill="#4a8ab0" font-size="8" text-anchor="middle">RESTORE</text>
+
+  <rect x="60" y="552" width="1156" height="24" fill="#141d2a"/>
+  <text x="76" y="568" fill="#c8dde8" font-size="10">2024-03-17 02:00</text>
+  <text x="230" y="568" fill="#8ab0c8" font-size="10">datapool</text>
+  <rect x="370" y="555" width="55" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.2)" stroke-width="1"/>
+  <text x="397" y="567" fill="#3daa60" font-size="8" text-anchor="middle">timeline</text>
+  <text x="500" y="568" fill="#5a7a8a" font-size="10">Nightly auto-snapshot</text>
+  <text x="900" y="568" fill="#8ab0c8" font-size="10">2.4 GB</text>
+  <rect x="1000" y="555" width="55" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1027" y="567" fill="#4a8ab0" font-size="8" text-anchor="middle">RESTORE</text>
+
+  <rect x="60" y="576" width="1156" height="24" fill="#182030"/>
+  <text x="76" y="592" fill="#c8dde8" font-size="10">2024-03-16 14:22</text>
+  <text x="230" y="592" fill="#8ab0c8" font-size="10">nvmepool</text>
+  <rect x="370" y="579" width="55" height="16" rx="2" fill="rgba(232,93,4,0.08)" stroke="rgba(232,93,4,0.2)" stroke-width="1"/>
+  <text x="397" y="591" fill="#e85d04" font-size="8" text-anchor="middle">manual</text>
+  <text x="500" y="592" fill="#5a7a8a" font-size="10">Pre-update snapshot</text>
+  <text x="900" y="592" fill="#8ab0c8" font-size="10">0 bytes</text>
+  <rect x="1000" y="579" width="55" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1027" y="591" fill="#4a8ab0" font-size="8" text-anchor="middle">RESTORE</text>
+
+  <rect x="60" y="600" width="1156" height="24" fill="#141d2a"/>
+  <text x="76" y="616" fill="#c8dde8" font-size="10">2024-03-15 02:00</text>
+  <text x="230" y="616" fill="#8ab0c8" font-size="10">datapool</text>
+  <rect x="370" y="603" width="55" height="16" rx="2" fill="rgba(61,170,96,0.1)" stroke="rgba(61,170,96,0.2)" stroke-width="1"/>
+  <text x="397" y="615" fill="#3daa60" font-size="8" text-anchor="middle">timeline</text>
+  <text x="500" y="616" fill="#5a7a8a" font-size="10">Nightly auto-snapshot</text>
+  <text x="900" y="616" fill="#8ab0c8" font-size="10">1.8 GB</text>
+  <rect x="1000" y="603" width="55" height="16" rx="2" fill="rgba(74,138,176,0.08)" stroke="rgba(74,138,176,0.15)" stroke-width="1"/>
+  <text x="1027" y="615" fill="#4a8ab0" font-size="8" text-anchor="middle">RESTORE</text>
+
+  <text x="640" y="790" fill="#1a2535" font-family="'Barlow Condensed', sans-serif" font-size="11" letter-spacing="3" text-anchor="middle">FORGEOS v1.0 · STORAGE MANAGEMENT</text>
+</svg>
