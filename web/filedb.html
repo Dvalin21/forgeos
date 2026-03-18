@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ForgeFileDB</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Barlow+Condensed:wght@300;400;500;600;700&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --forge:   #e85d04;
+  --steel:   #4a8ab0;
+  --ok:      #3daa60;
+  --warn:    #d4860a;
+  --err:     #cc3344;
+  --filedb:  #7c4dff;   /* ForgeFileDB accent — violet, distinct from ForgeOS orange */
+
+  --bg:      #0f0d0c;
+  --bg1:     #161310;
+  --bg2:     #1e1916;
+  --bg3:     #272220;
+  --bg4:     #302b28;
+  --bd:      #3a3230;
+  --bd2:     #504540;
+  --t1:      #f0ece4;
+  --t2:      #9a8878;
+  --t3:      #5a4e46;
+
+  --ff:    'Barlow', sans-serif;
+  --mono:  'IBM Plex Mono', monospace;
+  --head:  'Barlow Condensed', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--ff);
+  font-size: 13px;
+  color: var(--t1);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── TOP BAR ── */
+#topbar {
+  height: 52px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--bd);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+.logo {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--head); font-weight: 700;
+  font-size: 18px; letter-spacing: 2px;
+}
+.logo-icon {
+  width: 28px; height: 28px;
+  background: var(--filedb);
+  clip-path: polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);
+  position: relative;
+  animation: pulse-hex 4s ease-in-out infinite;
+}
+@keyframes pulse-hex {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+.logo-name { color: var(--t1); }
+.logo-sub  { font-size: 10px; color: var(--t2); font-weight: 400; letter-spacing: 1px; }
+
+#topbar-stats {
+  display: flex; gap: 1px; margin-left: auto;
+  background: var(--bd); border-radius: 5px; overflow: hidden;
+}
+.ts {
+  padding: 5px 14px;
+  background: var(--bg2);
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 80px;
+}
+.ts-val { font-family: var(--mono); font-size: 18px; font-weight: 600; line-height: 1; }
+.ts-lbl { font-family: var(--head); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-top: 2px; }
+.ts-val.filedb { color: var(--filedb); }
+.ts-val.ok     { color: var(--ok); }
+.ts-val.warn   { color: var(--warn); }
+
+#connection-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ok); box-shadow: 0 0 8px var(--ok);
+  animation: blink 2s ease-in-out infinite;
+}
+#connection-dot.dead { background: var(--err); box-shadow: 0 0 8px var(--err); animation: none; }
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+
+/* ── MAIN LAYOUT ── */
+#main {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ── SIDEBAR ── */
+#sidebar {
+  background: var(--bg1);
+  border-right: 1px solid var(--bd);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.nav-grp {
+  padding: 12px 14px 4px;
+  font-family: var(--head);
+  font-size: 9px; letter-spacing: 2.5px;
+  text-transform: uppercase; color: var(--t3);
+}
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 14px;
+  cursor: pointer; font-size: 12px; color: var(--t2);
+  border-left: 2px solid transparent;
+  transition: all 0.1s;
+}
+.nav-item:hover   { background: var(--bg3); color: var(--t1); }
+.nav-item.active  { background: var(--bg3); color: var(--filedb); border-left-color: var(--filedb); }
+.nav-ico { font-size: 14px; width: 18px; text-align: center; flex-shrink: 0; }
+.nav-badge {
+  margin-left: auto; font-family: var(--mono); font-size: 9px;
+  padding: 1px 5px; border-radius: 8px;
+  background: rgba(124,77,255,0.15); border: 1px solid rgba(124,77,255,0.25);
+  color: var(--filedb);
+}
+.nav-badge.ok { background: rgba(61,170,96,0.15); border-color: rgba(61,170,96,0.3); color: var(--ok); }
+
+#sidebar-footer {
+  margin-top: auto;
+  padding: 12px 14px;
+  border-top: 1px solid var(--bd);
+  font-size: 10px; color: var(--t3); font-family: var(--mono);
+}
+
+/* ── CONTENT AREA ── */
+#content { display: flex; flex-direction: column; overflow: hidden; flex: 1; }
+
+.page { display: none; flex: 1; overflow-y: auto; padding: 20px; }
+.page.active { display: flex; flex-direction: column; gap: 16px; }
+.page::-webkit-scrollbar { width: 4px; }
+.page::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 2px; }
+
+.page-title {
+  font-family: var(--head); font-size: 22px; font-weight: 700;
+  letter-spacing: 1px;
+  display: flex; align-items: center; gap: 10px;
+}
+.page-title small {
+  font-size: 11px; font-weight: 400; color: var(--t2);
+  font-family: var(--ff); letter-spacing: 0;
+}
+
+/* ── SECTIONS ── */
+.sh {
+  font-family: var(--head); font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--t3);
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+.sh::after { content:''; flex:1; height:1px; background: var(--bd); }
+
+/* ── STAT CARDS ── */
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.stat-card {
+  background: var(--bg2); border: 1px solid var(--bd); border-radius: 5px;
+  padding: 12px 14px; position: relative; overflow: hidden;
+  transition: border-color 0.15s;
+}
+.stat-card:hover { border-color: var(--bd2); }
+.stat-card::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px;
+}
+.stat-card.c1::after { background: var(--filedb); }
+.stat-card.c2::after { background: var(--ok); }
+.stat-card.c3::after { background: var(--steel); }
+.stat-card.c4::after { background: var(--warn); }
+.sc-lbl { font-family: var(--head); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-bottom: 5px; }
+.sc-val { font-family: var(--mono); font-size: 28px; font-weight: 600; line-height: 1; }
+.sc-val.filedb { color: var(--filedb); }
+.sc-val.ok     { color: var(--ok); }
+.sc-val.steel  { color: var(--steel); }
+.sc-val.warn   { color: var(--warn); }
+.sc-sub { font-size: 10px; color: var(--t3); margin-top: 3px; }
+
+/* ── CLIENT TABLE ── */
+.client-table {
+  background: var(--bg2); border: 1px solid var(--bd); border-radius: 5px; overflow: hidden;
+}
+.ct-head {
+  display: grid; grid-template-columns: 140px 1fr 90px 90px;
+  padding: 7px 14px; background: var(--bg3); border-bottom: 1px solid var(--bd);
+  font-family: var(--head); font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--t3);
+}
+.ct-row {
+  display: grid; grid-template-columns: 140px 1fr 90px 90px;
+  padding: 9px 14px; border-bottom: 1px solid rgba(58,50,48,0.5);
+  align-items: center; font-size: 12px;
+  transition: background 0.1s; cursor: default;
+}
+.ct-row:hover { background: var(--bg3); }
+.ct-row:last-child { border-bottom: none; }
+.ct-ip { font-family: var(--mono); color: var(--filedb); }
+.ct-files { color: var(--t2); font-size: 11px; }
+.ct-dur { font-family: var(--mono); font-size: 11px; color: var(--t3); }
+.ct-mode {
+  font-family: var(--head); font-size: 9px; letter-spacing: 1px;
+  padding: 2px 7px; border-radius: 3px; text-align: center;
+  border: 1px solid;
+}
+.ct-mode.rw  { background: rgba(232,93,4,0.1); color: var(--forge); border-color: rgba(232,93,4,0.25); }
+.ct-mode.ro  { background: rgba(74,138,176,0.1); color: var(--steel); border-color: rgba(74,138,176,0.25); }
+.ct-mode.idle{ background: rgba(90,78,70,0.2); color: var(--t3); border-color: var(--bd); }
+
+/* ── FILE LOCK LIST ── */
+.lock-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 14px; border-bottom: 1px solid rgba(58,50,48,0.4);
+  font-size: 11px;
+}
+.lock-item:last-child { border-bottom: none; }
+.lock-file { font-family: var(--mono); color: var(--t1); flex: 1; }
+.lock-dir { color: var(--t3); font-size: 10px; }
+.lock-client { font-family: var(--mono); font-size: 10px; color: var(--filedb); min-width: 100px; }
+.lock-type {
+  font-family: var(--head); font-size: 9px; letter-spacing: 1px;
+  padding: 2px 7px; border-radius: 3px; border: 1px solid; min-width: 70px; text-align: center;
+}
+.lock-type.ex { background: rgba(232,93,4,0.1); color: var(--forge); border-color: rgba(232,93,4,0.3); }
+.lock-type.sh { background: rgba(74,138,176,0.1); color: var(--steel); border-color: rgba(74,138,176,0.3); }
+.lock-wait { font-family: var(--mono); font-size: 10px; color: var(--warn); }
+
+/* ── SNAPSHOT TABLE ── */
+.snap-table {
+  background: var(--bg2); border: 1px solid var(--bd); border-radius: 5px; overflow: hidden;
+}
+.snap-head {
+  display: grid; grid-template-columns: 150px 1fr 80px 100px 100px;
+  padding: 7px 14px; background: var(--bg3); border-bottom: 1px solid var(--bd);
+  font-family: var(--head); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--t3);
+}
+.snap-row {
+  display: grid; grid-template-columns: 150px 1fr 80px 100px 100px;
+  padding: 9px 14px; border-bottom: 1px solid rgba(58,50,48,0.5);
+  align-items: center; font-size: 12px;
+  transition: background 0.1s;
+}
+.snap-row:hover { background: var(--bg3); }
+.snap-row:last-child { border-bottom: none; }
+.snap-ts { font-family: var(--mono); font-size: 10px; color: var(--t2); }
+.snap-dir { font-family: var(--mono); font-size: 10px; color: var(--t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snap-method {
+  font-size: 9px; font-family: var(--head); letter-spacing: 1px;
+  padding: 2px 6px; border-radius: 3px; border: 1px solid; text-align: center;
+}
+.snap-method.btrfs { background: rgba(61,170,96,0.1); color: var(--ok); border-color: rgba(61,170,96,0.3); }
+.snap-method.rsync { background: rgba(74,138,176,0.1); color: var(--steel); border-color: rgba(74,138,176,0.3); }
+.snap-reason { font-size: 10px; color: var(--t3); font-family: var(--mono); }
+.snap-actions { display: flex; gap: 5px; }
+
+/* ── DATABASES PAGE ── */
+.db-group {
+  background: var(--bg2); border: 1px solid var(--bd); border-radius: 5px; overflow: hidden; margin-bottom: 8px;
+}
+.db-group-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: var(--bg3); border-bottom: 1px solid var(--bd);
+  cursor: pointer; transition: background 0.1s;
+}
+.db-group-head:hover { background: var(--bg4); }
+.db-group-dir { font-family: var(--mono); font-size: 11px; color: var(--t1); flex: 1; }
+.db-group-count { font-family: var(--mono); font-size: 10px; color: var(--t3); }
+.db-file-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 7px 14px; border-bottom: 1px solid rgba(58,50,48,0.4);
+  font-size: 11px; transition: background 0.1s;
+}
+.db-file-row:last-child { border-bottom: none; }
+.db-file-row:hover { background: var(--bg3); }
+.db-fn { font-family: var(--mono); color: var(--t1); flex: 1; }
+.db-type-badge {
+  font-size: 9px; font-family: var(--head); letter-spacing: 1px;
+  padding: 2px 7px; border-radius: 3px;
+  background: rgba(124,77,255,0.1); color: var(--filedb);
+  border: 1px solid rgba(124,77,255,0.25);
+}
+.db-size { font-family: var(--mono); font-size: 10px; color: var(--t3); min-width: 70px; text-align: right; }
+.db-mtime { font-family: var(--mono); font-size: 10px; color: var(--t3); min-width: 140px; }
+
+/* ── BUTTONS ── */
+.btn {
+  font-family: var(--head); font-size: 11px; letter-spacing: 0.5px;
+  padding: 5px 11px; border-radius: 4px;
+  border: 1px solid var(--bd); background: var(--bg3);
+  color: var(--t2); cursor: pointer; transition: all 0.1s;
+}
+.btn:hover { border-color: var(--bd2); color: var(--t1); background: var(--bg4); }
+.btn.primary { background: var(--filedb); border-color: var(--filedb); color: #fff; }
+.btn.primary:hover { background: #6a3de0; border-color: #6a3de0; }
+.btn.sm { padding: 3px 8px; font-size: 10px; }
+.btn.danger { background: rgba(204,51,68,0.1); border-color: rgba(204,51,68,0.3); color: var(--err); }
+.btn.danger:hover { background: var(--err); color: #fff; border-color: var(--err); }
+
+/* ── SETTINGS FORM ── */
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.setting-card {
+  background: var(--bg2); border: 1px solid var(--bd); border-radius: 5px; padding: 14px;
+}
+.setting-label { font-family: var(--head); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-bottom: 6px; }
+.setting-desc { font-size: 11px; color: var(--t2); margin-bottom: 8px; line-height: 1.5; }
+.setting-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--bd);
+  border-radius: 3px; color: var(--t1); font-family: var(--mono);
+  font-size: 12px; padding: 6px 8px; outline: none;
+}
+.setting-input:focus { border-color: var(--filedb); }
+
+/* ── LOG VIEWER ── */
+#log-area {
+  flex: 1; background: var(--bg); font-family: var(--mono); font-size: 11px;
+  color: var(--t2); padding: 12px; overflow-y: auto; line-height: 1.8;
+}
+.log-line { display: flex; gap: 10px; padding: 1px 0; border-bottom: 1px solid rgba(58,50,48,0.2); }
+.ll-ts   { color: var(--t3); flex-shrink: 0; }
+.ll-lvl-snap  { color: var(--ok); width: 50px; flex-shrink: 0; }
+.ll-lvl-lock  { color: var(--filedb); width: 50px; flex-shrink: 0; }
+.ll-lvl-warn  { color: var(--warn); width: 50px; flex-shrink: 0; }
+.ll-lvl-start { color: var(--steel); width: 50px; flex-shrink: 0; }
+.ll-msg  { flex: 1; }
+
+/* ── HOW IT WORKS ── */
+.how-card {
+  background: var(--bg2); border: 1px solid var(--bd); border-radius: 5px;
+  padding: 14px 18px;
+}
+.how-card h3 { font-family: var(--head); font-size: 14px; letter-spacing: 1px; color: var(--filedb); margin-bottom: 8px; }
+.how-card p  { color: var(--t2); font-size: 12px; line-height: 1.7; }
+.how-card code { font-family: var(--mono); font-size: 10px; color: var(--forge); background: var(--bg3); padding: 1px 5px; border-radius: 2px; }
+.how-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* ── EMPTY STATE ── */
+.empty { text-align: center; padding: 40px; color: var(--t3); font-family: var(--head); font-size: 14px; letter-spacing: 1px; }
+.empty-ico { font-size: 36px; margin-bottom: 10px; }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+  display: none; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-overlay.vis { display: flex; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--bd2);
+  border-radius: 6px; padding: 20px; min-width: 420px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+}
+.modal h2 { font-family: var(--head); font-size: 16px; letter-spacing: 1px; color: var(--filedb); margin-bottom: 14px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <div>
+      <div class="logo-name">ForgeFileDB</div>
+      <div class="logo-sub">File-Based DB Coordinator</div>
+    </div>
+  </div>
+  <div id="topbar-stats">
+    <div class="ts">
+      <div class="sc-val filedb ts-val" id="stat-clients">0</div>
+      <div class="ts-lbl">Clients</div>
+    </div>
+    <div class="ts">
+      <div class="sc-val ok ts-val" id="stat-dbs">0</div>
+      <div class="ts-lbl">Open DBs</div>
+    </div>
+    <div class="ts">
+      <div class="sc-val ts-val" id="stat-snaps" style="color:var(--steel)">0</div>
+      <div class="ts-lbl">Snaps/day</div>
+    </div>
+    <div class="ts">
+      <div class="sc-val warn ts-val" id="stat-conflicts">0</div>
+      <div class="ts-lbl">Conflicts</div>
+    </div>
+  </div>
+  <div id="connection-dot" title="API connection"></div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="nav-grp">Monitor</div>
+    <div class="nav-item active" data-page="overview">
+      <span class="nav-ico">📡</span>Overview
+      <span class="nav-badge" id="nav-clients">0</span>
+    </div>
+    <div class="nav-item" data-page="databases">
+      <span class="nav-ico">🗄</span>Databases
+    </div>
+    <div class="nav-item" data-page="locks">
+      <span class="nav-ico">🔒</span>Active Locks
+    </div>
+
+    <div class="nav-grp">Versions</div>
+    <div class="nav-item" data-page="snapshots">
+      <span class="nav-ico">📸</span>Snapshots
+      <span class="nav-badge ok" id="nav-snaps">0</span>
+    </div>
+    <div class="nav-item" data-page="restore">
+      <span class="nav-ico">⏪</span>Restore
+    </div>
+
+    <div class="nav-grp">System</div>
+    <div class="nav-item" data-page="howworks">
+      <span class="nav-ico">ℹ</span>How It Works
+    </div>
+    <div class="nav-item" data-page="settings">
+      <span class="nav-ico">⚙</span>Settings
+    </div>
+    <div class="nav-item" data-page="logs">
+      <span class="nav-ico">📋</span>Logs
+    </div>
+
+    <div id="sidebar-footer">
+      ForgeFileDB v1.0<br>
+      <span id="footer-host" style="color:var(--t2)">—</span>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="content">
+
+    <!-- OVERVIEW PAGE -->
+    <div class="page active" id="page-overview">
+      <div class="page-title">
+        Live Overview
+        <small>File-based database connections &amp; activity</small>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat-card c1">
+          <div class="sc-lbl">Connected Clients</div>
+          <div class="sc-val filedb" id="big-clients">0</div>
+          <div class="sc-sub">SMB sessions with DB files open</div>
+        </div>
+        <div class="stat-card c2">
+          <div class="sc-lbl">Open Databases</div>
+          <div class="sc-val ok" id="big-dbs">0</div>
+          <div class="sc-sub">Active file-based DB files</div>
+        </div>
+        <div class="stat-card c3">
+          <div class="sc-lbl">Snapshots Today</div>
+          <div class="sc-val steel" id="big-snaps">0</div>
+          <div class="sc-sub">Versioned backups created</div>
+        </div>
+        <div class="stat-card c4">
+          <div class="sc-lbl">Write Conflicts</div>
+          <div class="sc-val warn" id="big-conflicts">0</div>
+          <div class="sc-sub">Serialized, no data lost</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sh">Connected Clients</div>
+        <div class="client-table">
+          <div class="ct-head">
+            <span>IP Address</span><span>Open Files</span><span>Duration</span><span>Access</span>
+          </div>
+          <div id="clients-list">
+            <div class="empty"><div class="empty-ico">📡</div>No clients connected</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sh">Active File Locks</div>
+        <div class="client-table" id="locks-mini">
+          <div class="empty"><div class="empty-ico">🔓</div>No files locked</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DATABASES PAGE -->
+    <div class="page" id="page-databases">
+      <div class="page-title" style="display:flex;align-items:center;gap:10px">
+        Discovered Databases
+        <small>All file-based databases on watched shares</small>
+        <div class="btn" id="refresh-dbs" style="margin-left:auto">↺ Refresh</div>
+        <div class="btn primary" id="snap-all-btn">📸 Snapshot All</div>
+      </div>
+      <div id="db-groups">
+        <div class="empty"><div class="empty-ico">🔍</div>Scanning shares...</div>
+      </div>
+    </div>
+
+    <!-- LOCKS PAGE -->
+    <div class="page" id="page-locks">
+      <div class="page-title">
+        Active Locks
+        <small>Current file-level lock registry</small>
+      </div>
+      <div class="client-table" id="locks-full">
+        <div class="empty"><div class="empty-ico">🔓</div>No active locks</div>
+      </div>
+      <div style="margin-top:10px">
+        <div class="sh">Conflict Analysis</div>
+        <div class="how-card">
+          <p>Write conflicts are <strong>normal and expected</strong> in multi-user database environments.
+          ForgeFileDB serializes conflicting writes rather than letting them corrupt data.
+          A conflict means: client A wanted to write while client B was writing — ForgeFileDB made client A wait.
+          Zero corruption, small wait. The conflict counter is a health indicator: low = good, very high = consider
+          migrating to MariaDB/PostgreSQL for this workload.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SNAPSHOTS PAGE -->
+    <div class="page" id="page-snapshots">
+      <div class="page-title" style="display:flex;align-items:center">
+        Snapshots
+        <small style="margin-left:10px">Versioned point-in-time backups</small>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <div class="btn" id="filter-snaps">All databases ▾</div>
+          <div class="btn primary" id="create-snap-btn">+ Create Snapshot</div>
+        </div>
+      </div>
+      <div class="snap-table">
+        <div class="snap-head">
+          <span>Timestamp</span><span>Database Dir</span><span>Method</span><span>Reason</span><span>Actions</span>
+        </div>
+        <div id="snaps-list">
+          <div class="empty"><div class="empty-ico">📸</div>No snapshots yet — they're created automatically on write activity</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESTORE PAGE -->
+    <div class="page" id="page-restore">
+      <div class="page-title">
+        Restore
+        <small>Point-in-time restore from snapshots</small>
+      </div>
+      <div class="how-grid" style="margin-bottom:12px">
+        <div class="how-card">
+          <h3>In-Place Restore</h3>
+          <p>Restores a snapshot directly back to the original database directory.
+          ForgeFileDB automatically creates a <code>pre-restore</code> snapshot before overwriting,
+          so you can undo the restore if needed. <strong>Warn connected clients first.</strong></p>
+        </div>
+        <div class="how-card">
+          <h3>Copy to New Location</h3>
+          <p>Copies snapshot files to a different directory without touching the live database.
+          Safe to do while users are connected. Use for: audit copies, testing, migration.</p>
+        </div>
+      </div>
+      <div class="setting-card">
+        <div class="setting-label">Select Snapshot to Restore</div>
+        <select class="setting-input" id="restore-snap-select" style="margin-bottom:10px">
+          <option value="">— Select a snapshot —</option>
+        </select>
+        <div class="setting-label" style="margin-top:10px">Restore Target (leave blank for in-place)</div>
+        <input class="setting-input" type="text" id="restore-target" placeholder="/tmp/forgeos-restore (blank = in-place)">
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <div class="btn danger" id="restore-btn">⏪ Restore Snapshot</div>
+          <span id="restore-status" style="font-size:11px;color:var(--t2);align-self:center"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- HOW IT WORKS PAGE -->
+    <div class="page" id="page-howworks">
+      <div class="page-title">How ForgeFileDB Works</div>
+      <div class="how-grid">
+        <div class="how-card">
+          <h3>The Corruption Problem</h3>
+          <p>File-based databases (ElevateDB, DBISAM, dBase, Access, FoxPro) open their data
+          files directly over SMB. When two clients write simultaneously without coordination,
+          the OS's oplock caching can serve stale data to one client while the other writes —
+          causing partial writes that corrupt indexes and data files.
+          ForgeFileDB coordinates these writes at the SMB level.</p>
+        </div>
+        <div class="how-card">
+          <h3>Lock Coordination</h3>
+          <p>ForgeFileDB watches all database files via <code>inotify</code> and correlates
+          open/close events with Samba session data. When client A opens a file for writing,
+          ForgeFileDB registers an exclusive lock. Client B's conflicting write is queued
+          until A's write flushes and closes. No changes to client software required.</p>
+        </div>
+        <div class="how-card">
+          <h3>Snapshot Versioning</h3>
+          <p>After every batch of writes, ForgeFileDB creates a snapshot of the database
+          directory. On btrfs, this is instant and zero-cost (copy-on-write). On other
+          filesystems, it uses <code>rsync</code> to copy only database files. Snapshots
+          are retained for 48 versions per database, with automatic pruning.</p>
+        </div>
+        <div class="how-card">
+          <h3>mDNS Discovery</h3>
+          <p>ForgeFileDB broadcasts its presence on the local network via Avahi/mDNS
+          as <code>_forgeos-filedb._tcp</code> and <code>_edb-server._tcp</code>.
+          Clients on the same network can discover it without manual configuration.
+          No proprietary protocol is implemented — this is pure service discovery.</p>
+        </div>
+        <div class="how-card">
+          <h3>Concurrent User Limits</h3>
+          <p>With ForgeFileDB + correct SMB settings: <strong>~20-30 concurrent users</strong>
+          for mixed read/write workloads, <strong>100+</strong> for read-heavy workloads.
+          Beyond 30 concurrent write users, migrate to MariaDB or PostgreSQL
+          (ForgeOS includes both). ForgeFileDB can export your file-based DB to MariaDB.</p>
+        </div>
+        <div class="how-card">
+          <h3>Supported Databases</h3>
+          <p>ElevateDB <code>.edb/.edbt/.edbi</code> · DBISAM <code>.db</code> ·
+          NexusDB <code>.nxd</code> · dBase/FoxPro <code>.dbf</code> ·
+          MS Access <code>.mdb/.accdb</code> · SQLite <code>.sqlite</code> ·
+          Firebird <code>.fdb</code> · TurboDB <code>.dat</code> · Paradox <code>.px</code></p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div class="page" id="page-settings">
+      <div class="page-title">Settings</div>
+      <div class="settings-grid">
+        <div class="setting-card">
+          <div class="setting-label">Snapshot Debounce (seconds)</div>
+          <div class="setting-desc">Minimum time between automatic snapshots for a given database directory. Prevents snapshot storms during heavy write activity.</div>
+          <input class="setting-input" type="number" id="s-debounce" value="30" min="5" max="3600">
+        </div>
+        <div class="setting-card">
+          <div class="setting-label">Max Snapshots Per Database</div>
+          <div class="setting-desc">Oldest snapshots are pruned automatically once this limit is reached. 48 = ~2 days of hourly snapshots.</div>
+          <input class="setting-input" type="number" id="s-maxsnaps" value="48" min="5" max="1000">
+        </div>
+        <div class="setting-card">
+          <div class="setting-label">Write Trigger Threshold</div>
+          <div class="setting-desc">Number of writes to a single file before an immediate snapshot is triggered. Catches heavy write sessions.</div>
+          <input class="setting-input" type="number" id="s-threshold" value="100" min="10" max="10000">
+        </div>
+        <div class="setting-card">
+          <div class="setting-label">Watch Root Path</div>
+          <div class="setting-desc">Root directory to watch for database files. Typically the root of your Samba shares. Subdirectories are watched recursively.</div>
+          <input class="setting-input" type="text" id="s-watchroot" value="/srv/nas">
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <div class="btn primary" id="save-settings">Save Settings</div>
+        <span id="settings-status" style="font-size:11px;color:var(--t2);align-self:center"></span>
+      </div>
+    </div>
+
+    <!-- LOGS PAGE -->
+    <div class="page" id="page-logs" style="padding:0">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:8px;flex-shrink:0">
+        <span style="font-family:var(--head);font-size:16px;font-weight:700;letter-spacing:1px">Daemon Log</span>
+        <div class="btn sm" id="clear-log">Clear</div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--t2);margin-left:auto">
+          <input type="checkbox" id="autoscroll" checked> Auto-scroll
+        </label>
+      </div>
+      <div id="log-area"></div>
+    </div>
+
+  </div><!-- #content -->
+</div>
+
+<!-- Restore Confirm Modal -->
+<div class="modal-overlay" id="modal-restore">
+  <div class="modal">
+    <h2>⏪ Confirm Restore</h2>
+    <p style="color:var(--t2);font-size:12px;line-height:1.7" id="modal-restore-msg"></p>
+    <div class="modal-actions">
+      <div class="btn" id="modal-cancel">Cancel</div>
+      <div class="btn danger" id="modal-confirm">Restore</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';  // same origin
+let ws = null;
+let _status = {};
+let _snapshots = [];
+let _dbs = [];
+
+// ── Navigation ──
+document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('page-' + item.dataset.page)?.classList.add('active');
+    if (item.dataset.page === 'databases') loadDatabases();
+    if (item.dataset.page === 'snapshots') loadSnapshots();
+    if (item.dataset.page === 'restore') populateRestoreSelect();
+    if (item.dataset.page === 'logs') loadLogs();
+    if (item.dataset.page === 'settings') loadSettings();
+  });
+});
+
+// ── WebSocket ──
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws`);
+
+  ws.onopen = () => {
+    document.getElementById('connection-dot').classList.remove('dead');
+  };
+  ws.onmessage = evt => {
+    const msg = JSON.parse(evt.data);
+    if (msg.type === 'status') updateStatus(msg.data);
+    if (msg.type === 'snapshot_created') appendLog('SNAP', msg.data.snap_path || 'snapshot');
+    if (msg.type === 'restore_complete') appendLog('RESTORE', JSON.stringify(msg.data));
+  };
+  ws.onclose = () => {
+    document.getElementById('connection-dot').classList.add('dead');
+    setTimeout(connectWS, 3000);
+  };
+}
+
+// ── Status update ──
+function updateStatus(data) {
+  _status = data;
+  const cc = data.connected_clients || 0;
+  const od = data.open_databases || 0;
+  const sd = data.snapshots_today || 0;
+  const cf = data.total_conflicts || 0;
+
+  // Top bar
+  document.getElementById('stat-clients').textContent = cc;
+  document.getElementById('stat-dbs').textContent = od;
+  document.getElementById('stat-snaps').textContent = sd;
+  document.getElementById('stat-conflicts').textContent = cf;
+  document.getElementById('nav-clients').textContent = cc;
+  document.getElementById('nav-snaps').textContent = data.total_snapshots || 0;
+
+  // Big stat cards
+  document.getElementById('big-clients').textContent = cc;
+  document.getElementById('big-dbs').textContent = od;
+  document.getElementById('big-snaps').textContent = sd;
+  document.getElementById('big-conflicts').textContent = cf;
+
+  // Clients table
+  renderClients(data.clients || []);
+  renderLocksMin(data.lock_details || {});
+}
+
+function renderClients(clients) {
+  const el = document.getElementById('clients-list');
+  if (!clients.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-ico">📡</div>No clients connected</div>';
+    return;
+  }
+  el.innerHTML = clients.map(c => {
+    const files = c.files || [];
+    const dur = Math.round((Date.now()/1000 - c.connected_since) / 60);
+    const hasWrite = files.some(f => f.mode === 'EXCLUSIVE');
+    const modeClass = hasWrite ? 'rw' : (files.length ? 'ro' : 'idle');
+    const modeLabel = hasWrite ? 'READ/WRITE' : (files.length ? 'READ-ONLY' : 'IDLE');
+    return `<div class="ct-row">
+      <span class="ct-ip">${c.ip}</span>
+      <span class="ct-files">${files.map(f => f.name).join(', ') || '—'}</span>
+      <span class="ct-dur">${dur}m</span>
+      <span class="ct-mode ${modeClass}">${modeLabel}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderLocksMin(lockData) {
+  const el = document.getElementById('locks-mini');
+  const files = lockData.files || {};
+  const entries = Object.entries(files);
+  if (!entries.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-ico">🔓</div>No files locked</div>';
+    return;
+  }
+  el.innerHTML = entries.map(([path, info]) => {
+    const holders = info.holders || [];
+    const waiters = info.waiters || 0;
+    return holders.map(h => `<div class="lock-item">
+      <div>
+        <div class="lock-file">${path.split('/').pop()}</div>
+        <div class="lock-dir">${path.split('/').slice(0,-1).join('/')}</div>
+      </div>
+      <span class="lock-client">${h.client}</span>
+      <span class="lock-type ${h.mode === 'EXCLUSIVE' ? 'ex' : 'sh'}">${h.mode}</span>
+      ${waiters ? `<span class="lock-wait">${waiters} waiting</span>` : ''}
+    </div>`).join('');
+  }).join('');
+}
+
+// ── Databases page ──
+async function loadDatabases() {
+  const el = document.getElementById('db-groups');
+  el.innerHTML = '<div class="empty"><div class="empty-ico">🔍</div>Scanning...</div>';
+  try {
+    const r = await fetch(`${API}/api/databases`);
+    const data = await r.json();
+    _dbs = data.databases || [];
+    if (!_dbs.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-ico">🗄</div>No database files found on watched shares</div>';
+      return;
+    }
+    el.innerHTML = _dbs.map(grp => `
+      <div class="db-group">
+        <div class="db-group-head" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
+          <span style="font-size:14px">📁</span>
+          <span class="db-group-dir">${grp.dir}</span>
+          <span class="db-group-count">${grp.files.length} file${grp.files.length===1?'':'s'}</span>
+          <div class="btn sm" onclick="event.stopPropagation();snapDir('${grp.dir}')">📸 Snapshot</div>
+        </div>
+        <div>
+          ${grp.files.map(f => `<div class="db-file-row">
+            <span class="db-fn">${f.name}</span>
+            <span class="db-type-badge">${f.db_type}</span>
+            <span class="db-size">${fmtSize(f.size)}</span>
+            <span class="db-mtime">${new Date(f.modified).toLocaleString()}</span>
+          </div>`).join('')}
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+function fmtSize(b) {
+  if (b > 1e9) return (b/1e9).toFixed(1) + ' GB';
+  if (b > 1e6) return (b/1e6).toFixed(1) + ' MB';
+  if (b > 1e3) return (b/1e3).toFixed(1) + ' KB';
+  return b + ' B';
+}
+
+async function snapDir(dir) {
+  await fetch(`${API}/api/snapshots`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({db_dir: dir, reason: 'manual:ui'})
+  });
+  appendLog('SNAP', `Manual snapshot: ${dir}`);
+}
+
+document.getElementById('refresh-dbs')?.addEventListener('click', loadDatabases);
+document.getElementById('snap-all-btn')?.addEventListener('click', async () => {
+  for (const grp of _dbs) await snapDir(grp.dir);
+  appendLog('SNAP', `Snapshots created for ${_dbs.length} database dirs`);
+});
+
+// ── Snapshots page ──
+async function loadSnapshots() {
+  const el = document.getElementById('snaps-list');
+  try {
+    const r = await fetch(`${API}/api/snapshots`);
+    const data = await r.json();
+    _snapshots = data.snapshots || [];
+    document.getElementById('nav-snaps').textContent = _snapshots.length;
+    if (!_snapshots.length) {
+      el.innerHTML = '<div class="empty"><div class="empty-ico">📸</div>No snapshots yet</div>';
+      return;
+    }
+    el.innerHTML = _snapshots.map(s => `<div class="snap-row">
+      <span class="snap-ts">${s.ts || '—'}</span>
+      <span class="snap-dir" title="${s.db_dir}">${s.db_dir?.split('/').pop() || '—'}</span>
+      <span class="snap-method ${s.method}">${s.method || '?'}</span>
+      <span class="snap-reason">${s.reason || '—'}</span>
+      <div class="snap-actions">
+        <div class="btn sm" onclick="prepRestore('${s.ts}','${s.db_dir}')">Restore</div>
+      </div>
+    </div>`).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+  }
+}
+
+function populateRestoreSelect() {
+  const sel = document.getElementById('restore-snap-select');
+  sel.innerHTML = '<option value="">— Select a snapshot —</option>' +
+    _snapshots.map(s => `<option value="${s.ts}|${s.db_dir}">${s.ts} — ${s.db_dir?.split('/').pop()}</option>`).join('');
+}
+
+function prepRestore(ts, dbDir) {
+  document.getElementById('restore-snap-select').value = `${ts}|${dbDir}`;
+  document.querySelectorAll('.nav-item[data-page="restore"]')[0]?.click();
+}
+
+document.getElementById('create-snap-btn')?.addEventListener('click', () => {
+  document.querySelectorAll('.nav-item[data-page="databases"]')[0]?.click();
+});
+
+// ── Restore ──
+document.getElementById('restore-btn')?.addEventListener('click', () => {
+  const sel = document.getElementById('restore-snap-select').value;
+  if (!sel) return;
+  const [ts, dbDir] = sel.split('|');
+  const target = document.getElementById('restore-target').value.trim();
+  const msg = target
+    ? `Copy snapshot <strong>${ts}</strong> to <code>${target}</code>?`
+    : `Restore snapshot <strong>${ts}</strong> IN PLACE to <code>${dbDir}</code>? A pre-restore backup will be created first.`;
+  document.getElementById('modal-restore-msg').innerHTML = msg;
+  document.getElementById('modal-restore').classList.add('vis');
+
+  document.getElementById('modal-confirm').onclick = async () => {
+    document.getElementById('modal-restore').classList.remove('vis');
+    document.getElementById('restore-status').textContent = 'Restoring…';
+    try {
+      const r = await fetch(`${API}/api/snapshots/restore`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({snap_ts: ts, db_dir: dbDir, target_dir: target || null})
+      });
+      const data = await r.json();
+      document.getElementById('restore-status').textContent = data.ok
+        ? `✓ Restored — ${data.restored_in_place || data.restored_to}`
+        : `Error: ${data.error}`;
+    } catch(e) {
+      document.getElementById('restore-status').textContent = `Error: ${e.message}`;
+    }
+  };
+});
+
+document.getElementById('modal-cancel')?.addEventListener('click', () => {
+  document.getElementById('modal-restore').classList.remove('vis');
+});
+
+// ── Settings ──
+async function loadSettings() {
+  try {
+    const r = await fetch(`${API}/api/settings`);
+    const s = await r.json();
+    document.getElementById('s-debounce').value = s.snapshot_debounce_sec;
+    document.getElementById('s-maxsnaps').value = s.max_snapshots;
+    document.getElementById('s-threshold').value = s.write_threshold;
+    document.getElementById('s-watchroot').value = s.watch_root;
+  } catch(e) {}
+}
+
+document.getElementById('save-settings')?.addEventListener('click', async () => {
+  const body = {
+    snapshot_debounce_sec: parseInt(document.getElementById('s-debounce').value),
+    max_snapshots: parseInt(document.getElementById('s-maxsnaps').value),
+    write_threshold: parseInt(document.getElementById('s-threshold').value),
+    watch_root: document.getElementById('s-watchroot').value,
+  };
+  try {
+    await fetch(`${API}/api/settings`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    document.getElementById('settings-status').textContent = '✓ Saved (restart daemon to apply)';
+  } catch(e) {
+    document.getElementById('settings-status').textContent = `Error: ${e.message}`;
+  }
+});
+
+// ── Logs ──
+async function loadLogs() {
+  try {
+    const r = await fetch(`${API}/api/log?lines=200`);
+    const data = await r.json();
+    const el = document.getElementById('log-area');
+    el.innerHTML = data.lines.map(line => {
+      const m = line.match(/\[(.+?)\] (\w+)\s+(.+)/);
+      if (!m) return `<div class="log-line"><span class="ll-msg">${line}</span></div>`;
+      const [,ts, lvl, msg] = m;
+      const cls = {SNAP:'snap', LOCK:'lock', WARN:'warn', START:'start', RESTORE:'snap'}[lvl] || 'start';
+      return `<div class="log-line"><span class="ll-ts">${ts}</span><span class="ll-lvl-${cls}">${lvl}</span><span class="ll-msg">${msg}</span></div>`;
+    }).join('');
+    if (document.getElementById('autoscroll')?.checked) {
+      el.scrollTop = el.scrollHeight;
+    }
+  } catch(e) {}
+}
+
+function appendLog(lvl, msg) {
+  const el = document.getElementById('log-area');
+  if (!el) return;
+  const ts = new Date().toLocaleTimeString();
+  const cls = {SNAP:'snap', LOCK:'lock', WARN:'warn', START:'start'}[lvl] || 'start';
+  el.innerHTML += `<div class="log-line"><span class="ll-ts">${ts}</span><span class="ll-lvl-${cls}">${lvl}</span><span class="ll-msg">${msg}</span></div>`;
+  if (document.getElementById('autoscroll')?.checked) {
+    el.scrollTop = el.scrollHeight;
+  }
+}
+
+document.getElementById('clear-log')?.addEventListener('click', () => {
+  document.getElementById('log-area').innerHTML = '';
+});
+
+// ── Init ──
+connectWS();
+// Initial REST fetch as fallback
+fetch(`${API}/api/status`).then(r => r.json()).then(updateStatus).catch(() => {});
+fetch(`${API}/health`).then(r => r.json()).then(d => {
+  document.getElementById('footer-host').textContent = d.product + ' ' + d.version;
+}).catch(() => {});
+</script>
+</body>
+</html>

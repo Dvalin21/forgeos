@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <!-- Deep forge background radial -->
+    <radialGradient id="bgGlow" cx="50%" cy="60%" r="70%">
+      <stop offset="0%" stop-color="#2a1408"/>
+      <stop offset="40%" stop-color="#130a04"/>
+      <stop offset="100%" stop-color="#080604"/>
+    </radialGradient>
+    <!-- Hot ember glow center -->
+    <radialGradient id="emberCore" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff6a00" stop-opacity="0.35"/>
+      <stop offset="40%" stop-color="#d44000" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Spark gradient -->
+    <linearGradient id="sparkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffb340" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#ff4400" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Anvil metal gradient -->
+    <linearGradient id="anvilGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3a3530"/>
+      <stop offset="50%" stop-color="#1a1814"/>
+      <stop offset="100%" stop-color="#0c0b09"/>
+    </linearGradient>
+    <!-- Hot metal gradient -->
+    <linearGradient id="hotMetal" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff9a00"/>
+      <stop offset="30%" stop-color="#ff5500"/>
+      <stop offset="70%" stop-color="#cc2200"/>
+      <stop offset="100%" stop-color="#660800"/>
+    </linearGradient>
+    <!-- Grid fade -->
+    <linearGradient id="gridFade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#e85d04" stop-opacity="0.08"/>
+      <stop offset="50%" stop-color="#e85d04" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#e85d04" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="softglow">
+      <feGaussianBlur stdDeviation="20" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="sparkBlur">
+      <feGaussianBlur stdDeviation="1.5"/>
+    </filter>
+  </defs>
+
+  <!-- Base background -->
+  <rect width="1920" height="1080" fill="url(#bgGlow)"/>
+
+  <!-- Perspective grid floor -->
+  <g opacity="0.4">
+    <!-- Horizontal lines -->
+    <line x1="0" y1="650" x2="1920" y2="650" stroke="#e85d04" stroke-width="0.4" opacity="0.3"/>
+    <line x1="0" y1="700" x2="1920" y2="700" stroke="#e85d04" stroke-width="0.4" opacity="0.25"/>
+    <line x1="0" y1="760" x2="1920" y2="760" stroke="#e85d04" stroke-width="0.4" opacity="0.2"/>
+    <line x1="0" y1="830" x2="1920" y2="830" stroke="#e85d04" stroke-width="0.3" opacity="0.15"/>
+    <line x1="0" y1="920" x2="1920" y2="920" stroke="#e85d04" stroke-width="0.3" opacity="0.1"/>
+    <!-- Vanishing point lines from bottom center -->
+    <line x1="960" y1="580" x2="0"    y2="1080" stroke="#e85d04" stroke-width="0.4" opacity="0.12"/>
+    <line x1="960" y1="580" x2="240"  y2="1080" stroke="#e85d04" stroke-width="0.4" opacity="0.12"/>
+    <line x1="960" y1="580" x2="480"  y2="1080" stroke="#e85d04" stroke-width="0.4" opacity="0.12"/>
+    <line x1="960" y1="580" x2="720"  y2="1080" stroke="#e85d04" stroke-width="0.4" opacity="0.12"/>
+    <line x1="960" y1="580" x2="1200" y2="1080" stroke="#e85d04" stroke-width="0.4" opacity="0.12"/>
+    <line x1="960" y1="580" x2="1440" y2="1080" stroke="#e85d04" stroke-width="0.4" opacity="0.12"/>
+    <line x1="960" y1="580" x2="1680" y2="1080" stroke="#e85d04" stroke-width="0.4" opacity="0.12"/>
+    <line x1="960" y1="580" x2="1920" y2="1080" stroke="#e85d04" stroke-width="0.4" opacity="0.12"/>
+  </g>
+
+  <!-- Central ember glow -->
+  <ellipse cx="960" cy="540" rx="600" ry="320" fill="url(#emberCore)" filter="url(#softglow)"/>
+
+  <!-- Forge hammer silhouette (abstract) -->
+  <g transform="translate(820,200)">
+    <!-- Handle -->
+    <rect x="115" y="200" width="18" height="220" fill="#1a1612" rx="3"/>
+    <!-- Hammerhead -->
+    <rect x="60" y="140" width="130" height="80" fill="url(#anvilGrad)" rx="6"/>
+    <!-- Hot strike face -->
+    <rect x="60" y="140" width="130" height="14" fill="url(#hotMetal)" rx="3" opacity="0.8"/>
+    <!-- Glow under head -->
+    <ellipse cx="124" cy="225" rx="80" ry="12" fill="#ff6a00" opacity="0.2" filter="url(#softglow)"/>
+  </g>
+
+  <!-- Anvil base (abstract flat shape) -->
+  <g transform="translate(760,400)" opacity="0.7">
+    <polygon points="90,0 310,0 340,30 60,30" fill="#2a2520"/>
+    <rect x="130" y="30" width="140" height="60" fill="#1a1814"/>
+    <rect x="110" y="90" width="180" height="20" fill="#111009"/>
+    <!-- Hot glow on top of anvil -->
+    <rect x="90" y="0" width="220" height="4" fill="#ff7700" opacity="0.6" rx="2"/>
+    <ellipse cx="200" cy="0" rx="120" ry="20" fill="#ff5500" opacity="0.15" filter="url(#softglow)"/>
+  </g>
+
+  <!-- Sparks - scattered -->
+  <g filter="url(#sparkBlur)">
+    <!-- Large bright sparks -->
+    <circle cx="900" cy="380" r="3" fill="#ffcc00" opacity="0.9"/>
+    <circle cx="980" cy="350" r="2.5" fill="#ffaa00" opacity="0.85"/>
+    <circle cx="860" cy="420" r="2" fill="#ff8800" opacity="0.8"/>
+    <circle cx="1040" cy="390" r="3" fill="#ffdd00" opacity="0.9"/>
+    <circle cx="920" cy="310" r="1.5" fill="#ffffff" opacity="0.8"/>
+    <circle cx="1000" cy="330" r="2" fill="#ffcc00" opacity="0.75"/>
+    <circle cx="840" cy="360" r="1.5" fill="#ff9900" opacity="0.7"/>
+    <circle cx="1080" cy="360" r="2.5" fill="#ffaa00" opacity="0.8"/>
+    <!-- Spark trails -->
+    <line x1="900" y1="380" x2="870" y2="340" stroke="#ffcc00" stroke-width="1" opacity="0.4"/>
+    <line x1="980" y1="350" x2="1010" y2="300" stroke="#ffaa00" stroke-width="0.8" opacity="0.35"/>
+    <line x1="1040" y1="390" x2="1070" y2="340" stroke="#ffdd00" stroke-width="1" opacity="0.4"/>
+    <line x1="920" y1="310" x2="905" y2="270" stroke="#ffffff" stroke-width="0.6" opacity="0.3"/>
+    <line x1="1000" y1="330" x2="1030" y2="280" stroke="#ffcc00" stroke-width="0.7" opacity="0.3"/>
+    <!-- Small ambient sparks scattered wider -->
+    <circle cx="740" cy="450" r="1.5" fill="#ff8800" opacity="0.6"/>
+    <circle cx="680" cy="480" r="1"   fill="#ffaa00" opacity="0.5"/>
+    <circle cx="1200" cy="440" r="1.5" fill="#ff8800" opacity="0.6"/>
+    <circle cx="1260" cy="470" r="1"   fill="#ffaa00" opacity="0.5"/>
+    <circle cx="760"  cy="320" r="1"   fill="#ffcc00" opacity="0.4"/>
+    <circle cx="1160" cy="310" r="1.2" fill="#ffcc00" opacity="0.4"/>
+    <circle cx="820"  cy="280" r="1"   fill="#ff9900" opacity="0.35"/>
+    <circle cx="1120" cy="290" r="1"   fill="#ff9900" opacity="0.35"/>
+  </g>
+
+  <!-- Smoke wisps -->
+  <g opacity="0.06">
+    <path d="M900,350 Q880,300 900,250 Q920,200 910,150" stroke="#ccbbaa" stroke-width="20" fill="none" stroke-linecap="round"/>
+    <path d="M960,340 Q980,280 960,220 Q940,160 950,100" stroke="#ccbbaa" stroke-width="15" fill="none" stroke-linecap="round"/>
+    <path d="M1020,360 Q1040,290 1020,230 Q1000,170 1010,120" stroke="#ccbbaa" stroke-width="18" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <!-- Hex pattern overlay (industrial texture) -->
+  <g opacity="0.04" fill="none" stroke="#e85d04" stroke-width="0.5">
+    <!-- Top left hex cluster -->
+    <polygon points="80,80 110,63 140,80 140,114 110,131 80,114"/>
+    <polygon points="140,80 170,63 200,80 200,114 170,131 140,114"/>
+    <polygon points="200,80 230,63 260,80 260,114 230,131 200,114"/>
+    <polygon points="110,131 140,114 170,131 170,165 140,182 110,165"/>
+    <polygon points="170,131 200,114 230,131 230,165 200,182 170,165"/>
+    <!-- Top right hex cluster -->
+    <polygon points="1680,80 1710,63 1740,80 1740,114 1710,131 1680,114"/>
+    <polygon points="1740,80 1770,63 1800,80 1800,114 1770,131 1740,114"/>
+    <polygon points="1800,80 1830,63 1860,80 1860,114 1830,131 1800,114"/>
+    <polygon points="1710,131 1740,114 1770,131 1770,165 1740,182 1710,165"/>
+  </g>
+
+  <!-- Decorative corner brackets -->
+  <g stroke="#e85d04" stroke-width="1.5" fill="none" opacity="0.35">
+    <!-- Top left -->
+    <path d="M30,30 L30,80 M30,30 L80,30"/>
+    <!-- Top right -->
+    <path d="M1890,30 L1890,80 M1890,30 L1840,30"/>
+    <!-- Bottom left -->
+    <path d="M30,1050 L30,1000 M30,1050 L80,1050"/>
+    <!-- Bottom right -->
+    <path d="M1890,1050 L1890,1000 M1890,1050 L1840,1050"/>
+  </g>
+
+  <!-- ForgeOS wordmark watermark -->
+  <text x="960" y="1020" font-family="'Courier New', monospace" font-size="11"
+        fill="#e85d04" opacity="0.18" text-anchor="middle" letter-spacing="6">
+    F O R G E O S
+  </text>
+
+  <!-- Subtle scanline overlay -->
+  <rect width="1920" height="1080" fill="url(#gridFade)" opacity="0.5"/>
+</svg>

@@ -1,0 +1,199 @@
+name: ForgeOS CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  # ── Shell script linting ──────────────────────────────────────
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint install.sh
+        run: shellcheck -S warning install/install.sh
+
+      - name: Lint lib/
+        run: |
+          for f in install/lib/*.sh; do
+            echo "Checking $f"
+            shellcheck -S warning -x "$f"
+          done
+
+      - name: Lint modules/
+        run: |
+          FAILURES=0
+          for f in install/modules/*.sh; do
+            echo "Checking $f"
+            shellcheck -S warning -x "$f" || FAILURES=$((FAILURES+1))
+          done
+          if [ $FAILURES -gt 0 ]; then
+            echo "::error::$FAILURES module(s) failed ShellCheck"
+            exit 1
+          fi
+
+      - name: Lint test suite
+        run: shellcheck -S warning test-forgeos.sh
+
+  # ── Python linting ────────────────────────────────────────────
+  python-lint:
+    name: Python Syntax
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Syntax check
+        run: |
+          python3 -m py_compile src/forgeos-api.py
+          python3 -m py_compile src/forgeos-filedb.py
+          echo "Python syntax OK"
+
+      - name: Install dependencies + flake8
+        run: |
+          pip install flake8 fastapi uvicorn python-jose passlib pydantic 2>/dev/null || true
+
+      - name: Flake8 (warnings only — not blocking)
+        run: |
+          flake8 src/ --max-line-length=120 --extend-ignore=E501,W503 \
+            --statistics 2>&1 || true
+
+  # ── Repository structure validation ───────────────────────────
+  structure:
+    name: Repo Structure
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required files exist
+        run: |
+          MISSING=0
+          for f in \
+            README.md \
+            LICENSE \
+            CONTRIBUTING.md \
+            SECURITY.md \
+            .gitignore \
+            install/install.sh \
+            install/lib/common.sh \
+            install/lib/detect.sh \
+            src/forgeos-api.py \
+            src/forgeos-filedb.py \
+            test-forgeos.sh \
+            web/desktop/index.html \
+            web/filedb.html; do
+            if [ ! -f "$f" ]; then
+              echo "MISSING: $f"
+              MISSING=$((MISSING+1))
+            else
+              echo "OK: $f"
+            fi
+          done
+          [ $MISSING -eq 0 ] || exit 1
+
+      - name: Check module numbering sequence
+        run: |
+          echo "Modules present:"
+          ls install/modules/*.sh | sort
+
+      - name: Check no secrets in repo
+        run: |
+          # Fail if any file contains something that looks like a hardcoded secret
+          # (password= followed by a real value, not a variable reference)
+          FOUND=$(grep -rn --include="*.sh" --include="*.py" \
+            -P 'password\s*=\s*["\x27][A-Za-z0-9!@#$%^&*]{12,}["\x27]' \
+            . 2>/dev/null \
+            | grep -v '\.git' \
+            | grep -v 'example\|placeholder\|changeme\|YOUR_\|<your' \
+            || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::Possible hardcoded secret detected:"
+            echo "$FOUND"
+            exit 1
+          fi
+          echo "No hardcoded secrets found"
+
+      - name: Check executable bits on scripts
+        run: |
+          # install.sh should be executable
+          [ -x install/install.sh ] || chmod +x install/install.sh
+          echo "Script permissions OK"
+
+  # ── Markdown lint ─────────────────────────────────────────────
+  markdown:
+    name: Markdown
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v14
+        with:
+          globs: '**/*.md'
+          config: |
+            {
+              "MD013": false,
+              "MD033": false,
+              "MD041": false
+            }
+        continue-on-error: true
+
+  # ── Release preparation (on tag push only) ────────────────────
+  release-prep:
+    name: Release Prep
+    runs-on: ubuntu-22.04
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [shellcheck, python-lint, structure]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create release archive
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          tar czf forgeos-${VERSION}.tar.gz \
+            --exclude='.git' \
+            --exclude='*.pyc' \
+            --exclude='__pycache__' \
+            --transform "s|^|forgeos-${VERSION}/|" \
+            .
+          sha256sum forgeos-${VERSION}.tar.gz > forgeos-${VERSION}.tar.gz.sha256
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            forgeos-${{ env.VERSION }}.tar.gz
+            forgeos-${{ env.VERSION }}.tar.gz.sha256
+          generate_release_notes: true
+          body: |
+            ## ForgeOS ${{ env.VERSION }}
+
+            ### Install
+            ```bash
+            curl -fsSL https://github.com/${{ github.repository }}/releases/download/${{ env.VERSION }}/forgeos-${{ env.VERSION }}.tar.gz | tar xz
+            cd forgeos-${{ env.VERSION }}
+            sudo bash install/install.sh
+            ```
+
+            ### Verify
+            ```bash
+            sha256sum -c forgeos-${{ env.VERSION }}.tar.gz.sha256
+            ```

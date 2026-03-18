@@ -1,0 +1,86 @@
+# ForgeOS .gitignore
+
+# ── Secrets and credentials (NEVER commit these) ─────────────
+/etc/forgeos/
+forgeos.conf
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*.env
+.env.*
+*_secret*
+*_password*
+*_token*
+api-users.json
+
+# ── Generated at install time ─────────────────────────────────
+/install/modules/*.disabled
+/var/
+/run/
+/tmp/
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+.venv/
+venv/
+env/
+.env
+*.pyc
+
+# ── Test artifacts ────────────────────────────────────────────
+test-report-*.json
+/var/log/forgeos/
+
+# ── Build artifacts ───────────────────────────────────────────
+*.deb
+*.rpm
+*.tar.gz
+*.tar.bz2
+*.zip
+gasket-build-*/
+/tmp/
+
+# ── IDE / Editor ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+.directory
+
+# ── Docker local overrides ────────────────────────────────────
+docker-compose.override.yml
+docker-compose.local.yml
+
+# ── Docs build output ─────────────────────────────────────────
+docs/_build/
+docs/.cache/
+site/
+
+# ── GitHub Actions local cache ────────────────────────────────
+.act/
+
+# ── Node (if any tooling added later) ────────────────────────
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# ── Backup / temp files ───────────────────────────────────────
+*.bak
+*.backup
+*.orig
+*.tmp
+*.log

@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ForgeOS</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Barlow+Condensed:wght@300;400;500;600;700&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --forge:       #e85d04;
+  --forge-dim:   #b84800;
+  --forge-glow:  rgba(232,93,4,0.15);
+  --steel:       #4a8ab0;
+  --ok:          #3daa60;
+  --ok-dim:      rgba(61,170,96,0.12);
+  --warn:        #d4860a;
+  --warn-dim:    rgba(212,134,10,0.12);
+  --err:         #cc3344;
+  --err-dim:     rgba(204,51,68,0.12);
+  --predict:     #9933cc;   /* purple = SMART predictive warning */
+  --predict-dim: rgba(153,51,204,0.15);
+
+  --bg-void:  #141210;
+  --bg-base:  #1c1916;
+  --bg-shell: #1e1b18;
+  --bg-win:   #232018;
+  --bg-pane:  #2a2520;
+  --bg-item:  #302b24;
+  --bg-hover: #3a342c;
+  --bg-act:   #443c32;
+  --border:   #3a3228;
+  --border-hi:#554a3c;
+  --t1: #f0ece4;
+  --t2: #a09080;
+  --t3: #6a6058;
+
+  --ff-ui:   'Barlow', sans-serif;
+  --ff-mono: 'IBM Plex Mono', monospace;
+  --ff-head: 'Barlow Condensed', sans-serif;
+  --tb-h:    44px;
+  --tt-h:    30px;
+  --r-win:   5px;
+
+  --shadow-win:  0 20px 60px rgba(0,0,0,0.8), 0 2px 8px rgba(0,0,0,0.5);
+  --shadow-menu: 0 8px 32px rgba(0,0,0,0.65);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body {
+  font-family: var(--ff-ui);
+  font-size: 13px;
+  color: var(--t1);
+  background: var(--bg-base);
+  user-select: none;
+  cursor: default;
+}
+
+/* ══ DESKTOP ══ */
+#desktop {
+  position: fixed;
+  inset: 0;
+  bottom: var(--tb-h);
+  background: url('wallpapers/wp-dark-forge.svg') center/cover;
+  overflow: hidden;
+}
+
+/* ══ TASKBAR — clean 4 items only ══ */
+#taskbar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--tb-h);
+  background: var(--bg-shell);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: stretch;
+  z-index: 9000;
+}
+
+/* Forge logo / start */
+#tb-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.12s;
+  flex-shrink: 0;
+}
+#tb-logo:hover { background: var(--bg-pane); }
+.logo-hex {
+  width: 22px; height: 22px;
+  background: var(--forge);
+  clip-path: polygon(50% 0%,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+#tb-logo:hover .logo-hex { transform: rotate(30deg); }
+.logo-txt {
+  font-family: var(--ff-head);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 2.5px;
+  color: var(--t1);
+}
+
+/* 4 pinned app buttons */
+#tb-pins {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 6px;
+  flex: 1;
+}
+.tb-pin {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  cursor: pointer;
+  color: var(--t2);
+  font-size: 13px;
+  border-bottom: 2px solid transparent;
+  transition: all 0.1s;
+}
+.tb-pin:hover   { background: var(--bg-hover); color: var(--t1); }
+.tb-pin.open    { background: var(--bg-act); color: var(--t1); border-bottom-color: var(--forge); }
+.tb-pin .p-ico  { font-size: 15px; }
+.tb-pin .p-lbl  { font-family: var(--ff-head); font-size: 13px; font-weight: 500; letter-spacing: 0.5px; }
+
+/* Tray */
+#tb-tray {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tray-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  height: 100%;
+  cursor: pointer;
+  color: var(--t2);
+  font-size: 12px;
+  border-radius: 3px;
+  transition: all 0.1s;
+  position: relative;
+}
+.tray-btn:hover { background: var(--bg-hover); color: var(--t1); }
+.tray-btn.ok    { color: var(--ok); }
+.tray-btn.warn  { color: var(--warn); }
+.tray-btn.err   { color: var(--err); }
+.tray-dot {
+  position: absolute;
+  top: 7px; right: 4px;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  border: 1px solid var(--bg-shell);
+}
+.tray-dot.forge { background: var(--forge); }
+.tray-dot.ok    { background: var(--ok); }
+
+#tb-clock {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 0 14px;
+  border-left: 1px solid var(--border);
+  cursor: default;
+  flex-shrink: 0;
+  min-width: 76px;
+}
+#clk-time { font-family: var(--ff-mono); font-size: 14px; font-weight: 500; line-height: 1.1; }
+#clk-date { font-size: 10px; color: var(--t2); }
+
+/* ══ WINDOWS ══ */
+.win {
+  position: absolute;
+  background: var(--bg-win);
+  border: 1px solid var(--border);
+  border-radius: var(--r-win);
+  box-shadow: var(--shadow-win);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 300px;
+  min-height: 200px;
+}
+.win.focused { border-color: var(--border-hi); }
+
+.win-tb {
+  height: var(--tt-h);
+  background: var(--bg-pane);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 7px;
+  cursor: grab;
+  flex-shrink: 0;
+}
+.win-tb:active { cursor: grabbing; }
+.win-ico { font-size: 13px; }
+.win-title {
+  font-family: var(--ff-head);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t2);
+  flex: 1;
+  letter-spacing: 0.5px;
+}
+.win.focused .win-title { color: var(--t1); }
+.win-btns { display: flex; gap: 2px; margin-left: auto; flex-shrink: 0; }
+.wb {
+  width: 22px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--t3);
+  transition: all 0.1s;
+  border: none;
+  background: transparent;
+}
+.wb:hover        { background: var(--bg-hover); color: var(--t1); }
+.wb.x:hover      { background: var(--err); color: #fff; }
+
+/* Tabs */
+.win-tabs {
+  display: flex;
+  background: var(--bg-pane);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.win-tabs::-webkit-scrollbar { display: none; }
+.wt {
+  padding: 6px 13px;
+  font-size: 11px;
+  font-family: var(--ff-head);
+  letter-spacing: 0.5px;
+  color: var(--t3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color 0.1s;
+}
+.wt:hover  { color: var(--t2); }
+.wt.active { color: var(--forge); border-bottom-color: var(--forge); }
+
+.win-body { flex: 1; overflow: hidden; display: flex; }
+.scroll { overflow-y: auto; flex: 1; }
+.scroll::-webkit-scrollbar { width: 5px; }
+.scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Tab panels */
+.tab-panel { display: none; height: 100%; }
+.tab-panel.active { display: flex; flex-direction: column; height: 100%; flex: 1; overflow: hidden; }
+
+/* Side split */
+.split { display: grid; grid-template-columns: 190px 1fr; height: 100%; overflow: hidden; }
+.sidebar {
+  background: var(--bg-pane);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 4px 0;
+}
+.sidebar::-webkit-scrollbar { width: 3px; }
+.sb-grp {
+  padding: 8px 10px 3px;
+  font-family: var(--ff-head);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+.sb-item {
+  display: flex; align-items: center;
+  gap: 7px; padding: 6px 10px 6px 12px;
+  cursor: pointer; font-size: 12px;
+  color: var(--t2);
+  transition: all 0.1s;
+  border-left: 2px solid transparent;
+}
+.sb-item:hover   { background: var(--bg-hover); color: var(--t1); }
+.sb-item.act     { background: var(--bg-act); color: var(--forge); border-left-color: var(--forge); }
+.sb-item .ico    { font-size: 13px; width: 16px; text-align: center; flex-shrink: 0; }
+.sb-badge {
+  margin-left: auto; font-size: 9px; font-family: var(--ff-mono);
+  padding: 1px 5px; border-radius: 10px;
+  background: var(--bg-pane); border: 1px solid var(--border); color: var(--t3);
+}
+.sb-badge.ok   { background: var(--ok-dim);   border-color: rgba(61,170,96,0.3);   color: var(--ok); }
+.sb-badge.warn { background: var(--warn-dim); border-color: rgba(212,134,10,0.3);  color: var(--warn); }
+.sb-badge.err  { background: var(--err-dim);  border-color: rgba(204,51,68,0.3);   color: var(--err); }
+.sb-badge.pr   { background: var(--predict-dim); border-color: rgba(153,51,204,0.3); color: var(--predict); }
+
+.content { overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.content::-webkit-scrollbar { width: 5px; }
+.content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Section header */
+.sh {
+  font-family: var(--ff-head);
+  font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--t3);
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 8px;
+}
+.sh::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Metric cards */
+.metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+.met {
+  background: var(--bg-pane); border: 1px solid var(--border);
+  border-radius: 4px; padding: 10px 12px;
+  position: relative; overflow: hidden;
+  transition: border-color 0.15s;
+}
+.met:hover { border-color: var(--border-hi); }
+.met::after {
+  content: ''; position: absolute;
+  bottom: 0; left: 0; right: 0; height: 2px; border-radius: 0 0 4px 4px;
+}
+.met.cpu::after  { background: var(--forge); }
+.met.ram::after  { background: var(--steel); }
+.met.net::after  { background: var(--ok); }
+.met.tmp::after  { background: var(--warn); }
+.m-lbl { font-family: var(--ff-head); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-bottom: 4px; }
+.m-val { font-family: var(--ff-mono); font-size: 22px; font-weight: 600; line-height: 1; margin-bottom: 3px; }
+.met.cpu .m-val { color: var(--forge); }
+.met.ram .m-val { color: var(--steel); }
+.met.net .m-val { color: var(--ok); }
+.met.tmp .m-val { color: var(--warn); }
+.m-sub  { font-size: 10px; color: var(--t3); }
+.m-bar  { height: 3px; background: var(--bg-item); border-radius: 2px; margin-top: 6px; overflow: hidden; }
+.m-bar-f { height: 100%; border-radius: 2px; transition: width 0.8s; }
+
+/* ══ POOL DISPLAY ══ */
+.pool-block {
+  background: var(--bg-pane);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.pool-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; background: var(--bg-item);
+  border-bottom: 1px solid var(--border);
+}
+.pool-name { font-family: var(--ff-head); font-weight: 700; font-size: 15px; color: var(--t1); }
+.pool-badge {
+  font-family: var(--ff-mono); font-size: 9px;
+  padding: 2px 7px; border-radius: 3px;
+  background: rgba(232,93,4,0.1); color: var(--forge);
+  border: 1px solid rgba(232,93,4,0.25); letter-spacing: 0.5px;
+}
+.pool-health {
+  margin-left: auto; font-family: var(--ff-head); font-size: 11px;
+  letter-spacing: 1px; display: flex; align-items: center; gap: 5px;
+}
+.pool-health.ok     { color: var(--ok); }
+.pool-health.warn   { color: var(--warn); }
+.pool-health.err    { color: var(--err); }
+.pool-health.predict{ color: var(--predict); }
+.ph-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.ph-dot.ok     { background: var(--ok); }
+.ph-dot.warn   { background: var(--warn); }
+.ph-dot.err    { background: var(--err); }
+.ph-dot.predict{ background: var(--predict); }
+
+.pool-bar-wrap { padding: 8px 14px 0; }
+.pool-bar { height: 5px; background: var(--bg-item); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+.pool-fill { height: 100%; background: linear-gradient(90deg, var(--forge-dim), var(--forge)); border-radius: 3px; }
+.pool-stats { display: flex; gap: 16px; font-size: 11px; font-family: var(--ff-mono); color: var(--t3); flex-wrap: wrap; padding: 0 14px 10px; }
+.pool-stats strong { color: var(--t1); }
+
+/* Drive grid — within pool */
+.pool-drives { padding: 0 14px 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Drive card */
+.drive-card {
+  display: flex; flex-direction: column; gap: 3px;
+  background: var(--bg-item); border: 1px solid var(--border);
+  border-radius: 4px; padding: 7px 10px;
+  min-width: 120px; max-width: 160px;
+  cursor: pointer; transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.drive-card:hover { border-color: var(--border-hi); background: var(--bg-hover); }
+.drive-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+}
+.drive-card.ok::before      { background: var(--ok); }
+.drive-card.warn::before    { background: var(--warn); }
+.drive-card.err::before     { background: var(--err); }
+.drive-card.predict::before { background: var(--predict); }
+.drive-card.rebuilding::before {
+  background: repeating-linear-gradient(90deg, var(--steel) 0, var(--steel) 8px, transparent 8px, transparent 16px);
+  animation: rebuild-stripe 1s linear infinite;
+}
+@keyframes rebuild-stripe { to { background-position: 16px 0; } }
+
+.dc-name { font-family: var(--ff-mono); font-size: 11px; font-weight: 600; color: var(--t1); }
+.dc-size { font-size: 10px; color: var(--t3); font-family: var(--ff-mono); }
+.dc-temp { font-size: 10px; font-family: var(--ff-mono); }
+.dc-temp.ok      { color: var(--ok); }
+.dc-temp.warn    { color: var(--warn); }
+.dc-temp.hot     { color: var(--err); }
+.dc-status { font-size: 9px; font-family: var(--ff-head); letter-spacing: 1px; text-transform: uppercase; }
+.dc-status.ok        { color: var(--ok); }
+.dc-status.warn      { color: var(--warn); }
+.dc-status.err       { color: var(--err); }
+.dc-status.predict   { color: var(--predict); }
+.dc-status.rebuilding{ color: var(--steel); }
+.dc-smart { font-size: 9px; color: var(--t3); font-family: var(--ff-mono); }
+
+/* Hot-swap indicator */
+.drive-card.predict .dc-eject {
+  display: flex;
+}
+.dc-eject {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 9px;
+  color: var(--predict);
+  font-family: var(--ff-head);
+  letter-spacing: 0.5px;
+  border-top: 1px solid rgba(153,51,204,0.3);
+  padding-top: 3px;
+}
+
+/* Unassigned drives */
+.pool-block.unassigned .pool-head { background: var(--bg-pane); }
+.pool-block.unassigned .drive-card::before { background: var(--t3); }
+
+/* ══ LOG LINES ══ */
+.log-line {
+  display: flex; gap: 10px;
+  font-family: var(--ff-mono); font-size: 11px;
+  padding: 2px 12px; line-height: 1.7;
+  border-bottom: 1px solid rgba(58,50,40,0.3);
+}
+.log-ts  { color: var(--t3); width: 54px; flex-shrink: 0; }
+.ll-i    { color: var(--forge); width: 36px; flex-shrink: 0; }
+.ll-w    { color: var(--warn);  width: 36px; flex-shrink: 0; }
+.ll-e    { color: var(--err);   width: 36px; flex-shrink: 0; }
+.ll-p    { color: var(--predict); width: 36px; flex-shrink: 0; }
+.log-msg { color: var(--t2); word-break: break-all; }
+
+/* ══ NGINX GUI PANEL ══ */
+.nginx-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  transition: background 0.1s;
+}
+.nginx-row:hover { background: var(--bg-hover); }
+.nginx-domain { font-family: var(--ff-mono); color: var(--t1); flex: 1; font-size: 11px; }
+.nginx-upstream { font-family: var(--ff-mono); font-size: 10px; color: var(--t3); min-width: 100px; }
+.nginx-status {
+  font-size: 9px; font-family: var(--ff-head); letter-spacing: 1px;
+  padding: 2px 7px; border-radius: 3px;
+  min-width: 50px; text-align: center;
+}
+.nginx-status.up   { background: var(--ok-dim);  color: var(--ok);   border: 1px solid rgba(61,170,96,0.25); }
+.nginx-status.down { background: var(--err-dim); color: var(--err);  border: 1px solid rgba(204,51,68,0.25); }
+.nginx-ssl {
+  font-size: 10px;
+  color: var(--ok);
+}
+.nginx-edit-btn {
+  font-size: 10px; font-family: var(--ff-head);
+  padding: 3px 9px; border-radius: 3px;
+  background: var(--bg-item); border: 1px solid var(--border);
+  color: var(--t2); cursor: pointer; letter-spacing: 0.5px;
+  transition: all 0.1s;
+}
+.nginx-edit-btn:hover { border-color: var(--border-hi); color: var(--t1); }
+
+/* Raw conf editor */
+.raw-conf-wrap {
+  display: none;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+.raw-conf-wrap.visible { display: flex; }
+.raw-conf-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; background: var(--bg-item);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.raw-conf-label { font-family: var(--ff-mono); font-size: 11px; color: var(--t2); flex: 1; }
+.btn {
+  font-size: 11px; font-family: var(--ff-head);
+  padding: 5px 12px; border-radius: 3px;
+  cursor: pointer; letter-spacing: 0.5px;
+  transition: all 0.1s; border: 1px solid var(--border);
+  background: var(--bg-item); color: var(--t2);
+}
+.btn:hover   { background: var(--bg-hover); color: var(--t1); }
+.btn.primary { background: var(--forge); border-color: var(--forge); color: #fff; }
+.btn.primary:hover { background: var(--forge-dim); }
+.raw-conf-editor {
+  flex: 1; background: var(--bg-void);
+  border: none; color: #c0b090;
+  font-family: var(--ff-mono); font-size: 11px;
+  padding: 12px; resize: none; outline: none;
+  line-height: 1.7;
+  overflow-y: auto;
+}
+
+/* Add vhost form */
+.form-row {
+  display: flex; gap: 8px; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+}
+.form-input {
+  flex: 1; background: var(--bg-item); border: 1px solid var(--border);
+  border-radius: 3px; color: var(--t1); font-family: var(--ff-mono);
+  font-size: 11px; padding: 5px 8px; outline: none;
+}
+.form-input:focus { border-color: var(--forge); }
+.form-label { font-size: 10px; color: var(--t3); font-family: var(--ff-head); letter-spacing: 0.5px; min-width: 60px; }
+
+/* Fan sliders */
+.fan-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; padding: 10px; }
+.fan-card {
+  background: var(--bg-pane); border: 1px solid var(--border);
+  border-radius: 4px; padding: 10px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+}
+.fan-lbl { font-family: var(--ff-head); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+.fan-rpm { font-family: var(--ff-mono); font-size: 18px; font-weight: 600; color: var(--forge); }
+.fan-rpm span { font-size: 10px; color: var(--t3); }
+.fan-slide {
+  -webkit-appearance: none; width: 100%; height: 3px;
+  background: var(--bg-item); border-radius: 2px; outline: none; cursor: pointer;
+}
+.fan-slide::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 13px; height: 13px;
+  background: var(--forge); border-radius: 50%; cursor: pointer;
+  transition: transform 0.15s;
+}
+.fan-slide::-webkit-slider-thumb:hover { transform: scale(1.25); }
+.temp-row { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 10px 10px; }
+.temp-chip {
+  font-family: var(--ff-mono); font-size: 10px;
+  display: flex; align-items: center; gap: 4px;
+  padding: 3px 8px; background: var(--bg-item); border: 1px solid var(--border); border-radius: 3px; color: var(--t2);
+}
+.temp-chip.warn { border-color: rgba(212,134,10,0.4); color: var(--warn); }
+.temp-chip.hot  { border-color: rgba(204,51,68,0.4);  color: var(--err); }
+
+/* Context menu */
+.ctx {
+  position: fixed; background: var(--bg-win);
+  border: 1px solid var(--border-hi); border-radius: 4px;
+  box-shadow: var(--shadow-menu); min-width: 170px;
+  z-index: 9998; display: none; padding: 3px 0;
+}
+.ctx.vis { display: block; }
+.ctx-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 14px; font-size: 12px; color: var(--t2); cursor: pointer;
+  transition: background 0.1s;
+}
+.ctx-item:hover { background: var(--bg-hover); color: var(--t1); }
+.ctx-sep { height: 1px; background: var(--border); margin: 3px 0; }
+
+/* Toast */
+#toasts {
+  position: fixed;
+  bottom: calc(var(--tb-h) + 10px); right: 12px;
+  display: flex; flex-direction: column-reverse; gap: 6px;
+  z-index: 9997; pointer-events: none;
+}
+.toast {
+  background: var(--bg-win); border: 1px solid var(--border-hi);
+  border-radius: var(--r-win); padding: 10px 12px 10px 10px;
+  display: flex; gap: 10px; align-items: flex-start;
+  box-shadow: var(--shadow-menu); width: 300px;
+  pointer-events: all; border-left: 3px solid var(--ok);
+  animation: tin 0.2s ease;
+}
+.toast.warn     { border-left-color: var(--warn); }
+.toast.err      { border-left-color: var(--err); }
+.toast.predict  { border-left-color: var(--predict); }
+@keyframes tin { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+.t-ico   { font-size: 16px; flex-shrink: 0; }
+.t-body  { flex: 1; }
+.t-title { font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+.t-msg   { font-size: 11px; color: var(--t2); line-height: 1.4; }
+.t-close { cursor: pointer; color: var(--t3); font-size: 14px; flex-shrink: 0; }
+.t-close:hover { color: var(--t1); }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ╔══════════ DESKTOP ══════════╗ -->
+<div id="desktop">
+
+<!-- ══ WINDOW: DASHBOARD ══ -->
+<div class="win focused" id="win-dash" style="left:12px;top:10px;width:920px;height:590px">
+  <div class="win-tb">
+    <span class="win-ico">🖥</span>
+    <span class="win-title">System Overview</span>
+    <div class="win-btns">
+      <div class="wb" data-act="min">—</div>
+      <div class="wb" data-act="max">⬜</div>
+      <div class="wb x" data-act="close">✕</div>
+    </div>
+  </div>
+  <div class="win-tabs">
+    <div class="wt active" data-tab="overview">Overview</div>
+    <div class="wt" data-tab="storage">Storage</div>
+    <div class="wt" data-tab="sensors">Sensors</div>
+    <div class="wt" data-tab="logs">Logs</div>
+  </div>
+  <div class="win-body">
+
+    <!-- Overview tab -->
+    <div class="tab-panel active" id="tab-overview">
+      <div class="split">
+        <div class="sidebar">
+          <div class="sb-grp">System</div>
+          <div class="sb-item act"><span class="ico">⚡</span>Overview</div>
+          <div class="sb-item"><span class="ico">💽</span>Storage<span class="sb-badge ok">OK</span></div>
+          <div class="sb-item"><span class="ico">🌐</span>Network</div>
+          <div class="sb-item"><span class="ico">🌡</span>Sensors</div>
+          <div class="sb-grp">Services</div>
+          <div class="sb-item"><span class="ico">🐳</span>Docker<span class="sb-badge ok">12</span></div>
+          <div class="sb-item"><span class="ico">📦</span>Incus<span class="sb-badge ok">4</span></div>
+          <div class="sb-item"><span class="ico">📁</span>Shares<span class="sb-badge ok">7</span></div>
+          <div class="sb-item"><span class="ico">📷</span>Immich<span class="sb-badge ok">▲</span></div>
+          <div class="sb-item"><span class="ico">📧</span>Mail</div>
+          <div class="sb-item"><span class="ico">🔄</span>Proxy<span class="sb-badge ok">ON</span></div>
+          <div class="sb-grp">Security</div>
+          <div class="sb-item"><span class="ico">🛡</span>Firewall<span class="sb-badge ok">ON</span></div>
+          <div class="sb-item"><span class="ico">🚨</span>Fail2ban<span class="sb-badge warn">3</span></div>
+          <div class="sb-item"><span class="ico">🔑</span>Auth/LDAP</div>
+          <div class="sb-grp">Maintenance</div>
+          <div class="sb-item"><span class="ico">💾</span>Backups</div>
+          <div class="sb-item"><span class="ico">☁</span>Cloud Sync</div>
+          <div class="sb-item"><span class="ico">🔔</span>Alerts</div>
+        </div>
+        <div class="content">
+          <div class="metrics">
+            <div class="met cpu">
+              <div class="m-lbl">CPU</div>
+              <div class="m-val"><span id="cpu-v">34</span><small style="font-size:12px;color:var(--t3)">%</small></div>
+              <div class="m-sub">Ryzen 9 5950X · 16c</div>
+              <div class="m-bar"><div class="m-bar-f" id="cpu-bar" style="width:34%;background:var(--forge)"></div></div>
+            </div>
+            <div class="met ram">
+              <div class="m-lbl">Memory</div>
+              <div class="m-val">37<small style="font-size:12px;color:var(--t3)">GB</small></div>
+              <div class="m-sub">64GB ECC · 58%</div>
+              <div class="m-bar"><div class="m-bar-f" style="width:58%;background:var(--steel)"></div></div>
+            </div>
+            <div class="met net">
+              <div class="m-lbl">Network</div>
+              <div class="m-val">1.2<small style="font-size:12px;color:var(--t3)">G</small></div>
+              <div class="m-sub">↑340 ↓860 MB/s · 10GbE</div>
+              <div class="m-bar"><div class="m-bar-f" style="width:22%;background:var(--ok)"></div></div>
+            </div>
+            <div class="met tmp">
+              <div class="m-lbl">CPU Temp</div>
+              <div class="m-val">48<small style="font-size:12px;color:var(--t3)">°C</small></div>
+              <div class="m-sub">Tdie · Max 95°C</div>
+              <div class="m-bar"><div class="m-bar-f" style="width:50%;background:var(--warn)"></div></div>
+            </div>
+          </div>
+
+          <!-- Storage pools - grouped -->
+          <div>
+            <div class="sh">ForgeRAID Pools</div>
+
+            <!-- Pool 1: datapool - healthy -->
+            <div class="pool-block" style="margin-bottom:10px">
+              <div class="pool-head">
+                <span style="font-size:15px">💾</span>
+                <span class="pool-name">datapool</span>
+                <span class="pool-badge">ForgeRAID-Smart · mdadm+btrfs</span>
+                <div class="pool-health ok"><div class="ph-dot ok"></div>HEALTHY</div>
+              </div>
+              <div class="pool-bar-wrap">
+                <div class="pool-bar"><div class="pool-fill" style="width:71%"></div></div>
+              </div>
+              <div class="pool-stats">
+                <span>Used: <strong>14.2 TB</strong></span>
+                <span>Free: <strong>5.8 TB</strong></span>
+                <span>Raw: <strong>20 TB</strong></span>
+                <span>Snaps: <strong>142</strong></span>
+                <span>Scrub: <strong>3d ago</strong></span>
+              </div>
+              <div class="pool-drives">
+                <div class="drive-card ok">
+                  <div class="dc-name">sda</div>
+                  <div class="dc-size">8TB · WD Red</div>
+                  <div class="dc-temp ok">34°C</div>
+                  <div class="dc-status ok">ONLINE</div>
+                  <div class="dc-smart">SMART OK</div>
+                </div>
+                <div class="drive-card ok">
+                  <div class="dc-name">sdb</div>
+                  <div class="dc-size">6TB · Seagate</div>
+                  <div class="dc-temp ok">36°C</div>
+                  <div class="dc-status ok">ONLINE</div>
+                  <div class="dc-smart">SMART OK</div>
+                </div>
+                <div class="drive-card ok">
+                  <div class="dc-name">sdc</div>
+                  <div class="dc-size">4TB · Toshiba</div>
+                  <div class="dc-temp ok">33°C</div>
+                  <div class="dc-status ok">ONLINE</div>
+                  <div class="dc-smart">SMART OK</div>
+                </div>
+                <div class="drive-card predict">
+                  <div class="dc-name">sdd</div>
+                  <div class="dc-size">4TB · WD Red</div>
+                  <div class="dc-temp warn">41°C</div>
+                  <div class="dc-status predict">PREDICT FAIL</div>
+                  <div class="dc-smart">Reallocated: 14</div>
+                  <div class="dc-eject">⚠ Replace Soon</div>
+                </div>
+                <div class="drive-card ok">
+                  <div class="dc-name">sde</div>
+                  <div class="dc-size">4TB · WD Red</div>
+                  <div class="dc-temp ok">31°C</div>
+                  <div class="dc-status ok">ONLINE</div>
+                  <div class="dc-smart">SMART OK</div>
+                </div>
+                <div class="drive-card ok">
+                  <div class="dc-name">sdf</div>
+                  <div class="dc-size">2TB · Seagate</div>
+                  <div class="dc-temp ok">30°C</div>
+                  <div class="dc-status ok">ONLINE</div>
+                  <div class="dc-smart">SMART OK</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pool 2: ssdcache - rebuild in progress -->
+            <div class="pool-block" style="margin-bottom:10px">
+              <div class="pool-head">
+                <span style="font-size:15px">⚡</span>
+                <span class="pool-name">nvmepool</span>
+                <span class="pool-badge">ForgeRAID-1 · mirror</span>
+                <div class="pool-health warn"><div class="ph-dot warn"></div>REBUILDING</div>
+              </div>
+              <div class="pool-bar-wrap">
+                <div class="pool-bar"><div class="pool-fill" style="width:44%;background:var(--steel)"></div></div>
+              </div>
+              <div class="pool-stats">
+                <span>Used: <strong>880 GB</strong></span>
+                <span>Free: <strong>120 GB</strong></span>
+                <span>Rebuild: <strong>63% · ~4h left</strong></span>
+              </div>
+              <div class="pool-drives">
+                <div class="drive-card ok">
+                  <div class="dc-name">nvme0</div>
+                  <div class="dc-size">1TB · Samsung 990 Pro</div>
+                  <div class="dc-temp warn">52°C</div>
+                  <div class="dc-status ok">ONLINE</div>
+                  <div class="dc-smart">SMART OK</div>
+                </div>
+                <div class="drive-card rebuilding">
+                  <div class="dc-name">nvme1</div>
+                  <div class="dc-size">1TB · WD SN850X</div>
+                  <div class="dc-temp ok">44°C</div>
+                  <div class="dc-status rebuilding">REBUILDING 63%</div>
+                  <div class="dc-smart">New drive · hot-swapped</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Unassigned / Hot spares -->
+            <div class="pool-block unassigned">
+              <div class="pool-head">
+                <span style="font-size:15px">🔌</span>
+                <span class="pool-name">Unassigned</span>
+                <span class="pool-badge" style="background:rgba(106,96,88,0.15);color:var(--t3);border-color:var(--border)">hot spare / unformatted</span>
+                <div class="pool-health" style="color:var(--t3)">3 drives</div>
+              </div>
+              <div class="pool-drives">
+                <div class="drive-card" style="border-color:var(--border)">
+                  <div class="dc-name" style="color:var(--t2)">sdg</div>
+                  <div class="dc-size">4TB · WD Red</div>
+                  <div class="dc-temp ok">29°C</div>
+                  <div class="dc-status" style="color:var(--t3)">SPARE</div>
+                  <div class="dc-smart">SMART OK</div>
+                </div>
+                <div class="drive-card" style="border-color:var(--border)">
+                  <div class="dc-name" style="color:var(--t2)">sdh</div>
+                  <div class="dc-size">2TB · Toshiba</div>
+                  <div class="dc-temp ok">28°C</div>
+                  <div class="dc-status" style="color:var(--t3)">UNFORMATTED</div>
+                  <div class="dc-smart">SMART OK</div>
+                </div>
+                <div class="drive-card err">
+                  <div class="dc-name">sdi</div>
+                  <div class="dc-size">3TB · Old</div>
+                  <div class="dc-temp hot">63°C</div>
+                  <div class="dc-status err">SMART FAIL</div>
+                  <div class="dc-smart">Pending: 128</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Storage tab -->
+    <div class="tab-panel" id="tab-storage">
+      <div class="content" style="flex:1">
+        <div style="font-size:12px;color:var(--t2);padding:10px">
+          ↑ Drive pool view is shown on the Overview tab above. Use Web UI > Storage for full ForgeRAID management.
+        </div>
+      </div>
+    </div>
+
+    <!-- Sensors tab -->
+    <div class="tab-panel" id="tab-sensors">
+      <div class="fan-grid">
+        <div class="fan-card">
+          <div class="fan-lbl">CPU Fan</div>
+          <div class="fan-rpm">1240<span> rpm</span></div>
+          <div style="font-size:10px;color:var(--t3)">50%</div>
+          <input type="range" class="fan-slide" min="0" max="100" value="50">
+        </div>
+        <div class="fan-card">
+          <div class="fan-lbl">Case 1</div>
+          <div class="fan-rpm" style="color:var(--steel)">880<span> rpm</span></div>
+          <div style="font-size:10px;color:var(--t3)">37%</div>
+          <input type="range" class="fan-slide" min="0" max="100" value="37">
+        </div>
+        <div class="fan-card">
+          <div class="fan-lbl">HDD Array</div>
+          <div class="fan-rpm" style="color:var(--ok)">1560<span> rpm</span></div>
+          <div style="font-size:10px;color:var(--t3)">60%</div>
+          <input type="range" class="fan-slide" min="0" max="100" value="60">
+        </div>
+      </div>
+      <div class="temp-row">
+        <div class="temp-chip">MB · 41°C</div>
+        <div class="temp-chip">CPU · 48°C</div>
+        <div class="temp-chip warn">GPU · 71°C</div>
+        <div class="temp-chip">HDD avg · 33°C</div>
+        <div class="temp-chip">NVMe0 · 52°C</div>
+        <div class="temp-chip hot">sdi · 63°C ⚠</div>
+      </div>
+    </div>
+
+    <!-- Logs tab -->
+    <div class="tab-panel" id="tab-logs">
+      <div class="scroll" id="log-area" style="flex:1">
+        <div class="log-line"><span class="log-ts">03:51:00</span><span class="ll-p">PRED</span><span class="log-msg" style="color:var(--predict)">SMART: sdd reallocated sectors = 14 (was 8). Predictive failure. Replace before count exceeds 20.</span></div>
+        <div class="log-line"><span class="log-ts">03:48:12</span><span class="ll-i">INFO</span><span class="log-msg">mdadm: nvme1 hot-swap detected, rebuild started (ForgeRAID-1)</span></div>
+        <div class="log-line"><span class="log-ts">03:47:19</span><span class="ll-i">INFO</span><span class="log-msg">btrfs scrub complete — datapool: 0 errors, 14.2TB checked</span></div>
+        <div class="log-line"><span class="log-ts">03:45:12</span><span class="ll-i">INFO</span><span class="log-msg">Rspamd: 3 spam blocked, 0 false positives this hour</span></div>
+        <div class="log-line"><span class="log-ts">03:44:08</span><span class="ll-i">INFO</span><span class="log-msg">Immich: face recognition complete — 142 new photos indexed</span></div>
+        <div class="log-line"><span class="log-ts">03:42:14</span><span class="ll-e"> ERR</span><span class="log-msg">sdi: SMART self-test FAILED. Pending sector count: 128. Do not use for data.</span></div>
+        <div class="log-line"><span class="log-ts">03:41:55</span><span class="ll-i">INFO</span><span class="log-msg">nginx: cert renewed for forgeos.local (Let's Encrypt)</span></div>
+        <div class="log-line"><span class="log-ts">03:40:01</span><span class="ll-w">WARN</span><span class="log-msg">Fail2ban: 3 IPs banned (SSH brute force) in last hour</span></div>
+        <div class="log-line"><span class="log-ts">03:38:20</span><span class="ll-i">INFO</span><span class="log-msg">Restic: backup to Backblaze B2 complete — 4.2GB (AES-256 encrypted)</span></div>
+        <div class="log-line"><span class="log-ts">03:35:09</span><span class="ll-i">INFO</span><span class="log-msg">snapper: 3 btrfs snapshots created (datapool), 1 pruned</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ WINDOW: NGINX PROXY MANAGER ══ -->
+<div class="win" id="win-net" style="right:12px;top:10px;width:500px;height:570px">
+  <div class="win-tb">
+    <span class="win-ico">🔄</span>
+    <span class="win-title">nginx · Reverse Proxy</span>
+    <div class="win-btns">
+      <div class="wb" data-act="min">—</div>
+      <div class="wb x" data-act="close">✕</div>
+    </div>
+  </div>
+  <div class="win-tabs">
+    <div class="wt active" data-tab="vhosts">Vhosts</div>
+    <div class="wt" data-tab="add-vhost">+ Add</div>
+    <div class="wt" data-tab="raw-nginx">Raw Config</div>
+    <div class="wt" data-tab="certs">Certificates</div>
+  </div>
+  <div class="win-body" style="flex-direction:column">
+
+    <!-- Vhost list -->
+    <div class="tab-panel active" id="tab-vhosts" style="flex-direction:column">
+      <div class="nginx-row" style="background:var(--bg-item);border-bottom:1px solid var(--border);flex-shrink:0">
+        <span style="font-size:10px;font-family:var(--ff-head);letter-spacing:1px;color:var(--t3);flex:1">DOMAIN</span>
+        <span style="font-size:10px;font-family:var(--ff-head);letter-spacing:1px;color:var(--t3);min-width:100px">UPSTREAM</span>
+        <span style="font-size:10px;font-family:var(--ff-head);letter-spacing:1px;color:var(--t3);min-width:50px">STATUS</span>
+        <span style="font-size:10px;font-family:var(--ff-head);letter-spacing:1px;color:var(--t3);min-width:24px">TLS</span>
+        <span style="width:50px"></span>
+      </div>
+      <div class="scroll" style="flex:1">
+        <div class="nginx-row">
+          <div class="nginx-domain">forgeos.local</div>
+          <div class="nginx-upstream">:5080</div>
+          <div class="nginx-status up">UP</div>
+          <div class="nginx-ssl" title="Let's Encrypt">🔒</div>
+          <div class="nginx-edit-btn">Edit</div>
+        </div>
+        <div class="nginx-row">
+          <div class="nginx-domain">grafana.forgeos.local</div>
+          <div class="nginx-upstream">:3000</div>
+          <div class="nginx-status up">UP</div>
+          <div class="nginx-ssl">🔒</div>
+          <div class="nginx-edit-btn">Edit</div>
+        </div>
+        <div class="nginx-row">
+          <div class="nginx-domain">photos.forgeos.local</div>
+          <div class="nginx-upstream">:2283</div>
+          <div class="nginx-status up">UP</div>
+          <div class="nginx-ssl">🔒</div>
+          <div class="nginx-edit-btn">Edit</div>
+        </div>
+        <div class="nginx-row">
+          <div class="nginx-domain">auth.forgeos.local</div>
+          <div class="nginx-upstream">:9000</div>
+          <div class="nginx-status up">UP</div>
+          <div class="nginx-ssl">🔒</div>
+          <div class="nginx-edit-btn">Edit</div>
+        </div>
+        <div class="nginx-row">
+          <div class="nginx-domain">mail.forgeos.local</div>
+          <div class="nginx-upstream">:20000</div>
+          <div class="nginx-status up">UP</div>
+          <div class="nginx-ssl">🔒</div>
+          <div class="nginx-edit-btn">Edit</div>
+        </div>
+        <div class="nginx-row">
+          <div class="nginx-domain">s3.forgeos.local</div>
+          <div class="nginx-upstream">:9001</div>
+          <div class="nginx-status up">UP</div>
+          <div class="nginx-ssl">🔒</div>
+          <div class="nginx-edit-btn">Edit</div>
+        </div>
+        <div class="nginx-row">
+          <div class="nginx-domain">push.forgeos.local</div>
+          <div class="nginx-upstream">:8070</div>
+          <div class="nginx-status up">UP</div>
+          <div class="nginx-ssl">🔒</div>
+          <div class="nginx-edit-btn">Edit</div>
+        </div>
+        <div class="nginx-row">
+          <div class="nginx-domain">files.forgeos.local</div>
+          <div class="nginx-upstream">:8085</div>
+          <div class="nginx-status down">DOWN</div>
+          <div class="nginx-ssl">🔒</div>
+          <div class="nginx-edit-btn">Edit</div>
+        </div>
+        <div class="nginx-row">
+          <div class="nginx-domain">dav.forgeos.local</div>
+          <div class="nginx-upstream">WebDAV</div>
+          <div class="nginx-status up">UP</div>
+          <div class="nginx-ssl">🔒</div>
+          <div class="nginx-edit-btn">Edit</div>
+        </div>
+      </div>
+      <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;align-items:center">
+        <span style="font-size:10px;color:var(--t3);font-family:var(--ff-mono)">nginx 1.27 · 9 vhosts · 8 active</span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <div class="btn">Test Config</div>
+          <div class="btn primary">Reload nginx</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add vhost -->
+    <div class="tab-panel" id="tab-add-vhost" style="flex-direction:column">
+      <div class="scroll" style="flex:1">
+        <div style="padding:12px;display:flex;flex-direction:column;gap:10px">
+          <div class="sh">Add Reverse Proxy Host</div>
+          <div class="form-row">
+            <span class="form-label">Domain</span>
+            <input class="form-input" type="text" placeholder="app.forgeos.local" id="vh-domain">
+          </div>
+          <div class="form-row">
+            <span class="form-label">Port</span>
+            <input class="form-input" type="text" placeholder="8080" id="vh-port" style="max-width:100px">
+            <span style="font-size:10px;color:var(--t3)">localhost upstream port</span>
+          </div>
+          <div class="form-row">
+            <span class="form-label">TLS</span>
+            <select class="form-input" style="cursor:pointer">
+              <option>Let's Encrypt (auto)</option>
+              <option>Self-signed (dev)</option>
+              <option>Manual cert</option>
+              <option>None (HTTP only)</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <span class="form-label">WebSocket</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--t2)">
+              <input type="checkbox" id="vh-ws"> Enable WebSocket upgrade
+            </label>
+          </div>
+          <div class="form-row">
+            <span class="form-label">Auth</span>
+            <select class="form-input" style="cursor:pointer">
+              <option>None (public)</option>
+              <option>Basic auth</option>
+              <option>Authentik OIDC</option>
+            </select>
+          </div>
+          <div style="padding:8px 12px;display:flex;justify-content:flex-end;gap:8px">
+            <div class="btn">Cancel</div>
+            <div class="btn primary" id="add-vhost-btn">Create Vhost</div>
+          </div>
+          <div style="padding:0 12px;font-size:10px;color:var(--t3);font-family:var(--ff-mono);background:var(--bg-item);border-radius:4px;border:1px solid var(--border);padding:8px 12px" id="vhost-preview">
+            # Preview will appear here...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Raw nginx config editor -->
+    <div class="tab-panel" id="tab-raw-nginx" style="flex:1">
+      <div class="raw-conf-wrap visible" style="flex:1">
+        <div class="raw-conf-bar">
+          <span class="raw-conf-label">/etc/nginx/nginx.conf</span>
+          <div class="btn">Discard</div>
+          <div class="btn">Test Config</div>
+          <div class="btn primary">Save & Reload</div>
+        </div>
+        <textarea class="raw-conf-editor">
+# ForgeOS nginx configuration
+# Managed by ForgeOS — changes here override GUI settings
+
+worker_processes auto;
+worker_rlimit_nofile 65535;
+
+events {
+    worker_connections 4096;
+    use epoll;
+    multi_accept on;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    sendfile    on;
+    tcp_nopush  on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    server_tokens off;
+
+    gzip on;
+    gzip_types text/plain text/css application/json application/javascript;
+
+    # Rate limiting
+    limit_req_zone $binary_remote_addr zone=forgeos_ui:10m rate=20r/s;
+    limit_req_zone $binary_remote_addr zone=forgeos_auth:10m rate=5r/m;
+
+    include /etc/nginx/forgeos.d/*.conf;
+}</textarea>
+      </div>
+    </div>
+
+    <!-- Certs -->
+    <div class="tab-panel" id="tab-certs" style="flex-direction:column">
+      <div class="scroll" style="flex:1">
+        <div style="padding:12px;display:flex;flex-direction:column;gap:8px">
+          <div class="sh">TLS Certificates</div>
+          <div style="background:var(--bg-pane);border:1px solid var(--border);border-radius:4px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border);font-size:11px;font-family:var(--ff-mono)">
+              <span style="color:var(--ok)">🔒</span>
+              <span style="flex:1;color:var(--t1)">forgeos.local (wildcard)</span>
+              <span style="color:var(--t3)">Expires: 2025-06-13</span>
+              <span style="color:var(--ok);font-size:9px;font-family:var(--ff-head);letter-spacing:1px">VALID</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;font-size:11px;font-family:var(--ff-mono)">
+              <span style="color:var(--ok)">🔒</span>
+              <span style="flex:1;color:var(--t1)">mail.forgeos.local</span>
+              <span style="color:var(--t3)">Expires: 2025-06-13</span>
+              <span style="color:var(--ok);font-size:9px;font-family:var(--ff-head);letter-spacing:1px">VALID</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:4px">
+            <div class="btn">Request New Cert</div>
+            <div class="btn primary">Renew All</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- #desktop -->
+
+<!-- ╔══════════ TASKBAR — 4 items only ══════════╗ -->
+<div id="taskbar">
+  <div id="tb-logo">
+    <div class="logo-hex"></div>
+    <div class="logo-txt">ForgeOS</div>
+  </div>
+
+  <div id="tb-pins">
+    <div class="tb-pin open" data-win="win-dash">
+      <span class="p-ico">🖥</span><span class="p-lbl">Dashboard</span>
+    </div>
+    <div class="tb-pin" data-win="win-storage">
+      <span class="p-ico">💽</span><span class="p-lbl">Storage</span>
+    </div>
+    <div class="tb-pin open" data-win="win-net">
+      <span class="p-ico">🌐</span><span class="p-lbl">Network</span>
+    </div>
+    <div class="tb-pin" data-win="win-settings">
+      <span class="p-ico">⚙</span><span class="p-lbl">Settings</span>
+    </div>
+  </div>
+
+  <div id="tb-tray">
+    <div class="tray-btn predict" title="sdd: Predictive failure — replace soon">
+      ⚠ sdd
+    </div>
+    <div class="tray-btn err" title="sdi: SMART FAIL — do not use">
+      🔴 sdi
+    </div>
+    <div class="tray-btn ok" title="VPN active">🔐</div>
+    <div class="tray-btn" title="Notifications">
+      🔔<div class="tray-dot forge"></div>
+    </div>
+  </div>
+
+  <div id="tb-clock">
+    <div id="clk-time">00:00:00</div>
+    <div id="clk-date">---</div>
+  </div>
+</div>
+
+<!-- Context menu -->
+<div class="ctx" id="ctx">
+  <div class="ctx-item">🖼 Change Wallpaper</div>
+  <div class="ctx-item">📋 Arrange Windows</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item">🖧 Open Terminal</div>
+  <div class="ctx-item">🔄 Refresh</div>
+</div>
+
+<!-- Toasts -->
+<div id="toasts">
+  <div class="toast predict">
+    <div class="t-ico">🔮</div>
+    <div class="t-body">
+      <div class="t-title">Predictive Drive Failure — sdd</div>
+      <div class="t-msg">Reallocated sectors: 14. Data is safe (ForgeRAID-Smart). Replace sdd before count reaches 20.</div>
+    </div>
+    <div class="t-close">✕</div>
+  </div>
+  <div class="toast err">
+    <div class="t-ico">🔴</div>
+    <div class="t-body">
+      <div class="t-title">Drive SMART Failure — sdi</div>
+      <div class="t-msg">Self-test failed. 128 pending sectors. Do not assign to any pool. Replace immediately.</div>
+    </div>
+    <div class="t-close">✕</div>
+  </div>
+</div>
+
+<script>
+// ── Clock ──
+function tick() {
+  const n = new Date(), p = x => String(x).padStart(2,'0');
+  document.getElementById('clk-time').textContent = `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+  document.getElementById('clk-date').textContent = n.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+tick(); setInterval(tick,1000);
+
+// ── CPU animation ──
+let cpu = 34;
+setInterval(() => {
+  cpu = Math.max(5,Math.min(95, cpu + (Math.random()-.48)*10));
+  const r = Math.round(cpu);
+  document.getElementById('cpu-v').textContent = r;
+  document.getElementById('cpu-bar').style.width = r + '%';
+}, 2000);
+
+// ── Window drag ──
+let drag = null, ox=0, oy=0, sx=0, sy=0;
+document.querySelectorAll('.win-tb').forEach(tb => {
+  const win = tb.closest('.win');
+  tb.addEventListener('mousedown', e => {
+    if (e.target.closest('.win-btns')) return;
+    drag = win; const r = win.getBoundingClientRect();
+    ox=r.left; oy=r.top; sx=e.clientX; sy=e.clientY;
+    front(win); e.preventDefault();
+  });
+});
+document.addEventListener('mousemove', e => {
+  if (!drag) return;
+  drag.style.left = (ox+e.clientX-sx)+'px';
+  drag.style.top  = (oy+e.clientY-sy)+'px';
+  drag.style.right = 'auto'; drag.style.bottom = 'auto';
+});
+document.addEventListener('mouseup', () => drag=null);
+
+// ── Focus ──
+let z = 100;
+function front(win) {
+  document.querySelectorAll('.win').forEach(w => w.classList.remove('focused'));
+  win.classList.add('focused');
+  win.style.zIndex = ++z;
+  document.querySelectorAll('.tb-pin').forEach(p => {
+    p.classList.toggle('open', p.dataset.win === win.id && win.style.display !== 'none');
+  });
+}
+document.querySelectorAll('.win').forEach(w => w.addEventListener('mousedown', () => front(w)));
+
+// ── Window buttons ──
+document.querySelectorAll('.wb').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const win = btn.closest('.win');
+    const act = btn.dataset.act;
+    if (act === 'close' || act === 'min') {
+      win.style.display = 'none';
+      document.querySelectorAll(`.tb-pin[data-win="${win.id}"]`).forEach(p => p.classList.remove('open'));
+    }
+  });
+});
+
+// ── Taskbar pins ──
+document.querySelectorAll('.tb-pin').forEach(pin => {
+  pin.addEventListener('click', () => {
+    const id = pin.dataset.win;
+    if (!id) return;
+    const win = document.getElementById(id);
+    if (!win) return;
+    if (win.style.display === 'none' || !win.style.display) {
+      win.style.display = 'flex'; front(win);
+    } else if (win.classList.contains('focused')) {
+      win.style.display = 'none'; pin.classList.remove('open');
+    } else {
+      front(win);
+    }
+  });
+});
+
+// ── Tabs ──
+document.querySelectorAll('.win-tabs').forEach(bar => {
+  bar.querySelectorAll('.wt').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const panel_id = 'tab-' + tab.dataset.tab;
+      const win = bar.closest('.win');
+      bar.querySelectorAll('.wt').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      win.querySelectorAll('.tab-panel').forEach(p => {
+        p.classList.toggle('active', p.id === panel_id);
+      });
+    });
+  });
+});
+
+// ── Sidebar items ──
+document.querySelectorAll('.sb-item').forEach(item => {
+  item.addEventListener('click', () => {
+    item.closest('.sidebar').querySelectorAll('.sb-item').forEach(i => i.classList.remove('act'));
+    item.classList.add('act');
+  });
+});
+
+// ── Nginx vhost preview ──
+function updatePreview() {
+  const d = document.getElementById('vh-domain')?.value || 'app.forgeos.local';
+  const p = document.getElementById('vh-port')?.value || '8080';
+  const preview = document.getElementById('vhost-preview');
+  if (preview) {
+    preview.textContent = `server {\n    listen 443 ssl;\n    server_name ${d};\n    # upstream → 127.0.0.1:${p}\n    location / {\n        proxy_pass http://127.0.0.1:${p};\n    }\n}`;
+  }
+}
+document.getElementById('vh-domain')?.addEventListener('input', updatePreview);
+document.getElementById('vh-port')?.addEventListener('input', updatePreview);
+updatePreview();
+
+// ── Context menu ──
+const ctx = document.getElementById('ctx');
+document.getElementById('desktop').addEventListener('contextmenu', e => {
+  e.preventDefault();
+  ctx.style.left = e.clientX+'px';
+  ctx.style.top  = Math.min(e.clientY, window.innerHeight-200)+'px';
+  ctx.classList.add('vis');
+});
+document.addEventListener('click', () => ctx.classList.remove('vis'));
+
+// ── Toast close ──
+document.querySelectorAll('.t-close').forEach(b => b.addEventListener('click', () => b.closest('.toast').remove()));
+
+// ── Log scroll ──
+const la = document.getElementById('log-area');
+if (la) la.scrollTop = la.scrollHeight;
+</script>
+</body>
+</html>
