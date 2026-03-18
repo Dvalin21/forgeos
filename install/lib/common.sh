@@ -13,7 +13,6 @@ GREEN="\033[38;5;71m"
 YELLOW="\033[38;5;214m"
 RED="\033[38;5;196m"
 ORANGE="\033[38;5;208m"
-# shellcheck disable=SC2034  # BLUE exported for use in sourcing scripts
 BLUE="\033[38;5;68m"
 DIM="\033[2m"
 
@@ -125,7 +124,6 @@ forgenas_set() {
 
 forgenas_get() {
     local key="$1" default="${2:-}"
-    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG" 2>/dev/null || true
     echo "${!key:-$default}"
 }
