@@ -520,7 +520,7 @@ install_fileshare_cli
 forgenas_set "MODULE_FILESHARE_DONE" "yes"
 forgenas_set "FEATURE_FILESHARE" "yes"
 
-local domain; domain=$(forgenas_get "DOMAIN" "nas.local")
+domain; domain=$(forgenas_get "DOMAIN" "nas.local")
 info "File sharing module complete"
 info "  NFS v4:       mount -t nfs4 ${HOSTNAME:-forgeos}.local:/nas /mnt"
 info "  FTPS:         ${HOSTNAME:-forgeos}.${domain}:21 (TLS required)"

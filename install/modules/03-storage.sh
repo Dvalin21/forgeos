@@ -220,7 +220,7 @@ create_smart_pool() {
 
     # Calculate ForgeRAID-Smart layout
     # Each "tier" uses the incremental space between consecutive disk sizes
-    local mdadm_arrays=()
+    mdadm_arrays=()
     local remaining_sizes=()
     for disk in "${sorted_disks[@]}"; do remaining_sizes+=("${disk_sizes[$disk]}"); done
 

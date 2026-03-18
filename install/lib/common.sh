@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
+# shellcheck disable=SC2034  # color vars used by sourcing scripts
 # ForgeOS lib/common.sh — Shared functions for all modules
 # Source this at the top of every module:
 #   source "$(dirname "$0")/../lib/common.sh"

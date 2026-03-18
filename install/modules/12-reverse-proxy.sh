@@ -220,6 +220,7 @@ NGINX
 nginx_add_vhost() {
     # Usage: nginx_add_vhost <name> <domain> <upstream_port> [options]
     local name="$1" domain="$2" port="$3"
+    # shellcheck disable=SC2034
     local tls="${4:-acme}"       # acme | selfsigned | none
     local auth="${5:-none}"      # none | basic | oidc
     local ws="${6:-no}"          # WebSocket support
