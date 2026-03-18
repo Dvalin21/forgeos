@@ -11,6 +11,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 # ============================================================
@@ -77,6 +78,7 @@ DOCKER
     enable_service docker
 
     # Add admin user to docker group
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local user="${ADMIN_USER:-forgeos}"
     usermod -aG docker "$user" 2>/dev/null || true
@@ -167,6 +169,7 @@ INCUSINIT
     rm -f /tmp/incus-init.yaml
 
     # Add admin user to incus-admin group
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local user="${ADMIN_USER:-forgeos}"
     usermod -aG incus-admin "$user" 2>/dev/null || true
@@ -182,6 +185,7 @@ INCUSINIT
 # NVIDIA CONTAINER TOOLKIT (if NVIDIA GPU detected)
 # ============================================================
 install_nvidia_container_toolkit() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     [[ "${GPU_NVIDIA:-false}" != "true" ]] && return 0
 
@@ -211,6 +215,7 @@ install_nvidia_container_toolkit() {
 # Set PORTAINER=yes to enable
 # ============================================================
 install_portainer() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     [[ "${PORTAINER:-no}" != "yes" ]] && return 0
 

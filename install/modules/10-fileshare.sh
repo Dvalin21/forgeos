@@ -24,6 +24,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 NAS_ROOT="/srv/nas"
@@ -37,7 +38,7 @@ install_nfs() {
     apt_install nfs-kernel-server nfs-common rpcbind
 
     # NFS v4 only — disable v2/v3 completely
-    cat > /etc/default/nfs-kernel-server << 'NFSD'
+    cat > /etc/default/nfs-kernel-server << 'NFS_SERVER_DEFAULTS'
 # ForgeOS NFS configuration
 # v4 ONLY — v2 and v3 disabled for security
 
@@ -50,8 +51,7 @@ RPCNFSDCOUNT=$(nproc)
 # v4 lease time (seconds) — shorter = faster recovery after crash
 NFSD_V4_GRACE_TIME=90
 NFSD_V4_LEASE_TIME=90
-NFSD'
-
+NFS_SERVER_DEFAULTS
     # Kernel parameters for NFS v4
     cat > /etc/sysctl.d/92-forgeos-nfs.conf << 'NFSSYS'
 # NFS performance tuning

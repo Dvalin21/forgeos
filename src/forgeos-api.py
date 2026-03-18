@@ -26,15 +26,14 @@ import subprocess
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
 
 import uvicorn
 from fastapi import (
-    BackgroundTasks, Depends, FastAPI, HTTPException,
-    Request, WebSocket, WebSocketDisconnect, status,
+    Depends, FastAPI, HTTPException,
+    Request, WebSocket, WebSocketDisconnect,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from passlib.context import CryptContext

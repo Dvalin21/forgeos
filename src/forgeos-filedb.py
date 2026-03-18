@@ -47,8 +47,6 @@ import asyncio
 import fcntl
 import hashlib
 import json
-import os
-import re
 import shutil
 import socket
 import subprocess
@@ -56,15 +54,14 @@ import struct
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 # ──────────────────────────────────────────────────────────────

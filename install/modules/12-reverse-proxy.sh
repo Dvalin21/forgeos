@@ -18,6 +18,7 @@
 #   No manual nginx.conf editing required (GUI does it)
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 NGINX_CONF_DIR="/etc/nginx"
@@ -220,7 +221,9 @@ NGINX
 nginx_add_vhost() {
     # Usage: nginx_add_vhost <name> <domain> <upstream_port> [options]
     local name="$1" domain="$2" port="$3"
+    # shellcheck disable=SC2034
     local tls="${4:-acme}"       # acme | selfsigned | none
+    # shellcheck disable=SC2034
     local auth="${5:-none}"      # none | basic | oidc
     local ws="${6:-no}"          # WebSocket support
 
@@ -307,6 +310,8 @@ VHOST
 generate_vhosts() {
     step "Generating ForgeOS service vhosts"
 
+    # shellcheck source=/dev/null
+
     source "$FORGENAS_CONFIG"
     local d="${DOMAIN:-nas.local}"
     local email="${ACME_EMAIL:-admin@${d}}"
@@ -316,9 +321,9 @@ generate_vhosts() {
         info "Requesting Let's Encrypt certs..."
         certbot certonly --nginx --non-interactive --agree-tos \
             --email "$email" -d "$d" \
-            $(for sub in mail photos office grafana auth push s3 s3api files dav vpn; do
+            "$(for sub in mail photos office grafana auth push s3 s3api files dav vpn; do
                 echo "-d ${sub}.${d} "
-            done) >> "$FORGENAS_LOG" 2>&1 \
+            done)" >> "$FORGENAS_LOG" 2>&1 \
             || info "Cert issuance deferred — run: certbot --nginx -d ${d}"
     fi
 

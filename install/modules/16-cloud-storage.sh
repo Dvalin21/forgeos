@@ -21,6 +21,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 MINIO_DIR="/opt/forgeos/apps/minio"
@@ -58,6 +59,8 @@ install_minio() {
     local root_pass; root_pass=$(gen_password 24)
     forgenas_set "MINIO_ROOT_USER" "$root_user"
     forgenas_set "MINIO_ROOT_PASS" "$root_pass"
+
+    # shellcheck source=/dev/null
 
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
@@ -125,6 +128,7 @@ SVC
 }
 
 _configure_minio_nginx() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
 
@@ -199,6 +203,8 @@ configure_rclone_cloud() {
         curl -sf https://rclone.org/install.sh | bash >> "$FORGENAS_LOG" 2>&1 || \
         apt_install rclone
     }
+
+    # shellcheck source=/dev/null
 
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
@@ -421,6 +427,8 @@ install_cloud_cli
 
 forgenas_set "MODULE_CLOUD_DONE" "yes"
 forgenas_set "FEATURE_CLOUD"     "yes"
+
+# shellcheck source=/dev/null
 
 source "$FORGENAS_CONFIG"
 info "Cloud storage module complete"

@@ -21,6 +21,7 @@
 #   databases, not just ElevateDB.
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 FILEDB_DIR="/opt/forgeos/filedb"
@@ -28,6 +29,8 @@ FILEDB_WEB="/opt/forgeos/filedb/web"
 FILEDB_BIN="$FILEDB_DIR/forgeos-filedb.py"
 FILEDB_SNAP="/srv/forgeos/filedb/snapshots"
 FILEDB_CONF="/etc/forgeos/filedb/filedb.conf"
+# shellcheck disable=SC2034
+# shellcheck disable=SC2034
 FILEDB_LOG="/var/log/forgeos/filedb.log"
 
 mkdir -p "$FILEDB_DIR" "$FILEDB_WEB" "$FILEDB_SNAP" "$(dirname "$FILEDB_CONF")"

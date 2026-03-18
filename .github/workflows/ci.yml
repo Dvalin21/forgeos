@@ -36,7 +36,7 @@ jobs:
             echo "Checking $f"
             shellcheck -S warning -x "$f" || FAILURES=$((FAILURES+1))
           done
-          if [ $FAILURES -gt 0 ]; then
+          if [ "$FAILURES" -gt 0 ]; then
             echo "::error::$FAILURES module(s) failed ShellCheck"
             exit 1
           fi
@@ -57,20 +57,20 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install dependencies
+        run: pip install flake8 fastapi uvicorn python-jose passlib pydantic
+
       - name: Syntax check
         run: |
           python3 -m py_compile src/forgeos-api.py
           python3 -m py_compile src/forgeos-filedb.py
           echo "Python syntax OK"
 
-      - name: Install dependencies + flake8
-        run: |
-          pip install flake8 fastapi uvicorn python-jose passlib pydantic 2>/dev/null || true
+      - name: Flake8 — unused imports and syntax errors (blocking)
+        run: flake8 src/ --select=F401,E9,F8 --statistics
 
-      - name: Flake8 (warnings only — not blocking)
-        run: |
-          flake8 src/ --max-line-length=120 --extend-ignore=E501,W503 \
-            --statistics 2>&1 || true
+      - name: Flake8 — style warnings (non-blocking)
+        run: flake8 src/ --max-line-length=120 --extend-ignore=E501,W503,F401 --statistics || true
 
   # ── Repository structure validation ───────────────────────────
   structure:
@@ -104,19 +104,17 @@ jobs:
               echo "OK: $f"
             fi
           done
-          [ $MISSING -eq 0 ] || exit 1
+          [ "$MISSING" -eq 0 ] || exit 1
 
-      - name: Check module numbering sequence
+      - name: Check modules present
         run: |
           echo "Modules present:"
           ls install/modules/*.sh | sort
 
-      - name: Check no secrets in repo
+      - name: Check no hardcoded secrets
         run: |
-          # Fail if any file contains something that looks like a hardcoded secret
-          # (password= followed by a real value, not a variable reference)
           FOUND=$(grep -rn --include="*.sh" --include="*.py" \
-            -P 'password\s*=\s*["\x27][A-Za-z0-9!@#$%^&*]{12,}["\x27]' \
+            -P 'password\s*=\s*["'"'"'][A-Za-z0-9!@#$%^&*]{12,}["'"'"']' \
             . 2>/dev/null \
             | grep -v '\.git' \
             | grep -v 'example\|placeholder\|changeme\|YOUR_\|<your' \
@@ -128,13 +126,7 @@ jobs:
           fi
           echo "No hardcoded secrets found"
 
-      - name: Check executable bits on scripts
-        run: |
-          # install.sh should be executable
-          [ -x install/install.sh ] || chmod +x install/install.sh
-          echo "Script permissions OK"
-
-  # ── Markdown lint ─────────────────────────────────────────────
+  # ── Markdown lint (non-blocking) ──────────────────────────────
   markdown:
     name: Markdown
     runs-on: ubuntu-22.04
@@ -154,7 +146,7 @@ jobs:
             }
         continue-on-error: true
 
-  # ── Release preparation (on tag push only) ────────────────────
+  # ── Release (tag pushes only) ─────────────────────────────────
   release-prep:
     name: Release Prep
     runs-on: ubuntu-22.04
@@ -174,7 +166,7 @@ jobs:
             --transform "s|^|forgeos-${VERSION}/|" \
             .
           sha256sum forgeos-${VERSION}.tar.gz > forgeos-${VERSION}.tar.gz.sha256
-          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
 
       - name: Upload release assets
         uses: softprops/action-gh-release@v2

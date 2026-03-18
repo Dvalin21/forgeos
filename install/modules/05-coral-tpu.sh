@@ -53,6 +53,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 CORAL_DIR="/opt/forgeos/apps/coral"
@@ -115,7 +116,7 @@ install_gasket_dkms() {
     # Prerequisites
     apt_install \
         dkms \
-        linux-headers-$(uname -r) \
+        "linux-headers-$(uname -r)" \
         git \
         devscripts \
         dh-dkms \
@@ -274,6 +275,7 @@ UDEV
 
     # apex group
     getent group apex &>/dev/null || groupadd apex
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local user="${ADMIN_USER:-forgeos}"
     usermod -aG apex "$user" 2>/dev/null || true
@@ -362,6 +364,8 @@ verify_coral() {
 # ============================================================
 generate_frigate_compose() {
     step "Generating Frigate NVR Docker Compose"
+
+    # shellcheck source=/dev/null
 
     source "$FORGENAS_CONFIG"
     local coral_count="${CORAL_COUNT:-1}"

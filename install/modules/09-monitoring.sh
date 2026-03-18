@@ -14,6 +14,7 @@
 #   fancontrol     — automatic fan speed management
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 COMPOSE_DIR="/opt/forgeos/apps/monitoring"
@@ -26,6 +27,8 @@ mkdir -p "$COMPOSE_DIR" "$DATA_DIR"/{prometheus,grafana,alertmanager,gotify}
 # ============================================================
 write_compose() {
     step "Writing monitoring compose file"
+
+    # shellcheck source=/dev/null
 
     source "$FORGENAS_CONFIG"
     local gf_pass; gf_pass=$(gen_password 20)
@@ -358,6 +361,8 @@ RULES
 write_alertmanager_config() {
     step "Writing Alertmanager configuration"
 
+    # shellcheck source=/dev/null
+
     source "$FORGENAS_CONFIG"
 
     cat > "${COMPOSE_DIR}/alertmanager.yml" << ALERT
@@ -617,7 +622,6 @@ fi
 if wait_for_port 127.0.0.1 8070 30; then
     # Get Gotify app token for ForgeOS
     sleep 3
-    local gotify_token
     gotify_token=$(curl -sf -u "admin:$(forgenas_get GRAFANA_PASS)" \
         -X POST "http://localhost:8070/application" \
         -H "Content-Type: application/json" \

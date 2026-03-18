@@ -19,6 +19,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 WG_DIR="/etc/wireguard"
@@ -60,6 +61,8 @@ generate_server_keys() {
 
 configure_wireguard_server() {
     step "Configuring WireGuard server"
+
+    # shellcheck source=/dev/null
 
     source "$FORGENAS_CONFIG"
     local server_key; server_key=$(cat "${WG_DIR}/server.key")
@@ -290,6 +293,7 @@ VPNCLI
 # Comma-separated list: VPN_DEFAULT_PEERS="laptop,phone,tablet"
 # ============================================================
 create_default_peers() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     [[ -z "${VPN_DEFAULT_PEERS:-}" ]] && return 0
 
@@ -309,6 +313,7 @@ create_default_peers() {
 # Enabled by: NETBIRD=yes in forgeos.conf
 # ============================================================
 install_netbird() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     [[ "${NETBIRD:-no}" != "yes" ]] && {
         info "Netbird: disabled (set NETBIRD=yes to enable)"

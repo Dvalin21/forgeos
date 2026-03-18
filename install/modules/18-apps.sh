@@ -24,6 +24,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 APPS_DIR="/opt/forgeos/apps"
@@ -100,6 +101,8 @@ install_microsoft_fonts() {
 # ============================================================
 install_onlyoffice() {
     step "Installing OnlyOffice Document Server"
+
+    # shellcheck source=/dev/null
 
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
@@ -223,6 +226,8 @@ NGINX
 # ============================================================
 install_immich() {
     step "Installing Immich photo library"
+
+    # shellcheck source=/dev/null
 
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
@@ -375,7 +380,7 @@ install_immich
 
 forgenas_set "MODULE_APPS_DONE" "yes"
 
-local domain="${DOMAIN:-nas.local}"
+domain="${DOMAIN:-nas.local}"
 info "Applications module complete"
 info "  OnlyOffice:  https://office.${domain}"
 info "  Immich:      https://photos.${domain}"

@@ -31,6 +31,7 @@
 #   Run: forgeos-hipaa designate-phi /srv/nas/datapool/patients
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 HIPAA_DIR="/etc/forgeos/hipaa"
@@ -205,6 +206,8 @@ configure_atrest_encryption() {
     step "Configuring at-rest encryption for ePHI"
 
     local kernel_ver
+    # shellcheck disable=SC2034
+    # shellcheck disable=SC2034
     kernel_ver=$(uname -r | cut -d. -f1-2 | tr -d '.')
 
     # Check for fscrypt support (btrfs-native or ext4)

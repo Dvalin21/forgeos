@@ -17,12 +17,14 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 # ============================================================
 # NVIDIA
 # ============================================================
 install_nvidia() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     [[ "${GPU_NVIDIA:-false}" != "true" ]] && return 0
 
@@ -109,6 +111,7 @@ NVTC
 # ROCm is for compute/AI workloads (optional heavy install ~4GB).
 # ============================================================
 install_amd() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     [[ "${GPU_AMD:-false}" != "true" ]] && return 0
 
@@ -124,6 +127,7 @@ install_amd() {
         libva-drm2
 
     # Add current user to render/video groups for GPU access
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local user="${ADMIN_USER:-forgeos}"
     usermod -aG render,video "$user" 2>/dev/null || true
@@ -136,6 +140,7 @@ install_amd() {
     fi
 
     # ROCm (optional — only if ROCM=yes set, it's a large install)
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     if [[ "${ROCM:-no}" == "yes" ]]; then
         _install_rocm
@@ -183,6 +188,7 @@ ROCMENV
 # HWE kernel 6.8+ required for Arc discrete GPU support.
 # ============================================================
 install_intel() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     [[ "${GPU_INTEL:-false}" != "true" ]] && return 0
 
@@ -203,6 +209,7 @@ install_intel() {
         libva2
 
     # Intel Arc discrete GPU needs newer kernel (6.8+) and xe driver
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     if [[ "${GPU_INTEL_ARC:-false}" == "true" ]]; then
         _install_intel_arc
@@ -279,6 +286,8 @@ DRACUT
 write_transcoding_profiles() {
     step "Writing hardware transcoding profiles"
 
+    # shellcheck source=/dev/null
+
     source "$FORGENAS_CONFIG"
     local profile_dir="/opt/forgeos/apps/gpu-profiles"
     mkdir -p "$profile_dir"
@@ -318,6 +327,7 @@ JELLY
 # VERIFY + REPORT
 # ============================================================
 gpu_report() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     echo ""
     echo "  ── GPU Status ─────────────────────────────────────"

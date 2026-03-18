@@ -51,7 +51,8 @@ _test() {
 
     if [[ $exit_code -ne 0 ]]; then
         status="FAIL"; color="$RED"; symbol="✗"; (( FAIL++ )) || true
-        RESULTS+=("{\"test\":\"${name}\",\"status\":\"FAIL\",\"detail\":\"${output//\"/\\'}\",\"exit_code\":${exit_code}}")
+        _detail="${output//\"/ }"
+        RESULTS+=("{\"test\":\"${name}\",\"status\":\"FAIL\",\"detail\":\"${_detail}\",\"exit_code\":${exit_code}}")
     else
         (( PASS++ )) || true
         RESULTS+=("{\"test\":\"${name}\",\"status\":\"PASS\"}")
@@ -86,14 +87,13 @@ _skip() {
 # ── Header ────────────────────────────────────────────────────
 clear
 echo -e "${ORANGE}"
-cat << 'LOGO'
-  ___                 ___  ____
- / __\___  _ __ __ _ / _ \/ ___|
-/ _\ / _ \| '__/ _` | | | \___ \
-/ /  | (_) | | | (_| | |_| |___) |
-\/    \___/|_|  \__, |\___/|____/
-               |___/
-LOGO
+printf '\n'
+printf '%s\n' '  ___                 ___  ____'
+printf '%s\n' ' / __\___  _ __ __ _ / _ \/ ___|'
+printf '%s\n' '/ _\ / _ \| __/ _` | | | \___ \'
+printf '%s\n' '/ /  | (_) | | | (_| | |_| |___) |'
+printf '%s\n' '\/    \___/|_|  \__, |\___/|____/'
+printf '%s\n' '               |___/'
 echo -e "${NC}"
 echo -e "  ${BOLD}ForgeOS End-to-End Test Suite${NC}"
 echo -e "  ${DIM}$(date)${NC}"

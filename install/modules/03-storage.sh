@@ -32,6 +32,7 @@
 # NO ZFS — btrfs RAM usage is ~30x less than ZFS ARC
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 source "$(dirname "$0")/../lib/detect.sh"
 
@@ -220,6 +221,7 @@ create_smart_pool() {
 
     # Calculate ForgeRAID-Smart layout
     # Each "tier" uses the incremental space between consecutive disk sizes
+    # shellcheck disable=SC2034
     local mdadm_arrays=()
     local remaining_sizes=()
     for disk in "${sorted_disks[@]}"; do remaining_sizes+=("${disk_sizes[$disk]}"); done
