@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # ============================================================
-# shellcheck disable=SC2034  # color vars used by sourcing scripts
 # ForgeOS lib/common.sh — Shared functions for all modules
 # Source this at the top of every module:
 #   source "$(dirname "$0")/../lib/common.sh"
@@ -14,6 +13,7 @@ GREEN="\033[38;5;71m"
 YELLOW="\033[38;5;214m"
 RED="\033[38;5;196m"
 ORANGE="\033[38;5;208m"
+# shellcheck disable=SC2034  # BLUE exported for use in sourcing scripts
 BLUE="\033[38;5;68m"
 DIM="\033[2m"
 
@@ -125,6 +125,7 @@ forgenas_set() {
 
 forgenas_get() {
     local key="$1" default="${2:-}"
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG" 2>/dev/null || true
     echo "${!key:-$default}"
 }
