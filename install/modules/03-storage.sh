@@ -166,13 +166,20 @@ forgearaid_wizard() {
     mount_point="${mount_point:-/srv/nas/${pool_name}}"
 
     # Confirm
-    echo ""
-    echo -e "  ${YELLOW}⚠ WARNING: This will DESTROY all data on:${NC}"
-    for d in "${selected_disks[@]}"; do echo -e "    ${d}"; done
-    echo ""
-    echo -ne "  Type ${BOLD}CONFIRM${NC} to proceed: "
-    read -r confirm
-    [[ "$confirm" != "CONFIRM" ]] && { info "Aborted."; return; }
+    # Prevent accidental data loss in non-interactive/unattended mode
+    if [[ -t 0 || -t 1 ]]; then
+        echo ""
+        echo -e "  ${YELLOW}⚠ WARNING: This will DESTROY all data on:${NC}"
+        for d in "${selected_disks[@]}"; do echo -e "    ${d}"; done
+        echo ""
+        echo -ne "  Type ${BOLD}CONFIRM${NC} to proceed: "
+        read -r confirm
+        [[ "$confirm" != "CONFIRM" ]] && { info "Aborted."; return; }
+    else
+        warn "Non-interactive mode detected — skipping storage wizard"
+        warn "Use Web UI or run 'forgeos-storage create-pool' manually"
+        return
+    fi
 
     case "${raid_choice:-1}" in
         1) create_smart_pool "$pool_name" "$mount_point" "${selected_disks[@]}" ;;

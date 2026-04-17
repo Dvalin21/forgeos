@@ -28,13 +28,25 @@ install_docker() {
             >> "$FORGENAS_LOG" 2>&1 || true
     done
 
-    # Docker's official GPG key
+    # Docker's official GPG key - verify fingerprint to prevent MitM
     install -m 0755 -d /etc/apt/keyrings
+    local gpg_temp
+    gpg_temp=$(mktemp /tmp/docker-gpg-XXXXXX.asc)
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-        -o /etc/apt/keyrings/docker.asc 2>/dev/null \
+        -o "$gpg_temp" 2>/dev/null \
         || curl -fsSL https://download.docker.com/linux/debian/gpg \
-           -o /etc/apt/keyrings/docker.asc 2>/dev/null \
-        || die "Could not download Docker GPG key"
+           -o "$gpg_temp" 2>/dev/null \
+        || { rm -f "$gpg_temp"; die "Could not download Docker GPG key"; }
+    
+    # Verify GPG key fingerprint (Docker releases: 0EBFCD88)
+    local fingerprint
+    fingerprint=$(gpg --show-keys "$gpg_temp" 2>/dev/null | grep -E '^fpr' | tail -c 16 || true)
+    if [[ "$fingerprint" != "0EBFCD88" ]]; then
+        rm -f "$gpg_temp"
+        die "Docker GPG key fingerprint mismatch. Expected: 0EBFCD88, Got: $fingerprint"
+    fi
+    
+    mv "$gpg_temp" /etc/apt/keyrings/docker.asc
     chmod a+r /etc/apt/keyrings/docker.asc
 
     # Docker repo

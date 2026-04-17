@@ -93,9 +93,13 @@ def conf(key: str, default: str = "") -> str:
 # APP
 # ────────────────────────────────────────────────────────────
 app = FastAPI(title="ForgeOS API", version="1.0", docs_url=None, redoc_url=None)
+
+# CORS configuration - restrict to known origins in production
+# For development/development, consider using environment variable
+_allowed_origins = os.environ.get("FORGEOS_CORS_ORIGINS", "").split(",") if os.environ.get("FORGEOS_CORS_ORIGINS") else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -116,8 +120,9 @@ class LoginRequest(BaseModel):
 def load_users() -> dict:
     if USERS_FILE.exists():
         return json.loads(USERS_FILE.read_text())
-    # Default admin user if no file exists yet
-    return {"admin": {"hash": pwd_ctx.hash("forgeos"), "role": "admin"}}
+    # No default user - require first-time setup via installer
+    # This prevents hardcoded default credentials in production
+    return {}
 
 
 def create_token(username: str, role: str) -> str:
@@ -146,6 +151,8 @@ def verify_token(request: Request) -> dict:
 @app.post("/api/auth/login")
 async def login(req: LoginRequest):
     users = load_users()
+    if not users:
+        raise HTTPException(status_code=503, detail="No users configured. Run forgeos-install to set up admin user.")
     user = users.get(req.username)
     if not user or not pwd_ctx.verify(req.password, user["hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -370,8 +377,13 @@ async def create_snapshot(body: dict, user=Depends(verify_token)):
 
 @app.get("/api/storage/smart/{device}")
 async def smart_detail(device: str, user=Depends(verify_token)):
-    dev = re.sub(r"[^a-z0-9]", "", device)  # sanitize
-    out = _run(f"smartctl -a /dev/{dev}")
+    # Strict sanitization: only allow actual block device names
+    # Block /dev/ prefix, path traversal, and special devices
+    dev = re.sub(r"[^a-z0-9]", "", device)
+    # Additional check: reject if it looks like a path or special device
+    if dev in ("loop", "ram", "dm", "md") or len(dev) > 20:
+        raise HTTPException(400, "Invalid device name")
+    out = _run_args(["smartctl", "-a", f"/dev/{dev}"])
     return {"device": f"/dev/{dev}", "output": out}
 
 
