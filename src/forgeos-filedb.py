@@ -654,7 +654,9 @@ class MDNSBroadcaster:
 # Also provides a minimal API that ForgeOS Web UI uses.
 # ──────────────────────────────────────────────────────────────
 app = FastAPI(title="ForgeFileDB", version="1.0", docs_url=None)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+_allowed_origins_env = os.environ.get("FORGEOS_CORS_ORIGINS", "")
+_allowed_origins = _allowed_origins_env.split(",") if _allowed_origins_env else ["*"]
+app.add_middleware(CORSMiddleware, allow_origins=_allowed_origins, allow_methods=["*"], allow_headers=["*"])
 
 # These are set at startup
 _registry: Optional[LockRegistry] = None
