@@ -17,6 +17,7 @@ detect_cpu() {
     CPU_MODEL=$(grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)
     CPU_CORES=$(nproc)
     CPU_ARCH=$(uname -m)
+    export CPU_ARCH
     CPU_VENDOR=$(grep -m1 'vendor_id' /proc/cpuinfo | awk '{print $3}' || echo "unknown")
     CPU_IS_INTEL=false; CPU_IS_AMD=false
     [[ "$CPU_VENDOR" == "GenuineIntel" ]] && CPU_IS_INTEL=true
@@ -43,7 +44,7 @@ detect_gpu() {
         if echo "$GPU_INTEL_MODEL" | grep -qi "Arc"; then
             GPU_INTEL_ARC=true
         else
-            GPU_INTEL_ARC=false
+            GPU_INTEL_ARC=false; export GPU_INTEL_ARC
         fi
     fi
 
@@ -63,7 +64,10 @@ detect_network() {
     [[ "${NIC_SPEED:-0}" -ge 10000 ]] && NIC_HIGHSPEED=true
 
     # Count all physical NICs (for bonding)
-    NIC_COUNT=$(ls /sys/class/net/ | grep -v "^lo$\|^veth\|^docker\|^br-\|^virbr\|^incus\|^lxd" | wc -l)
+    NIC_COUNT=$(find /sys/class/net/ -maxdepth 1 -mindepth 1 -not -name "lo" \
+        -not -name "veth*" -not -name "docker*" -not -name "br-*" \
+        -not -name "virbr*" -not -name "incus*" -not -name "lxd*" \
+        | wc -l)
 
     forgenas_set "NIC_PRIMARY"   "$NIC_PRIMARY"
     forgenas_set "NIC_IP"        "$NIC_IP"
@@ -104,7 +108,7 @@ detect_disks() {
     while IFS= read -r line; do
         local dev size tran
         dev=$(echo "$line" | awk '{print $1}')
-        size=$(echo "$line" | awk '{print $2}')
+        _size=$(echo "$line" | awk '{print $2}')
         tran=$(echo "$line" | awk '{print $6}')
 
         [[ "/dev/$dev" == "$sys_disk" ]] && continue

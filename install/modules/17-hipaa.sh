@@ -31,6 +31,7 @@
 #   Run: forgeos-hipaa designate-phi /srv/nas/datapool/patients
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 HIPAA_DIR="/etc/forgeos/hipaa"

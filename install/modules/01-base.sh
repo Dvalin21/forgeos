@@ -16,6 +16,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 # ============================================================
@@ -191,6 +192,7 @@ SYSD
 # ============================================================
 configure_hostname_tz() {
     step "Configuring hostname and timezone"
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
 
     local hostname="${HOSTNAME:-forgeos}"
@@ -218,6 +220,7 @@ configure_hostname_tz() {
 # ============================================================
 setup_admin_user() {
     step "Setting up admin user"
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local user="${ADMIN_USER:-forgeos}"
 

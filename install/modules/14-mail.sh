@@ -31,6 +31,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 MAIL_CONF_DIR="/etc/forgeos/mail"
@@ -68,6 +69,7 @@ configure_postfix() {
     apt_install postfix postfix-mysql libsasl2-modules sasl2-bin \
         postfix-pcre opendkim opendkim-tools
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:?DOMAIN not set}"
     local hostname="${HOSTNAME:-forgeos}"
@@ -242,6 +244,7 @@ configure_dovecot() {
     apt_install dovecot-core dovecot-imapd dovecot-pop3d dovecot-lmtpd \
         dovecot-sieve dovecot-managesieved
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
     local cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
@@ -353,6 +356,7 @@ https://rspamd.com/apt-stable/ ${codename} main" \
     _apt_ready=false
     apt_install rspamd redis-server
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
 
@@ -427,6 +431,7 @@ CLAM
 install_sogo() {
     step "Installing SOGo webmail"
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
 
@@ -521,7 +526,7 @@ NGINX
         nginx -t >> "$FORGENAS_LOG" 2>&1 && systemctl reload nginx 2>/dev/null || true
     fi
 
-    info "SOGo webmail: https://mail.${domain}/SOGo"
+    info "SOGo webmail: https://mail.${_domain}/SOGo"
 }
 
 _install_roundcube() {
@@ -535,6 +540,7 @@ _install_roundcube() {
 # Prints the exact DNS records needed for a working mail server
 # ============================================================
 print_dns_records() {
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
     local public_ip="${PUBLIC_IP:-<your-server-ip>}"
@@ -686,11 +692,11 @@ print_dns_records
 forgenas_set "MODULE_MAIL_DONE" "yes"
 forgenas_set "FEATURE_MAIL"     "yes"
 
-local domain="${DOMAIN:-nas.local}"
+_domain="${DOMAIN:-nas.local}"
 info "Mail module complete"
-info "  Webmail:     https://mail.${domain}/SOGo"
-info "  SMTP:        ${HOSTNAME:-forgeos}.${domain}:587 (STARTTLS)"
-info "  IMAP:        ${HOSTNAME:-forgeos}.${domain}:993 (SSL)"
+info "  Webmail:     https://mail.${_domain}/SOGo"
+info "  SMTP:        ${HOSTNAME:-forgeos}.${_domain}:587 (STARTTLS)"
+info "  IMAP:        ${HOSTNAME:-forgeos}.${_domain}:993 (SSL)"
 info "  Add mailbox: forgeos-mail add-user <user> <pass>"
 warn "  DNS records saved to: /etc/forgeos/mail/dns-records.txt"
 warn "  Configure DNS before mail will work with external providers."

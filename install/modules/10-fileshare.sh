@@ -24,6 +24,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 NAS_ROOT="/srv/nas"
@@ -50,8 +51,7 @@ RPCNFSDCOUNT=$(nproc)
 # v4 lease time (seconds) — shorter = faster recovery after crash
 NFSD_V4_GRACE_TIME=90
 NFSD_V4_LEASE_TIME=90
-NFSD'
-
+NFSD
     # Kernel parameters for NFS v4
     cat > /etc/sysctl.d/92-forgeos-nfs.conf << 'NFSSYS'
 # NFS performance tuning
@@ -123,7 +123,7 @@ install_proftpd() {
     apt_install proftpd-basic proftpd-mod-crypto openssl
 
     # TLS certificate — use Let's Encrypt if available, self-signed fallback
-    local domain; domain=$(forgenas_get "DOMAIN" "nas.local")
+    _domain=$(forgenas_get "DOMAIN" "nas.local")
     local cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
     local key_path="/etc/letsencrypt/live/${domain}/privkey.pem"
 
@@ -236,7 +236,7 @@ configure_webdav() {
     touch "$webdav_pass_file"
     chmod 600 "$webdav_pass_file"
 
-    local domain; domain=$(forgenas_get "DOMAIN" "nas.local")
+    _domain=$(forgenas_get "DOMAIN" "nas.local")
 
     # WebDAV nginx config — added as a location block on main server
     cat > /etc/nginx/forgeos.d/webdav.conf << WEBDAV
@@ -304,7 +304,7 @@ install_filebrowser() {
     fi
 
     local admin_pass; admin_pass=$(forgenas_get "WEBUI_ADMIN_PASS" "$(gen_password 16)")
-    local domain; domain=$(forgenas_get "DOMAIN" "nas.local")
+    _domain=$(forgenas_get "DOMAIN" "nas.local")
 
     # FileBrowser config
     cat > "${fb_dir}/filebrowser.json" << FBCONF
@@ -520,10 +520,10 @@ install_fileshare_cli
 forgenas_set "MODULE_FILESHARE_DONE" "yes"
 forgenas_set "FEATURE_FILESHARE" "yes"
 
-local domain; domain=$(forgenas_get "DOMAIN" "nas.local")
+_domain=$(forgenas_get "DOMAIN" "nas.local")
 info "File sharing module complete"
 info "  NFS v4:       mount -t nfs4 ${HOSTNAME:-forgeos}.local:/nas /mnt"
-info "  FTPS:         ${HOSTNAME:-forgeos}.${domain}:21 (TLS required)"
-info "  WebDAV:       https://dav.${domain}"
+info "  FTPS:         ${HOSTNAME:-forgeos}.${_domain}:21 (TLS required)"
+info "  WebDAV:       https://dav.${_domain}"
 info "  FileBrowser:  https://files.${domain}"
 info "  Samba:        \\\\${HOSTNAME:-forgeos} (see module 10b)"

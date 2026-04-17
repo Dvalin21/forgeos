@@ -93,6 +93,7 @@ DB_EXTENSIONS = {
 # ──────────────────────────────────────────────────────────────
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 
+
 def log(level: str, msg: str):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{ts}] {level:7s} {msg}"
@@ -106,6 +107,8 @@ def log(level: str, msg: str):
 # When client A holds a write lock, client B's write is queued.
 # This is the core corruption-prevention mechanism.
 # ──────────────────────────────────────────────────────────────
+
+
 class LockRegistry:
     """
     Tracks which client has each database file open, and in what mode.
@@ -251,7 +254,7 @@ class InotifyWatcher:
     # inotify event constants
     IN_OPEN         = 0x00000020
     IN_CLOSE_WRITE  = 0x00000008
-    IN_CLOSE_NOWRITE= 0x00000010
+    IN_CLOSE_NOWRITE = 0x00000010
     IN_CREATE       = 0x00000100
     IN_DELETE       = 0x00000200
     IN_MODIFY       = 0x00000002

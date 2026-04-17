@@ -45,6 +45,8 @@ from jose import JWTError, jwt
 CONFIG_FILE = Path("/etc/forgeos/forgeos.conf")
 USERS_FILE  = Path("/etc/forgeos/api-users.json")
 # JWT secret MUST be set - never run with default
+
+
 def _load_jwt_secret() -> str:
     """Load JWT secret from config. Raises on missing/default."""
     secret = os.environ.get("FORGEOS_JWT_SECRET", "")
@@ -68,6 +70,7 @@ def _load_jwt_secret() -> str:
             pass
     return secret
 
+
 JWT_SECRET  = _load_jwt_secret()
 JWT_ALGO    = "HS256"
 JWT_EXPIRE  = 12  # hours
@@ -81,8 +84,10 @@ if CONFIG_FILE.exists():
             k, _, v = line.partition("=")
             _conf[k.strip()] = v.strip().strip('"')
 
+
 def conf(key: str, default: str = "") -> str:
     return _conf.get(key, os.environ.get(f"FORGEOS_{key}", default))
+
 
 # ────────────────────────────────────────────────────────────
 # APP
@@ -101,15 +106,19 @@ pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # ────────────────────────────────────────────────────────────
 # AUTH
 # ────────────────────────────────────────────────────────────
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
+
 
 def load_users() -> dict:
     if USERS_FILE.exists():
         return json.loads(USERS_FILE.read_text())
     # Default admin user if no file exists yet
     return {"admin": {"hash": pwd_ctx.hash("forgeos"), "role": "admin"}}
+
 
 def create_token(username: str, role: str) -> str:
     payload = {
@@ -118,6 +127,7 @@ def create_token(username: str, role: str) -> str:
         "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
 
 def verify_token(request: Request) -> dict:
     token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -132,6 +142,7 @@ def verify_token(request: Request) -> dict:
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
+
 @app.post("/api/auth/login")
 async def login(req: LoginRequest):
     users = load_users()
@@ -143,11 +154,13 @@ async def login(req: LoginRequest):
     resp.set_cookie("forgeos_token", token, httponly=True, samesite="strict", max_age=JWT_EXPIRE * 3600)
     return resp
 
+
 @app.post("/api/auth/logout")
 async def logout():
     resp = JSONResponse({"ok": True})
     resp.delete_cookie("forgeos_token")
     return resp
+
 
 @app.post("/api/auth/change-password")
 async def change_password(body: dict, user=Depends(verify_token)):
@@ -162,6 +175,8 @@ async def change_password(body: dict, user=Depends(verify_token)):
 # ────────────────────────────────────────────────────────────
 # SYSTEM METRICS
 # ────────────────────────────────────────────────────────────
+
+
 def _run(cmd: str, timeout: int = 5) -> str:
     """Run a shell command safely using shlex to avoid shell injection."""
     try:
@@ -173,6 +188,7 @@ def _run(cmd: str, timeout: int = 5) -> str:
     except Exception:
         return ""
 
+
 def _run_args(args: list, timeout: int = 5) -> str:
     """Run a command with explicit arg list - no shell injection possible."""
     try:
@@ -183,6 +199,7 @@ def _run_args(args: list, timeout: int = 5) -> str:
     except Exception:
         return ""
 
+
 def get_cpu_usage() -> float:
     try:
         import psutil
@@ -191,6 +208,7 @@ def get_cpu_usage() -> float:
         top = _run("top -bn1 | grep 'Cpu(s)'")
         m = re.search(r"(\d+\.\d+)\s*id", top)
         return round(100 - float(m.group(1)), 1) if m else 0.0
+
 
 def get_memory() -> dict:
     try:
@@ -203,8 +221,9 @@ def get_memory() -> dict:
         parts = out.splitlines()[1].split() if out else []
         if len(parts) >= 3:
             t, u = int(parts[1]), int(parts[2])
-            return {"total_gb": round(t/1e9,1), "used_gb": round(u/1e9,1), "pct": round(u/t*100,1)}
+            return {"total_gb": round(t/1e9, 1), "used_gb": round(u/1e9, 1), "pct": round(u/t*100, 1)}
         return {"total_gb": 0, "used_gb": 0, "pct": 0}
+
 
 def get_network() -> dict:
     try:
@@ -214,15 +233,18 @@ def get_network() -> dict:
     except ImportError:
         return {}
 
+
 def get_uptime() -> str:
     out = _run("uptime -p")
     return out.replace("up ", "") if out else "unknown"
+
 
 def get_load() -> list[float]:
     try:
         return [round(x, 2) for x in __import__("os").getloadavg()]
     except Exception:
         return [0.0, 0.0, 0.0]
+
 
 def get_temps() -> dict:
     temps: dict[str, float] = {}
@@ -249,6 +271,7 @@ def get_temps() -> dict:
         pass
     return temps
 
+
 @app.get("/api/system/stats")
 async def system_stats(user=Depends(verify_token)):
     return {
@@ -262,6 +285,7 @@ async def system_stats(user=Depends(verify_token)):
         "kernel": _run("uname -r"),
         "timestamp": time.time(),
     }
+
 
 @app.get("/api/system/info")
 async def system_info(user=Depends(verify_token)):
@@ -279,6 +303,8 @@ async def system_info(user=Depends(verify_token)):
 # ────────────────────────────────────────────────────────────
 # STORAGE — Pool status (grouped by pool, with SMART)
 # ────────────────────────────────────────────────────────────
+
+
 @app.get("/api/storage/pools")
 async def storage_pools(user=Depends(verify_token)):
     out = _run("forgeos-pool-status", timeout=15)
@@ -286,6 +312,7 @@ async def storage_pools(user=Depends(verify_token)):
         return json.loads(out)
     except Exception:
         return {"pools": [], "unassigned": [], "error": "pool-status failed"}
+
 
 @app.get("/api/storage/df")
 async def storage_df(user=Depends(verify_token)):
@@ -309,6 +336,7 @@ async def storage_df(user=Depends(verify_token)):
                 })
     return results
 
+
 @app.get("/api/storage/snapshots")
 async def storage_snapshots(pool: str = "", user=Depends(verify_token)):
     if pool:
@@ -322,6 +350,7 @@ async def storage_snapshots(pool: str = "", user=Depends(verify_token)):
             c_out = _run(f"snapper -c {c} list --output-cols number,date,description 2>/dev/null")
             out += f"=== {c} ===\n{c_out}\n"
     return {"snapshots": out}
+
 
 @app.post("/api/storage/snapshot")
 async def create_snapshot(body: dict, user=Depends(verify_token)):
@@ -338,17 +367,20 @@ async def create_snapshot(body: dict, user=Depends(verify_token)):
             _run(f"snapper -c {c} create --description '{desc}' --cleanup-algorithm timeline")
     return {"ok": True, "message": f"Snapshot created: {desc}"}
 
+
 @app.get("/api/storage/smart/{device}")
 async def smart_detail(device: str, user=Depends(verify_token)):
     dev = re.sub(r"[^a-z0-9]", "", device)  # sanitize
     out = _run(f"smartctl -a /dev/{dev}")
     return {"device": f"/dev/{dev}", "output": out}
 
+
 @app.get("/api/storage/hotswap-log")
 async def hotswap_log(user=Depends(verify_token)):
     log = Path("/var/log/forgeos/hotswap.log")
     lines = log.read_text().splitlines()[-50:] if log.exists() else []
     return {"lines": lines}
+
 
 @app.get("/api/storage/smart-alerts")
 async def smart_alerts(user=Depends(verify_token)):
@@ -359,6 +391,8 @@ async def smart_alerts(user=Depends(verify_token)):
 # ────────────────────────────────────────────────────────────
 # NGINX PROXY MANAGEMENT
 # ────────────────────────────────────────────────────────────
+
+
 @app.get("/api/nginx/vhosts")
 async def nginx_vhosts(user=Depends(verify_token)):
     """List all vhosts from forgeos.d/*.conf"""
@@ -381,6 +415,7 @@ async def nginx_vhosts(user=Depends(verify_token)):
             "raw": text,
         })
     return {"vhosts": vhosts}
+
 
 @app.post("/api/nginx/vhost")
 async def add_vhost(body: dict, user=Depends(verify_token)):
@@ -408,6 +443,7 @@ async def add_vhost(body: dict, user=Depends(verify_token)):
     ])
     return {"ok": True, "message": result}
 
+
 @app.delete("/api/nginx/vhost/{name}")
 async def remove_vhost(name: str, user=Depends(verify_token)):
     if user.get("role") != "admin":
@@ -416,9 +452,11 @@ async def remove_vhost(name: str, user=Depends(verify_token)):
     result = _run(f"forgeos-nginx remove-vhost {name}")
     return {"ok": True, "message": result}
 
+
 @app.get("/api/nginx/raw")
 async def nginx_raw_config(user=Depends(verify_token)):
     return {"config": Path("/etc/nginx/nginx.conf").read_text() if Path("/etc/nginx/nginx.conf").exists() else ""}
+
 
 @app.put("/api/nginx/raw")
 async def nginx_save_raw(body: dict, user=Depends(verify_token)):
@@ -426,7 +464,8 @@ async def nginx_save_raw(body: dict, user=Depends(verify_token)):
         raise HTTPException(403)
     config = body.get("config", "")
     # Test first using a secure temp file
-    import tempfile, os as _os
+    import tempfile
+    import os as _os
     _fd, _tmp = tempfile.mkstemp(prefix="forgeos-nginx-", suffix=".conf")
     try:
         with _os.fdopen(_fd, "w") as _fh:
@@ -440,6 +479,7 @@ async def nginx_save_raw(body: dict, user=Depends(verify_token)):
     _run("nginx -t && systemctl reload nginx")
     return {"ok": True}
 
+
 @app.post("/api/nginx/reload")
 async def nginx_reload(user=Depends(verify_token)):
     if user.get("role") != "admin":
@@ -447,9 +487,11 @@ async def nginx_reload(user=Depends(verify_token)):
     result = _run("nginx -t && systemctl reload nginx 2>&1")
     return {"ok": True, "output": result}
 
+
 @app.post("/api/nginx/test")
 async def nginx_test(user=Depends(verify_token)):
     return {"output": _run("nginx -t 2>&1")}
+
 
 @app.post("/api/nginx/certbot")
 async def request_cert(body: dict, user=Depends(verify_token)):
@@ -473,10 +515,13 @@ async def request_cert(body: dict, user=Depends(verify_token)):
 # ────────────────────────────────────────────────────────────
 # SAMBA SHARE MANAGEMENT
 # ────────────────────────────────────────────────────────────
+
+
 @app.get("/api/samba/shares")
 async def samba_shares(user=Depends(verify_token)):
     raw = _run("forgeos-samba list 2>&1")
     return {"raw": raw}
+
 
 @app.post("/api/samba/share")
 async def create_share(body: dict, user=Depends(verify_token)):
@@ -491,6 +536,7 @@ async def create_share(body: dict, user=Depends(verify_token)):
     result  = _run(f"forgeos-samba create '{name}' '{path}' '{type_}' '{write}' '{users}' '{comment}'")
     return {"ok": True, "message": result}
 
+
 @app.delete("/api/samba/share/{name}")
 async def remove_share(name: str, user=Depends(verify_token)):
     if user.get("role") != "admin":
@@ -499,9 +545,11 @@ async def remove_share(name: str, user=Depends(verify_token)):
     result = _run(f"forgeos-samba remove '{name}'")
     return {"ok": True, "message": result}
 
+
 @app.get("/api/samba/raw")
 async def samba_raw(user=Depends(verify_token)):
     return {"config": _run("forgeos-samba raw-get")}
+
 
 @app.put("/api/samba/raw")
 async def samba_save_raw(body: dict, user=Depends(verify_token)):
@@ -511,6 +559,7 @@ async def samba_save_raw(body: dict, user=Depends(verify_token)):
     result = _run(f"forgeos-samba raw-put '{config}'")
     return {"ok": True, "message": result}
 
+
 @app.get("/api/samba/connections")
 async def samba_connections(user=Depends(verify_token)):
     return {"output": _run("smbstatus 2>/dev/null || echo 'No connections'")}
@@ -518,6 +567,8 @@ async def samba_connections(user=Depends(verify_token)):
 # ────────────────────────────────────────────────────────────
 # DOCKER / INCUS
 # ────────────────────────────────────────────────────────────
+
+
 @app.get("/api/docker/containers")
 async def docker_containers(user=Depends(verify_token)):
     out = _run('docker ps -a --format \'{"name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}"}\'')
@@ -528,6 +579,7 @@ async def docker_containers(user=Depends(verify_token)):
         except Exception:
             pass
     return {"containers": containers}
+
 
 @app.post("/api/docker/container/{name}/{action}")
 async def docker_action(name: str, action: str, user=Depends(verify_token)):
@@ -540,6 +592,7 @@ async def docker_action(name: str, action: str, user=Depends(verify_token)):
     result = _run(f"docker {action} {name}")
     return {"ok": True, "output": result}
 
+
 @app.get("/api/incus/containers")
 async def incus_containers(user=Depends(verify_token)):
     out = _run("incus list --format json 2>/dev/null || lxc list --format json 2>/dev/null || echo '[]'")
@@ -551,6 +604,8 @@ async def incus_containers(user=Depends(verify_token)):
 # ────────────────────────────────────────────────────────────
 # NOTIFICATIONS
 # ────────────────────────────────────────────────────────────
+
+
 @app.post("/api/notify")
 async def notify(body: dict):
     """Internal notification endpoint — called by scripts and alertmanager"""
@@ -581,6 +636,7 @@ async def notify(body: dict):
 
     return {"ok": True}
 
+
 @app.post("/api/drive-alert")
 async def drive_alert(body: dict):
     """Drive SMART/hot-swap alerts — updates tray indicators"""
@@ -592,9 +648,11 @@ async def drive_alert(body: dict):
     await notify(body)
     return {"ok": True}
 
+
 @app.get("/api/notifications")
 async def get_notifications(user=Depends(verify_token)):
     return {"notifications": list(reversed(_notifications[-20:]))}
+
 
 @app.get("/api/drive-alerts")
 async def get_drive_alerts(user=Depends(verify_token)):
@@ -605,6 +663,8 @@ _notifications: list[dict] = []
 _drive_alerts:  dict[str, dict] = {}
 
 # Alertmanager webhook bridge
+
+
 @app.post("/api/alert-webhook")
 async def alertmanager_webhook(body: dict):
     for alert in body.get("alerts", []):
@@ -620,13 +680,17 @@ async def alertmanager_webhook(body: dict):
 # ────────────────────────────────────────────────────────────
 # SECURITY
 # ────────────────────────────────────────────────────────────
+
+
 @app.get("/api/security/fail2ban")
 async def fail2ban_status(user=Depends(verify_token)):
     return {"output": _run("fail2ban-client status 2>/dev/null && fail2ban-client status sshd 2>/dev/null || echo 'fail2ban not running'")}
 
+
 @app.get("/api/security/crowdsec")
 async def crowdsec_status(user=Depends(verify_token)):
     return {"output": _run("cscli decisions list 2>/dev/null || echo 'CrowdSec not installed'")}
+
 
 @app.get("/api/security/firewall")
 async def firewall_status(user=Depends(verify_token)):
@@ -638,6 +702,8 @@ async def firewall_status(user=Depends(verify_token)):
 # ────────────────────────────────────────────────────────────
 # SETTINGS
 # ────────────────────────────────────────────────────────────
+
+
 @app.get("/api/settings")
 async def get_settings(user=Depends(verify_token)):
     if user.get("role") != "admin":
@@ -649,6 +715,7 @@ async def get_settings(user=Depends(verify_token)):
         "MARIADB_ENABLED", "REDIS_ENABLED",
     ]
     return {k: conf(k) for k in safe_keys}
+
 
 @app.put("/api/settings")
 async def save_settings(body: dict, user=Depends(verify_token)):
@@ -671,6 +738,8 @@ async def save_settings(body: dict, user=Depends(verify_token)):
 # ────────────────────────────────────────────────────────────
 # HEALTH
 # ────────────────────────────────────────────────────────────
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "ts": time.time()}
@@ -678,6 +747,8 @@ async def health():
 # ────────────────────────────────────────────────────────────
 # WEBSOCKET — LIVE METRICS
 # ────────────────────────────────────────────────────────────
+
+
 @app.websocket("/ws/metrics")
 async def ws_metrics(ws: WebSocket):
     await ws.accept()
@@ -714,6 +785,7 @@ LOG_SOURCES = {
     "nginx":    "/var/log/nginx/error.log",
     "forgeos":  "/var/log/forgeos-install.log",
 }
+
 
 @app.websocket("/ws/logs")
 async def ws_logs(ws: WebSocket):

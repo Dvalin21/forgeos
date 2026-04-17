@@ -24,6 +24,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 APPS_DIR="/opt/forgeos/apps"
@@ -101,6 +102,7 @@ install_microsoft_fonts() {
 install_onlyoffice() {
     step "Installing OnlyOffice Document Server"
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
     local ms_fonts_dir="${MS_FONTS_DIR:-/usr/share/fonts/truetype}"
@@ -114,7 +116,7 @@ install_onlyoffice() {
     cat > "${oo_dir}/docker-compose.yml" << OODOCS
 version: "3.8"
 # OnlyOffice Document Server
-# Accessible at: https://office.${domain}
+# Accessible at: https://office.${_domain}
 # JWT secret: stored in /etc/forgeos/forgeos.conf
 
 services:
@@ -212,10 +214,10 @@ NGINX
         info "OnlyOffice starting (may take 2-3 minutes first boot)"
     fi
 
-    info "OnlyOffice: https://office.${domain}"
+    info "OnlyOffice: https://office.${_domain}"
     info "  JWT Secret: ${oo_secret} (needed to integrate with other apps)"
     info "  Microsoft fonts: mounted from ${ms_fonts_dir}"
-    forgenas_set "ONLYOFFICE_URL" "https://office.${domain}"
+    forgenas_set "ONLYOFFICE_URL" "https://office.${_domain}"
 }
 
 # ============================================================
@@ -224,6 +226,7 @@ NGINX
 install_immich() {
     step "Installing Immich photo library"
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
     local immich_dir="${APPS_DIR}/immich"
@@ -253,7 +256,7 @@ IMMENV
     cat > "${immich_dir}/docker-compose.yml" << IMMICH
 version: "3.8"
 # Immich — self-hosted Google Photos
-# https://photos.${domain}
+# https://photos.${_domain}
 
 name: immich
 
@@ -360,10 +363,10 @@ NGINX
     docker_compose_pull "$immich_dir"
     docker_compose_up   "$immich_dir"
 
-    info "Immich: https://photos.${domain}"
+    info "Immich: https://photos.${_domain}"
     info "  Photos directory: ${immich_data}/photos"
     info "  External media (read-only): /srv/nas/media"
-    forgenas_set "IMMICH_URL" "https://photos.${domain}"
+    forgenas_set "IMMICH_URL" "https://photos.${_domain}"
 }
 
 # ============================================================
@@ -375,8 +378,8 @@ install_immich
 
 forgenas_set "MODULE_APPS_DONE" "yes"
 
-local domain="${DOMAIN:-nas.local}"
+_domain="${DOMAIN:-nas.local}"
 info "Applications module complete"
-info "  OnlyOffice:  https://office.${domain}"
-info "  Immich:      https://photos.${domain}"
+info "  OnlyOffice:  https://office.${_domain}"
+info "  Immich:      https://photos.${_domain}"
 info "  MS Fonts:    $(fc-list 2>/dev/null | grep -ic arial) fonts installed"

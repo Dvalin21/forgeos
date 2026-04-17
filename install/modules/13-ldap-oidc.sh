@@ -25,6 +25,7 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 AUTH_DIR="/opt/forgeos/apps/auth"
@@ -68,6 +69,7 @@ ENV
 write_compose() {
     step "Writing auth stack compose file"
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
 
@@ -209,6 +211,7 @@ COMPOSE
 configure_auth_nginx() {
     step "Configuring nginx for auth services"
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain="${DOMAIN:-nas.local}"
 
@@ -296,8 +299,8 @@ bootstrap_lldap() {
 
     sleep 3  # Extra settle time
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
-    local base_dn="dc=${DOMAIN//./,dc=}"
     local admin_pass="${LLDAP_LDAP_PASS:-}"
 
     # Create default groups via lldap API
@@ -426,7 +429,7 @@ forgenas_set "LLDAP_BASE_DN"     "dc=${DOMAIN//./,dc=}"
 forgenas_set "LLDAP_URL"         "ldap://127.0.0.1:3890"
 forgenas_set "AUTHENTIK_URL"     "http://127.0.0.1:9000"
 
-local domain="${DOMAIN:-nas.local}"
+_domain="${DOMAIN:-nas.local}"
 info "LDAP + OIDC module complete"
 info "  SSO portal:    https://auth.${domain}"
 info "  lldap admin:   https://ldap-admin.${domain}  (admin / ${LLDAP_LDAP_PASS})"

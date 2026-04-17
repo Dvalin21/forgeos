@@ -50,6 +50,7 @@
 #
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 SAMBA_CONF="/etc/samba/smb.conf"
@@ -66,6 +67,7 @@ install_samba_managed() {
 
     mkdir -p "$SAMBA_SHARES_DIR" "$(dirname "$FORGEOS_SHARES_FILE")"
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local domain_short
     domain_short=$(echo "${DOMAIN:-FORGEOS}" | cut -d. -f1 | tr '[:lower:]' '[:upper:]')
@@ -705,6 +707,7 @@ DBCLI
 # ============================================================
 create_default_shares() {
     step "Creating default shares"
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local base="${PRIMARY_POOL_MOUNT:-/srv/nas}"
 

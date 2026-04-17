@@ -6,6 +6,7 @@
 source "$(dirname "$0")/../lib/common.sh"
 # shellcheck source=/dev/null
 
+# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 # ============================================================
@@ -195,6 +196,7 @@ CTL
 print_summary() {
     # shellcheck source=/dev/null
 
+    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local d="${DOMAIN:-$(hostname -f)}"
 
