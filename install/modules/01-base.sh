@@ -44,7 +44,7 @@ install_base_packages() {
         tmux screen \
         lsof strace \
         dmidecode pciutils usbutils \
-        linux-headers-$(uname -r) 2>/dev/null || apt_install linux-headers-generic
+        "linux-headers-$(uname -r)" 2>/dev/null || apt_install linux-headers-generic
 
     # HWE kernel for newer hardware support (Intel Arc, etc.)
     if lsb_release -rs 2>/dev/null | grep -qE '^22'; then

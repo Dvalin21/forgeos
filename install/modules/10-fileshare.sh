@@ -124,8 +124,8 @@ install_proftpd() {
 
     # TLS certificate — use Let's Encrypt if available, self-signed fallback
     _domain=$(forgenas_get "DOMAIN" "nas.local")
-    local cert_path="/etc/letsencrypt/live/${domain}/fullchain.pem"
-    local key_path="/etc/letsencrypt/live/${domain}/privkey.pem"
+    local cert_path="/etc/letsencrypt/live/${_domain}/fullchain.pem"
+    local key_path="/etc/letsencrypt/live/${_domain}/privkey.pem"
 
     if [[ ! -f "$cert_path" ]]; then
         # Self-signed fallback
@@ -134,7 +134,7 @@ install_proftpd() {
             -newkey rsa:4096 \
             -keyout /etc/proftpd/tls/server.key \
             -out    /etc/proftpd/tls/server.crt \
-            -subj "/CN=${domain}" \
+            -subj "/CN=${_domain}" \
             >> "$FORGENAS_LOG" 2>&1
         cert_path="/etc/proftpd/tls/server.crt"
         key_path="/etc/proftpd/tls/server.key"
@@ -243,10 +243,10 @@ configure_webdav() {
 # ForgeOS WebDAV
 server {
     listen 443 ssl http2;
-    server_name dav.${domain};
+    server_name dav.${_domain};
 
-    ssl_certificate     /etc/letsencrypt/live/${domain}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/${_domain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${_domain}/privkey.pem;
 
     # WebDAV root
     location / {
@@ -279,9 +279,9 @@ WEBDAV
 
     forgenas_set "WEBDAV_ROOT" "$webdav_root"
     forgenas_set "WEBDAV_PASS_FILE" "$webdav_pass_file"
-    info "WebDAV: https://dav.${domain}"
+    info "WebDAV: https://dav.${_domain}"
     info "  Add user: forgeos-fileshare webdav-adduser <user> <pass>"
-    info "  Windows mount: Map Network Drive → https://dav.${domain}"
+    info "  Windows mount: Map Network Drive → https://dav.${_domain}"
 }
 
 # ============================================================
@@ -303,7 +303,6 @@ install_filebrowser() {
             || _install_filebrowser_manual
     fi
 
-    local admin_pass; admin_pass=$(forgenas_get "WEBUI_ADMIN_PASS" "$(gen_password 16)")
     _domain=$(forgenas_get "DOMAIN" "nas.local")
 
     # FileBrowser config
@@ -346,9 +345,9 @@ SVC
         cat > /etc/nginx/forgeos.d/filebrowser.conf << NGINX
 server {
     listen 443 ssl http2;
-    server_name files.${domain};
-    ssl_certificate     /etc/letsencrypt/live/${domain}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
+    server_name files.${_domain};
+    ssl_certificate     /etc/letsencrypt/live/${_domain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${_domain}/privkey.pem;
     location / {
         proxy_pass         http://127.0.0.1:8085;
         proxy_set_header   Host \$host;
@@ -364,7 +363,7 @@ NGINX
     fi
 
     if wait_for_port 127.0.0.1 8085 20; then
-        info "FileBrowser: https://files.${domain}"
+        info "FileBrowser: https://files.${_domain}"
     else
         info "FileBrowser: installed, starting on port 8085"
     fi
@@ -525,5 +524,5 @@ info "File sharing module complete"
 info "  NFS v4:       mount -t nfs4 ${HOSTNAME:-forgeos}.local:/nas /mnt"
 info "  FTPS:         ${HOSTNAME:-forgeos}.${_domain}:21 (TLS required)"
 info "  WebDAV:       https://dav.${_domain}"
-info "  FileBrowser:  https://files.${domain}"
+info "  FileBrowser:  https://files.${_domain}"
 info "  Samba:        \\\\${HOSTNAME:-forgeos} (see module 10b)"

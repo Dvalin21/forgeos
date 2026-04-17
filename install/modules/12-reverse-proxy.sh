@@ -221,8 +221,9 @@ NGINX
 nginx_add_vhost() {
     # Usage: nginx_add_vhost <name> <domain> <upstream_port> [options]
     local name="$1" domain="$2" port="$3"
-    # shellcheck disable=SC2034  # tls/auth used in heredoc config generation
+    # shellcheck disable=SC2034  # tls/auth/ws used in heredoc nginx config generation
     local tls="${4:-acme}"       # acme | selfsigned | none
+    # shellcheck disable=SC2034
     local auth="${5:-none}"      # none | basic | oidc
     local ws="${6:-no}"          # WebSocket support
 

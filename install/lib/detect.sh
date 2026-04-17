@@ -19,9 +19,9 @@ detect_cpu() {
     CPU_ARCH=$(uname -m)
     export CPU_ARCH
     CPU_VENDOR=$(grep -m1 'vendor_id' /proc/cpuinfo | awk '{print $3}' || echo "unknown")
-    CPU_IS_INTEL=false; CPU_IS_AMD=false
-    [[ "$CPU_VENDOR" == "GenuineIntel" ]] && CPU_IS_INTEL=true
-    [[ "$CPU_VENDOR" == "AuthenticAMD" ]] && CPU_IS_AMD=true
+    export CPU_IS_INTEL=false CPU_IS_AMD=false
+    [[ "$CPU_VENDOR" == "GenuineIntel" ]] && export CPU_IS_INTEL=true
+    [[ "$CPU_VENDOR" == "AuthenticAMD" ]] && export CPU_IS_AMD=true
     forgenas_set "CPU_MODEL" "$CPU_MODEL"
     forgenas_set "CPU_CORES" "$CPU_CORES"
 }
@@ -106,7 +106,7 @@ detect_disks() {
     HDD_DISKS=()
 
     while IFS= read -r line; do
-        local dev size tran
+        local dev tran
         dev=$(echo "$line" | awk '{print $1}')
         _size=$(echo "$line" | awk '{print $2}')
         tran=$(echo "$line" | awk '{print $6}')

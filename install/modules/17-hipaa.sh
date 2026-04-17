@@ -205,8 +205,6 @@ SSHD
 configure_atrest_encryption() {
     step "Configuring at-rest encryption for ePHI"
 
-    local kernel_ver
-    kernel_ver=$(uname -r | cut -d. -f1-2 | tr -d '.')
 
     # Check for fscrypt support (btrfs-native or ext4)
     if [[ -f /proc/crypto ]] && grep -q 'fscrypt' /proc/filesystems 2>/dev/null; then
