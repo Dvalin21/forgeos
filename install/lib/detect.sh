@@ -16,8 +16,11 @@ detect_all() {
 detect_cpu() {
     CPU_MODEL=$(grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)
     CPU_CORES=$(nproc)
-    # shellcheck disable=SC2034
+    CPU_ARCH=$(uname -m)
     CPU_VENDOR=$(grep -m1 'vendor_id' /proc/cpuinfo | awk '{print $3}' || echo "unknown")
+    CPU_IS_INTEL=false; CPU_IS_AMD=false
+    [[ "$CPU_VENDOR" == "GenuineIntel" ]] && CPU_IS_INTEL=true
+    [[ "$CPU_VENDOR" == "AuthenticAMD" ]] && CPU_IS_AMD=true
     forgenas_set "CPU_MODEL" "$CPU_MODEL"
     forgenas_set "CPU_CORES" "$CPU_CORES"
 }
@@ -38,10 +41,8 @@ detect_gpu() {
         GPU_INTEL_MODEL=$(lspci 2>/dev/null | grep -i 'Intel.*VGA\|Intel.*Graphics' | head -1 | sed 's/.*: //')
         # Arc detection
         if echo "$GPU_INTEL_MODEL" | grep -qi "Arc"; then
-            # shellcheck disable=SC2034
-        GPU_INTEL_ARC=true
+            GPU_INTEL_ARC=true
         else
-            # shellcheck disable=SC2034
             GPU_INTEL_ARC=false
         fi
     fi
@@ -62,12 +63,7 @@ detect_network() {
     [[ "${NIC_SPEED:-0}" -ge 10000 ]] && NIC_HIGHSPEED=true
 
     # Count all physical NICs (for bonding)
-    NIC_COUNT=0
-    for _nic in /sys/class/net/*; do
-        _n=$(basename "$_nic")
-        case "$_n" in lo|veth*|docker*|br-*|virbr*|incus*|lxdbr*) continue ;; esac
-        NIC_COUNT=$((NIC_COUNT+1))
-    done
+    NIC_COUNT=$(ls /sys/class/net/ | grep -v "^lo$\|^veth\|^docker\|^br-\|^virbr\|^incus\|^lxd" | wc -l)
 
     forgenas_set "NIC_PRIMARY"   "$NIC_PRIMARY"
     forgenas_set "NIC_IP"        "$NIC_IP"
@@ -106,10 +102,9 @@ detect_disks() {
     HDD_DISKS=()
 
     while IFS= read -r line; do
-        local dev tran
+        local dev size tran
         dev=$(echo "$line" | awk '{print $1}')
-        # size: unused at detection time
-        # size=$(echo "$line" | awk '{print $2}')
+        size=$(echo "$line" | awk '{print $2}')
         tran=$(echo "$line" | awk '{print $6}')
 
         [[ "/dev/$dev" == "$sys_disk" ]] && continue

@@ -44,6 +44,7 @@ How 15-50+ concurrent users work:
 """
 
 import asyncio
+import os
 import fcntl
 import hashlib
 import json
@@ -71,6 +72,7 @@ CONFIG_FILE   = Path("/etc/forgeos/filedb/filedb.conf")
 STATE_FILE    = Path("/var/lib/forgeos/filedb/state.json")
 SNAPSHOT_ROOT = Path("/srv/forgeos/filedb/snapshots")
 WATCH_ROOT    = Path("/srv/nas")          # root of all Samba shares
+API_HOST      = os.environ.get("FILEDB_API_HOST", "0.0.0.0")
 API_PORT      = 12010                      # matches EDB Server default port (intentional)
 LOG_FILE      = Path("/var/log/forgeos/filedb.log")
 
@@ -142,7 +144,7 @@ class LockRegistry:
             "client": client_ip,
             "mode": mode,
             "ts": time.time(),
-            "id": hashlib.md5(f"{file_path}{client_ip}{time.time()}".encode()).hexdigest()[:8],
+            "id": hashlib.md5(f"{file_path}{client_ip}{time.time()}".encode(), usedforsecurity=False).hexdigest()[:8],
         }
 
         with self._lock:
@@ -897,7 +899,7 @@ async def shutdown():
 if __name__ == "__main__":
     uvicorn.run(
         "forgeos-filedb:app",
-        host="0.0.0.0",
+        host=API_HOST,
         port=API_PORT,
         log_level="warning",
         access_log=False,

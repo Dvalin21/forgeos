@@ -12,6 +12,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
 # shellcheck source=/dev/null
+
 source "$FORGENAS_CONFIG"
 
 # ============================================================
@@ -79,6 +80,7 @@ DOCKER
 
     # Add admin user to docker group
     # shellcheck source=/dev/null
+
     source "$FORGENAS_CONFIG"
     local user="${ADMIN_USER:-forgeos}"
     usermod -aG docker "$user" 2>/dev/null || true
@@ -133,7 +135,8 @@ INCUS
         || { warn "Incus not available — skipping (Docker only)"; return 0; }
 
     # Initialize Incus with minimal configuration
-    cat > /tmp/incus-init.yaml << 'INCUSINIT'
+    _incus_tmp=$(mktemp /tmp/forgeos-incus-XXXXXX.yaml)
+    cat > "$_incus_tmp" << 'INCUSINIT'
 config: {}
 networks:
 - config:
@@ -164,12 +167,13 @@ profiles:
   name: default
 INCUSINIT
 
-    incus admin init --preseed < /tmp/incus-init.yaml >> "$FORGENAS_LOG" 2>&1 \
+    incus admin init --preseed < "$_incus_tmp" >> "$FORGENAS_LOG" 2>&1 \
         || warn "Incus auto-init failed — run 'sudo incus admin init' manually"
-    rm -f /tmp/incus-init.yaml
+    rm -f "$_incus_tmp"
 
     # Add admin user to incus-admin group
     # shellcheck source=/dev/null
+
     source "$FORGENAS_CONFIG"
     local user="${ADMIN_USER:-forgeos}"
     usermod -aG incus-admin "$user" 2>/dev/null || true
@@ -186,6 +190,7 @@ INCUSINIT
 # ============================================================
 install_nvidia_container_toolkit() {
     # shellcheck source=/dev/null
+
     source "$FORGENAS_CONFIG"
     [[ "${GPU_NVIDIA:-false}" != "true" ]] && return 0
 
@@ -216,6 +221,7 @@ install_nvidia_container_toolkit() {
 # ============================================================
 install_portainer() {
     # shellcheck source=/dev/null
+
     source "$FORGENAS_CONFIG"
     [[ "${PORTAINER:-no}" != "yes" ]] && return 0
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # ============================================================
 # ForgeOS — Master Installer
-# Usage:  sudo bash install.sh [--unattended] [--modules all|base,storage,...]
+# Usage:  sudo bash install/install.sh [--unattended] [--modules=base,storage,...]
 #
-# This installer is intentionally simple. It:
+# This installer:
 #  1. Collects configuration (interactive or from env vars)
 #  2. Runs selected modules in order
 #  3. Each module is idempotent — safe to re-run
@@ -11,7 +11,9 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=/dev/null
 source "$SCRIPT_DIR/lib/detect.sh"
 
 # ── Args ─────────────────────────────────────────────────────
@@ -29,14 +31,13 @@ done
 # ── Header ───────────────────────────────────────────────────
 clear
 echo -e "${ORANGE}"
-cat << 'LOGO'
-     ___                 ___  ____
-    / __\___  _ __ __ _ / _ \/ ___|
-   / _\ / _ \| '__/ _` | | | \___ \
-  / /  | (_) | | | (_| | |_| |___) |
-  \/    \___/|_|  \__, |\___/|____/
-                  |___/
-LOGO
+printf '%s\n' \
+    '     ___                 ___  ____' \
+    '    / __\___  _ __ __ _ / _ \/ ___| ' \
+    '   / _\ / _ \| '"'"'__/ _` | | | \___ \' \
+    '  / /  | (_) | | | (_| | |_| |___) |' \
+    '  \/    \___/|_|  \__, |\___/|____/' \
+    '                  |___/'
 echo -e "${NC}"
 echo -e "  ${BOLD}ForgeOS Installer v1.0${NC}"
 echo -e "  ${DIM}NAS & Home Server Platform for Ubuntu/Debian${NC}"
@@ -47,7 +48,7 @@ require_root
 require_ubuntu_debian
 check_internet
 
-mkdir -p /etc/forgeos
+mkdir -p /etc/forgeos /var/log/forgeos /var/lib/forgeos
 chmod 700 /etc/forgeos
 touch "$FORGENAS_CONFIG"
 chmod 600 "$FORGENAS_CONFIG"
@@ -74,7 +75,7 @@ if ! $UNATTENDED; then
     hostnamectl set-hostname "$FORGEOS_HOSTNAME" 2>/dev/null || true
     forgenas_set "HOSTNAME" "$FORGEOS_HOSTNAME"
 
-    # Domain / DDNS
+    # Domain
     ask "Domain (e.g. home.mydomain.com or nas.local for LAN-only)" "nas.local"
     FORGEOS_DOMAIN="$REPLY"
     forgenas_set "DOMAIN" "$FORGEOS_DOMAIN"
@@ -85,9 +86,9 @@ if ! $UNATTENDED; then
         forgenas_set "ACME_EMAIL" "$REPLY"
     fi
 
-    # Timezone
-    current_tz=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "UTC")
-    ask "Timezone" "$current_tz"
+    # Timezone — fixed: no 'local' at global scope
+    _current_tz=$(timedatectl show --property=Timezone --value 2>/dev/null || echo "UTC")
+    ask "Timezone" "$_current_tz"
     timedatectl set-timezone "$REPLY" 2>/dev/null || true
     forgenas_set "TIMEZONE" "$REPLY"
 
@@ -104,6 +105,7 @@ if ! $UNATTENDED; then
     FEAT_STORAGE=true
     FEAT_DOCKER=true
     FEAT_GPU=false
+    FEAT_CORAL=false
     FEAT_SECURITY=true
     FEAT_MONITORING=true
     FEAT_FILESHARE=true
@@ -113,36 +115,38 @@ if ! $UNATTENDED; then
     FEAT_MAIL=false
     FEAT_BACKUP=true
     FEAT_CLOUD=false
-    FEAT_HIPAA=false
     FEAT_APPS=false
+    FEAT_HIPAA=false
 
-    ask_yn "Install ForgeRAID storage (mdadm+btrfs)"   y && FEAT_STORAGE=true   || FEAT_STORAGE=false
-    ask_yn "Install Docker CE + Incus containers"       y && FEAT_DOCKER=true    || FEAT_DOCKER=false
-    ask_yn "Install GPU drivers (NVIDIA/AMD/Intel Arc)" n && FEAT_GPU=true       || FEAT_GPU=false
-    ask_yn "Install security (UFW, Fail2ban, CrowdSec)" y && FEAT_SECURITY=true  || FEAT_SECURITY=false
-    ask_yn "Install monitoring (Grafana + Prometheus)"  y && FEAT_MONITORING=true || FEAT_MONITORING=false
-    ask_yn "Install file sharing (Samba/NFS/FTPS/DAV)"  y && FEAT_FILESHARE=true || FEAT_FILESHARE=false
-    ask_yn "Install VPN (WireGuard + Netbird)"          n && FEAT_VPN=true       || FEAT_VPN=false
-    ask_yn "Install nginx reverse proxy + certs"        y && FEAT_PROXY=true     || FEAT_PROXY=false
-    ask_yn "Install LDAP/OIDC auth (lldap + Authentik)" n && FEAT_LDAP=true      || FEAT_LDAP=false
-    ask_yn "Install mail server (Postfix+Dovecot+SOGo)" n && FEAT_MAIL=true      || FEAT_MAIL=false
-    ask_yn "Install backup (Restic+Rclone+Snapper)"     y && FEAT_BACKUP=true    || FEAT_BACKUP=false
-    ask_yn "Install cloud storage (MinIO S3)"           n && FEAT_CLOUD=true     || FEAT_CLOUD=false
-    ask_yn "Install media apps (Immich, OnlyOffice)"    n && FEAT_APPS=true      || FEAT_APPS=false
-    ask_yn "Enable HIPAA compliance mode"               n && FEAT_HIPAA=true     || FEAT_HIPAA=false
+    ask_yn "Install ForgeRAID storage (mdadm+btrfs+bcache)"   y && FEAT_STORAGE=true  || FEAT_STORAGE=false
+    ask_yn "Install Docker CE + Incus containers"              y && FEAT_DOCKER=true   || FEAT_DOCKER=false
+    ask_yn "Install GPU drivers (NVIDIA/AMD/Intel Arc)"        n && FEAT_GPU=true      || FEAT_GPU=false
+    ask_yn "Install Google Coral TPU + Frigate NVR"            n && FEAT_CORAL=true    || FEAT_CORAL=false
+    ask_yn "Install security (UFW, Fail2ban, CrowdSec)"        y && FEAT_SECURITY=true || FEAT_SECURITY=false
+    ask_yn "Install monitoring (Grafana + Prometheus)"         y && FEAT_MONITORING=true || FEAT_MONITORING=false
+    ask_yn "Install file sharing (Samba/NFS/FTPS/DAV/FileDB)"  y && FEAT_FILESHARE=true || FEAT_FILESHARE=false
+    ask_yn "Install VPN (WireGuard)"                           n && FEAT_VPN=true      || FEAT_VPN=false
+    ask_yn "Install nginx reverse proxy + Let's Encrypt"       y && FEAT_PROXY=true    || FEAT_PROXY=false
+    ask_yn "Install LDAP/OIDC auth (lldap + Authentik)"        n && FEAT_LDAP=true     || FEAT_LDAP=false
+    ask_yn "Install mail server (Postfix+Dovecot+SOGo)"        n && FEAT_MAIL=true     || FEAT_MAIL=false
+    ask_yn "Install backup (Restic+Rclone+Snapper)"            y && FEAT_BACKUP=true   || FEAT_BACKUP=false
+    ask_yn "Install cloud storage (MinIO S3)"                  n && FEAT_CLOUD=true    || FEAT_CLOUD=false
+    ask_yn "Install apps (OnlyOffice+MS Fonts+Immich)"         n && FEAT_APPS=true     || FEAT_APPS=false
+    ask_yn "Enable HIPAA compliance mode"                      n && FEAT_HIPAA=true    || FEAT_HIPAA=false
 
     echo ""
     echo -e "  ${BOLD}Ready to install.${NC}"
     ask_yn "Begin installation?" y || { echo "Aborted."; exit 0; }
 
 else
-    # Unattended defaults — install everything sensible
+    # Unattended defaults
     FORGEOS_HOSTNAME="${FORGEOS_HOSTNAME:-$(hostname -s)}"
     FORGEOS_DOMAIN="${FORGEOS_DOMAIN:-nas.local}"
     FORGEOS_ADMIN_USER="${FORGEOS_ADMIN_USER:-forgeos}"
     FEAT_STORAGE="${FEAT_STORAGE:-true}"
     FEAT_DOCKER="${FEAT_DOCKER:-true}"
     FEAT_GPU="${FEAT_GPU:-false}"
+    FEAT_CORAL="${FEAT_CORAL:-false}"
     FEAT_SECURITY="${FEAT_SECURITY:-true}"
     FEAT_MONITORING="${FEAT_MONITORING:-true}"
     FEAT_FILESHARE="${FEAT_FILESHARE:-true}"
@@ -163,6 +167,7 @@ fi
 forgenas_set "FEATURE_STORAGE"    "$FEAT_STORAGE"
 forgenas_set "FEATURE_DOCKER"     "$FEAT_DOCKER"
 forgenas_set "FEATURE_GPU"        "$FEAT_GPU"
+forgenas_set "FEATURE_CORAL"      "$FEAT_CORAL"
 forgenas_set "FEATURE_SECURITY"   "$FEAT_SECURITY"
 forgenas_set "FEATURE_MONITORING" "$FEAT_MONITORING"
 forgenas_set "FEATURE_FILESHARE"  "$FEAT_FILESHARE"
@@ -175,10 +180,8 @@ forgenas_set "FEATURE_CLOUD"      "$FEAT_CLOUD"
 forgenas_set "FEATURE_APPS"       "$FEAT_APPS"
 forgenas_set "FEATURE_HIPAA"      "$FEAT_HIPAA"
 
-# ── Module runner ────────────────────────────────────────────
-# SELECTED_MODULES: comma-separated list from --modules= flag.
-# When set, only modules whose script/name contains one of the
-# listed tokens are run. e.g. --modules=storage,docker,vpn
+# ── Module runner ─────────────────────────────────────────────
+# SELECTED_MODULES: comma-separated filter e.g. --modules=storage,docker
 # Base (01) and finalize (99) always run regardless of filter.
 run_module() {
     local num="$1" name="$2" script="$3"
@@ -225,25 +228,29 @@ run_module() {
     module_mark_done "$script"
 }
 
-# ── Run modules in order ─────────────────────────────────────
-run_module  "01" "Base System"            "01-base.sh"           "true"
-run_module  "02" "Network"                "02-network.sh"        "true"
-run_module  "03" "ForgeRAID Storage"      "03-storage.sh"        "$FEAT_STORAGE"
-run_module "03b" "Hot-Swap & SMART"       "03-storage-hotswap.sh" "$FEAT_STORAGE"
-run_module  "04" "Docker + Incus"         "04-docker.sh"         "$FEAT_DOCKER"
-run_module  "06" "GPU Drivers"            "06-gpu.sh"            "$FEAT_GPU"
-run_module  "07" "Security"              "07-security.sh"        "$FEAT_SECURITY"
-run_module  "09" "Monitoring"             "09-monitoring.sh"     "$FEAT_MONITORING"
-run_module "10a" "File Sharing Core"      "10-fileshare.sh"      "$FEAT_FILESHARE"
-run_module "10b" "Samba + Database"       "10b-samba-db.sh"      "$FEAT_FILESHARE"
-run_module  "11" "VPN"                    "11-vpn.sh"            "$FEAT_VPN"
-run_module  "12" "Reverse Proxy"          "12-reverse-proxy.sh"  "$FEAT_PROXY"
-run_module  "13" "LDAP + OIDC Auth"       "13-ldap-oidc.sh"      "$FEAT_LDAP"
-run_module  "14" "Mail Server"            "14-mail.sh"           "$FEAT_MAIL"
-run_module  "15" "Backup"                 "15-backup.sh"         "$FEAT_BACKUP"
-run_module  "16" "Cloud Storage"          "16-cloud-storage.sh"  "$FEAT_CLOUD"
-run_module  "17" "HIPAA Compliance"       "17-hipaa.sh"          "$FEAT_HIPAA"
-run_module  "99" "Finalize"              "99-finalize.sh"        "true"
+# ── Run all modules in dependency order ───────────────────────
+run_module  "01"  "Base System"              "01-base.sh"              "true"
+run_module  "02"  "Network"                  "02-network.sh"           "true"
+run_module  "03"  "ForgeRAID Storage"        "03-storage.sh"           "$FEAT_STORAGE"
+run_module  "03b" "Hot-Swap & SMART"         "03-storage-hotswap.sh"   "$FEAT_STORAGE"
+run_module  "03c" "Drive Types & Cache"      "03c-drive-types.sh"      "$FEAT_STORAGE"
+run_module  "04"  "Docker + Incus"           "04-docker.sh"            "$FEAT_DOCKER"
+run_module  "05"  "Coral TPU + Frigate"      "05-coral-tpu.sh"         "$FEAT_CORAL"
+run_module  "06"  "GPU Drivers"              "06-gpu.sh"               "$FEAT_GPU"
+run_module  "07"  "Security"                 "07-security.sh"          "$FEAT_SECURITY"
+run_module  "09"  "Monitoring"               "09-monitoring.sh"        "$FEAT_MONITORING"
+run_module  "10a" "File Sharing Core"        "10-fileshare.sh"         "$FEAT_FILESHARE"
+run_module  "10b" "Samba + Database"         "10b-samba-db.sh"         "$FEAT_FILESHARE"
+run_module  "10c" "ForgeFileDB Coordinator"  "10c-forgeos-filedb.sh"   "$FEAT_FILESHARE"
+run_module  "11"  "VPN"                      "11-vpn.sh"               "$FEAT_VPN"
+run_module  "12"  "Reverse Proxy"            "12-reverse-proxy.sh"     "$FEAT_PROXY"
+run_module  "13"  "LDAP + OIDC Auth"         "13-ldap-oidc.sh"         "$FEAT_LDAP"
+run_module  "14"  "Mail Server"              "14-mail.sh"              "$FEAT_MAIL"
+run_module  "15"  "Backup"                   "15-backup.sh"            "$FEAT_BACKUP"
+run_module  "16"  "Cloud Storage"            "16-cloud-storage.sh"     "$FEAT_CLOUD"
+run_module  "17"  "HIPAA Compliance"         "17-hipaa.sh"             "$FEAT_HIPAA"
+run_module  "18"  "Applications"             "18-apps.sh"              "$FEAT_APPS"
+run_module  "99"  "Finalize"                 "99-finalize.sh"          "true"
 
 echo ""
 echo -e "${GREEN}${BOLD}  ForgeOS installation complete!${NC}"

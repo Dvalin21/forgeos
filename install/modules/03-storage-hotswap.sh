@@ -5,7 +5,6 @@
 #           pool-grouped drive monitoring, udev auto-handling
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
-# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 # ============================================================

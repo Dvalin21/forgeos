@@ -32,7 +32,6 @@
 # NO ZFS — btrfs RAM usage is ~30x less than ZFS ARC
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
-# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 source "$(dirname "$0")/../lib/detect.sh"
 
@@ -221,7 +220,6 @@ create_smart_pool() {
 
     # Calculate ForgeRAID-Smart layout
     # Each "tier" uses the incremental space between consecutive disk sizes
-    # shellcheck disable=SC2034
     local mdadm_arrays=()
     local remaining_sizes=()
     for disk in "${sorted_disks[@]}"; do remaining_sizes+=("${disk_sizes[$disk]}"); done
@@ -470,7 +468,7 @@ _finish_pool() {
 
     # Standard subdirectory structure
     mkdir -p "${mount_point}"/{data,media,photos,documents,backups,docker,public}
-    chmod 777 "${mount_point}/public"
+    chmod 1777 "${mount_point}/public"  # sticky: shared write, protected delete
     chmod 755 "${mount_point}"/{data,media,photos,documents,backups,docker}
 
     # Configure snapper for btrfs snapshots

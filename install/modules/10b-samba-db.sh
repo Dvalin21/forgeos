@@ -50,7 +50,6 @@
 #
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
-# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 SAMBA_CONF="/etc/samba/smb.conf"
@@ -66,8 +65,6 @@ install_samba_managed() {
     apt_install samba samba-common-bin smbclient acl attr libpam-winbind
 
     mkdir -p "$SAMBA_SHARES_DIR" "$(dirname "$FORGEOS_SHARES_FILE")"
-
-    # shellcheck source=/dev/null
 
     source "$FORGENAS_CONFIG"
     local domain_short
@@ -395,10 +392,12 @@ add-user)
 remove-user) smbpasswd -x "$1" ;;
 raw-get) cat /etc/samba/smb.conf; echo ""; cat "$SHARES_FILE" 2>/dev/null ;;
 raw-put)
-    echo "$1" > /tmp/smb-test.conf
-    testparm -s /tmp/smb-test.conf &>/dev/null || { echo "Config test FAILED"; exit 1; }
+    _smb_tmp=$(mktemp /tmp/forgeos-smb-XXXXXX.conf)
+    echo "$1" > "$_smb_tmp"
+    testparm -s "$_smb_tmp" &>/dev/null || { echo "Config test FAILED"; rm -f "$_smb_tmp"; exit 1; }
     cp /etc/samba/smb.conf /etc/samba/smb.conf.bak
-    echo "$1" > /etc/samba/smb.conf
+    cat "$_smb_tmp" > /etc/samba/smb.conf
+    rm -f "$_smb_tmp"
     smbcontrol smbd reload-config 2>/dev/null || systemctl reload smbd
     echo "Saved and reloaded"
     ;;
@@ -706,7 +705,6 @@ DBCLI
 # ============================================================
 create_default_shares() {
     step "Creating default shares"
-    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local base="${PRIMARY_POOL_MOUNT:-/srv/nas}"
 

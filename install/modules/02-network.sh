@@ -13,7 +13,6 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
-# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 # ============================================================
@@ -26,11 +25,8 @@ configure_mdns() {
 
     apt_install avahi-daemon avahi-utils libnss-mdns
 
-    # shellcheck source=/dev/null
-
     source "$FORGENAS_CONFIG"
     local hostname="${HOSTNAME:-forgeos}"
-    # shellcheck disable=SC2034
     local domain="${DOMAIN:-nas.local}"
 
     cat > /etc/avahi/avahi-daemon.conf << AVAHI
@@ -69,7 +65,6 @@ AVAHI
 # Otherwise, leave DHCP and remind user.
 # ============================================================
 configure_static_ip() {
-    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
 
     [[ "${STATIC_IP:-}" == "" ]] && {
@@ -162,7 +157,6 @@ IFACES
 # Controlled by NIC_JUMBO_FRAMES=yes in forgeos.conf
 # ============================================================
 configure_jumbo_frames() {
-    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     [[ "${NIC_JUMBO_FRAMES:-no}" != "yes" ]] && return 0
 
@@ -205,7 +199,6 @@ DNS
 # Modes: active-backup (failover), 802.3ad (LACP, needs switch)
 # ============================================================
 configure_bonding() {
-    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     [[ "${NIC_BOND:-no}" != "yes" ]] && return 0
     [[ "${NIC_COUNT:-1}" -lt 2 ]] && { warn "Bonding requires 2+ NICs — skipping"; return 0; }
@@ -259,7 +252,6 @@ BOND
 # WAKE-ON-LAN
 # ============================================================
 configure_wol() {
-    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local nic="${NIC_PRIMARY:-eth0}"
 

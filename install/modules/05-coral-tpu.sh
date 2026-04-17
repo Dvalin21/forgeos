@@ -53,7 +53,6 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
-# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 CORAL_DIR="/opt/forgeos/apps/coral"
@@ -116,7 +115,7 @@ install_gasket_dkms() {
     # Prerequisites
     apt_install \
         dkms \
-        "linux-headers-$(uname -r)" \
+        linux-headers-$(uname -r) \
         git \
         devscripts \
         dh-dkms \
@@ -238,8 +237,9 @@ install_edgetpu_runtime() {
 
     curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
         | gpg --dearmor -o /etc/apt/trusted.gpg.d/coral-edgetpu.gpg 2>/dev/null \
-        || curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
-           | apt-key add - >> "$FORGENAS_LOG" 2>&1 || warn "Coral GPG key fetch failed"
+        || (curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+           | gpg --dearmor -o /etc/apt/trusted.gpg.d/coral-edgetpu-fallback.gpg 2>/dev/null) \
+        || warn "Coral GPG key fetch failed"
 
     _apt_ready=false
     # Install ONLY the runtime — NOT gasket-dkms from here (it's broken on 6.x)
@@ -275,7 +275,6 @@ UDEV
 
     # apex group
     getent group apex &>/dev/null || groupadd apex
-    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local user="${ADMIN_USER:-forgeos}"
     usermod -aG apex "$user" 2>/dev/null || true
@@ -364,8 +363,6 @@ verify_coral() {
 # ============================================================
 generate_frigate_compose() {
     step "Generating Frigate NVR Docker Compose"
-
-    # shellcheck source=/dev/null
 
     source "$FORGENAS_CONFIG"
     local coral_count="${CORAL_COUNT:-1}"

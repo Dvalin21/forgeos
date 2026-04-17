@@ -5,6 +5,7 @@
 # ============================================================
 source "$(dirname "$0")/../lib/common.sh"
 # shellcheck source=/dev/null
+
 source "$FORGENAS_CONFIG"
 
 # ============================================================
@@ -30,7 +31,7 @@ install_api_backend() {
         || die "Python package install failed"
 
     # Copy API to final location
-    cp "$(dirname "$0")/forgeos-api.py" /opt/forgeos/forgeos-api.py
+    cp "$(dirname "$0")/../src/forgeos-api.py" /opt/forgeos/forgeos-api.py
     chmod 700 /opt/forgeos/forgeos-api.py
 
     # Generate JWT secret
@@ -193,6 +194,7 @@ CTL
 # ============================================================
 print_summary() {
     # shellcheck source=/dev/null
+
     source "$FORGENAS_CONFIG"
     local d="${DOMAIN:-$(hostname -f)}"
 

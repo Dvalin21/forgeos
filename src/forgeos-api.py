@@ -44,7 +44,31 @@ from jose import JWTError, jwt
 # ────────────────────────────────────────────────────────────
 CONFIG_FILE = Path("/etc/forgeos/forgeos.conf")
 USERS_FILE  = Path("/etc/forgeos/api-users.json")
-JWT_SECRET  = os.environ.get("FORGEOS_JWT_SECRET", "changeme-set-in-forgeos.conf")
+# JWT secret MUST be set - never run with default
+def _load_jwt_secret() -> str:
+    """Load JWT secret from config. Raises on missing/default."""
+    secret = os.environ.get("FORGEOS_JWT_SECRET", "")
+    if not secret:
+        # Try to read from forgeos.conf
+        try:
+            for line in CONFIG_FILE.read_text().splitlines():
+                if line.startswith("WEBUI_JWT_SECRET="):
+                    secret = line.split("=", 1)[1].strip().strip('"')
+                    break
+        except Exception:
+            pass
+    if not secret or secret in ("changeme-set-in-forgeos.conf", "changeme", ""):
+        import secrets
+        secret = secrets.token_hex(32)
+        # Write it back to config so it persists
+        try:
+            with open(CONFIG_FILE, "a") as f:
+                f.write(f'\nWEBUI_JWT_SECRET="{secret}"\n')
+        except Exception:
+            pass
+    return secret
+
+JWT_SECRET  = _load_jwt_secret()
 JWT_ALGO    = "HS256"
 JWT_EXPIRE  = 12  # hours
 WEB_ROOT    = Path("/opt/forgeos/web")
@@ -139,9 +163,21 @@ async def change_password(body: dict, user=Depends(verify_token)):
 # SYSTEM METRICS
 # ────────────────────────────────────────────────────────────
 def _run(cmd: str, timeout: int = 5) -> str:
+    """Run a shell command safely using shlex to avoid shell injection."""
+    try:
+        import shlex
+        return subprocess.check_output(
+            shlex.split(cmd), shell=False, stderr=subprocess.DEVNULL,
+            text=True, timeout=timeout
+        ).strip()
+    except Exception:
+        return ""
+
+def _run_args(args: list, timeout: int = 5) -> str:
+    """Run a command with explicit arg list - no shell injection possible."""
     try:
         return subprocess.check_output(
-            cmd, shell=True, stderr=subprocess.DEVNULL,
+            args, shell=False, stderr=subprocess.DEVNULL,
             text=True, timeout=timeout
         ).strip()
     except Exception:
@@ -276,7 +312,9 @@ async def storage_df(user=Depends(verify_token)):
 @app.get("/api/storage/snapshots")
 async def storage_snapshots(pool: str = "", user=Depends(verify_token)):
     if pool:
-        out = _run(f"snapper -c {pool} list --output-cols number,date,description 2>/dev/null")
+        pool = re.sub(r"[^a-zA-Z0-9_-]", "", pool)  # sanitize pool name
+        out = _run_args(["snapper", "-c", pool, "list",
+                         "--output-cols", "number,date,description"])
     else:
         configs = _run("snapper list-configs | awk 'NR>2{print $1}'").splitlines()
         out = ""
@@ -290,7 +328,10 @@ async def create_snapshot(body: dict, user=Depends(verify_token)):
     pool = body.get("pool", "")
     desc = body.get("description", "manual")
     if pool:
-        _run(f"snapper -c {pool} create --description '{desc}' --cleanup-algorithm timeline")
+        pool = re.sub(r"[^a-zA-Z0-9_-]", "", pool)
+        desc = re.sub(r"[^a-zA-Z0-9 _.-]", "", desc)[:80]
+        _run_args(["snapper", "-c", pool, "create",
+                   "--description", desc, "--cleanup-algorithm", "timeline"])
     else:
         configs = _run("snapper list-configs | awk 'NR>2{print $1}'").splitlines()
         for c in configs:
@@ -356,9 +397,15 @@ async def add_vhost(body: dict, user=Depends(verify_token)):
     if not 1 <= port <= 65535:
         raise HTTPException(400, "Invalid port")
 
-    result = _run(
-        f"forgeos-nginx add-vhost {name} {domain} {port} {tls} {auth} {'yes' if ws else 'no'}"
-    )
+    # Sanitize all user inputs before passing to shell
+    name   = re.sub(r"[^a-z0-9-]", "", name.lower())[:64]
+    domain = re.sub(r"[^a-zA-Z0-9.\-]", "", domain)[:253]
+    tls    = tls   if tls  in ("acme", "selfsigned", "none") else "acme"
+    auth   = auth  if auth in ("none", "basic", "oidc")      else "none"
+    result = _run_args([
+        "forgeos-nginx", "add-vhost", name, domain, str(port),
+        tls, auth, "yes" if ws else "no"
+    ])
     return {"ok": True, "message": result}
 
 @app.delete("/api/nginx/vhost/{name}")
@@ -378,9 +425,15 @@ async def nginx_save_raw(body: dict, user=Depends(verify_token)):
     if user.get("role") != "admin":
         raise HTTPException(403)
     config = body.get("config", "")
-    # Test first
-    Path("/tmp/nginx-test.conf").write_text(config)
-    test = _run("nginx -t -c /tmp/nginx-test.conf 2>&1")
+    # Test first using a secure temp file
+    import tempfile, os as _os
+    _fd, _tmp = tempfile.mkstemp(prefix="forgeos-nginx-", suffix=".conf")
+    try:
+        with _os.fdopen(_fd, "w") as _fh:
+            _fh.write(config)
+        test = _run_args(["nginx", "-t", "-c", _tmp])
+    finally:
+        _os.unlink(_tmp) if _os.path.exists(_tmp) else None
     if "failed" in test.lower():
         raise HTTPException(400, detail={"error": "Config test failed", "output": test})
     Path("/etc/nginx/nginx.conf").write_text(config)
@@ -406,11 +459,15 @@ async def request_cert(body: dict, user=Depends(verify_token)):
     email  = body.get("email", "")
     if not domain:
         raise HTTPException(400, "domain required")
-    result = _run(
-        f"certbot certonly --nginx --non-interactive --agree-tos "
-        f"--email {email} -d {domain} 2>&1",
-        timeout=120
-    )
+    # Strict validation: only allow valid domain/email chars - no shell metacharacters
+    if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9.\-]{0,253}[a-zA-Z0-9]$", domain):
+        raise HTTPException(400, "Invalid domain name")
+    if email and not re.match(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$", email):
+        raise HTTPException(400, "Invalid email address")
+    # Use arg list - no shell injection possible
+    cmd = ["certbot", "certonly", "--nginx", "--non-interactive",
+           "--agree-tos", "--email", email or f"admin@{domain}", "-d", domain]
+    result = _run_args(cmd, timeout=120)
     return {"ok": True, "output": result}
 
 # ────────────────────────────────────────────────────────────

@@ -24,7 +24,6 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
-# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 NAS_ROOT="/srv/nas"
@@ -38,7 +37,7 @@ install_nfs() {
     apt_install nfs-kernel-server nfs-common rpcbind
 
     # NFS v4 only — disable v2/v3 completely
-    cat > /etc/default/nfs-kernel-server << 'NFS_SERVER_DEFAULTS'
+    cat > /etc/default/nfs-kernel-server << 'NFSD'
 # ForgeOS NFS configuration
 # v4 ONLY — v2 and v3 disabled for security
 
@@ -51,7 +50,8 @@ RPCNFSDCOUNT=$(nproc)
 # v4 lease time (seconds) — shorter = faster recovery after crash
 NFSD_V4_GRACE_TIME=90
 NFSD_V4_LEASE_TIME=90
-NFS_SERVER_DEFAULTS
+NFSD'
+
     # Kernel parameters for NFS v4
     cat > /etc/sysctl.d/92-forgeos-nfs.conf << 'NFSSYS'
 # NFS performance tuning
@@ -303,6 +303,7 @@ install_filebrowser() {
             || _install_filebrowser_manual
     fi
 
+    local admin_pass; admin_pass=$(forgenas_get "WEBUI_ADMIN_PASS" "$(gen_password 16)")
     local domain; domain=$(forgenas_get "DOMAIN" "nas.local")
 
     # FileBrowser config
@@ -519,7 +520,7 @@ install_fileshare_cli
 forgenas_set "MODULE_FILESHARE_DONE" "yes"
 forgenas_set "FEATURE_FILESHARE" "yes"
 
-domain=$(forgenas_get "DOMAIN" "nas.local")
+local domain; domain=$(forgenas_get "DOMAIN" "nas.local")
 info "File sharing module complete"
 info "  NFS v4:       mount -t nfs4 ${HOSTNAME:-forgeos}.local:/nas /mnt"
 info "  FTPS:         ${HOSTNAME:-forgeos}.${domain}:21 (TLS required)"

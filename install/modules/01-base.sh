@@ -16,7 +16,6 @@
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
-# shellcheck source=/dev/null
 source "$FORGENAS_CONFIG"
 
 # ============================================================
@@ -44,7 +43,7 @@ install_base_packages() {
         tmux screen \
         lsof strace \
         dmidecode pciutils usbutils \
-        "linux-headers-$(uname -r)" 2>/dev/null || apt_install linux-headers-generic
+        linux-headers-$(uname -r) 2>/dev/null || apt_install linux-headers-generic
 
     # HWE kernel for newer hardware support (Intel Arc, etc.)
     if lsb_release -rs 2>/dev/null | grep -qE '^22'; then
@@ -192,7 +191,6 @@ SYSD
 # ============================================================
 configure_hostname_tz() {
     step "Configuring hostname and timezone"
-    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
 
     local hostname="${HOSTNAME:-forgeos}"
@@ -220,7 +218,6 @@ configure_hostname_tz() {
 # ============================================================
 setup_admin_user() {
     step "Setting up admin user"
-    # shellcheck source=/dev/null
     source "$FORGENAS_CONFIG"
     local user="${ADMIN_USER:-forgeos}"
 
@@ -342,7 +339,7 @@ create_directory_structure() {
     # Permissions
     chmod 700 /etc/forgeos /etc/forgeos/backup/keys
     chmod 755 /srv/nas /opt/forgeos
-    chmod 777 /srv/nas/public   # world-readable public share
+    chmod 1777 /srv/nas/public  # sticky bit: anyone write, only owner delete   # world-readable public share
     chmod 1777 /srv/nas/timemachine  # sticky bit
 
     # Set group ownership for NAS shares
