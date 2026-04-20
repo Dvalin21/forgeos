@@ -1833,18 +1833,16 @@ function fmtBytes(bytes) {
 }
 
 // === Show modals ===
-function showAddVpnPeer() { showModal('modal-vpn-peer'); }
-function showAddVhost() { showModal('modal-add-vhost'); }
-function showAddFirewallRule() { showModal('modal-firewall-rule'); }
-function showCreatePool() { showModal('modal-create-pool'); }
-function showAddDrive() { showModal('modal-add-drive'); }
-function showShare() { showModal('modal-share'); }
-function showSettings() { showModal('modal-settings'); }
-function showStorage() { showModal('modal-storage'); }
-function showCreateSnap() { showModal('modal-create-snap'); }
-
-function showModal(id) {
-  const m = document.getElementById(id);
+function showAddVpnPeer() {
+  const m = document.getElementById('modal-vpn-peer');
+  if (m) m.style.display = 'flex';
+}
+function showAddVhost() {
+  const m = document.getElementById('modal-add-vhost');
+  if (m) m.style.display = 'flex';
+}
+function showAddFirewallRule() {
+  const m = document.getElementById('modal-firewall-rule');
   if (m) m.style.display = 'flex';
 }
 function closeModal(id) {
@@ -1891,56 +1889,8 @@ async function addFirewallRule() {
 
 // === Save settings ===
 async function saveSettings() {
-  const hostname = document.getElementById('set-hostname')?.value || 'forgeos';
-  const domain = document.getElementById('set-domain')?.value || 'forgeos.local';
-  const tz = document.getElementById('set-tz')?.value || 'UTC';
-  
-  alert('Settings saved:\nHost: ' + hostname + '\nDomain: ' + domain + '\nTimezone: ' + tz);
-  closeModal('modal-settings');
-}
-
-// === Create storage pool ===
-async function createPool() {
-  const name = document.getElementById('pool-name')?.value;
-  const level = document.getElementById('pool-level')?.value;
-  const fs = document.getElementById('pool-fs')?.value;
-  if (!name) return alert('Pool name required');
-  
-  alert('Creating pool: ' + name + '\nLevel: ' + level + '\nFS: ' + fs);
-  closeModal('modal-create-pool');
-}
-
-// === Add drive to pool ===
-async function addDrive() {
-  const pool = document.getElementById('add-pool')?.value;
-  const drive = document.getElementById('drive-select')?.value;
-  if (!pool || !drive) return alert('Pool and drive required');
-  
-  alert('Adding ' + drive + ' to ' + pool);
-  closeModal('modal-add-drive');
-}
-
-// === Create share ===
-async function createShare() {
-  const name = document.getElementById('share-name')?.value;
-  const path = document.getElementById('share-path')?.value;
-  const proto = document.getElementById('share-proto')?.value;
-  if (!name) return alert('Share name required');
-  
-  alert('Creating ' + proto + ' share: ' + name + '\nPath: ' + path);
-  closeModal('modal-share');
-}
-
-// === Create snapshot ===
-async function createSnapshot() {
-  alert('Snapshot created');
-  closeModal('modal-create-snap');
-}
-
-// === Show modals ===
-function showModal(id) {
-  const m = document.getElementById(id);
-  if (m) m.style.display = 'flex';
+  const hostname = document.querySelector('#tab-settings input[type="text"]')?.value;
+  alert('Settings saved: ' + hostname);
 }
 
 // === Initialize on load ===
@@ -2026,225 +1976,6 @@ init();
     <div style="margin-top:15px;display:flex;gap:8px;justify-content:flex-end">
       <button class="btn" onclick="closeModal('modal-firewall-rule')">Cancel</button>
       <button class="btn primary" onclick="addFirewallRule()">Add Rule</button>
-    </div>
-  </div>
-</div>
-
-<!-- Create Pool Modal -->
-<div id="modal-create-pool" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div class="modal" style="background:var(--bg-win);border:1px solid var(--border-hi);border-radius:var(--r-win);min-width:400px;padding:20px">
-    <div style="display:flex;justify-content:space-between;margin-bottom:15px">
-      <span style="font-weight:600">Create Storage Pool</span>
-      <span style="cursor:pointer" onclick="closeModal('modal-create-pool')">✕</span>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Pool Name</label>
-      <input type="text" id="pool-name" class="form-input" placeholder="mypool" style="width:100%">
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">RAID Level</label>
-      <select id="pool-level" class="form-input" style="width:100%">
-        <option>RAID-0 (stripe)</option>
-        <option>RAID-1 (mirror)</option>
-        <option>RAID-5</option>
-        <option>RAID-6</option>
-        <option>RAID-10</option>
-        <option>JBOD</option>
-      </select>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Filesystem</label>
-      <select id="pool-fs" class="form-input" style="width:100%">
-        <option>btrfs</option>
-        <option>ext4</option>
-        <option>xfs</option>
-      </select>
-    </div>
-    <div style="margin-top:15px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn" onclick="closeModal('modal-create-pool')">Cancel</button>
-      <button class="btn primary" onclick="createPool()">Create Pool</button>
-    </div>
-  </div>
-</div>
-
-<!-- Add Drive Modal -->
-<div id="modal-add-drive" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div class="modal" style="background:var(--bg-win);border:1px solid var(--border-hi);border-radius:var(--r-win);min-width:350px;padding:20px">
-    <div style="display:flex;justify-content:space-between;margin-bottom:15px">
-      <span style="font-weight:600">Add Drive to Pool</span>
-      <span style="cursor:pointer" onclick="closeModal('modal-add-drive')">✕</span>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Target Pool</label>
-      <select id="add-pool" class="form-input" style="width:100%">
-        <option>datapool</option>
-        <option>nvmepool</option>
-      </select>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Drive</label>
-      <select id="drive-select" class="form-input" style="width:100%">
-        <option>sdd (4TB WD Red)</option>
-        <option>sde (4TB WD Red)</option>
-        <option>sdf (2TB Seagate)</option>
-      </select>
-    </div>
-    <div style="margin-top:15px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn" onclick="closeModal('modal-add-drive')">Cancel</button>
-      <button class="btn primary" onclick="addDrive()">Add Drive</button>
-    </div>
-  </div>
-</div>
-
-<!-- Share Modal -->
-<div id="modal-share" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div class="modal" style="background:var(--bg-win);border:1px solid var(--border-hi);border-radius:var(--r-win);min-width:400px;padding:20px">
-    <div style="display:flex;justify-content:space-between;margin-bottom:15px">
-      <span style="font-weight:600">Create Share</span>
-      <span style="cursor:pointer" onclick="closeModal('modal-share')">✕</span>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Share Name</label>
-      <input type="text" id="share-name" class="form-input" placeholder="documents" style="width:100%">
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Path</label>
-      <input type="text" id="share-path" class="form-input" value="/srv/storage/" style="width:100%">
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Protocol</label>
-      <select id="share-proto" class="form-input" style="width:100%">
-        <option>SMB/CIFS</option>
-        <option>NFS</option>
-        <option>WebDAV</option>
-      </select>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Template</label>
-      <select class="form-input" style="width:100%">
-        <option>Standard (no public access)</option>
-        <option>Time Machine</option>
-        <option>Media (ro guest)</option>
-        <option>Development (devs rw)</option>
-        <option>ElevateDB (no oplocks)</option>
-      </select>
-    </div>
-    <div style="margin-top:15px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn" onclick="closeModal('modal-share')">Cancel</button>
-      <button class="btn primary" onclick="createShare()">Create Share</button>
-    </div>
-  </div>
-</div>
-
-<!-- Settings Modal -->
-<div id="modal-settings" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div class="modal" style="background:var(--bg-win);border:1px solid var(--border-hi);border-radius:var(--r-win);min-width:450px;padding:20px;max-height:80vh;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;margin-bottom:15px">
-      <span style="font-weight:600">System Settings</span>
-      <span style="cursor:pointer" onclick="closeModal('modal-settings')">✕</span>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Hostname</label>
-      <input type="text" id="set-hostname" class="form-input" value="forgeos" style="width:100%">
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Domain</label>
-      <input type="text" id="set-domain" class="form-input" value="forgeos.local" style="width:100%">
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Timezone</label>
-      <select id="set-tz" class="form-input" style="width:100%">
-        <option>America/Chicago</option>
-        <option>America/New_York</option>
-        <option>America/Los_Angeles</option>
-        <option>Europe/London</option>
-        <option>UTC</option>
-      </select>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">UI Theme</label>
-      <select class="form-input" style="width:100%">
-        <option>Dark Forge (default)</option>
-        <option>Dark Circuit</option>
-        <option>Light Blueprint</option>
-        <option>Light Dawn</option>
-      </select>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Admin Web UI Port</label>
-      <input type="text" class="form-input" value="443" style="width:100%">
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" checked> Enable mDNS (Avahi)
-      </label>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox" checked> Enable Let's Encrypt
-      </label>
-    </div>
-    <div style="margin-top:15px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn" onclick="closeModal('modal-settings')">Cancel</button>
-      <button class="btn primary" onclick="saveSettings()">Save Settings</button>
-    </div>
-  </div>
-</div>
-
-<!-- Storage Quick Access Modal -->
-<div id="modal-storage" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div class="modal" style="background:var(--bg-win);border:1px solid var(--border-hi);border-radius:var(--r-win);min-width:350px;padding:20px">
-    <div style="display:flex;justify-content:space-between;margin-bottom:15px">
-      <span style="font-weight:600">Storage Quick View</span>
-      <span style="cursor:pointer" onclick="closeModal('modal-storage')">✕</span>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-      <div style="background:var(--bg-pane);padding:10px;border-radius:4px">
-        <div style="font-size:10px;color:var(--t3);margin-bottom:4px">TOTAL</div>
-        <div style="font-size:18px;font-weight:600">12.4 TB</div>
-      </div>
-      <div style="background:var(--bg-pane);padding:10px;border-radius:4px">
-        <div style="font-size:10px;color:var(--t3);margin-bottom:4px">USED</div>
-        <div style="font-size:18px;font-weight:600;color:var(--warn)">8.2 TB</div>
-      </div>
-      <div style="background:var(--bg-pane);padding:10px;border-radius:4px">
-        <div style="font-size:10px;color:var(--t3);margin-bottom:4px">FREE</div>
-        <div style="font-size:18px;font-weight:600;color:var(--ok)">4.2 TB</div>
-      </div>
-      <div style="background:var(--bg-pane);padding:10px;border-radius:4px">
-        <div style="font-size:10px;color:var(--t3);margin-bottom:4px">DRIVES</div>
-        <div style="font-size:18px;font-weight:600">9</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Snapshot Modal -->
-<div id="modal-create-snap" class="modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center">
-  <div class="modal" style="background:var(--bg-win);border:1px solid var(--border-hi);border-radius:var(--r-win);min-width:350px;padding:20px">
-    <div style="display:flex;justify-content:space-between;margin-bottom:15px">
-      <span style="font-weight:600">Create Snapshot</span>
-      <span style="cursor:pointer" onclick="closeModal('modal-create-snap')">✕</span>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Pool</label>
-      <select class="form-input" style="width:100%">
-        <option>datapool</option>
-        <option>nvmepool</option>
-      </select>
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="font-size:11px;color:var(--t2);display:block;margin-bottom:4px">Snapshot Name</label>
-      <input type="text" class="form-input" placeholder="before-update" style="width:100%">
-    </div>
-    <div style="margin-bottom:12px">
-      <label style="display:flex;align-items:center;gap:8px">
-        <input type="checkbox"> Auto-delete after (days)
-      </label>
-    </div>
-    <div style="margin-top:15px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn" onclick="closeModal('modal-create-snap')">Cancel</button>
-      <button class="btn primary" onclick="createSnapshot()">Create Snapshot</button>
     </div>
   </div>
 </div>

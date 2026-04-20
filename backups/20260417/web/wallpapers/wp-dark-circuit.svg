@@ -1,0 +1,205 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <radialGradient id="bg2" cx="30%" cy="40%" r="80%">
+      <stop offset="0%"   stop-color="#0d1520"/>
+      <stop offset="60%"  stop-color="#080d14"/>
+      <stop offset="100%" stop-color="#04080f"/>
+    </radialGradient>
+    <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#e85d04" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#e85d04" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="nodeGlowBlue" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#4488cc" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#4488cc" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glowFilter">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="bigGlow">
+      <feGaussianBlur stdDeviation="30" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <linearGradient id="traceOrange" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#e85d04" stop-opacity="0"/>
+      <stop offset="30%"  stop-color="#e85d04" stop-opacity="0.7"/>
+      <stop offset="70%"  stop-color="#e85d04" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#e85d04" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="traceBlue" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#4488cc" stop-opacity="0"/>
+      <stop offset="30%"  stop-color="#4488cc" stop-opacity="0.5"/>
+      <stop offset="70%"  stop-color="#4488cc" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#4488cc" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Base -->
+  <rect width="1920" height="1080" fill="url(#bg2)"/>
+
+  <!-- Subtle blue ambient -->
+  <ellipse cx="400" cy="300" rx="500" ry="350" fill="#0a2040" opacity="0.4"/>
+  <ellipse cx="1600" cy="700" rx="400" ry="300" fill="#1a0808" opacity="0.3"/>
+
+  <!-- Main circuit trace network -->
+  <g stroke="#4488cc" stroke-width="1" fill="none" opacity="0.35">
+    <!-- Main horizontal backbone -->
+    <line x1="0"    y1="540" x2="600"  y2="540"/>
+    <line x1="700"  y1="540" x2="1200" y2="540"/>
+    <line x1="1320" y1="540" x2="1920" y2="540"/>
+    <!-- Vertical spurs -->
+    <line x1="200"  y1="540" x2="200"  y2="300"/>
+    <line x1="200"  y1="300" x2="400"  y2="300"/>
+    <line x1="400"  y1="300" x2="400"  y2="200"/>
+    <line x1="400"  y1="540" x2="400"  y2="700"/>
+    <line x1="400"  y1="700" x2="600"  y2="700"/>
+    <line x1="600"  y1="700" x2="600"  y2="820"/>
+    <line x1="800"  y1="540" x2="800"  y2="380"/>
+    <line x1="800"  y1="380" x2="1000" y2="380"/>
+    <line x1="1000" y1="380" x2="1000" y2="240"/>
+    <line x1="1000" y1="540" x2="1000" y2="680"/>
+    <line x1="1000" y1="680" x2="1200" y2="680"/>
+    <line x1="1200" y1="680" x2="1200" y2="800"/>
+    <line x1="1400" y1="540" x2="1400" y2="360"/>
+    <line x1="1400" y1="360" x2="1600" y2="360"/>
+    <line x1="1600" y1="360" x2="1600" y2="220"/>
+    <line x1="1600" y1="540" x2="1600" y2="720"/>
+    <line x1="1600" y1="720" x2="1800" y2="720"/>
+    <!-- Cross connects -->
+    <line x1="200"  y1="300" x2="200"  y2="180"/>
+    <line x1="200"  y1="180" x2="600"  y2="180"/>
+    <line x1="600"  y1="180" x2="600"  y2="300"/>
+    <line x1="600"  y1="300" x2="800"  y2="300"/>
+    <line x1="1200" y1="380" x2="1400" y2="380"/>
+    <line x1="1200" y1="380" x2="1200" y2="260"/>
+    <!-- Upper traces -->
+    <line x1="400"  y1="200" x2="800"  y2="200"/>
+    <line x1="800"  y1="200" x2="800"  y2="100"/>
+    <line x1="800"  y1="100" x2="1200" y2="100"/>
+    <line x1="1200" y1="100" x2="1200" y2="200"/>
+    <line x1="1200" y1="200" x2="1600" y2="200"/>
+  </g>
+
+  <!-- Orange highlight traces (active paths) -->
+  <g stroke="#e85d04" stroke-width="1.5" fill="none" opacity="0.55">
+    <line x1="600"  y1="540" x2="700"  y2="540"/>
+    <line x1="1200" y1="540" x2="1320" y2="540"/>
+    <line x1="800"  y1="380" x2="1000" y2="380"/>
+    <line x1="1000" y1="540" x2="1000" y2="680"/>
+  </g>
+
+  <!-- Node dots - blue (junction points) -->
+  <g fill="#4488cc" filter="url(#glowFilter)">
+    <circle cx="200"  cy="540" r="4" opacity="0.8"/>
+    <circle cx="400"  cy="540" r="3.5" opacity="0.7"/>
+    <circle cx="600"  cy="540" r="5" opacity="0.9"/>
+    <circle cx="800"  cy="540" r="4" opacity="0.8"/>
+    <circle cx="1000" cy="540" r="5" opacity="0.9"/>
+    <circle cx="1200" cy="540" r="4" opacity="0.8"/>
+    <circle cx="1400" cy="540" r="3.5" opacity="0.7"/>
+    <circle cx="1600" cy="540" r="4" opacity="0.8"/>
+    <circle cx="200"  cy="300" r="3" opacity="0.7"/>
+    <circle cx="400"  cy="300" r="3" opacity="0.7"/>
+    <circle cx="400"  cy="700" r="3.5" opacity="0.75"/>
+    <circle cx="600"  cy="700" r="3" opacity="0.7"/>
+    <circle cx="800"  cy="380" r="4" opacity="0.8"/>
+    <circle cx="1000" cy="380" r="3.5" opacity="0.75"/>
+    <circle cx="1000" cy="680" r="3.5" opacity="0.75"/>
+    <circle cx="1200" cy="680" r="3" opacity="0.7"/>
+    <circle cx="1400" cy="360" r="3" opacity="0.7"/>
+    <circle cx="1600" cy="360" r="3.5" opacity="0.75"/>
+    <circle cx="1600" cy="720" r="3" opacity="0.7"/>
+    <circle cx="400"  cy="200" r="3" opacity="0.6"/>
+    <circle cx="800"  cy="200" r="3.5" opacity="0.7"/>
+    <circle cx="1000" cy="240" r="3" opacity="0.6"/>
+    <circle cx="1200" cy="200" r="3" opacity="0.6"/>
+    <circle cx="1600" cy="220" r="3" opacity="0.6"/>
+  </g>
+
+  <!-- Node dots - orange (active/hot nodes) -->
+  <g fill="#e85d04" filter="url(#glowFilter)">
+    <circle cx="650"  cy="540" r="6" opacity="0.95"/>
+    <circle cx="1000" cy="380" r="5" opacity="0.9"/>
+    <circle cx="1260" cy="540" r="5.5" opacity="0.9"/>
+    <circle cx="800"  cy="100" r="4" opacity="0.85"/>
+    <circle cx="1200" cy="100" r="4" opacity="0.85"/>
+    <circle cx="600"  cy="820" r="4" opacity="0.8"/>
+    <circle cx="1800" cy="720" r="4" opacity="0.8"/>
+  </g>
+
+  <!-- CPU/chip block motifs -->
+  <g stroke="#4488cc" stroke-width="0.8" fill="#0d1520" opacity="0.6">
+    <!-- Chip 1: center -->
+    <rect x="880" y="470" width="160" height="140" rx="4"/>
+    <!-- Pin traces -->
+    <line x1="880"  y1="500" x2="850"  y2="500"/>
+    <line x1="880"  y1="520" x2="850"  y2="520"/>
+    <line x1="880"  y1="540" x2="850"  y2="540"/>
+    <line x1="880"  y1="560" x2="850"  y2="560"/>
+    <line x1="880"  y1="580" x2="850"  y2="580"/>
+    <line x1="1040" y1="500" x2="1070" y2="500"/>
+    <line x1="1040" y1="520" x2="1070" y2="520"/>
+    <line x1="1040" y1="540" x2="1070" y2="540"/>
+    <line x1="1040" y1="560" x2="1070" y2="560"/>
+    <line x1="1040" y1="580" x2="1070" y2="580"/>
+    <line x1="900"  y1="470" x2="900"  y2="440"/>
+    <line x1="920"  y1="470" x2="920"  y2="440"/>
+    <line x1="940"  y1="470" x2="940"  y2="440"/>
+    <line x1="960"  y1="470" x2="960"  y2="440"/>
+    <line x1="980"  y1="470" x2="980"  y2="440"/>
+    <line x1="1000" y1="470" x2="1000" y2="440"/>
+    <line x1="1020" y1="470" x2="1020" y2="440"/>
+    <line x1="900"  y1="610" x2="900"  y2="640"/>
+    <line x1="930"  y1="610" x2="930"  y2="640"/>
+    <line x1="960"  y1="610" x2="960"  y2="640"/>
+    <line x1="990"  y1="610" x2="990"  y2="640"/>
+    <line x1="1020" y1="610" x2="1020" y2="640"/>
+  </g>
+  <!-- Chip 1 label -->
+  <text x="960" y="545" font-family="'Courier New', monospace" font-size="10"
+        fill="#4488cc" text-anchor="middle" opacity="0.6">FORGE</text>
+  <text x="960" y="560" font-family="'Courier New', monospace" font-size="8"
+        fill="#4488cc" text-anchor="middle" opacity="0.5">OS-1</text>
+
+  <!-- Chip 2: upper left -->
+  <g stroke="#4488cc" stroke-width="0.7" fill="#0a1018" opacity="0.5">
+    <rect x="280" y="240" width="100" height="80" rx="3"/>
+    <text x="330" y="285" font-family="'Courier New', monospace" font-size="8"
+          fill="#4488cc" text-anchor="middle" opacity="0.7">CPU</text>
+  </g>
+
+  <!-- Chip 3: upper right -->
+  <g stroke="#e85d04" stroke-width="0.7" fill="#180d04" opacity="0.5">
+    <rect x="1520" y="280" width="100" height="80" rx="3"/>
+    <text x="1570" y="325" font-family="'Courier New', monospace" font-size="8"
+          fill="#e85d04" text-anchor="middle" opacity="0.7">NIC</text>
+  </g>
+
+  <!-- Subtle scan-line effect -->
+  <g opacity="0.03">
+    <line x1="0" y1="2" x2="1920" y2="2" stroke="#4488cc" stroke-width="1"/>
+    <line x1="0" y1="6" x2="1920" y2="6" stroke="#4488cc" stroke-width="1"/>
+    <line x1="0" y1="10" x2="1920" y2="10" stroke="#4488cc" stroke-width="1"/>
+  </g>
+
+  <!-- Corner decorations -->
+  <g stroke="#e85d04" stroke-width="1" fill="none" opacity="0.4">
+    <path d="M20,20 L20,70 M20,20 L70,20"/>
+    <path d="M1900,20 L1900,70 M1900,20 L1850,20"/>
+    <path d="M20,1060 L20,1010 M20,1060 L70,1060"/>
+    <path d="M1900,1060 L1900,1010 M1900,1060 L1850,1060"/>
+  </g>
+
+  <!-- Diagonal accent lines -->
+  <line x1="0"    y1="0"    x2="180"  y2="0"    stroke="#e85d04" stroke-width="0.5" opacity="0.2"/>
+  <line x1="0"    y1="0"    x2="0"    y2="180"  stroke="#e85d04" stroke-width="0.5" opacity="0.2"/>
+  <line x1="1740" y1="1080" x2="1920" y2="1080" stroke="#e85d04" stroke-width="0.5" opacity="0.2"/>
+  <line x1="1920" y1="900"  x2="1920" y2="1080" stroke="#e85d04" stroke-width="0.5" opacity="0.2"/>
+
+  <!-- ForgeOS label -->
+  <text x="960" y="1055" font-family="'Courier New', monospace" font-size="10"
+        fill="#4488cc" opacity="0.15" text-anchor="middle" letter-spacing="5">
+    F O R G E O S
+  </text>
+</svg>

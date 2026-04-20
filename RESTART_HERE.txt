@@ -1,0 +1,38 @@
+# ForgeOS WebUI - RESTART HERE
+
+## Current State
+- File: /home/keith/forgeos-review/web/desktop/index.html
+- Size: 111KB, 3287 lines
+
+## ISSUES TO FIX:
+1. Line 1079: modal-firewall-rules referenced but NOT defined
+2. Line 1019: modal-create-snap referenced but NOT defined  
+3. Line ~2929: Settings modal may need check
+
+## MODALS EXIST (11):
+- modal-create-pool
+- modal-add-drive
+- modal-share
+- modal-vpn
+- modal-add-vhost
+- modal-mail
+- modal-auth
+- modal-cloud
+- modal-backup
+- modal-settings
+- modal-storage (quick access)
+
+## MODALS MISSING (2 needed):
+- modal-firewall-rules
+- modal-create-snap
+
+## VIEW PANELS EXIST (20):
+dashboard, storage, snapshots, docker, proxy, firewall, backups, logs, settings, drives, incus, shares, ftp, network, vpn, mail, auth, cloud, apps, fail2ban
+
+## TO RESUME - DO THIS:
+1. Add modal-firewall-rules (add UFW rule form)
+2. Add modal-create-snap (snapshot create/restore)
+3. Verify Settings modal at line ~2929
+4. Verify all modals work
+5. Test syntax:
+   python3 -c "import re;c=open('web/desktop/index.html').read();print('Modals:',c.count('class=\"modal-overlay\"'))"

@@ -93,13 +93,9 @@ def conf(key: str, default: str = "") -> str:
 # APP
 # ────────────────────────────────────────────────────────────
 app = FastAPI(title="ForgeOS API", version="1.0", docs_url=None, redoc_url=None)
-
-# CORS configuration - restrict to known origins in production
-# For development/development, consider using environment variable
-_allowed_origins = os.environ.get("FORGEOS_CORS_ORIGINS", "").split(",") if os.environ.get("FORGEOS_CORS_ORIGINS") else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -120,9 +116,8 @@ class LoginRequest(BaseModel):
 def load_users() -> dict:
     if USERS_FILE.exists():
         return json.loads(USERS_FILE.read_text())
-    # No default user - require first-time setup via installer
-    # This prevents hardcoded default credentials in production
-    return {}
+    # Default admin user if no file exists yet
+    return {"admin": {"hash": pwd_ctx.hash("forgeos"), "role": "admin"}}
 
 
 def create_token(username: str, role: str) -> str:
@@ -151,8 +146,6 @@ def verify_token(request: Request) -> dict:
 @app.post("/api/auth/login")
 async def login(req: LoginRequest):
     users = load_users()
-    if not users:
-        raise HTTPException(status_code=503, detail="No users configured. Run forgeos-install to set up admin user.")
     user = users.get(req.username)
     if not user or not pwd_ctx.verify(req.password, user["hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -321,57 +314,6 @@ async def storage_pools(user=Depends(verify_token)):
         return {"pools": [], "unassigned": [], "error": "pool-status failed"}
 
 
-@app.get("/api/storage/drives")
-async def storage_drives(user=Depends(verify_token)):
-    """List all drives with SMART status"""
-    drives = []
-    # Get list of block devices
-    out = _run("lsblk -J -o NAME,SIZE,TYPE,MODEL,TRAN | jq -r '.blockdevices[]? | select(.type==\"disk\")'", timeout=10)
-    if out.strip():
-        try:
-            devices = json.loads(out) if out.strip().startswith('[') else []
-            for dev in devices:
-                name = dev.get("name", "")
-                if not name:
-                    continue
-                # Get SMART data
-                smart = _run(f"smartctl -H -j /dev/{name} 2>/dev/null || echo '{{\"smart_status\":\"N/A\"}}'", timeout=5)
-                temp = _run(f"smartctl -A -j /dev/{name} 2>/dev/null | jq -r '.ATA_SmartData?.Attributes?.Table?.[]? | select(.ID==194)?.-.Value' || echo ''", timeout=5)
-                try:
-                    smart_data = json.loads(smart) if smart else {"smart_status": "N/A"}
-                except:
-                    smart_data = {"smart_status": "N/A"}
-                drives.append({
-                    "name": f"/dev/{name}",
-                    "type": dev.get("trans", "unknown").upper() if dev.get("trans") else "HDD",
-                    "size": dev.get("size", "0"),
-                    "model": dev.get("model", "").strip() or "Unknown",
-                    "temp": int(temp) if temp.isdigit() else 0,
-                    "health": int(smart_data.get("smart_status", {}).get("passed", 1) * 100) if isinstance(smart_data.get("smart_status"), dict) else (100 if smart_data.get("smart_status", {}).get("passed") else 95),
-                })
-        except Exception as e:
-            pass
-    # Fallback: use lsblk directly
-    if not drives:
-        out = _run("lsblk -o NAME,SIZE,TYPE,MODEL -J | jq -r '.blockdevices[]? | select(.type==\"disk\")' 2>/dev/null || echo '[]'", timeout=10)
-        try:
-            for line in out.splitlines():
-                if not line.strip():
-                    continue
-                dev = json.loads(line)
-                drives.append({
-                    "name": f'/dev/{dev.get("name","")}',
-                    "type": "HDD",
-                    "size": dev.get("size", "0"),
-                    "model": dev.get("model", "").strip() or "Unknown",
-                    "temp": 0,
-                    "health": 95,
-                })
-        except Exception:
-            pass
-    return {"drives": drives}
-
-
 @app.get("/api/storage/df")
 async def storage_df(user=Depends(verify_token)):
     """Disk usage per btrfs mount"""
@@ -428,13 +370,8 @@ async def create_snapshot(body: dict, user=Depends(verify_token)):
 
 @app.get("/api/storage/smart/{device}")
 async def smart_detail(device: str, user=Depends(verify_token)):
-    # Strict sanitization: only allow actual block device names
-    # Block /dev/ prefix, path traversal, and special devices
-    dev = re.sub(r"[^a-z0-9]", "", device)
-    # Additional check: reject if it looks like a path or special device
-    if dev in ("loop", "ram", "dm", "md") or len(dev) > 20:
-        raise HTTPException(400, "Invalid device name")
-    out = _run_args(["smartctl", "-a", f"/dev/{dev}"])
+    dev = re.sub(r"[^a-z0-9]", "", device)  # sanitize
+    out = _run(f"smartctl -a /dev/{dev}")
     return {"device": f"/dev/{dev}", "output": out}
 
 
@@ -663,88 +600,6 @@ async def incus_containers(user=Depends(verify_token)):
         return {"containers": json.loads(out)}
     except Exception:
         return {"containers": [], "raw": out}
-
-
-@app.get("/api/docker/stats")
-async def docker_stats(user=Depends(verify_token)):
-    """Docker stats summary"""
-    # Container count
-    containers = _run("docker ps -q 2>/dev/null | wc -l").strip() or "0"
-    # Image count
-    images = _run("docker images -q 2>/dev/null | wc -l").strip() or "0"
-    # Volume count
-    volumes = _run("docker volume ls -q 2>/dev/null | wc -l").strip() or "0"
-    return {
-        "containers": int(containers),
-        "images": int(images),
-        "volumes": int(volumes),
-    }
-
-
-@app.get("/api/services")
-async def list_services(user=Depends(verify_token)):
-    """List system services status"""
-    services = []
-    # Key services to check
-    check_services = [
-        ("docker", "Docker", "Container runtime"),
-        ("smbd", "Samba", "File sharing"),
-        ("nginx", "nginx", "Web server"),
-        ("fail2ban", "fail2ban", "Intrusion prevention"),
-        ("smartd", "smartd", "SMART monitoring"),
-        ("wg-quick@", "WireGuard", "VPN server"),
-        ("postfix", "Postfix", "Mail server"),
-        ("redis-server", "Redis", "Cache server"),
-    ]
-    for svc, name, desc in check_services:
-        # Check if service is active
-        if svc.startswith("wg-quick"):
-            out = _run(f"systemctl is-active {svc}@*.service 2>/dev/null || echo inactive", timeout=3)
-        else:
-            out = _run(f"systemctl is-active {svc} 2>/dev/null || echo 'inactive'", timeout=3)
-        status = "running" if out.strip() == "active" else "stopped"
-        services.append({"name": name, "desc": desc, "status": status})
-    return {"services": services}
-
-
-@app.get("/api/network")
-async def list_network(user=Depends(verify_token)):
-    """List network interfaces"""
-    ifaces = []
-    # Get interfaces with IPs
-    out = _run("ip -j addr show 2>/dev/null | jq -r '.[] | select(.addr_info) | .addr_info[] | select(.family==\"inet\") | {name:.ifname, ip:.local}' 2>/dev/null || echo '[]'", timeout=5)
-    if out.strip().startswith("["):
-        try:
-            ifaces = json.loads(out)
-        except Exception:
-            ifaces = []
-    # Fallback: use ip addr
-    if not ifaces:
-        out = _run("ip addr show | grep -E '^[0-9]+:' | grep -v lo | awk '{print $2}' | sed 's/://g'", timeout=5)
-        for line in out.splitlines():
-            name = line.strip()
-            if not name:
-                continue
-            ip = _run(f"ip addr show {name} 2>/dev/null | grep 'inet ' | awk '{{print $2}}' | cut -d/ -f1", timeout=3)
-            rx = _run(f"cat /sys/class/net/{name}/statistics/rx_bytes 2>/dev/null || echo 0", timeout=2)
-            tx = _run(f"cat /sys/class/net/{name}/statistics/tx_bytes 2>/dev/null || echo 0", timeout=2)
-            ifaces.append({
-                "name": name,
-                "ip": ip.strip() or "N/A",
-                "rx": int(rx.strip() or 0),
-                "tx": int(tx.strip() or 0),
-            })
-    return {"interfaces": ifaces}
-
-
-@app.get("/api/config")
-async def get_config(user=Depends(verify_token)):
-    """Get system config"""
-    return {
-        "hostname": _run("hostname").strip() or "forgeos",
-        "domain": conf("DOMAIN", "local"),
-        "timezone": conf("TIMEZONE", "UTC"),
-    }
 
 # ────────────────────────────────────────────────────────────
 # NOTIFICATIONS
