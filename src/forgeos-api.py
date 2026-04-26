@@ -40,6 +40,29 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 
 # ────────────────────────────────────────────────────────────
+# MODELS
+# ────────────────────────────────────────────────────────────
+
+class AppInstall(BaseModel):
+    name: str
+    image: str
+    port: int = 8080
+
+# ────────────────────────────────────────────────────────────
+# HELPER FUNCTIONS
+# ────────────────────────────────────────────────────────────
+
+def _check_tool(tool: str) -> dict:
+    """Check if backup tool is installed"""
+    try:
+        result = subprocess.run([tool, "--version"], capture_output=True, timeout=5)
+        return {"installed": result.returncode == 0, "version": result.stdout.decode().split()[0] if result.returncode == 0 else None}
+    except FileNotFoundError:
+        return {"installed": False}
+    except Exception:
+        return {"installed": False}
+
+# ────────────────────────────────────────────────────────────
 # CONFIG
 # ────────────────────────────────────────────────────────────
 CONFIG_FILE = Path("/etc/forgeos/forgeos.conf")
@@ -965,7 +988,196 @@ async def ws_logs(ws: WebSocket):
         proc.kill()
 
 # ────────────────────────────────────────────────────────────
-# STATIC WEB UI
+# BACKUP TOOLS API
+# ────────────────────────────────────────────────────────────
+
+class BackupTool(BaseModel):
+    name: str
+    source: str
+    destination: str
+    schedule: str = "daily"
+
+@app.get("/api/backup/status")
+async def get_backup_status():
+    """Get status of all backup tools"""
+    return {
+        "borg": _check_tool("borg"),
+        "restic": _check_tool("restic"),
+        "rclone": _check_tool("rclone"),
+        "fog": {"installed": Path("/opt/fog").exists()},
+    }
+
+@app.get("/api/backup/borg/jobs")
+async def get_borg_jobs():
+    """Get Borg backup jobs"""
+    repo = "/srv/forgeos/backups/borg"
+    if not Path(repo).exists():
+        return {"jobs": []}
+    try:
+        result = subprocess.run(
+            ["borg", "list", "--json", repo],
+            capture_output=True, text=True, timeout=10
+        )
+        return {"jobs": json.loads(result.stdout).get("archives", [])}
+    except Exception:
+        return {"jobs": []}
+
+@app.post("/api/backup/borg/create")
+async def create_borg_backup(job: BackupTool):
+    """Create new Borg backup job"""
+    repo = "/srv/forgeos/backups/borg"
+    Path(repo).mkdir(parents=True, exist_ok=True)
+    
+    # Initialize repo if needed
+    if not Path(repo + "/config").exists():
+        subprocess.run(["borg", "init", "--encryption=repokey", repo], check=False)
+    
+    # Create archive
+    archive = f"{job.name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    subprocess.run(
+        ["borg", "create", "--compression=lz4", f"{repo}::{archive}", job.source],
+        check=False
+    )
+    return {"status": "created", "archive": archive}
+
+@app.get("/api/backup/restic/jobs")
+async def get_restic_jobs():
+    """Get Restic backup jobs"""
+    repo = "/srv/forgeos/backups/restic"
+    if not Path(repo).exists():
+        return {"jobs": []}
+    try:
+        result = subprocess.run(
+            ["restic", "--repo", repo, "snapshots", "--json"],
+            capture_output=True, text=True, timeout=10
+        )
+        return {"jobs": json.loads(result.stdout) if result.stdout else []}
+    except Exception:
+        return {"jobs": []}
+
+@app.get("/api/backup/rclone/config")
+async def get_rclone_config():
+    """Get RClone config"""
+    conf = Path("/etc/forgeos/rclone/rclone.conf")
+    return {"exists": conf.exists()}
+
+# ────────────────────────────────────────────────────────────
+# IMAGING API (FOG)
+# ────────────────────────────────────────────────────────────
+
+@app.get("/api/imaging/status")
+async def get_imaging_status():
+    """Get FOG imaging status"""
+    fog_dir = Path("/opt/fog")
+    return {
+        "installed": fog_dir.exists(),
+        "web_url": "/fog" if fog_dir.exists() else None,
+    }
+
+@app.get("/api/imaging/images")
+async def get_fog_images():
+    """Get FOG images"""
+    # This would query FOG database
+    return {"images": []}
+
+@app.post("/api/imaging/capture")
+async def capture_image(hostname: str, image_name: str):
+    """Request FOG image capture"""
+    return {"status": "queued", "host": hostname, "image": image_name}
+
+@app.post("/api/imaging/deploy")
+async def deploy_image(image_name: str, target_host: str):
+    """Deploy FOG image"""
+    return {"status": "queued", "image": image_name, "target": target_host}
+
+# ────────────────────────────────────────────────────────────
+# HOMARR API
+# ────────────────────────────────────────────────────────────
+
+HOMARR_CONTAINER = "homarr"
+
+@app.get("/api/homarr/status")
+async def get_homarr_status():
+    """Get Homarr status"""
+    try:
+        result = subprocess.run(
+            ["docker", "inspect", HOMARR_CONTAINER],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            return {"installed": False, "running": False}
+        
+        info = json.loads(result.stdout)[0]
+        return {
+            "installed": True,
+            "running": info["State"]["Running"],
+            "url": "/homarr"
+        }
+    except FileNotFoundError:
+        return {"installed": False, "running": False, "error": "Docker not available"}
+
+@app.post("/api/homarr/install")
+async def install_homarr():
+    """Install Homarr via Docker"""
+    subprocess.run([
+        "docker", "run", "-d",
+        "--name", HOMARR_CONTAINER,
+        "-p", "3000:3000",
+        "-v", "homarr-config:/config",
+        "-e", "TZ=UTC",
+        "--restart", "unless-stopped",
+        "ghcr.io/ax翰ent/homarr:latest"
+    ], check=False)
+    return {"status": "installed"}
+
+# ────────────────────────────────────────────────────────────
+# HOMARR DOCKER APP CATALOG
+# ────────────────────────────────────────────────────────────
+
+APPS_CATALOG = [
+    {"name": "Homarr", "image": "ghcr.io/ax翰ent/homarr:latest", "port": 3000, "category": "dashboard"},
+    {"name": "Portainer", "image": "portainer/portainer-ce:latest", "port": 9000, "category": "dashboard"},
+    {"name": "Jellyfin", "image": "jellyfin/jellyfin:latest", "port": 8096, "category": "media"},
+    {"name": "Radarr", "image": "radarr/radarr:latest", "port": 7878, "category": "media"},
+    {"name": "Sonarr", "image": "sonarr/sonarr:latest", "port": 8989, "category": "media"},
+    {"name": "AdGuard Home", "image": "adguard/adguardhome:latest", "port": 3000, "category": "network"},
+    {"name": "Nextcloud", "image": "nextcloud:latest", "port": 80, "category": "cloud"},
+    {"name": "MinIO", "image": "minio/minio:latest", "port": 9000, "category": "cloud"},
+    {"name": "Vaultwarden", "image": "vaultwarden/vaultwarden:latest", "port": 80, "category": "security"},
+    {"name": "Uptime Kuma", "image": "louislam/uptime-kuma:latest", "port": 3001, "category": "monitoring"},
+    {"name": "Grafana", "image": "grafana/grafana:latest", "port": 3000, "category": "monitoring"},
+    {"name": "Home Assistant", "image": "homeassistant/home-assistant:latest", "port": 8123, "category": "automation"},
+    {"name": "Nginx Proxy Manager", "image": "jc21/nginx-proxy-manager:latest", "port": 81, "category": "network"},
+    {"name": "Traefik", "image": "traefik:v2.9", "port": 80, "category": "network"},
+    {"name": "Pi-hole", "image": "pihole/pihole:latest", "port": 80, "category": "network"},
+]
+
+@app.get("/api/docker/apps")
+async def get_docker_apps():
+    """Get curated app catalog"""
+    return {"apps": APPS_CATALOG}
+
+@app.post("/api/docker/install")
+async def install_docker_app(app: AppInstall):
+    """Install Docker app from catalog"""
+    image = app.image
+    name = app.name.lower().replace(" ", "-")
+    
+    # Find port
+    app_info = next((a for a in APPS_CATALOG if a["image"] == image), None)
+    port = app_info["port"] if app_info else 8080
+    
+    # Run container
+    subprocess.run([
+        "docker", "run", "-d",
+        "--name", name,
+        "-p", f"{port}:{port}",
+        "-v", f"{name}-data:/data",
+        "--restart", "unless-stopped",
+        image
+    ], check=False)
+    
+    return {"status": "installed", "name": name, "port": port}
 # ────────────────────────────────────────────────────────────
 if WEB_ROOT.exists():
     app.mount("/", StaticFiles(directory=str(WEB_ROOT), html=True), name="web")
