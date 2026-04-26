@@ -981,9 +981,9 @@ if __name__ == "__main__":
     uvicorn.run(
         "forgeos-api:app",
         host="127.0.0.1",
-        port=5080,
+        port=5082,
         reload=False,
         log_level="warning",
         access_log=False,
-        workers=2,
+        workers=1,
     )
