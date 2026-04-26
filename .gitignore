@@ -73,6 +73,10 @@ site/
 # ── GitHub Actions local cache ────────────────────────────────
 .act/
 
+# ── Worktrees ─────────────────────────────────────────────
+.worktrees/
+worktrees/
+
 # ── Node (if any tooling added later) ────────────────────────
 node_modules/
 npm-debug.log*
