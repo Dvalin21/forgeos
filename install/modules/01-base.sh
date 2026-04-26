@@ -35,7 +35,7 @@ install_base_packages() {
         sudo htop iotop iftop sysstat dstat \
         ncdu tree jq bc less nano vim \
         net-tools iputils-ping dnsutils traceroute \
-        rsync pv mbuffer \
+        rsync pv mbuffer borgbackup \
         unzip p7zip-full tar gzip bzip2 xz-utils \
         acl attr quota \
         cron logrotate \
@@ -44,6 +44,7 @@ install_base_packages() {
         tmux screen \
         lsof strace \
         dmidecode pciutils usbutils \
+        lm-sensors smartctl nvme-cli \
         "linux-headers-$(uname -r)" 2>/dev/null || apt_install linux-headers-generic
 
     # HWE kernel for newer hardware support (Intel Arc, etc.)
