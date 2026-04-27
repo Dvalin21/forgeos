@@ -608,6 +608,62 @@ body {
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ══ APPS PANEL ══ */
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+}
+.panel-header h2 {
+  font-family: var(--ff-head); font-size: 14px; font-weight: 600;
+  letter-spacing: 1px; color: var(--t1);
+}
+.btn-primary {
+  font-size: 11px; font-family: var(--ff-head);
+  padding: 5px 12px; border-radius: 3px; cursor: pointer;
+  letter-spacing: 0.5px; transition: all 0.1s;
+  border: 1px solid var(--border); background: var(--forge); color: #fff;
+}
+.btn-primary:hover { background: var(--forge-dim); }
+.app-categories {
+  display: flex; gap: 4px; padding: 8px 14px;
+  border-bottom: 1px solid var(--border); background: var(--bg-pane);
+}
+.category {
+  padding: 5px 12px; font-size: 11px; font-family: var(--ff-head);
+  letter-spacing: 0.5px; color: var(--t3); cursor: pointer;
+  border: 1px solid transparent; border-radius: 3px;
+  background: transparent; transition: all 0.1s;
+}
+.category:hover { color: var(--t2); background: var(--bg-item); }
+.category.active { color: var(--forge); border-color: var(--forge); background: var(--forge-glow); }
+.app-grid {
+  display: grid; grid-template-columns: repeat(auto-fill,minmax(160px,1fr));
+  gap: 10px; padding: 14px; overflow-y: auto; flex: 1;
+}
+.app-card {
+  background: var(--bg-pane); border: 1px solid var(--border);
+  border-radius: 4px; padding: 12px; display: flex; flex-direction: column;
+  align-items: center; gap: 6px; transition: all 0.15s;
+}
+.app-card:hover { border-color: var(--border-hi); background: var(--bg-hover); }
+.app-icon {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: var(--forge); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--ff-head); font-size: 16px; font-weight: 600;
+}
+.app-name { font-size: 12px; font-weight: 500; color: var(--t1); }
+.app-category { font-size: 9px; color: var(--t3); font-family: var(--ff-head); letter-spacing: 1px; text-transform: uppercase; }
+.btn-install {
+  margin-top: 4px; padding: 4px 14px; font-size: 10px;
+  font-family: var(--ff-head); letter-spacing: 0.5px;
+  border-radius: 3px; cursor: pointer;
+  border: 1px solid var(--ok); background: var(--ok-dim); color: var(--ok);
+  transition: all 0.1s;
+}
+.btn-install:hover { background: var(--ok); color: #fff; }
+.hidden { display: none; }
 </style>
 </head>
 <body>
@@ -1010,34 +1066,18 @@ body {
 
     <!-- Apps tab -->
     <div class="tab-panel" id="tab-apps">
-      <div class="content">
-        <div class="sh">Available Applications</div>
-        <div class="nginx-row">
-          <span class="nginx-domain">Immich</span>
-          <span class="nginx-upstream">Photo backup &amp; organization</span>
-          <span class="nginx-status" style="background:var(--warn-dim);color:var(--warn)">Not Installed</span>
-        </div>
-        <div class="nginx-row">
-          <span class="nginx-domain">OnlyOffice</span>
-          <span class="nginx-upstream">Online document editing</span>
-          <span class="nginx-status" style="background:var(--warn-dim);color:var(--warn)">Not Installed</span>
-        </div>
-        <div class="nginx-row">
-          <span class="nginx-domain">n8n</span>
-          <span class="nginx-upstream">Workflow automation</span>
-          <span class="nginx-status" style="background:var(--warn-dim);color:var(--warn)">Not Installed</span>
-        </div>
-        <div class="nginx-row">
-          <span class="nginx-domain">Home Assistant</span>
-          <span class="nginx-upstream">Smart home hub</span>
-          <span class="nginx-status" style="background:var(--warn-dim);color:var(--warn)">Not Installed</span>
-        </div>
-        <div class="nginx-row">
-          <span class="nginx-domain">AdGuard Home</span>
-          <span class="nginx-upstream">DNS ad-blocking</span>
-          <span class="nginx-status" style="background:var(--warn-dim);color:var(--warn)">Not Installed</span>
-        </div>
+      <div class="panel-header">
+        <h2>Apps</h2>
+        <button class="btn-primary" onclick="showAppBrowser()">+ Add App</button>
       </div>
+      <div class="app-categories">
+        <button class="category active" data-category="all">All</button>
+        <button class="category" data-category="media">Media</button>
+        <button class="category" data-category="network">Network</button>
+        <button class="category" data-category="monitoring">Monitoring</button>
+        <button class="category" data-category="cloud">Cloud</button>
+      </div>
+      <div id="app-grid" class="app-grid"></div>
     </div>
 
     <!-- Auth tab -->
@@ -1253,7 +1293,34 @@ body {
       </div>
     </div>
 
+</div>
   </div>
+</div>
+
+</div><!-- #desktop -->
+
+<!-- ══ WINDOW: APPS ══ -->
+<div class="win" id="win-apps" style="right:12px;top:10px;width:600px;height:570px;display:none">
+  <div class="win-tb">
+    <span class="win-ico">📦</span>
+    <span class="win-title">Docker Apps</span>
+    <div class="win-btns">
+      <div class="wb" data-act="min">—</div>
+      <div class="wb x" data-act="close">✕</div>
+    </div>
+  </div>
+  <div class="panel-header">
+    <h2>Apps</h2>
+    <button class="btn-primary" onclick="loadApps()">↻ Refresh</button>
+  </div>
+  <div class="app-categories">
+    <button class="category active" data-category="all">All</button>
+    <button class="category" data-category="media">Media</button>
+    <button class="category" data-category="network">Network</button>
+    <button class="category" data-category="monitoring">Monitoring</button>
+    <button class="category" data-category="cloud">Cloud</button>
+  </div>
+  <div id="app-grid" class="app-grid"></div>
 </div>
 
 <!-- ══ WINDOW: NGINX PROXY MANAGER ══ -->
@@ -1503,6 +1570,9 @@ http {
     <div class="tb-pin" data-win="win-settings">
       <span class="p-ico">⚙</span><span class="p-lbl">Settings</span>
     </div>
+    <div class="tb-pin" data-win="win-apps">
+      <span class="p-ico">📦</span><span class="p-lbl">Apps</span>
+    </div>
   </div>
 
   <div id="tb-tray">
@@ -1622,10 +1692,10 @@ document.querySelectorAll('.tb-pin').forEach(pin => {
     const win = document.getElementById(id);
     if (!win) {
       // Map to win-dash and switch to specific tab
-      if (id === 'win-storage' || id === 'win-settings') {
+      if (id === 'win-storage' || id === 'win-settings' || id === 'win-apps') {
         const dash = document.getElementById('win-dash');
         if (!dash) return;
-        const tabName = id === 'win-storage' ? 'storage' : 'settings';
+        const tabName = id === 'win-storage' ? 'storage' : id === 'win-apps' ? 'apps' : 'settings';
         dash.style.display = 'flex'; front(dash);
         // Switch to the right tab
         const tabBar = dash.querySelector('.win-tabs');
@@ -1673,6 +1743,42 @@ document.querySelectorAll('.sb-item').forEach(item => {
   item.addEventListener('click', () => {
     item.closest('.sidebar').querySelectorAll('.sb-item').forEach(i => i.classList.remove('act'));
     item.classList.add('act');
+    
+    // Map sidebar items to tabs
+    const text = item.textContent.toLowerCase();
+    let tabName = null;
+    if (text.includes('overview')) tabName = 'overview';
+    else if (text.includes('storage')) tabName = 'storage';
+    else if (text.includes('network')) tabName = 'network';
+    else if (text.includes('sensors')) tabName = 'sensors';
+    else if (text.includes('docker')) tabName = 'docker';
+    else if (text.includes('incus')) tabName = 'incus';
+    else if (text.includes('shares')) tabName = 'shares';
+    else if (text.includes('immich')) tabName = 'docker';
+    else if (text.includes('mail')) tabName = 'mail';
+    else if (text.includes('cloud')) tabName = 'cloud';
+    else if (text.includes('apps')) tabName = 'apps';
+    else if (text.includes('proxy')) tabName = 'proxy';
+    else if (text.includes('firewall')) tabName = 'firewall';
+    else if (text.includes('fail2ban')) tabName = 'fail2ban';
+    else if (text.includes('auth')) tabName = 'auth';
+    else if (text.includes('backups')) tabName = 'backups';
+    else if (text.includes('settings')) tabName = 'settings';
+    else if (text.includes('logs')) tabName = 'logs';
+    
+    if (tabName) {
+      const dash = document.getElementById('win-dash');
+      const tabBar = dash?.querySelector('.win-tabs');
+      if (tabBar) {
+        tabBar.querySelectorAll('.wt').forEach(t => {
+          t.classList.toggle('active', t.dataset.tab === tabName);
+        });
+        dash.querySelectorAll('.tab-panel').forEach(p => {
+          p.classList.toggle('active', p.id === 'tab-' + tabName);
+        });
+      }
+      if (tabName === 'apps') loadApps();
+    }
   });
 });
 
@@ -1910,6 +2016,82 @@ async function fetchServices() {
     if (docker.length) dockerBadge.textContent = docker[0].containers || 0;
   }
 }
+
+// === Docker Apps ===
+let dockerApps = [];
+
+async function loadApps() {
+  try {
+    const response = await fetch('http://127.0.0.1:5082/api/docker/apps');
+    if (!response.ok) throw new Error('API unavailable');
+    const data = await response.json();
+    dockerApps = data.apps || [];
+    renderAppGrid(dockerApps);
+  } catch(e) {
+    document.getElementById('app-grid').innerHTML = '<div style="color:var(--t3);padding:20px">Docker Apps API not available. Start forgeos-docker service.</div>';
+  }
+}
+
+function renderAppGrid(apps) {
+  const grid = document.getElementById('app-grid');
+  if (!apps || apps.length === 0) {
+    grid.innerHTML = '<div style="color:var(--t3);padding:20px">No apps available.</div>';
+    return;
+  }
+  grid.innerHTML = apps.map(app => `
+    <div class="app-card" data-category="${app.category}">
+      <div class="app-icon">${app.name[0].toUpperCase()}</div>
+      <div class="app-name">${app.name}</div>
+      <div class="app-category">${app.category || 'utility'}</div>
+      <button class="btn-install" onclick="installApp('${app.name}')">Install</button>
+    </div>
+  `).join('');
+}
+
+async function installApp(name) {
+  if(confirm(`Install ${name}?`)) {
+    try {
+      const result = await fetch('http://127.0.0.1:5082/api/docker/install', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({app: name})
+      }).then(r => r.json());
+      alert(result.status || result.error || 'Install initiated');
+    } catch(e) {
+      alert('Install failed: ' + e.message);
+    }
+  }
+}
+
+function showAppBrowser() {
+  const dash = document.getElementById('win-dash');
+  const tabName = 'apps';
+  dash.style.display = 'flex';
+  const tabBar = dash.querySelector('.win-tabs');
+  if (tabBar) {
+    tabBar.querySelectorAll('.wt').forEach(t => {
+      t.classList.toggle('active', t.dataset.tab === tabName);
+    });
+    dash.querySelectorAll('.tab-panel').forEach(p => {
+      p.classList.toggle('active', p.id === 'tab-' + tabName);
+    });
+  }
+  loadApps();
+}
+
+// Category filter
+document.querySelectorAll('.category').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.category').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const cat = btn.dataset.category;
+    if (cat === 'all') {
+      renderAppGrid(dockerApps);
+    } else {
+      renderAppGrid(dockerApps.filter(a => a.category === cat));
+    }
+  });
+});
 
 // === Format bytes ===
 function fmtBytes(bytes) {
