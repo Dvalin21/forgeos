@@ -334,3 +334,62 @@ html, body {
   overflow: auto;
   padding: var(--space-md);
 }
+
+/* Dashboard */
+#dashboard {
+  position: absolute;
+  top: 44px;
+  left: 200px;
+  right: 0;
+  bottom: 44px;
+  overflow: auto;
+  padding: var(--space-md);
+}
+
+.sidebar-collapsed #dashboard {
+  left: 56px;
+}
+
+#widget-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-md);
+}
+
+.widget {
+  background: var(--bg-surface);
+  border: 1px solid #2a2a32;
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  min-height: 150px;
+}
+
+.widget-2x1 {
+  grid-column: span 2;
+}
+
+.widget-header {
+  margin-bottom: var(--space-sm);
+}
+
+.widget-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.widget-content {
+  font-size: var(--font-size-md);
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid #2a2a32;
+}
+
+.loading, .error {
+  color: var(--text-muted);
+  font-style: italic;
+}
