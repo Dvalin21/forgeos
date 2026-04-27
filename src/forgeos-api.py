@@ -1118,3 +1118,63 @@ async def restic_snapshots(repo: str, user=Depends(verify_token)):
         except Exception:
             return {"snapshots": []}
     return {"snapshots": []}
+
+
+# ────────────────────────────────────────────────────────────
+# RCLONE SYNC
+# ────────────────────────────────────────────────────────────
+
+
+@app.get("/api/backup/rclone/status")
+async def rclone_status(user=Depends(verify_token)):
+    """Get RClone status"""
+    try:
+        check = subprocess.run(["rclone", "version"], capture_output=True)
+        installed = check.returncode == 0
+    except FileNotFoundError:
+        installed = False
+    return {"installed": installed}
+
+
+@app.post("/api/backup/rclone/sync")
+async def rclone_sync(body: dict, user=Depends(verify_token)):
+    """Run RClone sync"""
+    try:
+        check = subprocess.run(["rclone", "version"], capture_output=True)
+        if check.returncode != 0:
+            raise HTTPException(status_code=500, detail="RClone not installed")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="RClone not installed")
+    
+    source = body.get("source", "")
+    destination = body.get("destination", "")
+    config = body.get("config", None)
+    
+    if not source or not destination:
+        raise HTTPException(status_code=400, detail="Source and destination required")
+    
+    cmd = ["rclone", "sync", source, destination]
+    if config:
+        cmd.extend(["--config", config])
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        return {"status": "synced"}
+    return {"status": "error", "message": result.stderr}
+
+
+@app.get("/api/backup/rclone/configs")
+async def rclone_configs(user=Depends(verify_token)):
+    """List RClone configs"""
+    try:
+        check = subprocess.run(["rclone", "version"], capture_output=True)
+        if check.returncode != 0:
+            return {"remotes": []}
+    except FileNotFoundError:
+        return {"remotes": []}
+    
+    result = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True)
+    if result.returncode == 0:
+        remotes = [r for r in result.stdout.strip().split("\n") if r]
+        return {"remotes": remotes}
+    return {"remotes": []}
