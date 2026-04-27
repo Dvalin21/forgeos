@@ -1058,3 +1058,63 @@ async def borg_list(destination: str, user=Depends(verify_token)):
         except Exception:
             return {"archives": []}
     raise HTTPException(status_code=500, detail="Failed to list archives")
+
+
+# ────────────────────────────────────────────────────────────
+# RESTIC BACKUP
+# ────────────────────────────────────────────────────────────
+
+
+@app.get("/api/backup/restic/status")
+async def restic_status(user=Depends(verify_token)):
+    """Get Restic status"""
+    try:
+        check = subprocess.run(["restic", "version"], capture_output=True)
+        installed = check.returncode == 0
+    except FileNotFoundError:
+        installed = False
+    return {"installed": installed}
+
+
+@app.post("/api/backup/restic/snapshot")
+async def restic_snapshot(body: dict, user=Depends(verify_token)):
+    """Create Restic snapshot"""
+    try:
+        check = subprocess.run(["restic", "version"], capture_output=True)
+        if check.returncode != 0:
+            raise HTTPException(status_code=500, detail="Restic not installed")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Restic not installed")
+    
+    repo = body.get("repo", "/backup/restic")
+    paths = body.get("paths", [])
+    
+    if not paths:
+        raise HTTPException(status_code=400, detail="Paths required")
+    
+    cmd = ["restic", "-r", repo, "snapshot"] + paths
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        return {"status": "created"}
+    return {"status": "error", "message": result.stderr}
+
+
+@app.get("/api/backup/restic/snapshots")
+async def restic_snapshots(repo: str, user=Depends(verify_token)):
+    """List restic snapshots"""
+    try:
+        check = subprocess.run(["restic", "version"], capture_output=True)
+        if check.returncode != 0:
+            raise HTTPException(status_code=500, detail="Restic not installed")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Restic not installed")
+    
+    cmd = ["restic", "-r", repo, "snapshots", "--json"]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0:
+        try:
+            return {"snapshots": json.loads(result.stdout)}
+        except Exception:
+            return {"snapshots": []}
+    return {"snapshots": []}
