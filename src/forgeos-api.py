@@ -1221,3 +1221,42 @@ async def rclone_configs(user=Depends(verify_token)):
         remotes = [r for r in result.stdout.strip().split("\n") if r]
         return {"remotes": remotes}
     return {"remotes": []}
+
+
+# ────────────────────────────────────────────────────────────
+# FOG IMAGING
+# ────────────────────────────────────────────────────────────
+
+
+@app.get("/api/imaging/status")
+async def imaging_status(user=Depends(verify_token)):
+    """Get FOG imaging status"""
+    fog_installed = os.path.exists("/opt/fog")
+    images = []
+    hosts = []
+    
+    if fog_installed:
+        img_dir = "/images"
+        if os.path.exists(img_dir):
+            try:
+                images = os.listdir(img_dir)
+            except:
+                pass
+    
+    return {"fog_installed": fog_installed, "images": images, "hosts": hosts}
+
+
+@app.post("/api/imaging/capture")
+async def imaging_capture(hostname: str, image_name: str, user=Depends(verify_token)):
+    """Request FOG image capture"""
+    if not os.path.exists("/opt/fog"):
+        raise HTTPException(status_code=500, detail="FOG not installed")
+    return {"status": "capturing", "host": hostname, "image": image_name}
+
+
+@app.post("/api/imaging/deploy")
+async def imaging_deploy(image_name: str, target_host: str, user=Depends(verify_token)):
+    """Deploy image to target"""
+    if not os.path.exists("/opt/fog"):
+        raise HTTPException(status_code=500, detail="FOG not installed")
+    return {"status": "deploying", "image": image_name, "target": target_host}
