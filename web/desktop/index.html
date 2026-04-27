@@ -1124,15 +1124,103 @@ body {
 
     <!-- Backups tab -->
     <div class="tab-panel" id="tab-backups">
-      <div class="content">
-        <div class="sh">Restic & Rclone Backups</div>
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <button class="btn primary">+ New Backup Job</button>
+      <div class="win-tabs" style="background:var(--bg-win);border-bottom:1px solid var(--border)">
+        <div class="wt active" data-tab="backup-overview">Overview</div>
+        <div class="wt" data-tab="backup-borg">Borg</div>
+        <div class="wt" data-tab="backup-restic">Restic</div>
+        <div class="wt" data-tab="backup-rclone">RClone</div>
+      </div>
+      <div class="win-body" style="flex-direction:column">
+        <div class="tab-panel active" id="backup-overview" style="flex-direction:column;flex:1">
+          <div class="content">
+            <div class="sh">Backup Tools</div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+              <div class="pool-block">
+                <div class="pool-head">
+                  <span style="font-size:15px">📦</span>
+                  <span class="pool-name">Borg</span>
+                  <div class="pool-health ok"><div class="ph-dot ok"></div>Ready</div>
+                </div>
+                <div style="padding:10px 14px;font-size:11px;color:var(--t2)">
+                  Deduplicated encrypted backups.
+                </div>
+              </div>
+              <div class="pool-block">
+                <div class="pool-head">
+                  <span style="font-size:15px">🔒</span>
+                  <span class="pool-name">Restic</span>
+                  <div class="pool-health ok"><div class="ph-dot ok"></div>Ready</div>
+                </div>
+                <div style="padding:10px 14px;font-size:11px;color:var(--t2)">
+                  ID: 8843<br>Location: B2
+                </div>
+              </div>
+              <div class="pool-block">
+                <div class="pool-head">
+                  <span style="font-size:15px">☁</span>
+                  <span class="pool-name">RClone</span>
+                  <div class="pool-health warn"><div class="ph-dot warn"></div>Not Configured</div>
+                </div>
+                <div style="padding:10px 14px;font-size:11px;color:var(--t2)">
+                  Cloud sync utility.
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <button class="btn primary" onclick="openBackupPanel()">+ New Backup Job</button>
+            </div>
+            <div class="sh">Recent Backups</div>
+            <div class="nginx-row" style="font-size:11px">
+              <span class="nginx-domain">datapool</span>
+              <span class="nginx-upstream">→ B2</span>
+              <span class="nginx-status up">OK</span>
+              <span style="color:var(--t3);font-size:10px">2h ago</span>
+            </div>
+            <div class="nginx-row" style="font-size:11px">
+              <span class="nginx-domain">photos</span>
+              <span class="nginx-upstream">→ B2</span>
+              <span class="nginx-status up">OK</span>
+              <span style="color:var(--t3);font-size:10px">6h ago</span>
+            </div>
+          </div>
         </div>
-        <div class="sh">Jobs</div>
-        <div style="font-size:11px;color:var(--t3);padding:8px">No backup jobs configured.</div>
-        <div class="sh" style="margin-top:20px">Restore Points</div>
-        <div style="font-size:11px;color:var(--t3);padding:8px">No restore points available.</div>
+        <div class="tab-panel" id="backup-borg" style="flex-direction:column;flex:1">
+          <div class="content">
+            <div class="status-card" style="background:var(--bg-pane);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px">
+              <div class="status-label" style="font-size:10px;color:var(--t3);margin-bottom:4px">Borg Backup</div>
+              <div class="status-value" id="borg-status" style="font-size:18px;font-weight:600;color:var(--ok)">Ready</div>
+            </div>
+            <div class="sh">Borg Repositories</div>
+            <div class="jobs-list" id="borg-jobs">
+              <div style="font-size:11px;color:var(--t3);padding:8px">No Borg repositories configured.</div>
+            </div>
+            <button class="btn primary" onclick="createBorgBackup()" style="margin-top:12px">+ New Backup</button>
+          </div>
+        </div>
+        <div class="tab-panel" id="backup-restic" style="flex-direction:column;flex:1">
+          <div class="content">
+            <div class="status-card" style="background:var(--bg-pane);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px">
+              <div class="status-label" style="font-size:10px;color:var(--t3);margin-bottom:4px">Restic</div>
+              <div class="status-value" id="restic-status" style="font-size:18px;font-weight:600;color:var(--ok)">Ready</div>
+            </div>
+            <div class="sh">Restic Repositories</div>
+            <div id="restic-jobs">
+              <div style="font-size:11px;color:var(--t3);padding:8px">No Restic repositories configured.</div>
+            </div>
+          </div>
+        </div>
+        <div class="tab-panel" id="backup-rclone" style="flex-direction:column;flex:1">
+          <div class="content">
+            <div class="status-card" style="background:var(--bg-pane);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px">
+              <div class="status-label" style="font-size:10px;color:var(--t3);margin-bottom:4px">RClone</div>
+              <div class="status-value" id="rclone-status" style="font-size:18px;font-weight:600;color:var(--warn)">Not Configured</div>
+            </div>
+            <div class="sh">RClone Remotes</div>
+            <div id="rclone-jobs">
+              <div style="font-size:11px;color:var(--t3);padding:8px">No remotes configured.</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1935,6 +2023,57 @@ async function createShare() {
 async function createSnapshot() {
   alert('Snapshot created');
   closeModal('modal-create-snap');
+}
+
+// === Backup panel functions ===
+function openBackupPanel() {
+  // Switch to backup tab
+  const dash = document.getElementById('win-dash');
+  const tabName = 'backups';
+  dash.style.display = 'flex';
+  const tabBar = dash.querySelector('.win-tabs');
+  if (tabBar) {
+    tabBar.querySelectorAll('.wt').forEach(t => {
+      t.classList.toggle('active', t.dataset.tab === tabName);
+    });
+    dash.querySelectorAll('.tab-panel').forEach(p => {
+      p.classList.toggle('active', p.id === 'tab-' + tabName);
+    });
+  }
+}
+
+async function loadBackupStatus() {
+  try {
+    const borg = await forgeAPI('/api/backup/borg/status');
+    document.getElementById('borg-status').textContent = borg?.installed ? 'Ready' : 'Not Installed';
+  } catch(e) {
+    document.getElementById('borg-status').textContent = 'Error';
+  }
+  
+  try {
+    const restic = await forgeAPI('/api/backup/restic/status');
+    document.getElementById('restic-status').textContent = restic?.installed ? 'Ready' : 'Not Installed';
+  } catch(e) {
+    document.getElementById('restic-status').textContent = 'Error';
+  }
+  
+  try {
+    const rclone = await forgeAPI('/api/backup/rclone/status');
+    document.getElementById('rclone-status').textContent = rclone?.installed ? 'Ready' : 'Not Configured';
+  } catch(e) {
+    document.getElementById('rclone-status').textContent = 'Error';
+  }
+}
+
+async function createBorgBackup() {
+  const name = prompt('Backup name:');
+  const source = prompt('Source path:');
+  const destination = prompt('Destination (repo):');
+  if(name && source && destination) {
+    const result = await forgeAPI('/api/backup/borg/create?name=' + encodeURIComponent(name) + '&source=' + encodeURIComponent(source) + '&destination=' + encodeURIComponent(destination));
+    alert(result?.status || result?.error || 'Backup created');
+    loadBackupStatus();
+  }
 }
 
 // === Show modals ===
