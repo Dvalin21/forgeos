@@ -59,22 +59,53 @@ body {
 /* ══ DESKTOP ══ */
 #desktop {
   position: fixed;
-  inset: 0;
+  top: 44px; /* Topbar height */
+  left: 200px;
+  right: 0;
   bottom: var(--tb-h);
   background: url('wallpapers/wp-dark-forge.svg') center/cover;
   overflow: hidden;
+  transition: top 0.2s ease-out, left 0.2s ease-out;
+}
+
+/* Topbar position */
+#topbar {
+  position: fixed;
+  top: 0; left: 200px; right: 0;
+  height: 44px;
+  background: var(--bg-win);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 99;
+  transition: left 0.2s ease-out;
+}
+
+body.sidebar-collapsed #desktop {
+  left: 56px;
+}
+
+body.sidebar-collapsed #topbar {
+  left: 56px;
 }
 
 /* ══ TASKBAR — clean 4 items only ══ */
 #taskbar {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
+  bottom: 0; left: 200px; right: 0;
   height: var(--tb-h);
   background: var(--bg-shell);
   border-top: 1px solid var(--border);
   display: flex;
   align-items: stretch;
   z-index: 9000;
+  transition: left 0.2s ease-out;
+}
+
+body.sidebar-collapsed #taskbar {
+  left: 56px;
 }
 
 /* Forge logo / start */
@@ -707,6 +738,26 @@ body {
     </button>
   </nav>
 </aside>
+
+<header id="topbar" class="topbar">
+  <div class="topbar-left">
+    <input id="global-search" type="text" placeholder="Search..." class="search-input">
+  </div>
+  <div class="topbar-center">
+    <span id="context-title">Dashboard</span>
+  </div>
+  <div class="topbar-right">
+    <button id="user-menu-btn" class="user-btn">
+      <span class="user-icon">👤</span>
+      <span class="user-name">admin</span>
+    </button>
+    <div id="user-menu" class="user-menu hidden">
+      <button class="menu-item">Profile</button>
+      <button class="menu-item">Settings</button>
+      <button class="menu-item">Logout</button>
+    </div>
+  </div>
+</header>
 
 <!-- ╔══════════ DESKTOP ══════════╗ -->
 <div id="desktop">
@@ -1688,6 +1739,9 @@ http {
   </div>
 </div>
 
+<script src="js/sidebar.js"></script>
+<script src="js/topbar.js"></script>
+<script src="js/taskbar.js"></script>
 <script>
 // ── Clock ──
 function tick() {

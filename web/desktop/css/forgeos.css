@@ -165,3 +165,116 @@ html, body {
   width: 24px;
   text-align: center;
 }
+
+/* Topbar */
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 200px;
+  right: 0;
+  height: 44px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid #2a2a32;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-md);
+  z-index: 99;
+}
+
+.sidebar-collapsed .topbar {
+  left: 56px;
+}
+
+.topbar-left,
+.topbar-center,
+.topbar-right {
+  display: flex;
+  align-items: center;
+}
+
+.topbar-center {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-md);
+  color: var(--text-secondary);
+}
+
+.search-input {
+  background: var(--bg-elevated);
+  border: 1px solid #2a2a32;
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  width: 200px;
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.user-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.user-btn:hover {
+  background: var(--bg-elevated);
+}
+
+.user-icon {
+  font-size: 14px;
+}
+
+.user-name {
+  font-size: var(--font-size-sm);
+}
+
+.user-menu {
+  position: absolute;
+  top: 36px;
+  right: var(--space-md);
+  background: var(--bg-surface);
+  border: 1px solid #2a2a32;
+  border-radius: var(--radius-sm);
+  padding: var(--space-xs);
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  box-shadow: var(--shadow-md);
+}
+
+.menu-item {
+  padding: var(--space-sm);
+  background: none;
+  border: none;
+  text-align: left;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  transition: var(--transition);
+}
+
+.menu-item:hover {
+  background: var(--bg-elevated);
+}
+
+.hidden {
+  display: none !important;
+}
