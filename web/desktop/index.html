@@ -700,6 +700,7 @@ body {
     <div class="wt" data-tab="backups">Backups</div>
     <div class="wt" data-tab="settings">Settings</div>
     <div class="wt" data-tab="sensors">Sensors</div>
+    <div class="wt" data-tab="imaging">Imaging</div>
     <div class="wt" data-tab="logs">Logs</div>
   </div>
   <div class="win-body">
@@ -729,6 +730,7 @@ body {
           <div class="sb-grp">Maintenance</div>
           <div class="sb-item"><span class="ico">💾</span>Backups</div>
           <div class="sb-item"><span class="ico">⚙</span>Settings</div>
+          <div class="sb-item"><span class="ico">📷</span>Imaging</div>
         </div>
         <div class="content">
           <div class="metrics">
@@ -1293,6 +1295,29 @@ body {
       </div>
     </div>
 
+    <!-- Imaging tab -->
+    <div class="tab-panel" id="tab-imaging">
+      <div class="panel-header">
+        <h2>System Imaging</h2>
+      </div>
+      <div class="imaging-status" style="padding:14px">
+        <div class="status-card" style="background:var(--bg-pane);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:12px">
+          <div class="status-label" style="font-size:10px;color:var(--t3);margin-bottom:4px">FOG Imaging</div>
+          <div class="status-value" id="fog-status" style="font-size:18px;font-weight:600">Loading...</div>
+        </div>
+      </div>
+      <div class="imaging-images" style="padding:0 14px 14px">
+        <h3 style="font-family:var(--ff-head);font-size:12px;letter-spacing:1px;color:var(--t2);margin-bottom:8px">Available Images</h3>
+        <div id="image-list" style="background:var(--bg-pane);border:1px solid var(--border);border-radius:4px;min-height:100px;padding:8px">
+          <p style="font-size:11px;color:var(--t3);padding:8px">Loading images...</p>
+        </div>
+      </div>
+      <div class="imaging-actions" style="padding:14px;border-top:1px solid var(--border);display:flex;gap:8px">
+        <button class="btn-primary" onclick="showCaptureDialog()">Capture Image</button>
+        <button class="btn-secondary" onclick="showDeployDialog()" style="font-size:11px;font-family:var(--ff-head);padding:5px 12px;border-radius:3px;cursor:pointer;letter-spacing:0.5px;transition:all 0.1s;border:1px solid var(--border);background:var(--bg-item);color:var(--t2)">Deploy Image</button>
+      </div>
+    </div>
+
 </div>
   </div>
 </div>
@@ -1765,6 +1790,7 @@ document.querySelectorAll('.sb-item').forEach(item => {
     else if (text.includes('backups')) tabName = 'backups';
     else if (text.includes('settings')) tabName = 'settings';
     else if (text.includes('logs')) tabName = 'logs';
+    else if (text.includes('imaging')) tabName = 'imaging';
     
     if (tabName) {
       const dash = document.getElementById('win-dash');
@@ -2224,6 +2250,67 @@ function openBackupPanel() {
   }
 }
 
+// === FOG Imaging Functions ===
+async function loadImagingStatus() {
+  try {
+    const status = await fetch('http://127.0.0.1:5082/api/imaging/status').then(r => r.json());
+    const fogStatusEl = document.getElementById('fog-status');
+    if (fogStatusEl) {
+      fogStatusEl.textContent = status.fog_installed ? 'Installed' : 'Not Installed';
+      fogStatusEl.style.color = status.fog_installed ? 'var(--ok)' : 'var(--t3)';
+    }
+    
+    const imageList = document.getElementById('image-list');
+    if (imageList && status.images && status.images.length > 0) {
+      imageList.innerHTML = status.images.map(img => 
+        '<div class="image-item" style="padding:6px 10px;border-bottom:1px solid var(--border);font-size:11px;font-family:var(--ff-mono)">' + img + '</div>'
+      ).join('');
+    } else if (imageList) {
+      imageList.innerHTML = '<p style="font-size:11px;color:var(--t3);padding:8px">No images available</p>';
+    }
+  } catch(e) {
+    const fogStatusEl = document.getElementById('fog-status');
+    if (fogStatusEl) {
+      fogStatusEl.textContent = 'Unavailable';
+      fogStatusEl.style.color = 'var(--warn)';
+    }
+    const imageList = document.getElementById('image-list');
+    if (imageList) {
+      imageList.innerHTML = '<p style="font-size:11px;color:var(--t3);padding:8px">API unavailable</p>';
+    }
+  }
+}
+
+function showCaptureDialog() {
+  const hostname = prompt('Hostname to capture:');
+  const imageName = prompt('Image name:');
+  if (hostname && imageName) {
+    fetch('http://127.0.0.1:5082/api/imaging/capture', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({hostname, image_name: imageName})
+    }).then(r => r.json()).then(data => {
+      alert(data.status || 'Image capture initiated');
+      loadImagingStatus();
+    }).catch(e => alert('Error: ' + e.message));
+  }
+}
+
+function showDeployDialog() {
+  const imageName = prompt('Image name to deploy:');
+  const targetHost = prompt('Target hostname:');
+  if (imageName && targetHost) {
+    fetch('http://127.0.0.1:5082/api/imaging/deploy', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({image_name: imageName, target_host: targetHost})
+    }).then(r => r.json()).then(data => {
+      alert(data.status || 'Image deploy initiated');
+      loadImagingStatus();
+    }).catch(e => alert('Error: ' + e.message));
+  }
+}
+
 async function loadBackupStatus() {
   try {
     const borg = await forgeAPI('/api/backup/borg/status');
@@ -2269,6 +2356,7 @@ function init() {
   fetchStats();
   fetchNetwork();
   fetchFail2ban();
+  loadImagingStatus();
   
   // Auto-refresh every 30 seconds
   setInterval(fetchStats, 30000);
