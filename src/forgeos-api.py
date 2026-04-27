@@ -18,7 +18,7 @@ Security:
   Rate limiting on auth endpoint (5 req/min per IP)
 """
 
-import asyncio
+from typing import List
 import json
 import os
 import re
@@ -626,6 +626,49 @@ async def samba_save_raw(body: dict, user=Depends(verify_token)):
 @app.get("/api/samba/connections")
 async def samba_connections(user=Depends(verify_token)):
     return {"output": _run("smbstatus 2>/dev/null || echo 'No connections'")}
+
+# ────────────────────────────────────────────────────────────
+# DOCKER APP BROWSER
+# ────────────────────────────────────────────────────────────
+
+DOCKER_APPS = [
+    {"name": "nginx", "image": "nginx:latest", "port": 80, "category": "web"},
+    {"name": "jellyfin", "image": "jellyfin/jellyfin:latest", "port": 8096, "category": "media"},
+    {"name": "adguard", "image": "adguard/adguardhome:latest", "port": 3000, "category": "network"},
+    {"name": "portainer", "image": "portainer/portainer-ce:latest", "port": 9000, "category": "admin"},
+    {"name": "homarr", "image": "ghcr.io/axistent/homarr:latest", "port": 3000, "category": "dashboard"},
+    {"name": "nextcloud", "image": "nextcloud:latest", "port": 80, "category": "cloud"},
+    {"name": "minio", "image": "minio/minio:latest", "port": 9000, "category": "storage"},
+    {"name": "prometheus", "image": "prom/prometheus:latest", "port": 9090, "category": "monitoring"},
+    {"name": "grafana", "image": "grafana/grafana:latest", "port": 3000, "category": "monitoring"},
+    {"name": "immich", "image": "ghcr.io/immich-app/immich-server:latest", "port": 2283, "category": "media"},
+]
+
+
+@app.get("/api/docker/apps")
+async def docker_apps(user=Depends(verify_token)):
+    """Get available Docker apps for one-click install"""
+    return {"apps": DOCKER_APPS}
+
+
+@app.post("/api/docker/install")
+async def docker_install(app: str, image: str = None, ports: List[str] = None, user=Depends(verify_token)):
+    """Install Docker app from curated list"""
+    app_info = next((a for a in DOCKER_APPS if a["name"] == app), None)
+    if not app_info:
+        app_info = {"name": app, "image": image or app, "ports": ports or []}
+
+    port_args = []
+    if app_info.get("port"):
+        port_args = ["-p", f"{app_info['port']}:{app_info['port']}"]
+
+    cmd = ["docker", "run", "-d", "--name", app_info["name"]] + port_args + [app_info["image"]]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode == 0:
+        return {"status": "installed", "app": app_info["name"]}
+    return {"error": result.stderr}, 500
+
 
 # ────────────────────────────────────────────────────────────
 # DOCKER / INCUS
