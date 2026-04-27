@@ -1,0 +1,87 @@
+/* forgeos.css - Design System */
+:root {
+  /* Colors - Sophisticated Dark */
+  --bg-void: #0a0a0f;
+  --bg-base: #141418;
+  --bg-surface: #1a1a24;
+  --bg-elevated: #222230;
+  --bg-card: #282836;
+  
+  --accent-primary: #e85d04;
+  --accent-secondary: #4a8ab0;
+  --accent-success: #3daa60;
+  --accent-warning: #d4860a;
+  --accent-danger: #cc3344;
+  
+  --text-primary: #f0f0f4;
+  --text-secondary: #a0a0b0;
+  --text-muted: #606070;
+  
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  
+  /* Typography */
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  
+  /* Effects */
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --transition: 200ms ease-out;
+}
+
+/* Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-md);
+  color: var(--text-primary);
+  background: var(--bg-void);
+  overflow: hidden;
+}
+
+/* Utility classes */
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+
+.btn {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn:hover { background: var(--bg-card); }
+.btn-primary { background: var(--accent-primary); border-color: var(--accent-primary); }
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid #2a2a32;
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-md);
+}
