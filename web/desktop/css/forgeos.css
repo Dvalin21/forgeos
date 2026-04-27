@@ -278,3 +278,59 @@ html, body {
 .hidden {
   display: none !important;
 }
+
+/* Windows */
+.forge-window {
+  position: absolute;
+  background: var(--bg-surface);
+  border: 1px solid #2a2a32;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.window-titlebar {
+  height: 32px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid #2a2a32;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-sm);
+  cursor: move;
+  user-select: none;
+}
+
+.window-title {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.window-controls {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.win-btn-minimize, .win-btn-maximize, .win-btn-close {
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+}
+
+.win-btn-close:hover {
+  background: var(--accent-danger);
+  color: white;
+}
+
+.window-content {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-md);
+}
