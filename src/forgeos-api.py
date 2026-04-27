@@ -987,3 +987,74 @@ if __name__ == "__main__":
         access_log=False,
         workers=1,
     )
+
+# ────────────────────────────────────────────────────────────
+# BORG BACKUP
+# ────────────────────────────────────────────────────────────
+
+
+@app.get("/api/backup/borg/status")
+async def borg_status(user=Depends(verify_token)):
+    """Get Borg backup status and jobs"""
+    try:
+        result = subprocess.run(["borg", "version"], capture_output=True)
+        installed = result.returncode == 0
+    except FileNotFoundError:
+        installed = False
+    jobs = []
+    if installed:
+        list_result = subprocess.run(
+            ["borg", "list", "--json", "/backup"],
+            capture_output=True, text=True
+        )
+        if list_result.returncode == 0:
+            try:
+                jobs = json.loads(list_result.stdout)
+            except Exception:
+                jobs = []
+    return {"installed": installed, "jobs": jobs}
+
+
+@app.post("/api/backup/borg/create")
+async def borg_create(body: dict, user=Depends(verify_token)):
+    """Create new Borg backup job"""
+    try:
+        check = subprocess.run(["borg", "version"], capture_output=True)
+        if check.returncode != 0:
+            raise HTTPException(status_code=500, detail="Borg not installed")
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Borg not installed")
+    
+    name = body.get("name", "backup")
+    source = body.get("source", "")
+    destination = body.get("destination", "/backup")
+    
+    if not source:
+        raise HTTPException(status_code=400, detail="Source required")
+    
+    archive_name = f"{name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    cmd = ["borg", "create", f"{destination}::{archive_name}", source]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        return {"status": "created", "archive": archive_name}
+    raise HTTPException(status_code=500, detail=result.stderr)
+
+
+@app.get("/api/backup/borg/list")
+async def borg_list(destination: str, user=Depends(verify_token)):
+    """List archives in repository"""
+    try:
+        result = subprocess.run(
+            ["borg", "list", "--json", destination],
+            capture_output=True, text=True
+        )
+    except FileNotFoundError:
+        raise HTTPException(status_code=500, detail="Borg not installed")
+    
+    if result.returncode == 0:
+        try:
+            return {"archives": json.loads(result.stdout)}
+        except Exception:
+            return {"archives": []}
+    raise HTTPException(status_code=500, detail="Failed to list archives")
