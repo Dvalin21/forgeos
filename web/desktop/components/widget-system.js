@@ -41,13 +41,6 @@ class WidgetSystem extends ForgeWidget {
       </div>
     `;
   }
-  
-  showError(message) {
-    const content = this.shadowRoot.querySelector('.content');
-    if (content) {
-      content.innerHTML = `<div class="error">${message} <button onclick="this.getRootNode().host.loadData()">Retry</button></div>`;
-    }
-  }
 }
 
 customElements.define('widget-system', WidgetSystem);

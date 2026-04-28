@@ -57,6 +57,13 @@ class ForgeWidget extends HTMLElement {
     }
   }
   
+  showError(message) {
+    const content = this.shadowRoot.querySelector('.content');
+    if (content) {
+      content.innerHTML = `<div class="error">${message} <button onclick="this.getRootNode().host.loadData()">Retry</button></div>`;
+    }
+  }
+  
   disconnectedCallback() {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
