@@ -19,11 +19,24 @@
       <a href="settings/system.html" class="tab">⚙️ System</a>
     </div>
     
-    <div class="settings-content">
-      <p>Select a settings category from the tabs above.</p>
+  <div class="settings-content">
+    <h3>Appearnce</h3>
+    <div class="wallpaper-section" style="margin-top: var(--space-lg);">
+      <h4>Wallpaper</h4>
+      <div class="wallpaper-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: var(--space-md); margin-top: var(--space-md);">
+        <!-- Wallpapers will be loaded from manifest.json via JavaScript -->
+      </div>
+    </div>
+    
+    <h3 style="margin-top: var(--space-xl);">Theme</h3>
+    <div class="theme-options" style="margin-top: var(--space-md);">
+      <button class="btn active">Dark (Ocean Deep)</button>
+      <button class="btn">Light (Future)</button>
     </div>
   </div>
+  </div>
   
-  <script src="components/forge-topnav.js"></script>
+  <script src="../components/forge-topnav.js"></script>
+  <script src="wallpaper-selector.js"></script>
 </body>
 </html>

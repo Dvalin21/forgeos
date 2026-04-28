@@ -4,148 +4,43 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ForgeOS</title>
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/forgeos.css">
 </head>
 <body>
-  <!-- Sidebar -->
-  <aside id="sidebar" class="sidebar">
-    <div class="sidebar-header">
-      <button id="sidebar-toggle" class="sidebar-toggle">☰</button>
-    </div>
-    <nav class="sidebar-nav">
-      <button class="nav-item active" data-panel="dashboard">
-        <span class="nav-icon">◈</span>
-        <span class="nav-label">Dashboard</span>
-      </button>
-      <button class="nav-item" data-panel="apps">
-        <span class="nav-icon">◉</span>
-        <span class="nav-label">Apps</span>
-      </button>
-      <button class="nav-item" data-panel="storage">
-        <span class="nav-icon">⬡</span>
-        <span class="nav-label">Storage</span>
-      </button>
-      <button class="nav-item" data-panel="network">
-        <span class="nav-icon">⬢</span>
-        <span class="nav-label">Network</span>
-      </button>
-      <button class="nav-item" data-panel="backup">
-        <span class="nav-icon">◫</span>
-        <span class="nav-label">Backup</span>
-      </button>
-      <button class="nav-item" data-panel="shares">
-        <span class="nav-icon">▤</span>
-        <span class="nav-label">Shares</span>
-      </button>
-      <button class="nav-item" data-panel="mail">
-        <span class="nav-icon">✉</span>
-        <span class="nav-label">Mail</span>
-      </button>
-      <button class="nav-item" data-panel="settings">
-        <span class="nav-icon">⚙</span>
-        <span class="nav-label">Settings</span>
-      </button>
-    </nav>
-  </aside>
-
-  <!-- Top Bar -->
-  <header id="topbar" class="topbar">
-    <div class="topbar-left">
-      <input id="global-search" type="text" placeholder="Search..." class="search-input">
-    </div>
-    <div class="topbar-center">
-      <span id="context-title">Dashboard</span>
-    </div>
-    <div class="topbar-right">
-      <button id="user-menu-btn" class="user-btn">
-        <span class="user-icon">👤</span>
-        <span class="user-name">admin</span>
-      </button>
-      <div id="user-menu" class="user-menu hidden">
-        <button class="menu-item">Profile</button>
-        <button class="menu-item">Settings</button>
-        <button class="menu-item">Logout</button>
+  <!-- Top Navigation -->
+  <forge-topnav></forge-topnav>
+  
+  <!-- Dashboard Area -->
+  <div id="dashboard" class="dashboard" style="margin-top: var(--topnav-height); padding: var(--space-md);">
+    <div class="widget-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-md);">
+      
+      <!-- System Health Widget -->
+      <div class="widget-container">
+        <widget-system></widget-system>
       </div>
-    </div>
-  </header>
-
-  <!-- Desktop Area -->
-  <div id="desktop" class="desktop">
-    <!-- Dashboard -->
-    <div id="dashboard" class="dashboard">
-      <div class="widget-grid">
-        <!-- System Health Widget -->
-        <div class="widget-container">
-          <widget-system></widget-system>
-        </div>
-        
-        <!-- Storage Overview Widget -->
-        <div class="widget-container widget-2x1">
-          <widget-storage></widget-storage>
-        </div>
-        
-        <!-- Network Status Widget -->
-        <div class="widget-container">
-          <widget-network></widget-network>
-        </div>
-        
-        <!-- Recent Alerts Widget -->
-        <div class="widget-container">
-          <widget-alerts></widget-alerts>
-        </div>
+      
+      <!-- Storage Overview Widget -->
+      <div class="widget-container widget-2x1">
+        <widget-storage></widget-storage>
+      </div>
+      
+      <!-- Network Status Widget -->
+      <div class="widget-container">
+        <widget-network></widget-network>
+      </div>
+      
+      <!-- Recent Alerts Widget -->
+      <div class="widget-container">
+        <widget-alerts></widget-alerts>
       </div>
     </div>
   </div>
-
-  <!-- Taskbar -->
-  <nav id="taskbar" class="taskbar"></nav>
-
+  
   <!-- Scripts -->
-  <script src="js/sidebar.js"></script>
-  <script src="js/topbar.js"></script>
-  <script src="js/taskbar.js"></script>
-  <script src="js/window-manager.js"></script>
-  <script src="js/dashboard.js"></script>
   <script src="components/forge-widget.js"></script>
   <script src="components/widget-system.js"></script>
   <script src="components/widget-storage.js"></script>
   <script src="components/widget-network.js"></script>
   <script src="components/widget-alerts.js"></script>
-  <script src="components/forge-topnav.js"></script>
-  <script>
-    // Initialize top navigation
-    const topnav = document.createElement('forge-topnav');
-    document.body.prepend(topnav);
-  </script>
-
-  <script>
-    // Navigation handling
-    document.querySelectorAll('.nav-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const panel = item.dataset.panel;
-        
-        // Update active state
-        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
-        
-        // Update title
-        document.getElementById('context-title').textContent = panel.charAt(0).toUpperCase() + panel.slice(1);
-        
-        // Open window
-        window.forgeOS.openWindow(panel, { title: panel.charAt(0).toUpperCase() + panel.slice(1) });
-      });
-    });
-    
-    // Taskbar click handling
-    document.querySelectorAll('.taskbar-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const panel = item.dataset.panel;
-        document.querySelectorAll('.taskbar-item').forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
-        window.forgeOS.openWindow(panel, { title: panel.charAt(0).toUpperCase() + panel.slice(1) });
-      });
-    });
-  </script>
 </body>
 </html>
