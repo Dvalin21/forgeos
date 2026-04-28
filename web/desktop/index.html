@@ -75,44 +75,24 @@
     <!-- Dashboard -->
     <div id="dashboard" class="dashboard">
       <div class="widget-grid">
-        <!-- System Widget -->
-        <div class="widget" data-type="system">
-          <div class="widget-header">
-            <span class="widget-title">System</span>
-          </div>
-          <div class="widget-content" id="widget-system">
-            <div class="loading">Loading...</div>
-          </div>
+        <!-- System Health Widget -->
+        <div class="widget-container">
+          <widget-system></widget-system>
         </div>
         
-        <!-- Storage Widget (2x1) -->
-        <div class="widget widget-2x1" data-type="storage">
-          <div class="widget-header">
-            <span class="widget-title">Storage</span>
-          </div>
-          <div class="widget-content" id="widget-storage">
-            <div class="loading">Loading...</div>
-          </div>
+        <!-- Storage Overview Widget -->
+        <div class="widget-container widget-2x1">
+          <widget-storage></widget-storage>
         </div>
         
-        <!-- Docker Widget -->
-        <div class="widget" data-type="docker">
-          <div class="widget-header">
-            <span class="widget-title">Docker</span>
-          </div>
-          <div class="widget-content" id="widget-docker">
-            <div class="loading">Loading...</div>
-          </div>
+        <!-- Network Status Widget -->
+        <div class="widget-container">
+          <widget-network></widget-network>
         </div>
         
-        <!-- Alerts Widget -->
-        <div class="widget" data-type="alerts">
-          <div class="widget-header">
-            <span class="widget-title">Alerts</span>
-          </div>
-          <div class="widget-content" id="widget-alerts">
-            <div class="loading">Loading...</div>
-          </div>
+        <!-- Recent Alerts Widget -->
+        <div class="widget-container">
+          <widget-alerts></widget-alerts>
         </div>
       </div>
     </div>
@@ -127,6 +107,17 @@
   <script src="js/taskbar.js"></script>
   <script src="js/window-manager.js"></script>
   <script src="js/dashboard.js"></script>
+  <script src="components/forge-widget.js"></script>
+  <script src="components/widget-system.js"></script>
+  <script src="components/widget-storage.js"></script>
+  <script src="components/widget-network.js"></script>
+  <script src="components/widget-alerts.js"></script>
+  <script src="components/forge-topnav.js"></script>
+  <script>
+    // Initialize top navigation
+    const topnav = document.createElement('forge-topnav');
+    document.getElementById('topbar').appendChild(topnav);
+  </script>
 
   <script>
     // Navigation handling
