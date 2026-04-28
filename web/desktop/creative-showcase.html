@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ForgeOS - Creative Showcase</title>
+  <link rel="stylesheet" href="css/forgeos.css">
+  <style>
+    body { 
+      margin: 0; 
+      padding: 0; 
+      background: #0a1929; 
+      background-image: 
+        radial-gradient(ellipse at 20% 50%, rgba(0,180,216,0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 20%, rgba(0,119,182,0.06) 0%, transparent 50%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+    
+    .showcase-header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--topnav-height);
+      background: rgba(10,25,41,0.8);
+      backdrop-filter: blur(30px) saturate(150%);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .showcase-header strong {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #00b4d8, #0077b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 1px;
+    }
+    
+    .showcase-container {
+      max-width: 1400px;
+      margin: 80px auto 40px;
+      padding: 0 var(--space-lg);
+    }
+    
+    h1 { 
+      font-size: 32px; 
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #00b4d8, #0077b6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .subtitle { 
+      color: var(--text-muted); 
+      font-size: 14px; 
+      margin-bottom: 40px; 
+    }
+    
+    .section { 
+      margin-bottom: 60px; 
+    }
+    
+    h2 { 
+      font-size: 24px; 
+      color: var(--text-primary); 
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    /* Glass Cards Demo */
+    .glass-demo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: var(--space-md);
+    }
+    
+    .glass-card {
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur) var(--glass-saturate);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      transition: var(--transition);
+    }
+    
+    .glass-card:hover {
+      border-color: var(--accent-primary);
+      box-shadow: var(--glow-md);
+      transform: translateY(-2px);
+    }
+    
+    .glass-card h3 {
+      color: var(--text-primary);
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+    
+    .glass-card p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    
+    /* Icon Showcase */
+    .icon-showcase {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: var(--space-md);
+    }
+    
+    .icon-demo {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      text-align: center;
+      transition: var(--transition);
+    }
+    
+    .icon-demo:hover {
+      border-color: var(--accent-primary);
+      background: var(--bg-elevated);
+    }
+    
+    .icon-demo svg {
+      width: 32px;
+      height: 32px;
+      stroke: var(--accent-primary);
+      margin-bottom: 8px;
+    }
+    
+    .icon-demo .label {
+      color: var(--text-secondary);
+      font-size: 12px;
+    }
+    
+    /* Background Preview */
+    .bg-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: var(--space-md);
+    }
+    
+    .bg-preview {
+      height: 150px;
+      border-radius: var(--radius-md);
+      border: 2px solid var(--border);
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+    
+    .bg-preview:hover {
+      border-color: var(--accent-primary);
+      box-shadow: var(--glow-sm);
+      transform: scale(1.02);
+    }
+    
+    .bg-preview .name {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      text-align: center;
+    }
+    
+    /* Button Showcase */
+    .button-demo {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-md);
+      align-items: center;
+    }
+    
+    /* Animation Demo */
+    @keyframes pulse-badge {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(-20px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    
+    .animate-slide-in {
+      animation: slide-in 0.3s ease-out;
+    }
+    
+    /* Stats Bar */
+    .stats-bar {
+      display: flex;
+      gap: var(--space-lg);
+      padding: var(--space-md) var(--space-lg);
+      background: var(--glass-bg);
+      backdrop-filter: var(--glass-blur) var(--glass-saturate);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-lg);
+      margin-bottom: var(--space-lg);
+    }
+    
+    .stat-item {
+      flex: 1;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--accent-primary);
+      display: block;
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="showcase-header">
+    <strong>ForgeOS</strong>
+  </div>
+  
+  <div class="showcase-container">
+    <h1>🎨 Creative Showcase</h1>
+    <p class="subtitle">Exploring modern NAS UI design trends (2025-2026): Glassmorphism, Aurora backgrounds, SVG icons, and micro-interactions</p>
+    
+    <!-- Stats Bar -->
+    <div class="stats-bar glass-strong">
+      <div class="stat-item">
+        <span class="stat-value">23.4%</span>
+        <span class="stat-label">CPU Usage</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">67.2%</span>
+        <span class="stat-label">Memory</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">45°C</span>
+        <span class="stat-label">Temperature</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-value">2.3 TB</span>
+        <span class="stat-label">Storage Used</span>
+      </div>
+    </div>
+    
+    <!-- Glassmorphism Section -->
+    <div class="section">
+      <h2>🥛 Glassmorphism Cards</h2>
+      <p style="color: var(--text-muted); margin-bottom: var(--space-md);">
+        Inspired by MarkOS, Apple visionOS, OpenWrt luci-theme-glass. 
+        Using backdrop-filter: blur() with translucent backgrounds.
+      </p>
+      
+      <div class="glass-demo-grid">
+        <div class="glass-card">
+          <h3>📊 System Health</h3>
+          <p>CPU: 23.4% | RAM: 67.2% | Temp: 45°C</p>
+          <div style="margin-top: var(--space-md);">
+            <div style="background: rgba(0,180,216,0.1); height: 8px; border-radius: 4px; overflow: hidden;">
+              <div style="background: var(--accent-primary); height: 100%; width: 23.4%;"></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="glass-card">
+          <h3>📂 Storage Overview</h3>
+          <p>2.3 TB used of 8 TB (29%)</p>
+          <div style="margin-top: var(--space-md);">
+            <div style="background: rgba(0,180,216,0.1); height: 8px; border-radius: 4px; overflow: hidden;">
+              <div style="background: var(--accent-success); height: 100%; width: 29%;"></div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="glass-card">
+          <h3>🌐 Network Status</h3>
+          <p>eth0: 1.2 Gbps | RX: 234 MB</p>
+          <div style="margin-top: var(--space-md); color: var(--text-muted); font-size: 13px;">
+            ↑ 120 Mbps | ↓ 340 Mbps
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- SVG Icons Section -->
+    <div class="section">
+      <h2>🎭 SVG Icon System</h2>
+      <p style="color: var(--text-muted); margin-bottom: var(--space-md);">
+        Replaced emoji with inline SVG icons. Scalable, consistent, and customizable via CSS.
+      </p>
+      
+      <div class="icon-showcase">
+        <div class="icon-demo">
+          <svg viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+            <rect x="14" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+            <rect x="3" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+            <rect x="14" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <div class="label">Dashboard</div>
+        </div>
+        
+        <div class="icon-demo">
+          <svg viewBox="0 0 24 24">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <div class="label">File Station</div>
+        </div>
+        
+        <div class="icon-demo">
+          <svg viewBox="0 0 24 24">
+            <rect x="2" y="3" width="20" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+            <line x1="8" y1="21" x2="16" y2="21" stroke="currentColor" stroke-width="2"/>
+            <line x1="12" y1="17" x2="12" y2="21" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <div class="label">Docker</div>
+        </div>
+        
+        <div class="icon-demo">
+          <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M19.4 15a1.5 1.5 0 0 0 .7 1.3l2.5 4.3a1.5 1.5 0 0 1-1.3 2.2l-5-2.9a1.5 1.5 0 0 0-1.5.3l-2.2 3.5a1.5 1.5 0 0 1-2.2-.5l-2.5-4.3a1.5 1.5 0 0 0-.7-1.3l-5 0a1.5 1.5 0 0 1-.9-2.2l3.3-2.5a1.5 1.5 0 0 0 .3-1.5l-1-3.2a1.5 1.5 0 0 1 2.2-1.6l4.3 1.5a1.5 1.5 0 0 1 .5-.3l2.2-3.5A1.5 1.5 0 0 1 15.5 2l2.5 4.3a1.5 1.5 0 0 1-.3 1.5l3.3 2.5a1.5 1.5 0 0 1-.9 2.2z" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <div class="label">Settings</div>
+        </div>
+        
+        <div class="icon-demo">
+          <svg viewBox="0 0 24 24">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" fill="none" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <div class="label">Notifications</div>
+        </div>
+        
+        <div class="icon-demo">
+          <svg viewBox="0 0 24 24">
+            <rect x="2" y="3" width="20" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2"/>
+            <polyline points="8,12 12,16 16,12" fill="none" stroke="currentColor" stroke-width="2"/>
+            <line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="2"/>
+          </svg>
+          <div class="label">Terminal</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Background Options Section -->
+    <div class="section">
+      <h2>🖼️ Background Options</h2>
+      <p style="color: var(--text-muted); margin-bottom: var(--space-md);">
+        Six creative background options inspired by modern NAS UIs (NOWEN, FlatNAS, MarkOS).
+      </p>
+      
+      <div class="bg-preview-grid">
+        <div class="bg-preview" style="background: #070e14; background-image: radial-gradient(ellipse at 20% 50%, rgba(0,180,216,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(0,119,182,0.06) 0%, transparent 50%);">
+          <div class="name">Ocean Deep (Default)</div>
+        </div>
+        
+        <div class="bg-preview" style="background: #0a0e1a; background-image: radial-gradient(ellipse at 30% 40%, rgba(0,255,180,0.15) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(0,180,255,0.12) 0%, transparent 50%);">
+          <div class="name">Aurora Borealis</div>
+        </div>
+        
+        <div class="bg-preview" style="background: #050510; background-image: radial-gradient(ellipse at 30% 20%, rgba(138,43,226,0.2) 0%, transparent 40%), radial-gradient(ellipse at 70% 60%, rgba(0,191,255,0.15) 0%, transparent 40%);">
+          <div class="name">Deep Space Nebula</div>
+        </div>
+        
+        <div class="bg-preview" style="background: linear-gradient(135deg, #0f0c1a 0%, #1a0f2a 100%);">
+          <div class="name">Arctic Glass</div>
+        </div>
+        
+        <div class="bg-preview" style="background: #1a0a00; background-image: radial-gradient(ellipse at 50% 50%, rgba(255,100,0,0.12) 0%, transparent 50%);">
+          <div class="name">Solar Flare</div>
+        </div>
+        
+        <div class="bg-preview" style="background: #000500; background-image: radial-gradient(ellipse at 50% 100%, rgba(0,255,0,0.06) 0%, transparent 40%);">
+          <div class="name">Matrix Rain</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Button Styles Section -->
+    <div class="section">
+      <h2>🔘 Button Styles</h2>
+      <p style="color: var(--text-muted); margin-bottom: var(--space-md);">
+        Modernized buttons with gradient backgrounds, glow effects, and smooth transitions.
+      </p>
+      
+      <div class="button-demo">
+        <button class="btn">Default</button>
+        <button class="btn btn-primary">Primary</button>
+        <button class="btn btn-outline">Outline</button>
+        <button class="btn btn-warning">Warning</button>
+        <button class="btn btn-danger">Danger</button>
+        <button class="btn btn-sm">Small</button>
+      </div>
+    </div>
+    
+    <!-- Micro-interactions Section -->
+    <div class="section">
+      <h2>✨ Micro-interactions</h2>
+      <p style="color: var(--text-muted); margin-bottom: var(--space-md);">
+        Subtle animations and hover effects inspired by premium NAS interfaces.
+      </p>
+      
+      <div style="padding: var(--space-lg); background: var(--glass-bg); backdrop-filter: var(--glass-blur); border: 1px solid var(--glass-border); border-radius: var(--radius-lg);">
+        <h3 style="color: var(--text-primary); margin-bottom: var(--space-md);">Hover Effects</h3>
+        <ul style="color: var(--text-secondary); line-height: 2; font-size: 14px;">
+          <li class="animate-slide-in">Cards lift on hover (transform: translateY(-2px))</li>
+          <li class="animate-slide-in">Border color transitions to accent-primary</li>
+          <li class="animate-slide-in">Glow effects activate (box-shadow)</li>
+          <li class="animate-slide-in">Buttons have smooth gradient transitions</li>
+          <li class="animate-slide-in">Notification badges pulse gently</li>
+        </ul>
+      </div>
+    </div>
+    
+    <!-- Research Credit -->
+    <div style="margin-top: 60px; padding: var(--space-lg); background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius-lg);">
+      <h3 style="color: var(--text-primary); margin-bottom: var(--space-md);">📚 Research Sources</h3>
+      <div style="color: var(--text-muted); font-size: 13px; line-height: 1.8;">
+        <p><strong>Modern NAS UIs (2025-2026):</strong></p>
+        <ul style="padding-left: 20px;">
+          <li><strong>MarkOS-MarkPanel</strong> - Enterprise-grade with Frosted Glass (磨砂玻璃) UI</li>
+          <li><strong>NOWEN (星云门户)</strong> - Deep Space aesthetic with Aurora effects</li>
+          <li><strong>FlatNAS</strong> - Vue 3 + Express, highly customizable</li>
+          <li><strong>luci-theme-glass</strong> - OpenWrt theme with glassmorphism</li>
+          <li><strong>NAS-Panel</strong> - Modern NAS management with Vue.js</li>
+          <li><strong>BaluHost</strong> - FastAPI + React with TypeScript</li>
+        </ul>
+        <p style="margin-top: var(--space-md);">
+          <strong>Technologies:</strong> Vue 3.5.32, Svelte 5.55.1, SolidJS 1.9.0/2.0 beta, Node.js 22.22.1 LTS, Go 1.26.1, Rust 1.95.0
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

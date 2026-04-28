@@ -207,20 +207,55 @@ class ForgeTopnav extends HTMLElement {
       <nav>
         <div class="left">
           <span class="logo" data-page="dashboard">ForgeOS</span>
-          <button class="nav-item active" data-page="dashboard">Dashboard</button>
-          <button class="nav-item" data-page="filestation">File Station</button>
-          <button class="nav-item" data-page="docker">Docker</button>
-          ${this.mailInstalled ? '<button class="nav-item" data-page="mail">Mail</button>' : ''}
+          <button class="nav-item active" data-page="dashboard">
+            <svg class="svg-icon svg-icon-sm" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+            Dashboard
+          </button>
+          <button class="nav-item" data-page="filestation">
+            <svg class="svg-icon svg-icon-sm" viewBox="0 0 24 24">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            File Station
+          </button>
+          <button class="nav-item" data-page="docker">
+            <svg class="svg-icon svg-icon-sm" viewBox="0 0 24 24">
+              <rect x="2" y="3" width="20" height="14" rx="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            Docker
+          </button>
+          ${this.mailInstalled ? '<button class="nav-item" data-page="mail"><svg class="svg-icon svg-icon-sm" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Mail</button>' : ''}
         </div>
         <div class="right">
-          <button class="icon-btn" title="Notifications">
-            🔔
+          <button class="icon-btn-svg" title="Notifications">
+            <svg class="svg-icon" viewBox="0 0 24 24">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
             <span class="badge">3</span>
           </button>
-          <button class="icon-btn" title="App Center">⊞</button>
+          <button class="icon-btn-svg" title="App Center">
+            <svg class="svg-icon" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            </svg>
+          </button>
           <div style="position: relative;">
             <button class="profile-btn" id="profile-btn">
-              <div class="profile-avatar">👤</div>
+              <div class="profile-avatar">
+                <svg class="svg-icon svg-icon-lg" viewBox="0 0 24 24" style="color: white;">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </div>
               <span>admin</span>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" style="opacity: 0.6;">
                 <path d="M6 8L1 3h10z"/>

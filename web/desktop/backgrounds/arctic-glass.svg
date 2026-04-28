@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <defs>
+    <linearGradient id="ag1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f0c1a"/>
+      <stop offset="100%" stop-color="#1a0f2a"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#ag1)"/>
+  <!-- Frosted glass hints -->
+  <rect x="50" y="50" width="300" height="200" rx="16" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+  <rect x="80" y="80" width="240" height="140" rx="12" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.05)" stroke-width="0.5"/>
+</svg>

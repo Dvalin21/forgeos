@@ -1,0 +1,40 @@
+{
+  "wallpapers": [
+    {
+      "name": "Ocean Deep (Default)",
+      "filename": "ocean-deep.svg",
+      "type": "css",
+      "css": "background: #070e14; background-image: radial-gradient(ellipse at 20% 50%, rgba(0,180,216,0.08) 0%, transparent 50%), radial-gradient(ellipse at 80% 20%, rgba(0,119,182,0.06) 0%, transparent 50%);"
+    },
+    {
+      "name": "Aurora Borealis",
+      "filename": "aurora.svg",
+      "type": "css",
+      "css": "background: #0a0e1a; background-image: radial-gradient(ellipse at 30% 40%, rgba(0,255,180,0.15) 0%, transparent 50%), radial-gradient(ellipse at 70% 60%, rgba(0,180,255,0.12) 0%, transparent 50%), radial-gradient(ellipse at 50% 80%, rgba(180,0,255,0.1) 0%, transparent 50%);"
+    },
+    {
+      "name": "Deep Space Nebula",
+      "filename": "nebula.svg",
+      "type": "css",
+      "css": "background: #050510; background-image: radial-gradient(ellipse at 30% 20%, rgba(138,43,226,0.2) 0%, transparent 40%), radial-gradient(ellipse at 70% 60%, rgba(0,191,255,0.15) 0%, transparent 40%), radial-gradient(ellipse at 50% 90%, rgba(255,105,180,0.1) 0%, transparent 40%);"
+    },
+    {
+      "name": "Arctic Glass",
+      "filename": "arctic-glass.svg",
+      "type": "css",
+      "css": "background: linear-gradient(135deg, #0f0c1a 0%, #1a0f2a 100%);"
+    },
+    {
+      "name": "Solar Flare",
+      "filename": "solar-flare.svg",
+      "type": "css",
+      "css": "background: #1a0a00; background-image: radial-gradient(ellipse at 50% 50%, rgba(255,100,0,0.12) 0%, transparent 50%), radial-gradient(ellipse at 30% 70%, rgba(255,200,0,0.08) 0%, transparent 40%);"
+    },
+    {
+      "name": "Matrix Rain",
+      "filename": "matrix.svg",
+      "type": "css",
+      "css": "background: #000500; background-image: radial-gradient(ellipse at 50% 100%, rgba(0,255,0,0.06) 0%, transparent 40%);"
+    }
+  ]
+}

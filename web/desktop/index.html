@@ -7,30 +7,33 @@
   <link rel="stylesheet" href="css/forgeos.css">
 </head>
 <body>
+  <!-- SVG Icon Sprite -->
+  <object data="icons.svg" type="image/svg+xml" style="display: none;"></object>
+  
   <!-- Top Navigation -->
   <forge-topnav></forge-topnav>
   
   <!-- Dashboard Area -->
-  <div id="dashboard" class="dashboard" style="margin-top: var(--topnav-height); padding: var(--space-md);">
+  <div id="dashboard" class="dashboard glass-subtle" style="margin-top: var(--topnav-height); padding: var(--space-md);">
     <div class="widget-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-md);">
       
       <!-- System Health Widget -->
-      <div class="widget-container">
+      <div class="widget-container glass">
         <widget-system></widget-system>
       </div>
       
       <!-- Storage Overview Widget -->
-      <div class="widget-container widget-2x1">
+      <div class="widget-container widget-2x1 glass">
         <widget-storage></widget-storage>
       </div>
       
       <!-- Network Status Widget -->
-      <div class="widget-container">
+      <div class="widget-container glass">
         <widget-network></widget-network>
       </div>
       
       <!-- Recent Alerts Widget -->
-      <div class="widget-container">
+      <div class="widget-container glass">
         <widget-alerts></widget-alerts>
       </div>
     </div>
