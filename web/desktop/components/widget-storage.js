@@ -5,35 +5,42 @@ class WidgetStorage extends ForgeWidget {
     this.title = 'Storage Overview';
     this.refreshIntervalMs = 60000; // 60 seconds
   }
-  
+
   async loadData() {
+    this.showLoading();
     try {
-      const res = await fetch('/api/storage/pools');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      this.data = await res.json();
+      const data = await this._apiCall('/api/storage/df');
+      this.data = data;
       this.update(this.data);
     } catch (err) {
       console.error('Failed to load storage data:', err);
       this.showError('Unable to load storage info');
     }
   }
-  
+
   update(data) {
     const content = this.shadowRoot.querySelector('.content');
     if (!content) return;
-    
-    const pools = data.pools || [];
-    const html = pools.map(pool => `
-      <div class="pool-row">
-        <span class="pool-name">${pool.name}</span>
-        <span class="pool-size">${pool.used}/${pool.total} (${pool.percent}%)</span>
-        <div class="progress-bar">
-          <div class="progress-fill" style="width: ${pool.percent}%"></div>
+
+    const filesystems = data.filesystems || [];
+    const html = filesystems.map(fs => {
+      const usedPercent = fs.use_percent || 0;
+      const barColor = usedPercent > 90 ? 'var(--color-danger)' :
+                       usedPercent > 70 ? 'var(--color-warning)' :
+                       'var(--color-success)';
+
+      return `
+        <div class="storage-row">
+          <span class="fs-device" title="${fs.mountpoint}">${fs.device}</span>
+          <span class="fs-size">${fs.used} / ${fs.size} (${usedPercent}%)</span>
+          <div class="progress-bar">
+            <div class="progress-fill" style="width: ${usedPercent}%; background: ${barColor};"></div>
+          </div>
         </div>
-      </div>
-    `).join('');
-    
-    content.innerHTML = html || '<div class="empty">No storage pools found</div>';
+      `;
+    }).join('');
+
+    content.innerHTML = html || '<div class="empty">No storage filesystems found</div>';
   }
 }
 

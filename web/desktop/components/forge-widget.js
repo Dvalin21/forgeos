@@ -13,6 +13,12 @@ class ForgeWidget extends HTMLElement {
     await this.loadData();
     this.startAutoRefresh();
   }
+
+  async loadData() {
+    this.showLoading();
+    // Override in subclasses - call super.loadData() first or not at all
+    console.warn('loadData() should be implemented by subclass');
+  }
   
   async _apiCall(endpoint) {
     try {
