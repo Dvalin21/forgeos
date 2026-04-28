@@ -1,4 +1,4 @@
-// forge-topnav.js - Top navigation bar
+// forge-topnav.js - Top navigation bar (modernized)
 class ForgeTopnav extends HTMLElement {
   constructor() {
     super();
@@ -21,55 +21,216 @@ class ForgeTopnav extends HTMLElement {
           left: 0;
           right: 0;
           height: var(--topnav-height);
-          background: var(--bg-surface);
+          background: linear-gradient(135deg, var(--bg-surface), var(--bg-elevated));
           border-bottom: 1px solid var(--border);
           z-index: 1000;
+          backdrop-filter: blur(10px);
         }
         nav {
           display: flex;
           align-items: center;
           height: 100%;
-          padding: 0 var(--space-md);
+          padding: 0 var(--space-lg);
+          max-width: 1400px;
+          margin: 0 auto;
         }
         .left { display: flex; align-items: center; gap: var(--space-md); }
         .right { display: flex; align-items: center; gap: var(--space-md); margin-left: auto; }
-        .logo { font-size: 18px; font-weight: bold; color: var(--accent-primary); cursor: pointer; }
-        .nav-item { padding: var(--space-md) var(--space-lg); color: var(--text-secondary); cursor: pointer; border-radius: var(--radius-sm); font-size: 14px; }
-        .nav-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
-        .nav-item.active { background: var(--accent-primary); color: white; }
-        .icon-btn { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: var(--space-md); font-size: 16px; }
-        .icon-btn:hover { color: var(--text-primary); }
-        .profile-btn { background: none; border: 1px solid var(--border); color: var(--text-primary); cursor: pointer; padding: var(--space-sm) var(--space-md); border-radius: var(--radius-sm); display: flex; align-items: center; gap: var(--space-sm); }
-        .profile-btn:hover { background: var(--bg-elevated); }
-        .profile-menu { position: absolute; top: 100%; right: 0; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); min-width: 150px; z-index: 1001; }
-        .profile-menu-item { display: block; width: 100%; padding: var(--space-sm) var(--space-md); text-align: left; background: none; border: none; color: var(--text-primary); cursor: pointer; }
-        .profile-menu-item:hover { background: var(--bg-elevated); }
+        
+        .logo { 
+          font-size: 20px; 
+          font-weight: 700; 
+          background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          cursor: pointer; 
+          letter-spacing: 1px;
+        }
+        
+        .nav-item { 
+          padding: var(--space-md) var(--space-lg); 
+          color: var(--text-secondary); 
+          cursor: pointer; 
+          border-radius: var(--radius-md); 
+          font-size: 14px; 
+          font-weight: 500;
+          transition: var(--transition);
+          border: none;
+          background: transparent;
+        }
+        .nav-item:hover { 
+          background: rgba(0,180,216,0.1); 
+          color: var(--text-primary); 
+        }
+        .nav-item.active { 
+          background: var(--accent-primary); 
+          color: white; 
+          box-shadow: var(--glow-sm);
+        }
+        
+.icon-btn { 
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); 
+  border: 1px solid rgba(255,255,255,0.15); 
+  color: var(--text-secondary); 
+  cursor: pointer; 
+  padding: var(--space-md); 
+  border-radius: var(--radius-lg); 
+  font-size: 18px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  position: relative;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.icon-btn:hover { 
+  background: linear-gradient(135deg, rgba(0,180,216,0.2), rgba(0,180,216,0.1)); 
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  box-shadow: 0 4px 16px rgba(0,180,216,0.3), var(--glow-sm);
+  transform: translateY(-1px);
+}
+.icon-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0,180,216,0.2);
+}
+.icon-btn .badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: linear-gradient(135deg, #ff4757, #ff6b81);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(255,71,87,0.4);
+  animation: pulse-badge 2s infinite;
+}
+@keyframes pulse-badge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+        
+.profile-btn { 
+  background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)); 
+  border: 1px solid rgba(255,255,255,0.15); 
+  color: var(--text-primary); 
+  cursor: pointer; 
+  padding: var(--space-md) var(--space-lg); 
+  border-radius: var(--radius-lg); 
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.profile-btn:hover { 
+  background: linear-gradient(135deg, rgba(0,180,216,0.2), rgba(0,180,216,0.1)); 
+  border-color: var(--accent-primary);
+  box-shadow: 0 4px 16px rgba(0,180,216,0.3), var(--glow-sm);
+  transform: translateY(-1px);
+}
+.profile-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0,180,216,0.2);
+}
+.profile-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  box-shadow: 0 2px 8px rgba(0,180,216,0.3);
+}
+        
+        .profile-menu { 
+          position: absolute; 
+          top: 100%; 
+          right: 0; 
+          background: linear-gradient(135deg, var(--bg-surface), var(--bg-elevated)); 
+          border: 1px solid rgba(255,255,255,0.15); 
+          border-radius: var(--radius-lg); 
+          min-width: 200px; 
+          z-index: 1001;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.3), var(--glow-sm);
+          overflow: hidden;
+          margin-top: var(--space-sm);
+          animation: slide-down 0.2s ease-out;
+        }
+        @keyframes slide-down {
+          from { opacity: 0; transform: translateY(-8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .profile-menu-item { 
+          display: flex; 
+          align-items: center;
+          gap: var(--space-md);
+          width: 100%; 
+          padding: var(--space-md) var(--space-lg); 
+          text-align: left; 
+          background: none; 
+          border: none; 
+          color: var(--text-primary); 
+          cursor: pointer; 
+          font-size: 14px;
+          transition: all 0.2s ease;
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .profile-menu-item:last-child {
+          border-bottom: none;
+        }
+        .profile-menu-item:hover { 
+          background: linear-gradient(135deg, rgba(0,180,216,0.15), rgba(0,180,216,0.05)); 
+          color: var(--accent-primary);
+          padding-left: calc(var(--space-lg) + 4px);
+        }
+        .menu-icon {
+          font-size: 16px;
+          width: 20px;
+          text-align: center;
+        }
       </style>
       <nav>
         <div class="left">
           <span class="logo" data-page="dashboard">ForgeOS</span>
-          <span class="nav-item active" data-page="dashboard">Dashboard</span>
-          <span class="nav-item" data-page="filestation">File Station</span>
-          <span class="nav-item" data-page="docker">Docker</span>
-          ${this.mailInstalled ? '<span class="nav-item" data-page="mail">Mail</span>' : ''}
+          <button class="nav-item active" data-page="dashboard">Dashboard</button>
+          <button class="nav-item" data-page="filestation">File Station</button>
+          <button class="nav-item" data-page="docker">Docker</button>
+          ${this.mailInstalled ? '<button class="nav-item" data-page="mail">Mail</button>' : ''}
         </div>
         <div class="right">
-          <button class="icon-btn" title="Notifications">🔔</button>
+          <button class="icon-btn" title="Notifications">
+            🔔
+            <span class="badge">3</span>
+          </button>
           <button class="icon-btn" title="App Center">⊞</button>
           <div style="position: relative;">
             <button class="profile-btn" id="profile-btn">
-              <span>👤</span>
+              <div class="profile-avatar">👤</div>
               <span>admin</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" style="opacity: 0.6;">
+                <path d="M6 8L1 3h10z"/>
+              </svg>
             </button>
             <div class="profile-menu hidden" id="profile-menu">
-              <button class="profile-menu-item">Profile</button>
-              <button class="profile-menu-item">Settings</button>
-              <button class="profile-menu-item">Logout</button>
+              <button class="profile-menu-item" data-action="profile">Profile</button>
+              <button class="profile-menu-item" data-action="settings">Settings</button>
+              <button class="profile-menu-item" data-action="logout">Logout</button>
             </div>
-          </div>
-        </div>
-          </div>
-        </div>
           </div>
         </div>
       </nav>
@@ -98,6 +259,23 @@ class ForgeTopnav extends HTMLElement {
       profileBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         profileMenu.classList.toggle('hidden');
+      });
+      
+      // Profile menu item clicks
+      profileMenu.querySelectorAll('.profile-menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const action = item.dataset.action;
+          if (action === 'settings') {
+            this.navigateTo('settings');
+          } else if (action === 'logout') {
+            console.log('Logout clicked');
+            // TODO: Implement logout
+          } else if (action === 'profile') {
+            console.log('Profile clicked');
+            // TODO: Implement profile view
+          }
+          profileMenu.classList.add('hidden');
+        });
       });
       
       // Close menu when clicking outside

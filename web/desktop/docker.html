@@ -9,46 +9,177 @@
 <body>
   <forge-topnav></forge-topnav>
   
-  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-md);">
-    <div class="page-header flex justify-between items-center">
-      <h2>Docker</h2>
+  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-lg);">
+    <div class="page-header flex justify-between items-center mb-lg">
       <div>
-        <button class="btn btn-primary">+ New Container</button>
-        <button class="btn">Prune</button>
+        <h2 style="margin: 0;">Docker Containers</h2>
+        <p style="color: var(--text-muted); margin-top: var(--space-sm); font-size: 14px;">Manage containers, images, and stacks</p>
+      </div>
+      <div class="flex gap-md">
+        <button class="btn btn-outline" id="btn-prune">
+          <span>🗑️</span> Prune
+        </button>
+        <button class="btn btn-primary" id="btn-new-container">
+          <span>➕</span> New Container
+        </button>
       </div>
     </div>
     
-    <div class="filters" style="margin: var(--space-md) 0;">
-      <button class="btn active">Running</button>
-      <button class="btn">Stopped</button>
-      <button class="btn">All</button>
+    <!-- Filters -->
+    <div class="filters flex gap-sm mb-lg" style="background: var(--bg-surface); padding: var(--space-md); border-radius: var(--radius-lg); border: 1px solid var(--border);">
+      <button class="btn btn-sm active" data-filter="running">Running</button>
+      <button class="btn btn-sm" data-filter="stopped">Stopped</button>
+      <button class="btn btn-sm" data-filter="all">All</button>
+      <div style="margin-left: auto;">
+        <input type="text" class="search-input" placeholder="Search containers..." style="padding: var(--space-sm) var(--space-md); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); font-size: 13px;">
+      </div>
     </div>
     
-    <table style="width: 100%; margin-top: var(--space-md); border-collapse: collapse;">
-      <thead>
-        <tr style="text-align: left; border-bottom: 1px solid var(--border);">
-          <th>Name</th>
-          <th>Version</th>
-          <th>Status</th>
-          <th>Ports</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr style="border-bottom: 1px solid var(--border-light);">
-          <td>nginx</td>
-          <td>v1.25</td>
-          <td style="color: var(--accent-success);">✓ Up 2h</td>
-          <td>0.0.0.0:80->80</td>
-          <td>
-            <button class="btn">Logs</button>
-            <button class="btn">Restart</button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <!-- Container List -->
+    <div class="container-list" id="container-list">
+      <!-- Container Card Example -->
+      <div class="container-card" data-container="nginx" data-status="running" data-has-compose="true">
+        <div class="card-header flex justify-between items-center">
+          <div class="flex items-center gap-md">
+            <div class="container-icon" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: var(--glow-sm);">🐳</div>
+            <div>
+              <h3 style="margin: 0; font-size: 16px;">nginx</h3>
+              <span style="color: var(--text-muted); font-size: 12px;">v1.25 • 2 hours ago</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-sm">
+            <span class="status-badge status-running">Running</span>
+            <div class="dropdown" style="position: relative;">
+              <button class="btn btn-icon" onclick="toggleDropdown(this)" style="padding: var(--space-sm); background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px;">⋯</button>
+              <div class="dropdown-menu hidden" style="position: absolute; right: 0; top: 100%; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); min-width: 160px; z-index: 100; box-shadow: var(--shadow-lg);">
+                <button class="dropdown-item" data-action="terminal">💻 Terminal</button>
+                <button class="dropdown-item" data-action="logs">📋 Logs</button>
+                <button class="dropdown-item" data-action="inspect">🔍 Inspect</button>
+                <div style="height: 1px; background: var(--border); margin: var(--space-sm) 0;"></div>
+                <button class="dropdown-item" data-action="stop">⏹️ Stop</button>
+                <button class="dropdown-item" data-action="restart">🔄 Restart</button>
+                <button class="dropdown-item" data-action="remove">🗑️ Remove</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-body mt-md">
+          <div class="grid grid-3 gap-md" style="display: grid; grid-template-columns: repeat(3, 1fr);">
+            <div class="info-item">
+              <span style="color: var(--text-muted); font-size: 12px;">PORTS</span>
+              <p style="margin: var(--space-xs) 0 0 0; font-size: 14px;">0.0.0.0:80→80/tcp</p>
+            </div>
+            <div class="info-item">
+              <span style="color: var(--text-muted); font-size: 12px;">NETWORK</span>
+              <p style="margin: var(--space-xs) 0 0 0; font-size: 14px;">bridge</p>
+            </div>
+            <div class="info-item">
+              <span style="color: var(--text-muted); font-size: 12px;">VOLUMES</span>
+              <p style="margin: var(--space-xs) 0 0 0; font-size: 14px;">/data/nginx:/usr/share/nginx/html</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card-actions flex gap-sm mt-md pt-md" style="border-top: 1px solid var(--border-light);">
+          <button class="btn btn-sm btn-primary" onclick="openTerminal('nginx')">💻 Terminal</button>
+          <button class="btn btn-sm btn-outline" onclick="updateContainer('nginx', true)">🔄 Update</button>
+          <button class="btn btn-sm btn-warning" onclick="stopContainer('nginx')">⏹️ Stop</button>
+          <button class="btn btn-sm btn-danger" onclick="downContainer('nginx')">⬇️ Down</button>
+        </div>
+        
+        <!-- Compose Stack Indicator -->
+        <div class="compose-badge" style="position: absolute; top: var(--space-md); right: var(--space-md); background: rgba(0,180,216,0.15); color: var(--accent-primary); padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600;">
+          📦 Compose Stack
+        </div>
+      </div>
+      
+      <!-- More containers would be listed here dynamically -->
+    </div>
+  </div>
+  
+  <!-- Terminal Modal -->
+  <div id="terminal-modal" class="modal hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center;">
+    <div class="modal-content" style="background: var(--bg-surface); border-radius: var(--radius-lg); width: 90%; max-width: 900px; height: 80%; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+      <div class="modal-header flex justify-between items-center p-lg" style="border-bottom: 1px solid var(--border);">
+        <h3 style="margin: 0;">Terminal: <span id="terminal-container-name"></span></h3>
+        <button class="btn btn-icon" onclick="closeTerminal()" style="padding: var(--space-sm); background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 20px;">✕</button>
+      </div>
+      <div class="modal-body flex-1 p-lg" style="overflow: hidden;">
+        <forge-terminal id="terminal-component" style="width: 100%; height: 100%;"></forge-terminal>
+      </div>
+    </div>
   </div>
   
   <script src="components/forge-topnav.js"></script>
+  <script src="components/forge-terminal.js"></script>
+  <script>
+    // Docker management functions
+    function openTerminal(containerName) {
+      document.getElementById('terminal-container-name').textContent = containerName;
+      document.getElementById('terminal-modal').classList.remove('hidden');
+      
+      // Set container name on terminal component
+      const terminal = document.getElementById('terminal-component');
+      terminal.setAttribute('container', containerName);
+    }
+    
+    function closeTerminal() {
+      document.getElementById('terminal-modal').classList.add('hidden');
+    }
+    
+    function updateContainer(containerName, isCompose) {
+      if (isCompose) {
+        if (confirm(`Update container ${containerName} via docker-compose?`)) {
+          alert(`Running: docker-compose pull && docker-compose up -d\n\n(Integration with Docker API pending)`);
+        }
+      } else {
+        if (confirm(`Update container ${containerName}?`)) {
+          alert(`Running: docker pull ${containerName} && docker stop ${containerName} && docker rm ${containerName} && docker run...\n\n(Integration with Docker API pending)`);
+        }
+      }
+    }
+    
+    function stopContainer(containerName) {
+      if (confirm(`Stop container ${containerName}?`)) {
+        alert(`Running: docker stop ${containerName}\n\n(Integration with Docker API pending)`);
+        // Update UI to show stopped status
+        const card = document.querySelector(`[data-container="${containerName}"]`);
+        if (card) {
+          card.querySelector('.status-badge').className = 'status-badge status-stopped';
+          card.querySelector('.status-badge').textContent = 'Stopped';
+        }
+      }
+    }
+    
+    function downContainer(containerName) {
+      if (confirm(`Stop and remove container ${containerName}? (docker down)`)) {
+        alert(`Running: docker stop ${containerName} && docker rm ${containerName}\n\n(Integration with Docker API pending)`);
+      }
+    }
+    
+    function toggleDropdown(btn) {
+      const menu = btn.nextElementSibling;
+      menu.classList.toggle('hidden');
+      
+      // Close when clicking outside
+      document.addEventListener('click', function closeMenu(e) {
+        if (!btn.contains(e.target) && !menu.contains(e.target)) {
+          menu.classList.add('hidden');
+          document.removeEventListener('click', closeMenu);
+        }
+      });
+    }
+    
+    // Filter functionality
+    document.querySelectorAll('.filters .btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filters .btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        // Filter logic would go here
+        console.log('Filter:', btn.dataset.filter);
+      });
+    });
+  </script>
 </body>
 </html>
