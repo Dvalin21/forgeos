@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Network Settings - ForgeOS</title>
+  <link rel="stylesheet" href="../css/forgeos.css">
+</head>
+<body>
+  <forge-topnav></forge-topnav>
+  
+  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-md);">
+    <h2>Network Settings</h2>
+    
+    <div class="settings-tabs" style="display: flex; gap: var(--space-sm); margin: var(--space-lg) 0; border-bottom: 1px solid var(--border);">
+      <a href="storage.html" class="tab">📂 Storage</a>
+      <a href="network.html" class="tab active">🌐 Network</a>
+      <a href="backup.html" class="tab">💾 Backup</a>
+      <a href="system.html" class="tab">⚙️ System</a>
+    </div>
+    
+    <div class="settings-content">
+      <div class="card" style="padding: var(--space-md); margin-bottom: var(--space-md);">
+        <h3>Network Interfaces</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="text-align: left; border-bottom: 1px solid var(--border);">
+              <th>Interface</th>
+              <th>IP Address</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid var(--border-light);">
+              <td>eth0</td>
+              <td>192.168.1.100</td>
+              <td style="color: var(--accent-success);">✓ Up</td>
+              <td><button class="btn">Configure</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="card" style="padding: var(--space-md);">
+        <h3>DNS Settings</h3>
+        <p>Configure DNS servers for name resolution.</p>
+        <button class="btn">Edit DNS</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="../components/forge-topnav.js"></script>
+</body>
+</html>

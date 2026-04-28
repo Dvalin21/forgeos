@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Storage Settings - ForgeOS</title>
+  <link rel="stylesheet" href="../css/forgeos.css">
+</head>
+<body>
+  <forge-topnav></forge-topnav>
+  
+  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-md);">
+    <h2>Storage Settings</h2>
+    
+    <div class="settings-tabs" style="display: flex; gap: var(--space-sm); margin: var(--space-lg) 0; border-bottom: 1px solid var(--border);">
+      <a href="storage.html" class="tab active">📂 Storage</a>
+      <a href="network.html" class="tab">🌐 Network</a>
+      <a href="backup.html" class="tab">💾 Backup</a>
+      <a href="system.html" class="tab">⚙️ System</a>
+    </div>
+    
+    <div class="settings-content">
+      <div class="card" style="padding: var(--space-md); margin-bottom: var(--space-md);">
+        <h3>Storage Pools</h3>
+        <p>Manage your storage pools and volumes.</p>
+        <button class="btn btn-primary">Create Pool</button>
+      </div>
+      
+      <div class="card" style="padding: var(--space-md);">
+        <h3>Disks</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="text-align: left; border-bottom: 1px solid var(--border);">
+              <th>Device</th>
+              <th>Size</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid var(--border-light);">
+              <td>/dev/sda</td>
+              <td>2.0 TB</td>
+              <td style="color: var(--accent-success);">✓ Healthy</td>
+              <td><button class="btn">Details</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+  <script src="../components/forge-topnav.js"></script>
+</body>
+</html>

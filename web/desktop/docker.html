@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Docker - ForgeOS</title>
+  <link rel="stylesheet" href="css/forgeos.css">
+</head>
+<body>
+  <forge-topnav></forge-topnav>
+  
+  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-md);">
+    <div class="page-header flex justify-between items-center">
+      <h2>Docker</h2>
+      <div>
+        <button class="btn btn-primary">+ New Container</button>
+        <button class="btn">Prune</button>
+      </div>
+    </div>
+    
+    <div class="filters" style="margin: var(--space-md) 0;">
+      <button class="btn active">Running</button>
+      <button class="btn">Stopped</button>
+      <button class="btn">All</button>
+    </div>
+    
+    <table style="width: 100%; margin-top: var(--space-md); border-collapse: collapse;">
+      <thead>
+        <tr style="text-align: left; border-bottom: 1px solid var(--border);">
+          <th>Name</th>
+          <th>Version</th>
+          <th>Status</th>
+          <th>Ports</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom: 1px solid var(--border-light);">
+          <td>nginx</td>
+          <td>v1.25</td>
+          <td style="color: var(--accent-success);">✓ Up 2h</td>
+          <td>0.0.0.0:80->80</td>
+          <td>
+            <button class="btn">Logs</button>
+            <button class="btn">Restart</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  
+  <script src="components/forge-topnav.js"></script>
+</body>
+</html>

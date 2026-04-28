@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Settings - ForgeOS</title>
+  <link rel="stylesheet" href="../css/forgeos.css">
+</head>
+<body>
+  <forge-topnav></forge-topnav>
+  
+  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-md);">
+    <h2>System Settings</h2>
+    
+    <div class="settings-tabs" style="display: flex; gap: var(--space-sm); margin: var(--space-lg) 0; border-bottom: 1px solid var(--border);">
+      <a href="storage.html" class="tab">📂 Storage</a>
+      <a href="network.html" class="tab">🌐 Network</a>
+      <a href="backup.html" class="tab">💾 Backup</a>
+      <a href="system.html" class="tab active">⚙️ System</a>
+    </div>
+    
+    <div class="settings-content">
+      <div class="card" style="padding: var(--space-md); margin-bottom: var(--space-md);">
+        <h3>System Information</h3>
+        <p><strong>ForgeOS Version:</strong> 1.0.0-alpha</p>
+        <p><strong>Kernel:</strong> 6.8.x</p>
+        <p><strong>Uptime:</strong> 2 days, 4 hours</p>
+      </div>
+      
+      <div class="card" style="padding: var(--space-md); margin-bottom: var(--space-md);">
+        <h3>Updates</h3>
+        <p>Check for system updates.</p>
+        <button class="btn btn-primary">Check for Updates</button>
+      </div>
+      
+      <div class="card" style="padding: var(--space-md);">
+        <h3>Restart / Shutdown</h3>
+        <button class="btn">Restart</button>
+        <button class="btn">Shutdown</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="../components/forge-topnav.js"></script>
+</body>
+</html>

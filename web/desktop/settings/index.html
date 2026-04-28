@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - ForgeOS</title>
+  <link rel="stylesheet" href="css/forgeos.css">
+</head>
+<body>
+  <forge-topnav></forge-topnav>
+  
+  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-md);">
+    <h2>Settings</h2>
+    
+    <div class="settings-tabs" style="display: flex; gap: var(--space-sm); margin: var(--space-lg) 0; border-bottom: 1px solid var(--border);">
+      <a href="settings/storage.html" class="tab active">📂 Storage</a>
+      <a href="settings/network.html" class="tab">🌐 Network</a>
+      <a href="settings/backup.html" class="tab">💾 Backup</a>
+      <a href="settings/system.html" class="tab">⚙️ System</a>
+    </div>
+    
+    <div class="settings-content">
+      <p>Select a settings category from the tabs above.</p>
+    </div>
+  </div>
+  
+  <script src="components/forge-topnav.js"></script>
+</body>
+</html>

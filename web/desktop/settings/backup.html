@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Backup Settings - ForgeOS</title>
+  <link rel="stylesheet" href="../css/forgeos.css">
+</head>
+<body>
+  <forge-topnav></forge-topnav>
+  
+  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-md);">
+    <h2>Backup Settings</h2>
+    
+    <div class="settings-tabs" style="display: flex; gap: var(--space-sm); margin: var(--space-lg) 0; border-bottom: 1px solid var(--border);">
+      <a href="storage.html" class="tab">📂 Storage</a>
+      <a href="network.html" class="tab">🌐 Network</a>
+      <a href="backup.html" class="tab active">💾 Backup</a>
+      <a href="system.html" class="tab">⚙️ System</a>
+    </div>
+    
+    <div class="settings-content">
+      <div class="card" style="padding: var(--space-md); margin-bottom: var(--space-md);">
+        <h3>Backup Tasks</h3>
+        <p>Configure automated backup tasks.</p>
+        <button class="btn btn-primary">+ New Backup Task</button>
+      </div>
+      
+      <div class="card" style="padding: var(--space-md);">
+        <h3>Scheduled Backups</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="text-align: left; border-bottom: 1px solid var(--border);">
+              <th>Name</th>
+              <th>Schedule</th>
+              <th>Last Run</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid var(--border-light);">
+              <td>Daily Config Backup</td>
+              <td>Daily 02:00</td>
+              <td>2026-04-27 02:00</td>
+              <td>
+                <button class="btn">Edit</button>
+                <button class="btn">Run Now</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+  <script src="../components/forge-topnav.js"></script>
+</body>
+</html>

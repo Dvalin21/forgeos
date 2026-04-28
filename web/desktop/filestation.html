@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Station - ForgeOS</title>
+  <link rel="stylesheet" href="css/forgeos.css">
+</head>
+<body>
+  <forge-topnav></forge-topnav>
+  
+  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-md);">
+    <div class="page-header flex justify-between items-center">
+      <h2>File Station</h2>
+      <div>
+        <button class="btn">Upload</button>
+        <button class="btn">New Folder</button>
+      </div>
+    </div>
+    
+    <div class="breadcrumb" style="margin: var(--space-md) 0;">
+      <span>📂 Share1</span> > <span>Photos</span> > <span>2026</span>
+    </div>
+    
+    <div class="file-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--space-md); margin-top: var(--space-lg);">
+      <div class="file-item card" style="padding: var(--space-sm); text-align: center; cursor: pointer;">
+        <div style="font-size: 48px;">📄</div>
+        <div>file.txt</div>
+      </div>
+      <div class="file-item card" style="padding: var(--space-sm); text-align: center; cursor: pointer;">
+        <div style="font-size: 48px;">📁</div>
+        <div>folder</div>
+      </div>
+      <div class="file-item card" style="padding: var(--space-sm); text-align: center; cursor: pointer;">
+        <div style="font-size: 48px;">🖼️</div>
+        <div>photo.jpg</div>
+      </div>
+    </div>
+  </div>
+  
+  <script src="components/forge-topnav.js"></script>
+</body>
+</html>
