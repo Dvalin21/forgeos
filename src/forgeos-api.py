@@ -191,15 +191,41 @@ def verify_token(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+# ── Audit Logger ──
+from audit_log import log_event, AuditEventType
+
+
 @app.post("/api/auth/login")
 @limiter.limit("5/minute")  # Stricter limit for auth endpoints
-async def login(req: LoginRequest):
+async def login(req: LoginRequest, request: Request):
     users = load_users()
     if not users:
         raise HTTPException(status_code=503, detail="No users configured. Run forgeos-install to set up admin user.")
     user = users.get(req.username)
+    
+    # Log login attempt
+    client_ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent", "")
+    
     if not user or not pwd_ctx.verify(req.password, user["hash"]):
+        log_event(
+            event_type=AuditEventType.LOGIN_FAILURE,
+            username=req.username,
+            ip_address=client_ip,
+            user_agent=user_agent,
+            success=False,
+            details={"reason": "invalid_credentials"}
+        )
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Log successful login
+    log_event(
+        event_type=AuditEventType.LOGIN_SUCCESS,
+        username=req.username,
+        ip_address=client_ip,
+        user_agent=user_agent,
+        success=True,
+    )
     
     # Check if 2FA is enabled
     if user.get("totp_enabled", False):
