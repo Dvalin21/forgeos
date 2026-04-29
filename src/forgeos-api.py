@@ -109,86 +109,44 @@ app.add_exception_handler(RateLimitExceeded, lambda r, e: JSONResponse(
 app.add_middleware(SlowAPIMiddleware)
 
 
-# ────────────────────────────────────────────────────────────
-# APP
-# ────────────────────────────────────────────────────────────
-app = FastAPI(title="ForgeOS API", version="1.0", docs_url=None, redoc_url=None)
+# ── API Keys Authentication ──
+from api_keys import verify_api_key, APIKeyCreate
+from fastapi.security import APIKeyHeader
 
-# Import ForgeFileDB router (after app is created)
-try:
-    from filedb_api import router as filedb_router
-    app.include_router(filedb_router)
-except ImportError as e:
-    print(f"Warning: ForgeFileDB API module not available: {e}")
-
-# Import RustFS Storage router
-try:
-    from rustfs_api import router as rustfs_router
-    app.include_router(rustfs_router)
-    print("RustFS Storage API loaded - replacing MinIO")
-except ImportError as e:
-    print(f"Warning: RustFS API module not available: {e}")
-
-# Import Docker & LXC Management router
-try:
-    from docker_lxc_api import router as docker_lxc_router
-    app.include_router(docker_lxc_router)
-    print("Docker & LXC Management API loaded")
-except ImportError as e:
-    print(f"Warning: Docker/LXC API module not available: {e}")
-
-# CORS configuration - restrict to known origins in production
-# For development/development, consider using environment variable
-_allowed_origins = os.environ.get("FORGEOS_CORS_ORIGINS", "").split(",") if os.environ.get("FORGEOS_CORS_ORIGINS") else ["*"]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# ────────────────────────────────────────────────────────────
-# AUTH
-# ────────────────────────────────────────────────────────────
+API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-def load_users() -> dict:
-    if USERS_FILE.exists():
-        return json.loads(USERS_FILE.read_text())
-    # No default user - require first-time setup via installer
-    # This prevents hardcoded default credentials in production
-    return {}
-
-
-def create_token(username: str, role: str) -> str:
-    payload = {
-        "sub": username,
-        "role": role,
-        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE),
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
-
-
-def verify_token(request: Request) -> dict:
+async def verify_api_key_or_token(request: Request) -> dict:
+    """
+    Authenticate using either JWT token or API key.
+    Priority: JWT token > API key > No auth (for public endpoints).
+    """
+    # Try JWT first
     token = request.headers.get("Authorization", "").removeprefix("Bearer ")
     if not token:
-        # Also check cookie for browser-based UI
         token = request.cookies.get("forgeos_token", "")
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-        return payload
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    if token:
+        try:
+            return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        except JWTError:
+            pass
+    
+    # Try API key
+    api_key = await API_KEY_HEADER(request)
+    if api_key:
+        from api_keys import verify_api_key as verify_key
+        key_info = verify_key(api_key)
+        if key_info:
+            return {
+                "sub": key_info["user"],
+                "role": "api_key",
+                "permissions": key_info["permissions"],
+                "api_key_id": key_info["id"],
+            }
+    
+    # No valid auth
+    raise HTTPException(status_code=401, detail="Not authenticated")
 
 
 # ── Audit Logger ──
