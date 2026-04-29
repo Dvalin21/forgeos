@@ -1,0 +1,13 @@
+{
+  "id": "sample-plugin",
+  "name": "Sample Plugin",
+  "version": "1.0.0",
+  "description": "A sample ForgeOS plugin demonstrating the plugin system",
+  "author": "ForgeOS Team",
+  "entrypoint": "main.py",
+  "permissions": ["filesystem:read", "network:outbound"],
+  "hooks": ["menu:tools=Sample Plugin"],
+  "api_prefix": "/api/plugins/sample-plugin",
+  "dependencies": {},
+  "icon": "icon.svg"
+}
