@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup & Restore - ForgeOS</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #000;
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h2 {
+            color: #00d4ff;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+        .section {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            color: #00d4ff;
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .backup-tool {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tool-info {
+            flex: 1;
+        }
+        .tool-name {
+            color: #e0e0e0;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .tool-desc {
+            color: #888;
+            font-size: 13px;
+        }
+        .tool-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .status-installed {
+            background: rgba(0, 255, 136, 0.1);
+            color: #00ff88;
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+        .status-not-installed {
+            background: rgba(255, 68, 68, 0.1);
+            color: #ff4444;
+            border: 1px solid rgba(255, 68, 68, 0.3);
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #00d4ff;
+            color: #000;
+        }
+        .btn-primary:hover {
+            background: #00b8e6;
+        }
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e0e0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .btn-success {
+            background: #00ff88;
+            color: #000;
+        }
+        .btn-success:hover {
+            background: #00cc6a;
+        }
+        .backup-list {
+            margin-top: 16px;
+        }
+        .backup-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .backup-info {
+            flex: 1;
+        }
+        .backup-name {
+            color: #e0e0e0;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+        .backup-meta {
+            color: #888;
+            font-size: 12px;
+        }
+        .backup-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .alert {
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .alert-info {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            color: #00d4ff;
+        }
+        .alert-success {
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+        }
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-label {
+            display: block;
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #e0e0e0;
+            font-size: 14px;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Backup & Restore</h2>
+        
+        <div id="alert-area"></div>
+        
+        <!-- BorgBackup Section -->
+        <div class="section">
+            <div class="section-title">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/>
+                    <path d="M3 9h18"/>
+                </svg>
+                BorgBackup
+            </div>
+            
+            <div class="backup-tool">
+                <div class="tool-info">
+                    <div class="tool-name">BorgBackup</div>
+                    <div class="tool-desc">Deduplicating backup program with compression and encryption</div>
+                </div>
+                <div class="tool-status">
+                    <span id="borg-status" class="status-badge status-not-installed">Not Installed</span>
+                    <button class="btn btn-secondary" onclick="checkBorg()">Check</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Backup Location:</label>
+                <input type="text" class="form-input" id="borg-repo" placeholder="/mnt/backup/borg-repo">
+            </div>
+            
+            <div class="backup-actions" style="margin-top: 12px;">
+                <button class="btn btn-primary" onclick="createBorgBackup()">Create Backup</button>
+                <button class="btn btn-secondary" onclick="listBorgBackups()">List Backups</button>
+            </div>
+            
+            <div id="borg-backups" class="backup-list"></div>
+        </div>
+        
+        <!-- Restic Section -->
+        <div class="section">
+            <div class="section-title">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                    <path d="M2 17l10 5 10-5"/>
+                    <path d="M2 12l10 5 10-5"/>
+                </svg>
+                Restic
+            </div>
+            
+            <div class="backup-tool">
+                <div class="tool-info">
+                    <div class="tool-name">Restic</div>
+                    <div class="tool-desc">Fast, secure backup program with multiple backend support</div>
+                </div>
+                <div class="tool-status">
+                    <span id="restic-status" class="status-badge status-not-installed">Not Installed</span>
+                    <button class="btn btn-secondary" onclick="checkRestic()">Check</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Repository:</label>
+                <input type="text" class="form-input" id="restic-repo" placeholder="sftp:user@host:/path/to/repo">
+            </div>
+            
+            <div class="backup-actions" style="margin-top: 12px;">
+                <button class="btn btn-primary" onclick="createResticBackup()">Create Backup</button>
+                <button class="btn btn-secondary" onclick="listResticSnapshots()">List Snapshots</button>
+            </div>
+            
+            <div id="restic-snapshots" class="backup-list"></div>
+        </div>
+        
+        <!-- Rclone Section -->
+        <div class="section">
+            <div class="section-title">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M2 12h20"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+                Rclone
+            </div>
+            
+            <div class="backup-tool">
+                <div class="tool-info">
+                    <div class="tool-name">Rclone</div>
+                    <div class="tool-desc">Command-line tool for syncing files to cloud storage</div>
+                </div>
+                <div class="tool-status">
+                    <span id="rclone-status" class="status-badge status-not-installed">Not Installed</span>
+                    <button class="btn btn-secondary" onclick="checkRclone()">Check</button>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Remote:</label>
+                <input type="text" class="form-input" id="rclone-remote" placeholder="gdrive:/backup">
+            </div>
+            
+            <div class="backup-actions" style="margin-top: 12px;">
+                <button class="btn btn-primary" onclick="syncWithRclone()">Sync to Cloud</button>
+                <button class="btn btn-secondary" onclick="listRcloneRemotes()">List Remotes</button>
+            </div>
+        </div>
+        
+        <!-- Restore Section -->
+        <div class="section">
+            <div class="section-title">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Quick Restore
+            </div>
+            
+            <div class="alert alert-info">
+                Select a backup tool and backup to restore from the lists above.
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Restore Location:</label>
+                <input type="text" class="form-input" id="restore-path" placeholder="/mnt/restore">
+            </div>
+            
+            <button class="btn btn-success" onclick="restoreBackup()">Restore Selected Backup</button>
+        </div>
+    </div>
+    
+    <script>
+        const token = localStorage.getItem('forgeos_token') || '';
+        
+        // Check status on load
+        window.onload = function() {
+            checkBorg();
+            checkRestic();
+            checkRclone();
+        };
+        
+        async function checkBorg() {
+            try {
+                const resp = await fetch('/api/backup/borg/status', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await resp.json();
+                const badge = document.getElementById('borg-status');
+                if (data.installed) {
+                    badge.textContent = 'Installed';
+                    badge.className = 'status-badge status-installed';
+                } else {
+                    badge.textContent = 'Not Installed';
+                    badge.className = 'status-badge status-not-installed';
+                }
+            } catch (e) {
+                console.error('Failed to check Borg:', e);
+            }
+        }
+        
+        async function checkRestic() {
+            try {
+                const resp = await fetch('/api/backup/restic/status', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await resp.json();
+                const badge = document.getElementById('restic-status');
+                if (data.installed) {
+                    badge.textContent = 'Installed';
+                    badge.className = 'status-badge status-installed';
+                } else {
+                    badge.textContent = 'Not Installed';
+                    badge.className = 'status-badge status-not-installed';
+                }
+            } catch (e) {
+                console.error('Failed to check Restic:', e);
+            }
+        }
+        
+        async function checkRclone() {
+            try {
+                const resp = await fetch('/api/backup/rclone/status', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await resp.json();
+                const badge = document.getElementById('rclone-status');
+                if (data.installed) {
+                    badge.textContent = 'Installed';
+                    badge.className = 'status-badge status-installed';
+                } else {
+                    badge.textContent = 'Not Installed';
+                    badge.className = 'status-badge status-not-installed';
+                }
+            } catch (e) {
+                console.error('Failed to check Rclone:', e);
+            }
+        }
+        
+        async function createBorgBackup() {
+            const repo = document.getElementById('borg-repo').value;
+            if (!repo) {
+                showAlert('Please specify a Borg repository path', 'info');
+                return;
+            }
+            try {
+                showAlert('Creating Borg backup...', 'info');
+                const resp = await fetch('/api/backup/borg/backup', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ repo: repo })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    showAlert('Borg backup created successfully!', 'success');
+                    listBorgBackups();
+                } else {
+                    showAlert('Failed: ' + (data.detail || 'Unknown error'), 'info');
+                }
+            } catch (e) {
+                showAlert('Error: ' + e.message, 'info');
+            }
+        }
+        
+        async function listBorgBackups() {
+            try {
+                const resp = await fetch('/api/backup/borg/list', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await resp.json();
+                const container = document.getElementById('borg-backups');
+                container.innerHTML = '';
+                
+                if (data.archives && data.archives.length > 0) {
+                    data.archives.forEach(backup => {
+                        const div = document.createElement('div');
+                        div.className = 'backup-item';
+                        div.innerHTML = `
+                            <div class="backup-info">
+                                <div class="backup-name">${backup.name}</div>
+                                <div class="backup-meta">${new Date(backup.time).toLocaleString()} | ${backup.stats.original_size ? Math.round(backup.stats.original_size / 1e9 * 10) / 10 + ' GB' : 'N/A'}</div>
+                            </div>
+                            <div class="backup-actions">
+                                <button class="btn btn-secondary" onclick="restoreBorgBackup('${backup.name}')">Restore</button>
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                } else {
+                    container.innerHTML = '<div style="color:#888;font-size:13px;">No backups found</div>';
+                }
+            } catch (e) {
+                console.error('Failed to list Borg backups:', e);
+            }
+        }
+        
+        async function createResticBackup() {
+            const repo = document.getElementById('restic-repo').value;
+            if (!repo) {
+                showAlert('Please specify a Restic repository', 'info');
+                return;
+            }
+            try {
+                showAlert('Creating Restic backup...', 'info');
+                const resp = await fetch('/api/backup/restic/backup', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ repo: repo })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    showAlert('Restic backup created successfully!', 'success');
+                    listResticSnapshots();
+                } else {
+                    showAlert('Failed: ' + (data.detail || 'Unknown error'), 'info');
+                }
+            } catch (e) {
+                showAlert('Error: ' + e.message, 'info');
+            }
+        }
+        
+        async function listResticSnapshots() {
+            try {
+                const resp = await fetch('/api/backup/restic/snapshot', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await resp.json();
+                const container = document.getElementById('restic-snapshots');
+                container.innerHTML = '';
+                
+                if (data.snapshots && data.snapshots.length > 0) {
+                    data.snapshots.forEach(snap => {
+                        const div = document.createElement('div');
+                        div.className = 'backup-item';
+                        div.innerHTML = `
+                            <div class="backup-info">
+                                <div class="backup-name">${snap.short_id}</div>
+                                <div class="backup-meta">${new Date(snap.time).toLocaleString()} | ${snap.paths ? snap.paths.join(', ') : 'N/A'}</div>
+                            </div>
+                            <div class="backup-actions">
+                                <button class="btn btn-secondary" onclick="restoreResticSnapshot('${snap.id}')">Restore</button>
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                } else {
+                    container.innerHTML = '<div style="color:#888;font-size:13px;">No snapshots found</div>';
+                }
+            } catch (e) {
+                console.error('Failed to list Restic snapshots:', e);
+            }
+        }
+        
+        async function syncWithRclone() {
+            const remote = document.getElementById('rclone-remote').value;
+            if (!remote) {
+                showAlert('Please specify an Rclone remote', 'info');
+                return;
+            }
+            try {
+                showAlert('Syncing with Rclone...', 'info');
+                const resp = await fetch('/api/backup/rclone/sync', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ remote: remote })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    showAlert('Rclone sync completed!', 'success');
+                } else {
+                    showAlert('Failed: ' + (data.detail || 'Unknown error'), 'info');
+                }
+            } catch (e) {
+                showAlert('Error: ' + e.message, 'info');
+            }
+        }
+        
+        function restoreBackup() {
+            showAlert('Please select a specific backup to restore from the lists above', 'info');
+        }
+        
+        function restoreBorgBackup(name) {
+            if (!confirm('Restore backup ' + name + '?')) return;
+            // Implement restore logic
+            showAlert('Restore functionality coming soon for ' + name, 'info');
+        }
+        
+        function restoreResticSnapshot(id) {
+            if (!confirm('Restore snapshot ' + id + '?')) return;
+            // Implement restore logic
+            showAlert('Restore functionality coming soon for ' + id, 'info');
+        }
+        
+        function showAlert(message, type) {
+            const alertArea = document.getElementById('alert-area');
+            alertArea.innerHTML = `
+                <div class="alert alert-${type}">
+                    ${message}
+                </div>
+            `;
+            setTimeout(() => {
+                alertArea.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
