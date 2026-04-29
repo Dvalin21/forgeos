@@ -230,6 +230,15 @@ class ForgeTopnav extends HTMLElement {
             </svg>
             Docker
           </button>
+          <button class="nav-item" data-page="filedb">
+            <svg class="svg-icon svg-icon-sm" viewBox="0 0 24 24">
+              <path d="M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/>
+              <line x1="6" y1="8" x2="18" y2="8"/>
+              <line x1="6" y1="12" x2="18" y2="12"/>
+              <line x1="6" y1="16" x2="18" y2="16"/>
+            </svg>
+            FileDB
+          </button>
           ${this.mailInstalled ? '<button class="nav-item" data-page="mail"><svg class="svg-icon svg-icon-sm" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> Mail</button>' : ''}
         </div>
         <div class="right">

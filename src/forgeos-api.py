@@ -42,6 +42,13 @@ from jose import JWTError, jwt
 # ────────────────────────────────────────────────────────────
 # CONFIG
 # ────────────────────────────────────────────────────────────
+
+# Import ForgeFileDB router
+try:
+    from filedb_api import router as filedb_router
+    app.include_router(filedb_router)
+except ImportError:
+    print("Warning: ForgeFileDB API module not available")
 CONFIG_FILE = Path("/etc/forgeos/forgeos.conf")
 USERS_FILE  = Path("/etc/forgeos/api-users.json")
 # JWT secret MUST be set - never run with default

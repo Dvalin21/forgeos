@@ -76,6 +76,18 @@ body {
   flex-shrink: 0;
   z-index: 100;
 }
+#topbar .back-link {
+  color: var(--t2);
+  text-decoration: none;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s;
+}
+#topbar .back-link:hover {
+  color: var(--filedb);
+}
 .logo {
   display: flex; align-items: center; gap: 10px;
   font-family: var(--head); font-weight: 700;
@@ -395,12 +407,19 @@ body {
 <body>
 
 <!-- TOP BAR -->
-<div id="topbar">
-  <div class="logo">
-    <div class="logo-icon"></div>
-    <div>
-      <div class="logo-name">ForgeFileDB</div>
-      <div class="logo-sub">File-Based DB Coordinator</div>
+  <div id="topbar">
+    <a href="/desktop/" class="back-link" title="Back to Dashboard">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10 12L6 8l4-4"/>
+      </svg>
+      Back
+    </a>
+    <div class="logo">
+      <div class="logo-icon"></div>
+      <div>
+        <div class="logo-name">ForgeFileDB</div>
+        <div class="logo-sub">Distributed Lock & Snapshot</div>
+      </div>
     </div>
   </div>
   <div id="topbar-stats">
@@ -833,7 +852,7 @@ async function loadDatabases() {
   const el = document.getElementById('db-groups');
   el.innerHTML = '<div class="empty"><div class="empty-ico">🔍</div>Scanning...</div>';
   try {
-    const r = await fetch(`${API}/api/databases`);
+    const r = await fetch(`${API}/api/filedb/databases`);
     const data = await r.json();
     _dbs = data.databases || [];
     if (!_dbs.length) {
@@ -871,7 +890,7 @@ function fmtSize(b) {
 }
 
 async function snapDir(dir) {
-  await fetch(`${API}/api/snapshots`, {
+  await fetch(`${API}/api/filedb/snapshots`, {
     method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({db_dir: dir, reason: 'manual:ui'})
   });
@@ -888,7 +907,7 @@ document.getElementById('snap-all-btn')?.addEventListener('click', async () => {
 async function loadSnapshots() {
   const el = document.getElementById('snaps-list');
   try {
-    const r = await fetch(`${API}/api/snapshots`);
+    const r = await fetch(`${API}/api/filedb/snapshots`);
     const data = await r.json();
     _snapshots = data.snapshots || [];
     document.getElementById('nav-snaps').textContent = _snapshots.length;
@@ -941,7 +960,7 @@ document.getElementById('restore-btn')?.addEventListener('click', () => {
     document.getElementById('modal-restore').classList.remove('vis');
     document.getElementById('restore-status').textContent = 'Restoring…';
     try {
-      const r = await fetch(`${API}/api/snapshots/restore`, {
+      const r = await fetch(`${API}/api/filedb/snapshots/restore`, {
         method: 'POST', headers: {'Content-Type':'application/json'},
         body: JSON.stringify({snap_ts: ts, db_dir: dbDir, target_dir: target || null})
       });
@@ -962,7 +981,7 @@ document.getElementById('modal-cancel')?.addEventListener('click', () => {
 // ── Settings ──
 async function loadSettings() {
   try {
-    const r = await fetch(`${API}/api/settings`);
+    const r = await fetch(`${API}/api/filedb/settings`);
     const s = await r.json();
     document.getElementById('s-debounce').value = s.snapshot_debounce_sec;
     document.getElementById('s-maxsnaps').value = s.max_snapshots;
@@ -979,7 +998,7 @@ document.getElementById('save-settings')?.addEventListener('click', async () => 
     watch_root: document.getElementById('s-watchroot').value,
   };
   try {
-    await fetch(`${API}/api/settings`, {
+    await fetch(`${API}/api/filedb/settings`, {
       method: 'PUT', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(body)
     });
@@ -992,7 +1011,7 @@ document.getElementById('save-settings')?.addEventListener('click', async () => 
 // ── Logs ──
 async function loadLogs() {
   try {
-    const r = await fetch(`${API}/api/log?lines=200`);
+    const r = await fetch(`${API}/api/filedb/log?lines=200`);
     const data = await r.json();
     const el = document.getElementById('log-area');
     el.innerHTML = data.lines.map(line => {
@@ -1026,8 +1045,8 @@ document.getElementById('clear-log')?.addEventListener('click', () => {
 // ── Init ──
 connectWS();
 // Initial REST fetch as fallback
-fetch(`${API}/api/status`).then(r => r.json()).then(updateStatus).catch(() => {});
-fetch(`${API}/health`).then(r => r.json()).then(d => {
+fetch(`${API}/api/filedb/status`).then(r => r.json()).then(updateStatus).catch(() => {});
+fetch(`${API}/api/health`).then(r => r.json()).then(d => {
   document.getElementById('footer-host').textContent = d.product + ' ' + d.version;
 }).catch(() => {});
 </script>
