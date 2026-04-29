@@ -1,0 +1,192 @@
+/* ForgeOS Mobile Responsive Design */
+
+/* ========== Mobile First (320px+) ========== */
+@media (max-width: 480px) {
+    /* Hide desktop sidebar */
+    .sidebar {
+        position: fixed;
+        left: -250px;
+        width: 250px;
+        height: 100vh;
+        z-index: 1000;
+        transition: left 0.3s ease;
+    }
+    
+    .sidebar.active {
+        left: 0;
+    }
+    
+    /* Full-screen windows */
+    .window {
+        width: 100% !important;
+        height: calc(100vh - 60px) !important;
+        top: 0 !important;
+        left: 0 !important;
+        border-radius: 0;
+    }
+    
+    /* Mobile tab bar (bottom) */
+    .mobile-tabbar {
+        display: flex;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 60px;
+        background: rgba(0, 0, 0, 0.95);
+        backdrop-filter: blur(20px);
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        z-index: 999;
+        justify-content: space-around;
+        align-items: center;
+    }
+    
+    .mobile-tab {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        padding: 8px;
+        color: #888;
+        font-size: 10px;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+    
+    .mobile-tab.active {
+        color: #00d4ff;
+    }
+    
+    .mobile-tab svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    /* Hide desktop taskbar */
+    .taskbar {
+        display: none;
+    }
+    
+    /* Adjust topbar */
+    .topbar {
+        padding: 0 12px;
+    }
+    
+    .topbar-time {
+        font-size: 12px;
+    }
+}
+
+/* ========== Tablet (768px+) ========== */
+@media (min-width: 768px) and (max-width: 1024px) {
+    /* Collapsible sidebar */
+    .sidebar {
+        width: 60px;
+        transition: width 0.3s ease;
+    }
+    
+    .sidebar:hover {
+        width: 220px;
+    }
+    
+    .sidebar span:not(.sidebar-icon) {
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    
+    .sidebar:hover span:not(.sidebar-icon) {
+        opacity: 1;
+    }
+    
+    /* Window grid for tablet */
+    .window-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+    }
+    
+    /* Show mobile tab bar on tablet too */
+    .mobile-tabbar {
+        display: flex;
+    }
+    
+    .taskbar {
+        display: none;
+    }
+}
+
+/* ========== Desktop (1025px+) ========== */
+@media (min-width: 1025px) {
+    /* Full sidebar */
+    .sidebar {
+        width: 220px;
+    }
+    
+    /* Hide mobile tab bar */
+    .mobile-tabbar {
+        display: none;
+    }
+    
+    /* Show taskbar */
+    .taskbar {
+        display: flex;
+    }
+}
+
+/* ========== Touch Enhancements ========== */
+@media (pointer: coarse) {
+    /* Larger touch targets */
+    .sidebar-item {
+        min-height: 48px;
+        padding: 12px 16px;
+    }
+    
+    .btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    .window-control {
+        width: 32px;
+        height: 32px;
+    }
+    
+    /* Swipe indicators */
+    .swipe-hint {
+        position: fixed;
+        top: 50%;
+        left: 10px;
+        width: 4px;
+        height: 60px;
+        background: rgba(0, 212, 255, 0.3);
+        border-radius: 2px;
+        z-index: 100;
+    }
+}
+
+/* ========== Orientation Handling ========== */
+@media (orientation: landscape) and (max-height: 500px) {
+    .mobile-tabbar {
+        height: 50px;
+    }
+    
+    .window {
+        height: calc(100vh - 50px) !important;
+    }
+}
+
+/* ========== Print Styles ========== */
+@media print {
+    .sidebar,
+    .taskbar,
+    .mobile-tabbar,
+    .topbar {
+        display: none !important;
+    }
+    
+    .window {
+        width: 100% !important;
+        height: auto !important;
+        box-shadow: none !important;
+    }
+}
