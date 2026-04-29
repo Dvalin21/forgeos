@@ -1023,6 +1023,146 @@ async def ws_logs(ws: WebSocket):
         proc.kill()
 
 # ────────────────────────────────────────────────────────────
+# WEBSOCKET — DOCKER CONTAINER TERMINAL
+# ────────────────────────────────────────────────────────────
+@app.websocket("/ws/docker/exec/{container}")
+async def ws_docker_exec(ws: WebSocket, container: str):
+    """WebSocket terminal for Docker container exec."""
+    await ws.accept()
+    
+    token = ws.query_params.get("token", "")
+    try:
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except JWTError:
+        await ws.close(code=4001, reason="Unauthorized")
+        return
+    
+    # Start docker exec with PTY
+    proc = await asyncio.create_subprocess_exec(
+        "docker", "exec", "-it", container, "sh",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    
+    if proc.stdin is None or proc.stdout is None:
+        await ws.close(code=4002, reason="Failed to start container shell")
+        return
+    
+    # Set terminal size helper
+    async def set_size(rows: int, cols: int):
+        try:
+            # Docker doesn't support TIOCSWINSZ directly via exec
+            # Would need docker exec -e COLUMNS=cols -e LINES=rows
+            pass
+        except Exception:
+            pass
+    
+    # Forward WebSocket to process
+    async def ws_to_proc():
+        try:
+            while True:
+                data = await ws.receive_text()
+                if data.startswith("RESIZE:"):
+                    # Handle terminal resize
+                    try:
+                        _, size = data.split(":", 1)
+                        cols, rows = map(int, size.split(","))
+                        await set_size(rows, cols)
+                    except Exception:
+                        pass
+                else:
+                    proc.stdin.write(data.encode())
+                    await proc.stdin.drain()
+        except WebSocketDisconnect:
+            proc.kill()
+        except Exception:
+            pass
+    
+    async def proc_to_ws():
+        try:
+            while True:
+                data = await proc.stdout.read(4096)
+                if not data:
+                    break
+                await ws.send_text(data.decode("utf-8", errors="replace"))
+        except Exception:
+            pass
+    
+    await asyncio.gather(
+        asyncio.create_task(ws_to_proc()),
+        asyncio.create_task(proc_to_ws()),
+        return_exceptions=True,
+    )
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+# ────────────────────────────────────────────────────────────
+# WEBSOCKET — LXC CONTAINER TERMINAL
+# ────────────────────────────────────────────────────────────
+@app.websocket("/ws/lxc/exec/{container}")
+async def ws_lxc_exec(ws: WebSocket, container: str):
+    """WebSocket terminal for LXC container exec."""
+    await ws.accept()
+    
+    token = ws.query_params.get("token", "")
+    try:
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except JWTError:
+        await ws.close(code=4001, reason="Unauthorized")
+        return
+    
+    # Start lxc exec with PTY
+    proc = await asyncio.create_subprocess_exec(
+        "lxc", "exec", container, "--", "bash", "-l",
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    
+    if proc.stdin is None or proc.stdout is None:
+        await ws.close(code=4002, reason="Failed to start container shell")
+        return
+    
+    # Forward WebSocket to process
+    async def ws_to_proc():
+        try:
+            while True:
+                data = await ws.receive_text()
+                if data.startswith("RESIZE:"):
+                    # Handle terminal resize if needed
+                    pass
+                else:
+                    proc.stdin.write(data.encode())
+                    await proc.stdin.drain()
+        except WebSocketDisconnect:
+            proc.kill()
+        except Exception:
+            pass
+    
+    async def proc_to_ws():
+        try:
+            while True:
+                data = await proc.stdout.read(4096)
+                if not data:
+                    break
+                await ws.send_text(data.decode("utf-8", errors="replace"))
+        except Exception:
+            pass
+    
+    await asyncio.gather(
+        asyncio.create_task(ws_to_proc()),
+        asyncio.create_task(proc_to_ws()),
+        return_exceptions=True,
+    )
+    try:
+        proc.kill()
+    except Exception:
+        pass
+
+# ────────────────────────────────────────────────────────────
 # STATIC WEB UI
 # ────────────────────────────────────────────────────────────
 if WEB_ROOT.exists():
