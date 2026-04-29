@@ -74,7 +74,7 @@ def _load_jwt_secret() -> str:
 JWT_SECRET  = _load_jwt_secret()
 JWT_ALGO    = "HS256"
 JWT_EXPIRE  = 12  # hours
-WEB_ROOT    = Path("/opt/forgeos/web")
+WEB_ROOT    = Path(os.environ.get("FORGEOS_WEB_ROOT", "/opt/forgeos/web"))
 
 # Load config from forgeos.conf
 _conf: dict[str, str] = {}
@@ -1028,10 +1028,11 @@ else:
 # ENTRY POINT
 # ────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    port = int(os.environ.get("FORGEOS_PORT", "5082"))
     uvicorn.run(
         "forgeos-api:app",
         host="0.0.0.0",
-        port=5082,
+        port=port,
         reload=False,
         log_level="warning",
         access_log=False,
