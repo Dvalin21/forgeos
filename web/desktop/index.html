@@ -1100,77 +1100,7 @@ body {
   
 </div>
 
-<script>
-// Clock update
-function updateClock() {
-  const now = new Date();
-  const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const date = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  document.getElementById('clk-time').textContent = time;
-  document.getElementById('clk-date').textContent = date;
-}
-updateClock();
-setInterval(updateClock, 1000);
-
-// Sidebar click handlers
-document.querySelectorAll('.sidebar-item').forEach(item => {
-  item.addEventListener('click', function() {
-    document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
-    this.classList.add('active');
-  });
-});
-
-// Taskbar click handlers
-document.querySelectorAll('.taskbar-item').forEach(item => {
-  item.addEventListener('click', function() {
-    document.querySelectorAll('.taskbar-item').forEach(i => i.classList.remove('active'));
-    this.classList.add('active');
-  });
-});
-
-// Toggle sidebar (for mobile)
-function toggleSidebar() {
-  const sidebar = document.getElementById('sidebar');
-  sidebar.classList.toggle('open');
-}
-
-// Window drag functionality (basic implementation)
-const windows = document.querySelectorAll('.window');
-windows.forEach(win => {
-  const titlebar = win.querySelector('.window-titlebar');
-  let isDragging = false;
-  let currentX;
-  let currentY;
-  let initialX;
-  let initialY;
-  
-  titlebar.addEventListener('mousedown', function(e) {
-    if (e.target.closest('.window-btn')) return;
-    isDragging = true;
-    initialX = e.clientX - win.offsetLeft;
-    initialY = e.clientY - win.offsetTop;
-    win.style.zIndex = 100;
-  });
-  
-  document.addEventListener('mousemove', function(e) {
-    if (!isDragging) return;
-    e.preventDefault();
-    currentX = e.clientX - initialX;
-    currentY = e.clientY - initialY;
-    win.style.left = currentX + 'px';
-    win.style.top = currentY + 'px';
-  });
-  
-  document.addEventListener('mouseup', function() {
-    isDragging = false;
-  });
-});
-
-// Smooth scroll for webkit browsers
-document.querySelectorAll('.window-content').forEach(content => {
-  content.style.scrollBehavior = 'smooth';
-});
-</script>
+<script src="js/window-manager.js"></script>
 
 </body>
 </html>
