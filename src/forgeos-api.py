@@ -42,13 +42,6 @@ from jose import JWTError, jwt
 # ────────────────────────────────────────────────────────────
 # CONFIG
 # ────────────────────────────────────────────────────────────
-
-# Import ForgeFileDB router
-try:
-    from filedb_api import router as filedb_router
-    app.include_router(filedb_router)
-except ImportError:
-    print("Warning: ForgeFileDB API module not available")
 CONFIG_FILE = Path("/etc/forgeos/forgeos.conf")
 USERS_FILE  = Path("/etc/forgeos/api-users.json")
 # JWT secret MUST be set - never run with default
@@ -100,6 +93,13 @@ def conf(key: str, default: str = "") -> str:
 # APP
 # ────────────────────────────────────────────────────────────
 app = FastAPI(title="ForgeOS API", version="1.0", docs_url=None, redoc_url=None)
+
+# Import ForgeFileDB router (after app is created)
+try:
+    from filedb_api import router as filedb_router
+    app.include_router(filedb_router)
+except ImportError as e:
+    print(f"Warning: ForgeFileDB API module not available: {e}")
 
 # CORS configuration - restrict to known origins in production
 # For development/development, consider using environment variable
