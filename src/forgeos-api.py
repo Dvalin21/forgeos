@@ -179,10 +179,187 @@ async def login(req: LoginRequest):
     user = users.get(req.username)
     if not user or not pwd_ctx.verify(req.password, user["hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Check if 2FA is enabled
+    if user.get("totp_enabled", False):
+        # Return temporary token for 2FA verification
+        temp_payload = {
+            "sub": req.username,
+            "role": user["role"],
+            "totp_pending": True,
+            "exp": datetime.utcnow() + timedelta(minutes=5),  # Short expiry for temp token
+        }
+        temp_token = jwt.encode(temp_payload, JWT_SECRET, algorithm=JWT_ALGO)
+        return {
+            "requires_2fa": True,
+            "temp_token": temp_token,
+            "username": req.username
+        }
+    
+    # No 2FA - return full token
     token = create_token(req.username, user["role"])
     resp = JSONResponse({"token": token, "username": req.username, "role": user["role"]})
     resp.set_cookie("forgeos_token", token, httponly=True, samesite="strict", max_age=JWT_EXPIRE * 3600)
     return resp
+
+
+@app.post("/api/auth/verify-2fa")
+async def verify_2fa(body: dict):
+    """Verify 2FA TOTP code after login."""
+    temp_token = body.get("temp_token", "")
+    code = body.get("code", "")
+    
+    if not temp_token or not code:
+        raise HTTPException(status_code=400, detail="Missing token or code")
+    
+    try:
+        payload = jwt.decode(temp_token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    if not payload.get("totp_pending"):
+        raise HTTPException(status_code=400, detail="Not a 2FA pending token")
+    
+    username = payload.get("sub")
+    users = load_users()
+    user = users.get(username)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Verify TOTP code
+    from auth_2fa import verify_totp_code, verify_backup_code
+    
+    totp_secret = user.get("totp_secret")
+    if not totp_secret:
+        raise HTTPException(status_code=400, detail="2FA not set up for this user")
+    
+    # Try TOTP first, then backup code
+    if verify_totp_code(totp_secret, code):
+        # Success - return full JWT token
+        token = create_token(username, user["role"])
+        resp = JSONResponse({"token": token, "username": username, "role": user["role"]})
+        resp.set_cookie("forgeos_token", token, httponly=True, samesite="strict", max_age=JWT_EXPIRE * 3600)
+        return resp
+    
+    # Try backup code
+    if verify_backup_code(username, code):
+        # Success with backup code
+        token = create_token(username, user["role"])
+        resp = JSONResponse({"token": token, "username": username, "role": user["role"], "warning": "Used backup code"})
+        resp.set_cookie("forgeos_token", token, httponly=True, samesite="strict", max_age=JWT_EXPIRE * 3600)
+        return resp
+    
+    raise HTTPException(status_code=401, detail="Invalid 2FA code")
+
+
+# ────────────────────────────────────────────────────────────
+# 2FA MANAGEMENT ENDPOINTS
+# ────────────────────────────────────────────────────────────
+
+@app.get("/api/auth/2fa/setup")
+async def setup_2fa(user=Depends(verify_token)):
+    """Generate TOTP secret and QR code for 2FA setup."""
+    from auth_2fa import (
+        generate_totp_secret,
+        generate_provisioning_uri,
+        generate_qr_code_base64,
+    )
+    
+    username = user["sub"]
+    secret = generate_totp_secret()
+    uri = generate_provisioning_uri(username, secret)
+    qr_base64 = generate_qr_code_base64(uri)
+    
+    return {
+        "secret": secret,
+        "provisioning_uri": uri,
+        "qr_code_base64": qr_base64,
+    }
+
+
+@app.post("/api/auth/2fa/enable")
+async def enable_2fa(body: dict, user=Depends(verify_token)):
+    """Enable 2FA after verifying the first TOTP code."""
+    from auth_2fa import enable_totp_for_user, verify_totp_code
+    
+    username = user["sub"]
+    secret = body.get("secret", "")
+    code = body.get("code", "")
+    
+    if not secret or not code:
+        raise HTTPException(status_code=400, detail="Missing secret or code")
+    
+    # Verify the code works before enabling
+    if not verify_totp_code(secret, code):
+        raise HTTPException(status_code=400, detail="Invalid TOTP code")
+    
+    # Enable 2FA
+    result = enable_totp_for_user(username, secret)
+    return {
+        "enabled": True,
+        "backup_codes": result.backup_codes,
+        "message": "2FA enabled successfully. Save your backup codes!"
+    }
+
+
+@app.post("/api/auth/2fa/disable")
+async def disable_2fa(body: dict, user=Depends(verify_token)):
+    """Disable 2FA (requires password + TOTP code)."""
+    from auth_2fa import disable_totp_for_user, verify_totp_code
+    
+    username = user["sub"]
+    password = body.get("password", "")
+    code = body.get("code", "")
+    
+    # Verify password
+    users = load_users()
+    user_data = users.get(username)
+    if not user_data or not pwd_ctx.verify(password, user_data["hash"]):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    
+    # Verify TOTP if 2FA is enabled
+    if user_data.get("totp_enabled"):
+        if not code:
+            raise HTTPException(status_code=400, detail="TOTP code required")
+        if not verify_totp_code(user_data.get("totp_secret", ""), code):
+            raise HTTPException(status_code=401, detail="Invalid TOTP code")
+    
+    # Disable 2FA
+    disable_totp_for_user(username)
+    return {"enabled": False, "message": "2FA disabled successfully"}
+
+
+@app.get("/api/auth/2fa/backup-codes")
+async def get_backup_codes(user=Depends(verify_token)):
+    """Get backup codes for user."""
+    from auth_2fa import get_backup_codes
+    
+    username = user["sub"]
+    codes = get_backup_codes(username)
+    return {"backup_codes": codes}
+
+
+@app.post("/api/auth/2fa/regenerate-backup")
+async def regenerate_backup_codes(user=Depends(verify_token)):
+    """Regenerate backup codes (old codes become invalid)."""
+    from auth_2fa import regenerate_backup_codes
+    
+    username = user["sub"]
+    codes = regenerate_backup_codes(username)
+    return {"backup_codes": codes, "message": "Backup codes regenerated"}
+
+
+@app.get("/api/auth/2fa/status")
+async def get_2fa_status(user=Depends(verify_token)):
+    """Check if 2FA is enabled for user."""
+    from auth_2fa import is_totp_enabled
+    
+    username = user["sub"]
+    return {
+        "enabled": is_totp_enabled(username),
+        "username": username
+    }
 
 
 @app.post("/api/auth/logout")
