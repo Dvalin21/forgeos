@@ -149,7 +149,22 @@ async def verify_api_key_or_token(request: Request) -> dict:
     raise HTTPException(status_code=401, detail="Not authenticated")
 
 
-# ── Audit Logger ──
+# ── OAuth2/OIDC Authentication ──
+try:
+    from oauth import (
+        get_provider,
+        list_providers,
+        generate_auth_url,
+        handle_oauth_callback,
+        link_oauth_to_user,
+        unlink_oauth_from_user,
+        get_linked_providers,
+        find_user_by_oauth,
+    )
+    print("OAuth2/OIDC module loaded")
+except ImportError as e:
+    print(f"Warning: OAuth module not available: {e}")
+    get_provider = None
 from audit_log import log_event, AuditEventType
 
 
