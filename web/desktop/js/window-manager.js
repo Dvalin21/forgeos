@@ -172,7 +172,7 @@
       settings: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Settings</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">System settings coming soon...</p></div></div>',
       firewall: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Firewall</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">Firewall rules management coming soon...</p></div></div>',
       fail2ban: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Fail2ban</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">Intrusion detection logs coming soon...</p></div></div>',
-       lxc: '<div style="padding:20px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;"><h3 style="color:var(--text-primary);">LXC Containers</h3><div style="display:flex; gap:8px;"><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-primary); cursor:pointer;" onclick="ForgeOS.lxcRefresh()">↻ Refresh</button><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--accent-primary); background:var(--accent-primary); color:#000; cursor:pointer; font-weight:600;" onclick="ForgeOS.lxcCreate()">Create Container</button></div></div><div style="margin-bottom:12px; padding:8px 12px; background:var(--glass-bg); border-radius:8px; font-size:12px; color:var(--text-secondary);">LXD/LXC: <span style="color:var(--accent-success);">● Active</span> | Containers: <span id="lxc-count">4</span> | Running: <span id="lxc-running">2</span></div><div id="lxc-containers" style="display:flex; flex-direction:column; gap:8px;"><div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;"><div style="display:flex; align-items:center; gap:8px;"><span style="color:var(--accent-success);">●</span><span style="color:var(--text-primary); font-weight:500;">ubuntu-web</span><span style="font-size:11px; color:var(--text-secondary);">Ubuntu 22.04</span></div><div style="display:flex; gap:4px;"><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.lxcAction(\'ubuntu-web\', \'stop\')">Stop</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.lxcAction(\'ubuntu-web\', \'restart\')">Restart</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.lxcExec(\'ubuntu-web\')">Console</button></div></div><div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;"><div style="display:flex; align-items:center; gap:8px;"><span style="color:var(--accent-warning);">○</span><span style="color:var(--text-primary); font-weight:500;">debian-db</span><span style="font-size:11px; color:var(--text-secondary);">Debian 12</span></div><div style="display:flex; gap:4px;"><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--accent-success); background:var(--accent-success); color:#000; cursor:pointer;" onclick="ForgeOS.lxcAction(\'debian-db\', \'start\')">Start</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.lxcAction(\'debian-db\', \'restart\')">Restart</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.lxcExec(\'debian-db\')">Console</button></div></div></div></div>'
+       lxc: '<div style="padding:20px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;"><h3 style="color:var(--text-primary);">LXC Containers</h3><div style="display:flex; gap:8px;"><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-primary); cursor:pointer;" onclick="ForgeOS.lxcRefresh()">↻ Refresh</button><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--accent-primary); background:var(--accent-primary); color:#000; cursor:pointer; font-weight:600;" onclick="ForgeOS.lxcCreate()">Create Container</button></div></div><div style="margin-bottom:12px; padding:8px 12px; background:var(--glass-bg); border-radius:8px; font-size:12px; color:var(--text-secondary);">LXD/LXC: <span style="color:var(--accent-success);">● Active</span> | Containers: <span id="lxc-count">4</span> | Running: <span id="lxc-running">2</span></div><div id="lxc-containers" style="display:flex; flex-direction:column; gap:8px;"><div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;"><div style="display:flex; align-items:center; gap:8px;"><span style="color:var(--accent-success);">●</span><span style="color:var(--text-primary); font-weight:500;">ubuntu-web</span><span style="font-size:11px; color:var(--text-secondary);">Ubuntu 22.04</span></div><div style="display:flex; gap:4px;"><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.lxcAction(\'ubuntu-web\', \'stop\')">Stop</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.lxcAction(\'ubuntu-web\', \'restart\')">Restart</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--accent-success); background:transparent; color:var(--accent-success); cursor:pointer;" onclick="ForgeOS.openTerminal(\'lxc\', \'ubuntu-web\')">Terminal</button></div></div><div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;"><div style="display:flex; align-items:center; gap:8px;"><span style="color:var(--accent-warning);">○</span><span style="color:var(--text-primary); font-weight:500;">debian-db</span><span style="font-size:11px; color:var(--text-secondary);">Debian 12</span></div><div style="display:flex; gap:4px;"><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--accent-success); background:var(--accent-success); color:#000; cursor:pointer;" onclick="ForgeOS.lxcAction(\'debian-db\', \'start\')">Start</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.lxcAction(\'debian-db\', \'restart\')">Restart</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--accent-success); background:transparent; color:var(--accent-success); cursor:pointer;" onclick="ForgeOS.openTerminal(\'lxc\', \'debian-db\')">Terminal</button></div></div></div></div>'
     };
 
     return contents[appName] || '<div style="padding:20px;color:var(--text-muted);">Window content for ' + appName + ' coming soon...</div>';
@@ -466,6 +466,91 @@
     lxcExec: function(container) {
       alert('Opening console for ' + container + ' (WebSocket terminal coming soon)');
       // TODO: Implement WebSocket terminal connection
+    },
+
+    // Terminal access for Docker/LXC containers
+    openTerminal: function(type, container) {
+      var token = localStorage.getItem('forgeos_token') || '';
+      var wsUrl = 'ws://' + window.location.host + '/ws/' + type + '/exec/' + container + '?token=' + encodeURIComponent(token);
+      
+      // Create terminal window
+      var win = window.open('', 'Terminal: ' + container, 'width=800,height=600,scrollbars=yes');
+      win.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Terminal: ${container}</title>
+          <style>
+            body { margin:0; padding:0; background:#000; font-family: monospace; }
+            #terminal { width:100%; height:100vh; background:#000; color:#0f0; padding:10px; box-sizing:border-box; overflow:auto; white-space:pre-wrap; }
+            #input-line { display:flex; align-items:center; }
+            #prompt { color:#0f0; margin-right:5px; }
+            #cmd { background:transparent; border:none; color:#0f0; font-family:monospace; font-size:14px; flex:1; outline:none; }
+          </style>
+        </head>
+        <body>
+          <div id="terminal"></div>
+          <div id="input-line">
+            <span id="prompt">${container}:~$ </span>
+            <input type="text" id="cmd" autofocus />
+          </div>
+          <script>
+            var ws = new WebSocket('${wsUrl}');
+            var term = document.getElementById('terminal');
+            var cmdInput = document.getElementById('cmd');
+            var history = [];
+            var historyIdx = -1;
+            
+            ws.onopen = function() { 
+              term.innerHTML += 'Connected to ${container}...\\n';
+              cmdInput.focus();
+            };
+            
+            ws.onmessage = function(e) {
+              term.innerHTML += e.data;
+              term.scrollTop = term.scrollHeight;
+            };
+            
+            ws.onclose = function() {
+              term.innerHTML += '\\n--- Connection closed ---\\n';
+            };
+            
+            cmdInput.addEventListener('keydown', function(e) {
+              if (e.key === 'Enter') {
+                var cmd = cmdInput.value;
+                term.innerHTML += '${container}:~$ ' + cmd + '\\n';
+                ws.send(cmd + '\\n');
+                history.push(cmd);
+                historyIdx = history.length;
+                cmdInput.value = '';
+                term.scrollTop = term.scrollHeight;
+              } else if (e.key === 'ArrowUp') {
+                if (historyIdx > 0) {
+                  historyIdx--;
+                  cmdInput.value = history[historyIdx];
+                }
+                e.preventDefault();
+              } else if (e.key === 'ArrowDown') {
+                if (historyIdx < history.length - 1) {
+                  historyIdx++;
+                  cmdInput.value = history[historyIdx];
+                } else {
+                  historyIdx = history.length;
+                  cmdInput.value = '';
+                }
+                e.preventDefault();
+              }
+            });
+            
+            // Handle window resize
+            window.addEventListener('resize', function() {
+              // Could send resize to WebSocket here
+            });
+          <\/script>
+        </body>
+        </html>
+      `);
+      win.document.close();
     }
   };
 
