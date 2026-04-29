@@ -1036,14 +1036,15 @@ else:
 # ENTRY POINT
 # ────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    port = int(os.environ.get("FORGEOS_PORT", "5082"))
+    port = int(os.environ.get("FORGEOS_PORT", "5080"))
+    print(f"Starting ForgeOS API on port {port}...")
     uvicorn.run(
-        "forgeos-api:app",
+        "forgeos-api:app" if __package__ is None else app,
         host="0.0.0.0",
         port=port,
         reload=False,
-        log_level="warning",
-        access_log=False,
+        log_level="info",
+        access_log=True,
         workers=1,
     )
 
