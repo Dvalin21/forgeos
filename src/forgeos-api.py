@@ -89,6 +89,26 @@ def conf(key: str, default: str = "") -> str:
     return _conf.get(key, os.environ.get(f"FORGEOS_{key}", default))
 
 
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+
+
+# ── Rate Limiting Configuration ──
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["1000/hour", "100/minute"]  # Generous for internal NAS use
+)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, lambda r, e: JSONResponse(
+    status_code=429,
+    content={"detail": "Rate limit exceeded. Please slow down."}
+))
+app.add_middleware(SlowAPIMiddleware)
+
+
 # ────────────────────────────────────────────────────────────
 # APP
 # ────────────────────────────────────────────────────────────
@@ -172,6 +192,7 @@ def verify_token(request: Request) -> dict:
 
 
 @app.post("/api/auth/login")
+@limiter.limit("5/minute")  # Stricter limit for auth endpoints
 async def login(req: LoginRequest):
     users = load_users()
     if not users:
