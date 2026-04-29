@@ -1,0 +1,107 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ForgeOS Plugin Manifest",
+  "description": "Schema for ForgeOS plugin manifest files",
+  "type": "object",
+  "required": ["id", "name", "version", "entrypoint", "permissions"],
+  
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Unique plugin identifier (lowercase, hyphens allowed)"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "description": "Human-readable plugin name"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version (e.g., 1.0.0)"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Plugin description"
+    },
+    "author": {
+      "type": "string",
+      "description": "Plugin author name/email"
+    },
+    "entrypoint": {
+      "type": "string",
+      "description": "Path to main plugin file (relative to plugin dir)"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "filesystem:read",
+          "filesystem:write",
+          "network:outbound",
+          "network:inbound",
+          "system:info",
+          "system:restart",
+          "docker:read",
+          "docker:write",
+          "lxc:read",
+          "lxc:write",
+          "storage:read",
+          "storage:write"
+        ]
+      },
+      "description": "Required permissions for the plugin"
+    },
+    "hooks": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(file:upload|file:download|menu:tools|menu:settings|system:boot|system:shutdown):.*$"
+      },
+      "description": "Event hooks to register (event:handler)"
+    },
+    "api_prefix": {
+      "type": "string",
+      "pattern": "^/api/plugins/[^/]+$",
+      "description": "API route prefix for plugin endpoints"
+    },
+    "dependencies": {
+      "type": "object",
+      "description": "Python package dependencies",
+      "additionalProperties": {
+        "type": "string",
+        "description": "Package name: version spec"
+      }
+    },
+    "icon": {
+      "type": "string",
+      "description": "Path to plugin icon (SVG/PNG)"
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "Plugin homepage URL"
+    }
+  },
+  
+  "examples": [
+    {
+      "id": "photo-gallery",
+      "name": "Photo Gallery",
+      "version": "1.0.0",
+      "description": "Browse and organize photos",
+      "author": "ForgeOS Team",
+      "entrypoint": "main.py",
+      "permissions": ["filesystem:read", "network:outbound"],
+      "hooks": ["menu:tools=gallery"],
+      "api_prefix": "/api/plugins/photo-gallery",
+      "dependencies": {"pillow": ">=10.0.0"},
+      "icon": "icon.svg",
+      "homepage": "https://forgeos.io/plugins/photo-gallery"
+    }
+  ]
+}
