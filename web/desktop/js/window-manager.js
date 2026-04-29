@@ -166,7 +166,7 @@
       '</div>',
       storage: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Storage Manager</h3><div class="glass-card" style="padding:20px;"><div style="display:flex;flex-direction:column;gap:12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="color:var(--text-primary);">Pool: Main Storage</span><span class="sidebar-badge">ONLINE</span></div><div style="height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;"><div style="width:35%;height:100%;background:var(--accent-primary);border-radius:4px;"></div></div><div style="display:flex;justify-content:space-between;color:var(--text-secondary);font-size:12px;"><span>2.8 TB used</span><span>5.2 TB free</span></div></div></div></div>',
       network: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Network Configuration</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">Network interfaces and configuration coming soon...</p></div></div>',
-      filestation: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">File Station</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">File browser interface coming soon...</p></div></div>',
+      filestation: '<div style="padding:20px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;"><h3 style="color:var(--text-primary);">File Station (RustFS)</h3><div style="display:flex; gap:8px;"><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-primary); cursor:pointer;">Console</button><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--accent-primary); background:var(--accent-primary); color:#000; cursor:pointer; font-weight:600;">Upload</button></div></div><div style="margin-bottom:12px; padding:8px 12px; background:var(--glass-bg); border-radius:8px; font-size:12px; color:var(--text-secondary);">RustFS S3 API: <span style="color:var(--accent-success);">Connected</span> | Port 9000 | Bucket: forgeos-main</div><div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:12px;"><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div style="font-size:32px; margin-bottom:6px;">📁</div><div style="font-size:11px; color:var(--text-secondary);">report.pdf</div></div><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div style="font-size:32px; margin-bottom:6px;">📂</div><div style="font-size:11px; color:var(--text-secondary);">photos/</div></div><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div style="font-size:32px; margin-bottom:6px;">📊</div><div style="font-size:11px; color:var(--text-secondary);">data.csv</div></div><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div style="font-size:32px; margin-bottom:6px;">🗜️</div><div style="font-size:11px; color:var(--text-secondary);">backup.zip</div></div></div></div>',
       filedb: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">ForgeFileDB</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">Database management interface coming soon...</p></div></div>',
       docker: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Docker Containers</h3><div class="glass-card" style="padding:20px;"><div style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;background:var(--glass-bg);"><span style="color:var(--text-primary);">nginx-proxy-manager</span><span class="sidebar-badge success">RUNNING</span></div><div style="display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:6px;background:var(--glass-bg);"><span style="color:var(--text-primary);">portainer</span><span class="sidebar-badge success">RUNNING</span></div></div></div></div>',
       settings: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Settings</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">System settings coming soon...</p></div></div>',
@@ -333,7 +333,30 @@
     toggleSidebar: toggleSidebar,
     focusWindow: focusWindow,
     closeWindow: closeWindow,
-    createWindow: createWindow
+    createWindow: createWindow,
+    getRustFSConsole: getRustFSConsole
   };
+
+  // RustFS Console Content
+  function getRustFSConsole() {
+    return '<div style="display:flex; flex-direction:column; height:100%;">' +
+      '<div style="padding:12px 16px; background:var(--glass-bg); border-bottom:1px solid var(--glass-border); display:flex; justify-content:space-between; align-items:center;">' +
+        '<span style="color:var(--text-primary); font-size:13px; font-weight:600;">RustFS Console (Embedded)</span>' +
+        '<span style="color:var(--text-muted); font-size:11px;">Port 9001 → integrated into ForgeOS</span>' +
+      '</div>' +
+      '<div style="flex:1; display:flex; align-items:center; justify-content:center; background:var(--bg-void);">' +
+        '<div style="text-align:center; color:var(--text-muted);">' +
+          '<div style="font-size:48px; margin-bottom:16px;">🚀</div>' +
+          '<div style="font-size:14px; margin-bottom:8px; color:var(--text-primary);">RustFS Management Console</div>' +
+          '<div style="font-size:12px; margin-bottom:16px;">The full RustFS web console is embedded below in production</div>' +
+          '<div style="display:flex; gap:8px; justify-content:center;">' +
+            '<button style="padding:6px 12px; border-radius:6px; border:1px solid var(--accent-primary); background:var(--accent-primary); color:#000; cursor:pointer; font-weight:600;">Open Console</button>' +
+            '<button style="padding:6px 12px; border-radius:6px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-primary); cursor:pointer;">S3 API Docs</button>' +
+          '</div>' +
+          '<div style="margin-top:20px; font-size:11px; color:var(--text-muted);">S3 API: localhost:9000 | Admin API: localhost:9000/admin/ | License: Apache 2.0</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
 
 })();
