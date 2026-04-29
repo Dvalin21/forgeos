@@ -26,7 +26,9 @@ class NoCacheHTTPRequestHandler(SimpleHTTPRequestHandler):
 def run_server(port=5080, directory=None):
     """Start the HTTP server with no-cache headers."""
     if directory is None:
-        directory = os.getcwd()
+        # Default: serve from web/ subdirectory relative to this script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        directory = os.path.join(script_dir, 'web')
     
     handler = partial(NoCacheHTTPRequestHandler, directory=directory)
     
