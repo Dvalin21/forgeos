@@ -109,6 +109,14 @@ try:
 except ImportError as e:
     print(f"Warning: RustFS API module not available: {e}")
 
+# Import Docker & LXC Management router
+try:
+    from docker_lxc_api import router as docker_lxc_router
+    app.include_router(docker_lxc_router)
+    print("Docker & LXC Management API loaded")
+except ImportError as e:
+    print(f"Warning: Docker/LXC API module not available: {e}")
+
 # CORS configuration - restrict to known origins in production
 # For development/development, consider using environment variable
 _allowed_origins = os.environ.get("FORGEOS_CORS_ORIGINS", "").split(",") if os.environ.get("FORGEOS_CORS_ORIGINS") else ["*"]
@@ -713,15 +721,6 @@ async def docker_action(name: str, action: str, user=Depends(verify_token)):
         return {"output": _run(f"docker logs --tail 50 {name} 2>&1")}
     result = _run(f"docker {action} {name}")
     return {"ok": True, "output": result}
-
-
-@app.get("/api/incus/containers")
-async def incus_containers(user=Depends(verify_token)):
-    out = _run("incus list --format json 2>/dev/null || lxc list --format json 2>/dev/null || echo '[]'")
-    try:
-        return {"containers": json.loads(out)}
-    except Exception:
-        return {"containers": [], "raw": out}
 
 
 @app.get("/api/docker/stats")
