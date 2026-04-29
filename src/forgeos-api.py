@@ -645,7 +645,7 @@ DOCKER_APPS = [
     {"name": "portainer", "image": "portainer/portainer-ce:latest", "port": 9000, "category": "admin"},
     {"name": "homarr", "image": "ghcr.io/axistent/homarr:latest", "port": 3000, "category": "dashboard"},
     {"name": "nextcloud", "image": "nextcloud:latest", "port": 80, "category": "cloud"},
-    {"name": "minio", "image": "minio/minio:latest", "port": 9000, "category": "storage"},
+    {"name": "rustfs", "image": "rustfs/rustfs:latest", "port": 9000, "admin_port": 9001, "category": "storage", "s3_api": True, "console": True},
     {"name": "prometheus", "image": "prom/prometheus:latest", "port": 9090, "category": "monitoring"},
     {"name": "grafana", "image": "grafana/grafana:latest", "port": 3000, "category": "monitoring"},
     {"name": "immich", "image": "ghcr.io/immich-app/immich-server:latest", "port": 2283, "category": "media"},
