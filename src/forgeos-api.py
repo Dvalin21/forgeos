@@ -101,6 +101,14 @@ try:
 except ImportError as e:
     print(f"Warning: ForgeFileDB API module not available: {e}")
 
+# Import RustFS Storage router
+try:
+    from rustfs_api import router as rustfs_router
+    app.include_router(rustfs_router)
+    print("RustFS Storage API loaded - replacing MinIO")
+except ImportError as e:
+    print(f"Warning: RustFS API module not available: {e}")
+
 # CORS configuration - restrict to known origins in production
 # For development/development, consider using environment variable
 _allowed_origins = os.environ.get("FORGEOS_CORS_ORIGINS", "").split(",") if os.environ.get("FORGEOS_CORS_ORIGINS") else ["*"]
@@ -646,6 +654,7 @@ DOCKER_APPS = [
     {"name": "homarr", "image": "ghcr.io/axistent/homarr:latest", "port": 3000, "category": "dashboard"},
     {"name": "nextcloud", "image": "nextcloud:latest", "port": 80, "category": "cloud"},
     {"name": "rustfs", "image": "rustfs/rustfs:latest", "port": 9000, "admin_port": 9001, "category": "storage", "s3_api": True, "console": True},
+    {"name": "rustfs-console", "image": "rustfs/console:latest", "port": 9001, "category": "storage", "type": "console"},
     {"name": "prometheus", "image": "prom/prometheus:latest", "port": 9090, "category": "monitoring"},
     {"name": "grafana", "image": "grafana/grafana:latest", "port": 3000, "category": "monitoring"},
     {"name": "immich", "image": "ghcr.io/immich-app/immich-server:latest", "port": 2283, "category": "media"},
