@@ -95,6 +95,27 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 
+# ── FastAPI App Initialization ──
+app = FastAPI(
+    title="ForgeOS API",
+    version="1.0",
+    description="ForgeOS NAS Operating System API",
+    docs_url="/api/docs",      # Swagger UI
+    redoc_url="/api/redoc",    # ReDoc
+    openapi_url="/api/openapi.json"
+)
+
+# ── Pydantic Models ──
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class ChPasswordRequest(BaseModel):
+    current: str
+    new: str
+
+
 # ── Rate Limiting Configuration ──
 limiter = Limiter(
     key_func=get_remote_address,
@@ -109,12 +130,9 @@ app.add_exception_handler(RateLimitExceeded, lambda r, e: JSONResponse(
 app.add_middleware(SlowAPIMiddleware)
 
 
-# ── API Keys Authentication ──
-from api_keys import verify_api_key, APIKeyCreate
-from fastapi.security import APIKeyHeader
-
-API_KEY_HEADER = APIKeyHeader(name="X-API-Key", auto_error=False)
-
+# ── Authentication Dependency ──
+# verify_token is the standard dependency for JWT/API key auth
+# verify_api_key_or_token is the full implementation
 
 async def verify_api_key_or_token(request: Request) -> dict:
     """
@@ -147,6 +165,10 @@ async def verify_api_key_or_token(request: Request) -> dict:
     
     # No valid auth
     raise HTTPException(status_code=401, detail="Not authenticated")
+
+
+# Alias for backward compatibility
+verify_token = verify_api_key_or_token
 
 
 # ── OAuth2/OIDC Authentication ──
@@ -1358,6 +1380,62 @@ async def ws_lxc_exec(ws: WebSocket, container: str):
         proc.kill()
     except Exception:
         pass
+
+# ────────────────────────────────────────────────────────────
+# PLUGIN SYSTEM
+# ────────────────────────────────────────────────────────────
+try:
+    from plugin_loader import PluginLoader
+    plugin_loader = PluginLoader()
+    plugin_loader.discover_plugins()
+    
+    # Start all discovered plugins
+    import asyncio
+    
+    @app.on_event("startup")
+    async def startup_plugins():
+        """Start all plugins on server startup."""
+        results = plugin_loader.start_all()
+        for plugin_id, success in results.items():
+            if success:
+                print(f"✓ Plugin started: {plugin_id}")
+            else:
+                print(f"✗ Plugin failed: {plugin_id}")
+    
+    @app.on_event("shutdown")
+    async def shutdown_plugins():
+        """Stop all plugins on server shutdown."""
+        plugin_loader.stop_all()
+        print("Plugins stopped")
+    
+    # Add plugin management endpoints
+    @app.get("/api/plugins")
+    async def list_plugins(user=Depends(verify_token)):
+        """List all discovered plugins."""
+        return {"plugins": plugin_loader.list_plugins()}
+    
+    @app.post("/api/plugins/{plugin_id}/start")
+    async def start_plugin(plugin_id: str, user=Depends(verify_token)):
+        """Start a specific plugin."""
+        if user.get("role") != "admin":
+            raise HTTPException(403)
+        success = plugin_loader.start_plugin(plugin_id)
+        return {"ok": success, "plugin": plugin_id}
+    
+    @app.post("/api/plugins/{plugin_id}/stop")
+    async def stop_plugin(plugin_id: str, user=Depends(verify_token)):
+        """Stop a specific plugin."""
+        if user.get("role") != "admin":
+            raise HTTPException(403)
+        success = plugin_loader.stop_plugin(plugin_id)
+        return {"ok": success, "plugin": plugin_id}
+    
+    print(f"Plugin system loaded: {len(plugin_loader.plugins)} plugins discovered")
+    
+except ImportError as e:
+    print(f"Warning: Plugin system not available: {e}")
+    plugin_loader = None
+
 
 # ────────────────────────────────────────────────────────────
 # STATIC WEB UI
