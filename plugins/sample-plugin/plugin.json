@@ -6,7 +6,7 @@
   "author": "ForgeOS Team",
   "entrypoint": "main.py",
   "permissions": ["filesystem:read", "network:outbound"],
-  "hooks": ["menu:tools=Sample Plugin"],
+  "hooks": ["menu:tools:Sample Plugin"],
   "api_prefix": "/api/plugins/sample-plugin",
   "dependencies": {},
   "icon": "icon.svg"

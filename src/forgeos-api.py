@@ -1385,56 +1385,71 @@ async def ws_lxc_exec(ws: WebSocket, container: str):
 # PLUGIN SYSTEM
 # ────────────────────────────────────────────────────────────
 try:
-    from plugin_loader import PluginLoader
-    plugin_loader = PluginLoader()
-    plugin_loader.discover_plugins()
+    from plugin_loader import (
+        discover_plugins,
+        start_plugin,
+        stop_plugin,
+        init_plugins,
+    )
     
-    # Start all discovered plugins
-    import asyncio
+    # Store discovered plugins
+    _discovered_plugins = []
     
     @app.on_event("startup")
     async def startup_plugins():
-        """Start all plugins on server startup."""
-        results = plugin_loader.start_all()
-        for plugin_id, success in results.items():
-            if success:
-                print(f"✓ Plugin started: {plugin_id}")
-            else:
-                print(f"✗ Plugin failed: {plugin_id}")
+        """Discover and start all plugins on server startup."""
+        global _discovered_plugins
+        _discovered_plugins = discover_plugins()
+        print(f"Plugins discovered: {len(_discovered_plugins)}")
+        
+        # Start all valid plugins
+        for plugin in _discovered_plugins:
+            if "id" in plugin:
+                success = start_plugin(plugin)
+                if success:
+                    print(f"✓ Plugin started: {plugin['id']}")
+                else:
+                    print(f"✗ Plugin failed: {plugin['id']}")
     
     @app.on_event("shutdown")
     async def shutdown_plugins():
         """Stop all plugins on server shutdown."""
-        plugin_loader.stop_all()
+        for plugin in _discovered_plugins:
+            if "id" in plugin:
+                stop_plugin(plugin["id"])
         print("Plugins stopped")
     
     # Add plugin management endpoints
     @app.get("/api/plugins")
     async def list_plugins(user=Depends(verify_token)):
         """List all discovered plugins."""
-        return {"plugins": plugin_loader.list_plugins()}
+        return {"plugins": _discovered_plugins}
     
     @app.post("/api/plugins/{plugin_id}/start")
-    async def start_plugin(plugin_id: str, user=Depends(verify_token)):
+    async def start_plugin_endpoint(plugin_id: str, user=Depends(verify_token)):
         """Start a specific plugin."""
         if user.get("role") != "admin":
             raise HTTPException(403)
-        success = plugin_loader.start_plugin(plugin_id)
+        # Find plugin manifest
+        plugin = next((p for p in _discovered_plugins if p.get("id") == plugin_id), None)
+        if not plugin:
+            raise HTTPException(404, "Plugin not found")
+        success = start_plugin(plugin)
         return {"ok": success, "plugin": plugin_id}
     
     @app.post("/api/plugins/{plugin_id}/stop")
-    async def stop_plugin(plugin_id: str, user=Depends(verify_token)):
+    async def stop_plugin_endpoint(plugin_id: str, user=Depends(verify_token)):
         """Stop a specific plugin."""
         if user.get("role") != "admin":
             raise HTTPException(403)
-        success = plugin_loader.stop_plugin(plugin_id)
+        success = stop_plugin(plugin_id)
         return {"ok": success, "plugin": plugin_id}
     
-    print(f"Plugin system loaded: {len(plugin_loader.plugins)} plugins discovered")
+    print("Plugin system loaded")
     
 except ImportError as e:
     print(f"Warning: Plugin system not available: {e}")
-    plugin_loader = None
+    _discovered_plugins = []
 
 
 # ────────────────────────────────────────────────────────────
