@@ -207,12 +207,15 @@ async def change_password(body: dict, user=Depends(verify_token)):
 # ────────────────────────────────────────────────────────────
 
 
-def _run(cmd: str, timeout: int = 5) -> str:
-    """Run a shell command safely using shlex to avoid shell injection."""
+def _run_shell(cmd: str, timeout: int = 5) -> str:
+    """Run a shell command with shell=True (needed for pipes, redirects, &&).
+
+    WARNING: Only call with commands that contain NO unsanitized user input.
+    User-supplied values must be validated before interpolation.
+    """
     try:
-        import shlex
         return subprocess.check_output(
-            shlex.split(cmd), shell=False, stderr=subprocess.DEVNULL,
+            cmd, shell=True, stderr=subprocess.DEVNULL,
             text=True, timeout=timeout
         ).strip()
     except Exception:
@@ -228,6 +231,12 @@ def _run_args(args: list, timeout: int = 5) -> str:
         ).strip()
     except Exception:
         return ""
+
+
+def _sanitize_blockdev(name: str) -> str:
+    """Sanitize a block device name, allowing only safe characters."""
+    safe = re.sub(r'[^a-zA-Z0-9_]', '', name)
+    return safe[:64]
 
 
 def get_cpu_usage() -> float:
