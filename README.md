@@ -116,7 +116,7 @@ Also supported: Debian 12 (Bookworm), Ubuntu 22.04/24.04 on ARM64 (Raspberry Pi 
 
 ```bash
 # On a fresh Ubuntu 22.04/24.04 or Debian 12 system
-git clone https://github.com/YOUR_USERNAME/forgeos.git
+git clone https://github.com/Dvalin21/forgeos.git
 cd forgeos
 sudo bash install/install.sh
 ```
@@ -166,10 +166,13 @@ forgeos/
 │       ├── 16-cloud-storage.sh # MinIO S3 + Rclone cloud sync
 │       ├── 17-hipaa.sh         # HIPAA compliance mode
 │       ├── 18-apps.sh          # OnlyOffice + MS Fonts + Immich
+│       ├── 22-imaging.sh       # FOG PXE network imaging
 │       └── 99-finalize.sh      # API service, summary
 ├── src/
 │   ├── forgeos-api.py          # FastAPI backend (REST + WebSocket)
-│   └── forgeos-filedb.py       # ForgeFileDB daemon
+│   ├── filedb_api.py           # ForgeFileDB REST + WebSocket API
+│   ├── rustfs_api.py           # RustFS S3-compatible storage API
+│   └── docker_lxc_api.py       # Docker & LXC container management
 ├── web/
 │   ├── desktop/
 │   │   └── index.html          # ForgeOS desktop Web UI
@@ -177,10 +180,9 @@ forgeos/
 │   └── wallpapers/             # 4 SVG wallpapers
 ├── docs/
 │   ├── post-install.md         # First-boot checklist
-│   ├── drive-setup.md          # ForgeRAID + cache setup guide
 │   ├── elevatedb.md            # ElevateDB/Atrex configuration
 │   ├── coral-tpu.md            # Coral TPU troubleshooting
-│   └── hipaa.md                # HIPAA module reference
+│   └── github-upload-instructions.md  # Publishing guide
 ├── test-forgeos.sh             # End-to-end test suite
 ├── .github/
 │   └── workflows/
