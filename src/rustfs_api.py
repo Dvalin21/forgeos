@@ -27,9 +27,13 @@ RUSTFS_CONSOLE_PORT = int(os.environ.get("RUSTFS_CONSOLE_PORT", "9001"))
 
 # Load RustFS credentials from config
 def _load_rustfs_creds() -> dict:
-    """Load RustFS credentials from ForgeOS config."""
+    """Load RustFS credentials from ForgeOS config.
+    
+    If credentials are not configured, generates random ones and persists them.
+    Never runs with default/insecure credentials.
+    """
     config_file = Path("/etc/forgeos/forgeos.conf")
-    creds = {"access_key": "admin", "secret_key": "admin123"}  # Defaults for dev
+    creds: dict[str, str] = {}
     
     if config_file.exists():
         for line in config_file.read_text().splitlines():
@@ -37,6 +41,18 @@ def _load_rustfs_creds() -> dict:
                 creds["access_key"] = line.split("=", 1)[1].strip().strip('"')
             elif line.startswith("RUSTFS_SECRET_KEY="):
                 creds["secret_key"] = line.split("=", 1)[1].strip().strip('"')
+    
+    # Auto-generate and persist if not configured
+    if "access_key" not in creds or "secret_key" not in creds:
+        import secrets
+        creds["access_key"] = "rustfs_" + secrets.token_hex(16)
+        creds["secret_key"] = secrets.token_urlsafe(32)
+        try:
+            with open(str(config_file), "a") as f:
+                f.write(f'\nRUSTFS_ACCESS_KEY="{creds["access_key"]}"\n')
+                f.write(f'\nRUSTFS_SECRET_KEY="{creds["secret_key"]}"\n')
+        except Exception:
+            pass
     
     return creds
 
