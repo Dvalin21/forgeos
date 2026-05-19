@@ -24,6 +24,7 @@ import os
 import re
 import subprocess
 import time
+from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -97,14 +98,16 @@ app = FastAPI(title="ForgeOS API", version="1.0", docs_url=None, redoc_url=None)
 # Import ForgeFileDB router (after app is created)
 try:
     from filedb_api import router as filedb_router
-    app.include_router(filedb_router)
+    # ALL routes via this router require auth — enforced at the mount point
+    app.include_router(filedb_router, dependencies=[Depends(verify_token)])
 except ImportError as e:
     print(f"Warning: ForgeFileDB API module not available: {e}")
 
 # Import RustFS Storage router
 try:
     from rustfs_api import router as rustfs_router
-    app.include_router(rustfs_router)
+    # ALL routes via this router require auth
+    app.include_router(rustfs_router, dependencies=[Depends(verify_token)])
     print("RustFS Storage API loaded - replacing MinIO")
 except ImportError as e:
     print(f"Warning: RustFS API module not available: {e}")
@@ -112,7 +115,8 @@ except ImportError as e:
 # Import Docker & LXC Management router
 try:
     from docker_lxc_api import router as docker_lxc_router
-    app.include_router(docker_lxc_router)
+    # ALL routes via this router require auth
+    app.include_router(docker_lxc_router, dependencies=[Depends(verify_token)])
     print("Docker & LXC Management API loaded")
 except ImportError as e:
     print(f"Warning: Docker/LXC API module not available: {e}")
@@ -244,7 +248,7 @@ def get_cpu_usage() -> float:
         import psutil
         return psutil.cpu_percent(interval=0.5)
     except ImportError:
-        top = _run("top -bn1 | grep 'Cpu(s)'")
+        top = _run_shell("top -bn1 | grep 'Cpu(s)'")
         m = re.search(r"(\d+\.\d+)\s*id", top)
         return round(100 - float(m.group(1)), 1) if m else 0.0
 
@@ -256,7 +260,7 @@ def get_memory() -> dict:
         return {"total_gb": round(m.total/1e9, 1), "used_gb": round(m.used/1e9, 1),
                 "pct": m.percent}
     except ImportError:
-        out = _run("free -b")
+        out = _run_args(["free", "-b"])
         parts = out.splitlines()[1].split() if out else []
         if len(parts) >= 3:
             t, u = int(parts[1]), int(parts[2])
@@ -274,7 +278,7 @@ def get_network() -> dict:
 
 
 def get_uptime() -> str:
-    out = _run("uptime -p")
+    out = _run_args(["uptime", "-p"])
     return out.replace("up ", "") if out else "unknown"
 
 
@@ -320,8 +324,8 @@ async def system_stats(user=Depends(verify_token)):
         "uptime": get_uptime(),
         "load": get_load(),
         "temps": get_temps(),
-        "hostname": _run("hostname -f"),
-        "kernel": _run("uname -r"),
+        "hostname": _run_args(["hostname", "-f"]),
+        "kernel": _run_args(["uname", "-r"]),
         "timestamp": time.time(),
     }
 
@@ -329,14 +333,14 @@ async def system_stats(user=Depends(verify_token)):
 @app.get("/api/system/info")
 async def system_info(user=Depends(verify_token)):
     return {
-        "hostname":   _run("hostname -f"),
-        "os":         _run("lsb_release -ds"),
-        "kernel":     _run("uname -r"),
-        "cpu":        _run("grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2").strip(),
-        "cpu_cores":  _run("nproc"),
+        "hostname":   _run_args(["hostname", "-f"]),
+        "os":         _run_args(["lsb_release", "-ds"]),
+        "kernel":     _run_args(["uname", "-r"]),
+        "cpu":        _run_shell("grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2").strip(),
+        "cpu_cores":  _run_args(["nproc"]),
         "forgeos_ver": conf("FORGEOS_VERSION", "1.0"),
         "uptime":     get_uptime(),
-        "boot_time":  _run("uptime -s"),
+        "boot_time":  _run_args(["uptime", "-s"]),
     }
 
 # ────────────────────────────────────────────────────────────
@@ -346,7 +350,7 @@ async def system_info(user=Depends(verify_token)):
 
 @app.get("/api/storage/pools")
 async def storage_pools(user=Depends(verify_token)):
-    out = _run("forgeos-pool-status", timeout=15)
+    out = _run_args(["forgeos-pool-status"], timeout=15)
     try:
         return json.loads(out)
     except Exception:
@@ -357,40 +361,63 @@ async def storage_pools(user=Depends(verify_token)):
 async def storage_drives(user=Depends(verify_token)):
     """List all drives with SMART status"""
     drives = []
-    # Get list of block devices
-    out = _run("lsblk -J -o NAME,SIZE,TYPE,MODEL,TRAN | jq -r '.blockdevices[]? | select(.type==\"disk\")'", timeout=10)
-    if out.strip():
+    # Get list of block devices (lsblk -J — no jq needed, parse JSON directly)
+    out = _run_args(["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MODEL,TRAN"], timeout=10)
+    if out:
         try:
-            devices = json.loads(out) if out.strip().startswith('[') else []
-            for dev in devices:
+            raw = json.loads(out)
+            # lsblk -J wraps in { "blockdevices": [...] }
+            blockdevices = raw.get("blockdevices", []) if isinstance(raw, dict) else raw
+            for dev in blockdevices:
+                if not isinstance(dev, dict) or dev.get("type") != "disk":
+                    continue
                 name = dev.get("name", "")
                 if not name:
                     continue
-                # Get SMART data
-                smart = _run(f"smartctl -H -j /dev/{name} 2>/dev/null || echo '{{\"smart_status\":\"N/A\"}}'", timeout=5)
-                temp = _run(f"smartctl -A -j /dev/{name} 2>/dev/null | jq -r '.ATA_SmartData?.Attributes?.Table?.[]? | select(.ID==194)?.-.Value' || echo ''", timeout=5)
-                try:
-                    smart_data = json.loads(smart) if smart else {"smart_status": "N/A"}
-                except:
-                    smart_data = {"smart_status": "N/A"}
+                # Get SMART data via arg-list (no shell)
+                smart_out = _run_args(["smartctl", "-H", "-j", f"/dev/{name}"], timeout=5)
+                temp_out = _run_args(["smartctl", "-A", "-j", f"/dev/{name}"], timeout=5)
+                smart_data = {}
+                if smart_out:
+                    try:
+                        smart_data = json.loads(smart_out)
+                    except Exception:
+                        pass
+                # Parse temperature from SMART attributes
+                temp_val = 0
+                if temp_out:
+                    try:
+                        temp_json = json.loads(temp_out)
+                        for entry in temp_json.get("ATA_SmartData", {}).get("Attributes", {}).get("Table", []):
+                            if entry.get("ID") == 194:
+                                temp_val = int(entry.get("Value", 0))
+                                break
+                    except Exception:
+                        pass
+                # Determine health
+                health = 95
+                smart_status = smart_data.get("smart_status", {})
+                if isinstance(smart_status, dict):
+                    health = 100 if smart_status.get("passed") else 50
                 drives.append({
                     "name": f"/dev/{name}",
                     "type": dev.get("trans", "unknown").upper() if dev.get("trans") else "HDD",
                     "size": dev.get("size", "0"),
                     "model": dev.get("model", "").strip() or "Unknown",
-                    "temp": int(temp) if temp.isdigit() else 0,
-                    "health": int(smart_data.get("smart_status", {}).get("passed", 1) * 100) if isinstance(smart_data.get("smart_status"), dict) else (100 if smart_data.get("smart_status", {}).get("passed") else 95),
+                    "temp": temp_val,
+                    "health": health,
                 })
-        except Exception as e:
+        except Exception:
             pass
-    # Fallback: use lsblk directly
+    # Fallback: use lsblk directly without jq
     if not drives:
-        out = _run("lsblk -o NAME,SIZE,TYPE,MODEL -J | jq -r '.blockdevices[]? | select(.type==\"disk\")' 2>/dev/null || echo '[]'", timeout=10)
+        out = _run_args(["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MODEL"], timeout=10)
         try:
-            for line in out.splitlines():
-                if not line.strip():
+            raw = json.loads(out) if out else {}
+            blockdevices = raw.get("blockdevices", []) if isinstance(raw, dict) else raw
+            for dev in blockdevices:
+                if not isinstance(dev, dict) or dev.get("type") != "disk":
                     continue
-                dev = json.loads(line)
                 drives.append({
                     "name": f'/dev/{dev.get("name","")}',
                     "type": "HDD",
@@ -408,13 +435,13 @@ async def storage_drives(user=Depends(verify_token)):
 async def storage_df(user=Depends(verify_token)):
     """Disk usage per btrfs mount"""
     results = []
-    mounts = _run("findmnt -t btrfs -o TARGET,SOURCE -n").splitlines()
+    mounts = _run_args(["findmnt", "-t", "btrfs", "-o", "TARGET,SOURCE", "-n"]).splitlines()
     for line in mounts:
         parts = line.split()
         if len(parts) < 2:
             continue
         mp, src = parts[0], parts[1]
-        out = _run(f"df -B1 {mp}")
+        out = _run_args(["df", "-B1", mp])
         rows = out.splitlines()
         if len(rows) >= 2:
             cols = rows[1].split()
@@ -434,10 +461,13 @@ async def storage_snapshots(pool: str = "", user=Depends(verify_token)):
         out = _run_args(["snapper", "-c", pool, "list",
                          "--output-cols", "number,date,description"])
     else:
-        configs = _run("snapper list-configs | awk 'NR>2{print $1}'").splitlines()
+        configs = _run_args(["snapper", "list-configs"]).splitlines()
+        # Skip header lines (NR>2 equivalent)
+        configs = [l.split()[0] for l in configs if l.strip() and not l.startswith("Config")]
         out = ""
         for c in configs:
-            c_out = _run(f"snapper -c {c} list --output-cols number,date,description 2>/dev/null")
+            c_out = _run_args(["snapper", "-c", c, "list",
+                               "--output-cols", "number,date,description"])
             out += f"=== {c} ===\n{c_out}\n"
     return {"snapshots": out}
 
@@ -452,9 +482,11 @@ async def create_snapshot(body: dict, user=Depends(verify_token)):
         _run_args(["snapper", "-c", pool, "create",
                    "--description", desc, "--cleanup-algorithm", "timeline"])
     else:
-        configs = _run("snapper list-configs | awk 'NR>2{print $1}'").splitlines()
+        configs = _run_args(["snapper", "list-configs"]).splitlines()
+        configs = [l.split()[0] for l in configs if l.strip() and not l.startswith("Config")]
         for c in configs:
-            _run(f"snapper -c {c} create --description '{desc}' --cleanup-algorithm timeline")
+            _run_args(["snapper", "-c", c, "create",
+                       "--description", desc, "--cleanup-algorithm", "timeline"])
     return {"ok": True, "message": f"Snapshot created: {desc}"}
 
 
@@ -544,7 +576,7 @@ async def remove_vhost(name: str, user=Depends(verify_token)):
     if user.get("role") != "admin":
         raise HTTPException(403)
     name = re.sub(r"[^a-z0-9-]", "", name)
-    result = _run(f"forgeos-nginx remove-vhost {name}")
+    result = _run_args(["forgeos-nginx", "remove-vhost", name])
     return {"ok": True, "message": result}
 
 
@@ -571,7 +603,11 @@ async def nginx_save_raw(body: dict, user=Depends(verify_token)):
     if "failed" in test.lower():
         raise HTTPException(400, detail={"error": "Config test failed", "output": test})
     Path("/etc/nginx/nginx.conf").write_text(config)
-    _run("nginx -t && systemctl reload nginx")
+    # Test live config, then reload — never reload a broken config
+    test = _run_args(["nginx", "-t"], timeout=10)
+    if "failed" in test.lower() or "test is successful" not in test:
+        raise HTTPException(400, detail={"error": "Live config test failed", "output": test})
+    _run_args(["systemctl", "reload", "nginx"])
     return {"ok": True}
 
 
@@ -579,13 +615,17 @@ async def nginx_save_raw(body: dict, user=Depends(verify_token)):
 async def nginx_reload(user=Depends(verify_token)):
     if user.get("role") != "admin":
         raise HTTPException(403)
-    result = _run("nginx -t && systemctl reload nginx 2>&1")
+    # Test config first, only reload if test passes
+    test = _run_args(["nginx", "-t"], timeout=10)
+    if "test is successful" not in test:
+        return {"ok": False, "error": "Config test failed", "output": test}
+    result = _run_args(["systemctl", "reload", "nginx"])
     return {"ok": True, "output": result}
 
 
 @app.post("/api/nginx/test")
 async def nginx_test(user=Depends(verify_token)):
-    return {"output": _run("nginx -t 2>&1")}
+    return {"output": _run_args(["nginx", "-t"], timeout=10)}
 
 
 @app.post("/api/nginx/certbot")
@@ -614,7 +654,7 @@ async def request_cert(body: dict, user=Depends(verify_token)):
 
 @app.get("/api/samba/shares")
 async def samba_shares(user=Depends(verify_token)):
-    raw = _run("forgeos-samba list 2>&1")
+    raw = _run_shell("forgeos-samba list 2>&1")
     return {"raw": raw}
 
 
@@ -628,7 +668,7 @@ async def create_share(body: dict, user=Depends(verify_token)):
     write   = "yes" if body.get("writable", True) else "no"
     users   = body.get("users", "@users")
     comment = body.get("comment", "")
-    result  = _run(f"forgeos-samba create '{name}' '{path}' '{type_}' '{write}' '{users}' '{comment}'")
+    result  = _run_args(["forgeos-samba", "create", name, path, type_, write, users, comment])
     return {"ok": True, "message": result}
 
 
@@ -637,27 +677,33 @@ async def remove_share(name: str, user=Depends(verify_token)):
     if user.get("role") != "admin":
         raise HTTPException(403)
     name = re.sub(r"[^a-z0-9_-]", "", name)
-    result = _run(f"forgeos-samba remove '{name}'")
+    result = _run_args(["forgeos-samba", "remove", name])
     return {"ok": True, "message": result}
 
 
 @app.get("/api/samba/raw")
 async def samba_raw(user=Depends(verify_token)):
-    return {"config": _run("forgeos-samba raw-get")}
+    return {"config": _run_args(["forgeos-samba", "raw-get"])}
 
 
 @app.put("/api/samba/raw")
 async def samba_save_raw(body: dict, user=Depends(verify_token)):
     if user.get("role") != "admin":
         raise HTTPException(403)
-    config = body.get("config", "").replace("'", "'\\''")
-    result = _run(f"forgeos-samba raw-put '{config}'")
-    return {"ok": True, "message": result}
+    config = body.get("config", "")
+    # Pipe config via stdin to avoid shell/single-quote escaping entirely
+    result = subprocess.run(
+        ["forgeos-samba", "raw-put"],
+        input=config, capture_output=True, text=True, timeout=10
+    )
+    if result.returncode != 0:
+        raise HTTPException(400, detail=result.stderr.strip() or "samba config rejected")
+    return {"ok": True, "message": result.stdout.strip()}
 
 
 @app.get("/api/samba/connections")
 async def samba_connections(user=Depends(verify_token)):
-    return {"output": _run("smbstatus 2>/dev/null || echo 'No connections'")}
+    return {"output": _run_shell("smbstatus 2>/dev/null || echo 'No connections'")}
 
 # ────────────────────────────────────────────────────────────
 # DOCKER APP BROWSER
@@ -710,7 +756,7 @@ async def docker_install(app: str, image: str = None, ports: List[str] = None, u
 
 @app.get("/api/docker/containers")
 async def docker_containers(user=Depends(verify_token)):
-    out = _run('docker ps -a --format \'{"name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}"}\'')
+    out = _run_shell('docker ps -a --format \'{"name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}"}\'')
     containers = []
     for line in out.splitlines():
         try:
@@ -727,8 +773,8 @@ async def docker_action(name: str, action: str, user=Depends(verify_token)):
     name   = re.sub(r"[^a-z0-9_-]", "", name)
     action = action if action in ("start", "stop", "restart", "logs") else "logs"
     if action == "logs":
-        return {"output": _run(f"docker logs --tail 50 {name} 2>&1")}
-    result = _run(f"docker {action} {name}")
+        return {"output": _run_args(["docker", "logs", "--tail", "50", name])}
+    result = _run_args(["docker", action, name])
     return {"ok": True, "output": result}
 
 
@@ -736,11 +782,11 @@ async def docker_action(name: str, action: str, user=Depends(verify_token)):
 async def docker_stats(user=Depends(verify_token)):
     """Docker stats summary"""
     # Container count
-    containers = _run("docker ps -q 2>/dev/null | wc -l").strip() or "0"
+    containers = _run_shell("docker ps -q 2>/dev/null | wc -l").strip() or "0"
     # Image count
-    images = _run("docker images -q 2>/dev/null | wc -l").strip() or "0"
+    images = _run_shell("docker images -q 2>/dev/null | wc -l").strip() or "0"
     # Volume count
-    volumes = _run("docker volume ls -q 2>/dev/null | wc -l").strip() or "0"
+    volumes = _run_shell("docker volume ls -q 2>/dev/null | wc -l").strip() or "0"
     return {
         "containers": int(containers),
         "images": int(images),
@@ -766,9 +812,9 @@ async def list_services(user=Depends(verify_token)):
     for svc, name, desc in check_services:
         # Check if service is active
         if svc.startswith("wg-quick"):
-            out = _run(f"systemctl is-active {svc}@*.service 2>/dev/null || echo inactive", timeout=3)
+            out = _run_shell(f"systemctl is-active {svc}@*.service 2>/dev/null || echo inactive", timeout=3)
         else:
-            out = _run(f"systemctl is-active {svc} 2>/dev/null || echo 'inactive'", timeout=3)
+            out = _run_shell(f"systemctl is-active {svc} 2>/dev/null || echo 'inactive'", timeout=3)
         status = "running" if out.strip() == "active" else "stopped"
         services.append({"name": name, "desc": desc, "status": status})
     return {"services": services}
@@ -778,28 +824,39 @@ async def list_services(user=Depends(verify_token)):
 async def list_network(user=Depends(verify_token)):
     """List network interfaces"""
     ifaces = []
-    # Get interfaces with IPs
-    out = _run("ip -j addr show 2>/dev/null | jq -r '.[] | select(.addr_info) | .addr_info[] | select(.family==\"inet\") | {name:.ifname, ip:.local}' 2>/dev/null || echo '[]'", timeout=5)
-    if out.strip().startswith("["):
+    # Get interfaces with IPs — use ip -j (JSON mode) to avoid jq dependency
+    out = _run_args(["ip", "-j", "addr", "show"], timeout=5)
+    if out:
         try:
-            ifaces = json.loads(out)
+            raw = json.loads(out)
+            for iface in raw:
+                if not isinstance(iface, dict):
+                    continue
+                for addr_info in iface.get("addr_info", []):
+                    if isinstance(addr_info, dict) and addr_info.get("family") == "inet":
+                        ifaces.append({
+                            "name": iface.get("ifname", "?"),
+                            "ip": addr_info.get("local", "N/A"),
+                        })
         except Exception:
             ifaces = []
     # Fallback: use ip addr
     if not ifaces:
-        out = _run("ip addr show | grep -E '^[0-9]+:' | grep -v lo | awk '{print $2}' | sed 's/://g'", timeout=5)
+        out = _run_args(["ip", "addr", "show"], timeout=5)
         for line in out.splitlines():
-            name = line.strip()
-            if not name:
-                continue
-            ip = _run(f"ip addr show {name} 2>/dev/null | grep 'inet ' | awk '{{print $2}}' | cut -d/ -f1", timeout=3)
-            rx = _run(f"cat /sys/class/net/{name}/statistics/rx_bytes 2>/dev/null || echo 0", timeout=2)
-            tx = _run(f"cat /sys/class/net/{name}/statistics/tx_bytes 2>/dev/null || echo 0", timeout=2)
+            m = re.match(r'^\d+:\s+(\S+):', line)
+            if m and m.group(1) != "lo":
+                name = m.group(1)
+                ip_out = _run_args(["ip", "addr", "show", name], timeout=3)
+                ip_match = re.search(r'inet\s+(\S+)', ip_out)
+                ip_addr = ip_match.group(1).split('/')[0] if ip_match else "N/A"
+                rx_out = _run_args(["cat", f"/sys/class/net/{name}/statistics/rx_bytes"], timeout=2)
+                tx_out = _run_args(["cat", f"/sys/class/net/{name}/statistics/tx_bytes"], timeout=2)
             ifaces.append({
                 "name": name,
-                "ip": ip.strip() or "N/A",
-                "rx": int(rx.strip() or 0),
-                "tx": int(tx.strip() or 0),
+                "ip": ip_addr,
+                "rx": int(rx_out.strip() or 0),
+                "tx": int(tx_out.strip() or 0),
             })
     return {"interfaces": ifaces}
 
@@ -808,7 +865,7 @@ async def list_network(user=Depends(verify_token)):
 async def get_config(user=Depends(verify_token)):
     """Get system config"""
     return {
-        "hostname": _run("hostname").strip() or "forgeos",
+        "hostname": _run_args(["hostname"]).strip() or "forgeos",
         "domain": conf("DOMAIN", "local"),
         "timezone": conf("TIMEZONE", "UTC"),
     }
@@ -830,21 +887,27 @@ async def notify(body: dict):
     gotify_tok = conf("GOTIFY_TOKEN", "")
     if gotify_tok:
         priority = {"info": 2, "warning": 5, "warn": 5, "critical": 10, "err": 8}.get(level, 2)
-        _run(
-            f"curl -sf -X POST '{gotify_url}/message?token={gotify_tok}' "
-            f"-H 'Content-Type: application/json' "
-            f"-d '{{\"title\":\"{title}\",\"message\":\"{message}\",\"priority\":{priority}}}'"
+        _payload = json.dumps({"title": title, "message": message, "priority": priority})
+        subprocess.run(
+            ["curl", "-sf", "-X", "POST",
+             f"{gotify_url}/message?token={gotify_tok}",
+             "-H", "Content-Type: application/json",
+             "-d", _payload],
+            capture_output=True, timeout=10
         )
 
     # Forward to Apprise (if configured)
     apprise_urls = conf("APPRISE_URLS", "")
     if apprise_urls:
-        _run(f"apprise -t '{title}' -b '{message}' '{apprise_urls}' 2>/dev/null || true")
+        subprocess.run(
+            ["apprise", "-t", title, "-b", message, apprise_urls],
+            capture_output=True, timeout=10
+        )
 
     # Store in notification queue for Web UI
+    # NOTE: workers=1 in production. _notifications is NOT thread-safe.
+    # If workers>1 is needed, wrap with asyncio.Lock.
     _notifications.append({"level": level, "title": title, "message": message, "ts": time.time()})
-    if len(_notifications) > 100:
-        _notifications.pop(0)
 
     return {"ok": True}
 
@@ -871,7 +934,9 @@ async def get_drive_alerts(user=Depends(verify_token)):
     return {"alerts": _drive_alerts}
 
 # In-memory notification stores
-_notifications: list[dict] = []
+# NOTE: workers=1 in production. These are NOT thread-safe.
+# If workers>1 is needed, wrap access with asyncio.Lock.
+_notifications: deque[dict] = deque(maxlen=100)
 _drive_alerts:  dict[str, dict] = {}
 
 # Alertmanager webhook bridge
@@ -896,19 +961,19 @@ async def alertmanager_webhook(body: dict):
 
 @app.get("/api/security/fail2ban")
 async def fail2ban_status(user=Depends(verify_token)):
-    return {"output": _run("fail2ban-client status 2>/dev/null && fail2ban-client status sshd 2>/dev/null || echo 'fail2ban not running'")}
+    return {"output": _run_shell("fail2ban-client status 2>/dev/null && fail2ban-client status sshd 2>/dev/null || echo 'fail2ban not running'")}
 
 
 @app.get("/api/security/crowdsec")
 async def crowdsec_status(user=Depends(verify_token)):
-    return {"output": _run("cscli decisions list 2>/dev/null || echo 'CrowdSec not installed'")}
+    return {"output": _run_shell("cscli decisions list 2>/dev/null || echo 'CrowdSec not installed'")}
 
 
 @app.get("/api/security/firewall")
 async def firewall_status(user=Depends(verify_token)):
     return {
-        "ufw": _run("ufw status verbose 2>/dev/null"),
-        "iptables_count": _run("iptables -L | wc -l"),
+        "ufw": _run_shell("ufw status verbose 2>/dev/null"),
+        "iptables_count": _run_shell("iptables -L | wc -l"),
     }
 
 # ────────────────────────────────────────────────────────────
@@ -945,6 +1010,12 @@ async def save_settings(body: dict, user=Depends(verify_token)):
         if f'{k}=' not in text:
             text += f'\n{k}="{v}"'
     CONFIG_FILE.write_text(text)
+    # Reload in-memory cache so settings take effect without restart
+    _conf.clear()
+    for line in CONFIG_FILE.read_text().splitlines():
+        if "=" in line and not line.startswith("#"):
+            k, _, v = line.partition("=")
+            _conf[k.strip()] = v.strip().strip('"')
     return {"ok": True, "updated": list(safe.keys())}
 
 # ────────────────────────────────────────────────────────────
@@ -1198,6 +1269,29 @@ if __name__ == "__main__":
     )
 
 # ────────────────────────────────────────────────────────────
+# BACKUP HELPERS
+# ────────────────────────────────────────────────────────────
+
+
+def _check_tool(name: str, version_args: list[str] | None = None) -> bool:
+    """Check if a CLI tool is installed and executable."""
+    try:
+        cmd = [name]
+        if version_args:
+            cmd.extend(version_args)
+        r = subprocess.run(cmd, capture_output=True, timeout=5)
+        return r.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def _require_tool(name: str, version_args: list[str] | None = None) -> None:
+    """Like _check_tool but raises HTTPException if not found."""
+    if not _check_tool(name, version_args):
+        raise HTTPException(status_code=500, detail=f"{name} not installed")
+
+
+# ────────────────────────────────────────────────────────────
 # BORG BACKUP
 # ────────────────────────────────────────────────────────────
 
@@ -1205,11 +1299,7 @@ if __name__ == "__main__":
 @app.get("/api/backup/borg/status")
 async def borg_status(user=Depends(verify_token)):
     """Get Borg backup status and jobs"""
-    try:
-        result = subprocess.run(["borg", "version"], capture_output=True)
-        installed = result.returncode == 0
-    except FileNotFoundError:
-        installed = False
+    installed = _check_tool("borg", ["version"])
     jobs = []
     if installed:
         list_result = subprocess.run(
@@ -1227,12 +1317,7 @@ async def borg_status(user=Depends(verify_token)):
 @app.post("/api/backup/borg/create")
 async def borg_create(body: dict, user=Depends(verify_token)):
     """Create new Borg backup job"""
-    try:
-        check = subprocess.run(["borg", "version"], capture_output=True)
-        if check.returncode != 0:
-            raise HTTPException(status_code=500, detail="Borg not installed")
-    except FileNotFoundError:
-        raise HTTPException(status_code=500, detail="Borg not installed")
+    _require_tool("borg", ["version"])
     
     name = body.get("name", "backup")
     source = body.get("source", "")
@@ -1253,14 +1338,12 @@ async def borg_create(body: dict, user=Depends(verify_token)):
 @app.get("/api/backup/borg/list")
 async def borg_list(destination: str, user=Depends(verify_token)):
     """List archives in repository"""
-    try:
-        result = subprocess.run(
-            ["borg", "list", "--json", destination],
-            capture_output=True, text=True
-        )
-    except FileNotFoundError:
-        raise HTTPException(status_code=500, detail="Borg not installed")
+    _require_tool("borg", ["version"])
     
+    result = subprocess.run(
+        ["borg", "list", "--json", destination],
+        capture_output=True, text=True
+    )
     if result.returncode == 0:
         try:
             return {"archives": json.loads(result.stdout)}
@@ -1277,23 +1360,13 @@ async def borg_list(destination: str, user=Depends(verify_token)):
 @app.get("/api/backup/restic/status")
 async def restic_status(user=Depends(verify_token)):
     """Get Restic status"""
-    try:
-        check = subprocess.run(["restic", "version"], capture_output=True)
-        installed = check.returncode == 0
-    except FileNotFoundError:
-        installed = False
-    return {"installed": installed}
+    return {"installed": _check_tool("restic", ["version"])}
 
 
 @app.post("/api/backup/restic/snapshot")
 async def restic_snapshot(body: dict, user=Depends(verify_token)):
     """Create Restic snapshot"""
-    try:
-        check = subprocess.run(["restic", "version"], capture_output=True)
-        if check.returncode != 0:
-            raise HTTPException(status_code=500, detail="Restic not installed")
-    except FileNotFoundError:
-        raise HTTPException(status_code=500, detail="Restic not installed")
+    _require_tool("restic", ["version"])
     
     repo = body.get("repo", "/backup/restic")
     paths = body.get("paths", [])
@@ -1312,12 +1385,7 @@ async def restic_snapshot(body: dict, user=Depends(verify_token)):
 @app.get("/api/backup/restic/snapshots")
 async def restic_snapshots(repo: str, user=Depends(verify_token)):
     """List restic snapshots"""
-    try:
-        check = subprocess.run(["restic", "version"], capture_output=True)
-        if check.returncode != 0:
-            raise HTTPException(status_code=500, detail="Restic not installed")
-    except FileNotFoundError:
-        raise HTTPException(status_code=500, detail="Restic not installed")
+    _require_tool("restic", ["version"])
     
     cmd = ["restic", "-r", repo, "snapshots", "--json"]
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -1337,23 +1405,13 @@ async def restic_snapshots(repo: str, user=Depends(verify_token)):
 @app.get("/api/backup/rclone/status")
 async def rclone_status(user=Depends(verify_token)):
     """Get RClone status"""
-    try:
-        check = subprocess.run(["rclone", "version"], capture_output=True)
-        installed = check.returncode == 0
-    except FileNotFoundError:
-        installed = False
-    return {"installed": installed}
+    return {"installed": _check_tool("rclone", ["version"])}
 
 
 @app.post("/api/backup/rclone/sync")
 async def rclone_sync(body: dict, user=Depends(verify_token)):
     """Run RClone sync"""
-    try:
-        check = subprocess.run(["rclone", "version"], capture_output=True)
-        if check.returncode != 0:
-            raise HTTPException(status_code=500, detail="RClone not installed")
-    except FileNotFoundError:
-        raise HTTPException(status_code=500, detail="RClone not installed")
+    _require_tool("rclone", ["version"])
     
     source = body.get("source", "")
     destination = body.get("destination", "")

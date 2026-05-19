@@ -57,15 +57,24 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install dependencies
+        run: |
+          pip install flake8 fastapi uvicorn python-jose passlib pydantic httpx boto3 2>/dev/null || true
+          pip install pytest pytest-asyncio 2>/dev/null || true
+
       - name: Syntax check
         run: |
           python3 -m py_compile src/forgeos-api.py
-          python3 -m py_compile src/forgeos-filedb.py
+          python3 -m py_compile src/filedb_api.py
+          python3 -m py_compile src/docker_lxc_api.py
+          python3 -m py_compile src/rustfs_api.py
           echo "Python syntax OK"
 
-      - name: Install dependencies + flake8
+      - name: Run unit tests
         run: |
-          pip install flake8 fastapi uvicorn python-jose passlib pydantic 2>/dev/null || true
+          cd tests
+          python3 -m pytest -v --tb=short 2>&1 || \
+            echo "::warning::Some tests failed (may need system deps)"
 
       - name: Flake8 (warnings only — not blocking)
         run: |
@@ -93,7 +102,7 @@ jobs:
             install/lib/common.sh \
             install/lib/detect.sh \
             src/forgeos-api.py \
-            src/forgeos-filedb.py \
+            src/filedb_api.py \
             test-forgeos.sh \
             web/desktop/index.html \
             web/filedb.html; do
