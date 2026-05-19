@@ -66,8 +66,8 @@ def _load_jwt_secret() -> str:
                 if line.startswith("WEBUI_JWT_SECRET="):
                     secret = line.split("=", 1)[1].strip().strip('"')
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            print("forgeos: FAILED to read %s: %s" % (CONFIG_FILE, e), file=sys.stderr)
     if not secret or secret in ("changeme-set-in-forgeos.conf", "changeme", ""):
         import secrets
         secret = secrets.token_hex(32)
@@ -75,8 +75,8 @@ def _load_jwt_secret() -> str:
         try:
             with open(CONFIG_FILE, "a") as f:
                 f.write(f'\nWEBUI_JWT_SECRET="{secret}"\n')
-        except Exception:
-            pass
+        except Exception as e:
+            print("forgeos: FAILED to write JWT secret to %s: %s" % (CONFIG_FILE, e), file=sys.stderr)
     return secret
 
 
@@ -109,7 +109,7 @@ try:
     # ALL routes via this router require auth — enforced at the mount point
     app.include_router(filedb_router, dependencies=[Depends(verify_token)])
 except ImportError as e:
-    print(f"Warning: ForgeFileDB API module not available: {e}")
+    print("forgeos: WARNING ForgeFileDB API not available: %s" % e, file=sys.stderr)
 
 # Import RustFS Storage router
 try:
@@ -118,7 +118,7 @@ try:
     app.include_router(rustfs_router, dependencies=[Depends(verify_token)])
     print("RustFS Storage API loaded - replacing MinIO")
 except ImportError as e:
-    print(f"Warning: RustFS API module not available: {e}")
+    print("forgeos: WARNING RustFS API not available: %s" % e, file=sys.stderr)
 
 # Import Docker & LXC Management router
 try:
@@ -127,7 +127,7 @@ try:
     app.include_router(docker_lxc_router, dependencies=[Depends(verify_token)])
     print("Docker & LXC Management API loaded")
 except ImportError as e:
-    print(f"Warning: Docker/LXC API module not available: {e}")
+    print("forgeos: WARNING Docker/LXC API not available: %s" % e, file=sys.stderr)
 
 # CORS configuration - restrict to known origins in production
 # For development/development, consider using environment variable
@@ -184,15 +184,16 @@ def verify_token(request: Request) -> dict:
 
 
 @app.post("/api/auth/login")
-async def login(req: LoginRequest):
+async def login(body: LoginRequest, request: Request):
     users = load_users()
     if not users:
         raise HTTPException(status_code=503, detail="No users configured. Run forgeos-install to set up admin user.")
-    user = users.get(req.username)
-    if not user or not pwd_ctx.verify(req.password, user["hash"]):
+    user = users.get(body.username)
+    if not user or not pwd_ctx.verify(body.password, user["hash"]):
+        print("forgeos: FAILED LOGIN user=%s from=%s" % (body.username, request.client.host), file=sys.stderr)
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_token(req.username, user["role"])
-    resp = JSONResponse({"token": token, "username": req.username, "role": user["role"]})
+    token = create_token(body.username, user["role"])
+    resp = JSONResponse({"token": token, "username": body.username, "role": user["role"]})
     resp.set_cookie("forgeos_token", token, httponly=True, samesite="strict", max_age=JWT_EXPIRE * 3600)
     return resp
 
@@ -1036,6 +1037,7 @@ async def save_settings(body: dict, user=Depends(verify_token)):
         if f'{k}=' not in text:
             text += f'\n{k}="{v}"'
     CONFIG_FILE.write_text(text)
+    print("forgeos: SETTINGS changed by %s: %s" % (user.get("sub", "unknown"), str(list(safe.keys()))), file=sys.stderr)
     # Reload in-memory cache so settings take effect without restart
     _conf.clear()
     for line in CONFIG_FILE.read_text().splitlines():
