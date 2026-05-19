@@ -15,7 +15,6 @@ Architecture:
 Security:
   JWT auth (12h tokens), bcrypt passwords
   All endpoints require auth except /api/auth/login and /health
-  Rate limiting on auth endpoint (5 req/min per IP)
 """
 
 from typing import List
@@ -25,8 +24,10 @@ import re
 import subprocess
 import time
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import sys
 
 import uvicorn
 from fastapi import (
@@ -39,6 +40,13 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from passlib.context import CryptContext
 from jose import JWTError, jwt
+
+# Optional psutil — try once at module level instead of in every function
+try:
+    import psutil
+    _HAVE_PSUTIL = True
+except ImportError:
+    _HAVE_PSUTIL = False
 
 # ────────────────────────────────────────────────────────────
 # CONFIG
@@ -156,7 +164,7 @@ def create_token(username: str, role: str) -> str:
     payload = {
         "sub": username,
         "role": role,
-        "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRE),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
@@ -222,7 +230,10 @@ def _run_shell(cmd: str, timeout: int = 5) -> str:
             cmd, shell=True, stderr=subprocess.DEVNULL,
             text=True, timeout=timeout
         ).strip()
-    except Exception:
+    except subprocess.CalledProcessError:
+        return ""
+    except subprocess.TimeoutExpired:
+        print(f"_run_shell: timed out after {timeout}s: {cmd[:120]}", file=sys.stderr)
         return ""
 
 
@@ -233,7 +244,11 @@ def _run_args(args: list, timeout: int = 5) -> str:
             args, shell=False, stderr=subprocess.DEVNULL,
             text=True, timeout=timeout
         ).strip()
-    except Exception:
+    except subprocess.CalledProcessError:
+        return ""
+    except subprocess.TimeoutExpired:
+        cmd_str = " ".join(str(a) for a in args)[:120]
+        print(f"_run_args: timed out after {timeout}s: {cmd_str}", file=sys.stderr)
         return ""
 
 
@@ -244,37 +259,48 @@ def _sanitize_blockdev(name: str) -> str:
 
 
 def get_cpu_usage() -> float:
-    try:
-        import psutil
+    if _HAVE_PSUTIL:
         return psutil.cpu_percent(interval=0.5)
-    except ImportError:
-        top = _run_shell("top -bn1 | grep 'Cpu(s)'")
-        m = re.search(r"(\d+\.\d+)\s*id", top)
-        return round(100 - float(m.group(1)), 1) if m else 0.0
+    # Fallback: read /proc/stat directly instead of parsing top(1) output
+    try:
+        with open("/proc/stat") as f:
+            for line in f:
+                if line.startswith("cpu "):
+                    parts = [int(x) for x in line.strip().split()[1:]]
+                    idle = parts[3]
+                    total = sum(parts)
+                    return round(100.0 * (1.0 - idle / total) if total else 0.0, 1)
+    except Exception:
+        pass
+    return 0.0
 
 
 def get_memory() -> dict:
-    try:
-        import psutil
+    if _HAVE_PSUTIL:
         m = psutil.virtual_memory()
         return {"total_gb": round(m.total/1e9, 1), "used_gb": round(m.used/1e9, 1),
                 "pct": m.percent}
-    except ImportError:
-        out = _run_args(["free", "-b"])
-        parts = out.splitlines()[1].split() if out else []
-        if len(parts) >= 3:
-            t, u = int(parts[1]), int(parts[2])
-            return {"total_gb": round(t/1e9, 1), "used_gb": round(u/1e9, 1), "pct": round(u/t*100, 1)}
+    # Fallback: read /proc/meminfo directly instead of parsing free(1) output
+    try:
+        mem = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, _, v = line.partition(":")
+                mem[k.strip()] = int(v.strip().split()[0]) * 1024
+        total = mem.get("MemTotal", 0)
+        free = mem.get("MemFree", 0) + mem.get("Buffers", 0) + mem.get("Cached", 0)
+        used = total - free
+        return {"total_gb": round(total/1e9, 1), "used_gb": round(used/1e9, 1),
+                "pct": round(used/total*100, 1) if total else 0}
+    except Exception:
         return {"total_gb": 0, "used_gb": 0, "pct": 0}
 
 
 def get_network() -> dict:
-    try:
-        import psutil
+    if _HAVE_PSUTIL:
         io = psutil.net_io_counters()
         return {"bytes_sent": io.bytes_sent, "bytes_recv": io.bytes_recv}
-    except ImportError:
-        return {}
+    return {}
 
 
 def get_uptime() -> str:
@@ -303,15 +329,15 @@ def get_temps() -> dict:
             except Exception:
                 pass
     # Try psutil sensors
-    try:
-        import psutil
-        for name, entries in psutil.sensors_temperatures().items():
-            for e in entries:
-                if e.current:
-                    key = f"{name}/{e.label}" if e.label else name
-                    temps[key] = round(e.current, 1)
-    except Exception:
-        pass
+    if _HAVE_PSUTIL:
+        try:
+            for name, entries in psutil.sensors_temperatures().items():
+                for e in entries:
+                    if e.current:
+                        key = f"{name}/{e.label}" if e.label else name
+                        temps[key] = round(e.current, 1)
+        except Exception:
+            pass
     return temps
 
 
@@ -746,7 +772,7 @@ async def docker_install(app: str, image: str = None, ports: List[str] = None, u
 
     if result.returncode == 0:
         return {"status": "installed", "app": app_info["name"]}
-    return {"error": result.stderr}, 500
+    raise HTTPException(status_code=500, detail=result.stderr.strip() or "docker run failed")
 
 
 # ────────────────────────────────────────────────────────────
@@ -1433,11 +1459,7 @@ async def rclone_sync(body: dict, user=Depends(verify_token)):
 @app.get("/api/backup/rclone/configs")
 async def rclone_configs(user=Depends(verify_token)):
     """List RClone configs"""
-    try:
-        check = subprocess.run(["rclone", "version"], capture_output=True)
-        if check.returncode != 0:
-            return {"remotes": []}
-    except FileNotFoundError:
+    if not _check_tool("rclone", ["version"]):
         return {"remotes": []}
     
     result = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True)
@@ -1472,15 +1494,11 @@ async def imaging_status(user=Depends(verify_token)):
 
 @app.post("/api/imaging/capture")
 async def imaging_capture(hostname: str, image_name: str, user=Depends(verify_token)):
-    """Request FOG image capture"""
-    if not os.path.exists("/opt/fog"):
-        raise HTTPException(status_code=500, detail="FOG not installed")
-    return {"status": "capturing", "host": hostname, "image": image_name}
+    """Request FOG image capture — STUB: FOG integration not yet implemented"""
+    raise HTTPException(status_code=501, detail="FOG imaging capture not yet implemented")
 
 
 @app.post("/api/imaging/deploy")
 async def imaging_deploy(image_name: str, target_host: str, user=Depends(verify_token)):
-    """Deploy image to target"""
-    if not os.path.exists("/opt/fog"):
-        raise HTTPException(status_code=500, detail="FOG not installed")
-    return {"status": "deploying", "image": image_name, "target": target_host}
+    """Deploy image to target — STUB: FOG integration not yet implemented"""
+    raise HTTPException(status_code=501, detail="FOG imaging deploy not yet implemented")
