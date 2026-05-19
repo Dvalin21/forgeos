@@ -28,6 +28,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import sys
+import threading
+import uuid
 
 import uvicorn
 from fastapi import (
@@ -99,6 +101,94 @@ if CONFIG_FILE.exists():
 
 def conf(key: str, default: str = "") -> str:
     return _conf.get(key, os.environ.get(f"FORGEOS_{key}", default))
+
+
+# ────────────────────────────────────────────────────────────
+# BACKGROUND TASK TRACKER
+#   Long-running ops (borg create, restic snapshot, rclone
+#   sync) run in a daemon thread. The endpoint returns a
+#   task_id immediately; the frontend polls for completion.
+# ────────────────────────────────────────────────────────────
+_background_tasks: dict[str, dict] = {}
+_task_lock = threading.Lock()
+_TASK_TTL = 3600  # purge finished tasks after 1 hour
+_MAX_TASKS = 100
+
+
+def _task_cleanup() -> None:
+    """Remove stale tasks to prevent unbounded growth."""
+    now = time.time()
+    with _task_lock:
+        stale = [
+            tid for tid, t in _background_tasks.items()
+            if t.get("finished_at") and (now - t["finished_at"]) > _TASK_TTL
+        ]
+        for tid in stale:
+            del _background_tasks[tid]
+        if len(_background_tasks) > _MAX_TASKS:
+            sorted_tasks = sorted(
+                _background_tasks.items(),
+                key=lambda x: x[1].get("started_at", 0),
+            )
+            for tid, _ in sorted_tasks[:len(_background_tasks) - _MAX_TASKS]:
+                del _background_tasks[tid]
+
+
+def _run_background(cmd: list[str], task_id: str, timeout: int = 600) -> None:
+    """Run a command in a daemon thread, updating task state."""
+    with _task_lock:
+        t = _background_tasks.get(task_id)
+        if t:
+            t["status"] = "running"
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        with _task_lock:
+            t = _background_tasks.get(task_id)
+            if t:
+                if r.returncode == 0:
+                    t["status"] = "done"
+                    t["result"] = r.stdout.strip()
+                else:
+                    t["status"] = "failed"
+                    t["error"] = r.stderr.strip() or "Exit code %d" % r.returncode
+                t["finished_at"] = time.time()
+    except subprocess.TimeoutExpired:
+        with _task_lock:
+            t = _background_tasks.get(task_id)
+            if t:
+                t["status"] = "failed"
+                t["error"] = "Command timed out"
+                t["finished_at"] = time.time()
+    except Exception as e:
+        with _task_lock:
+            t = _background_tasks.get(task_id)
+            if t:
+                t["status"] = "failed"
+                t["error"] = str(e)
+                t["finished_at"] = time.time()
+
+
+def _start_task(cmd: list[str], tool: str, action: str, timeout: int = 600) -> str:
+    """Launch a command in background and return its task_id."""
+    _task_cleanup()
+    task_id = str(uuid.uuid4())
+    now = time.time()
+    with _task_lock:
+        _background_tasks[task_id] = {
+            "id": task_id,
+            "tool": tool,
+            "action": action,
+            "status": "pending",
+            "started_at": now,
+            "finished_at": None,
+            "result": None,
+            "error": None,
+        }
+    t = threading.Thread(
+        target=_run_background, args=(cmd, task_id, timeout), daemon=True
+    )
+    t.start()
+    return task_id
 
 
 # ────────────────────────────────────────────────────────────
@@ -1365,7 +1455,7 @@ async def borg_status(user=Depends(verify_token)):
 
 @app.post("/api/backup/borg/create")
 async def borg_create(body: dict, user=Depends(verify_token)):
-    """Create new Borg backup job"""
+    """Create new Borg backup job (async — returns task_id, poll GET /api/backup/task/{id})"""
     _require_tool("borg", ["version"])
     
     name = body.get("name", "backup")
@@ -1377,14 +1467,8 @@ async def borg_create(body: dict, user=Depends(verify_token)):
     
     archive_name = f"{name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     cmd = ["borg", "create", f"{destination}::{archive_name}", source]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    except subprocess.TimeoutExpired:
-        raise HTTPException(status_code=504, detail="Backup creation timed out")
-    
-    if result.returncode == 0:
-        return {"status": "created", "archive": archive_name}
-    raise HTTPException(status_code=500, detail=result.stderr)
+    task_id = _start_task(cmd, "borg", "create", timeout=600)
+    return {"task_id": task_id, "archive": archive_name, "status": "running"}
 
 
 @app.get("/api/backup/borg/list")
@@ -1420,7 +1504,7 @@ async def restic_status(user=Depends(verify_token)):
 
 @app.post("/api/backup/restic/snapshot")
 async def restic_snapshot(body: dict, user=Depends(verify_token)):
-    """Create Restic snapshot"""
+    """Create Restic snapshot (async — returns task_id, poll GET /api/backup/task/{id})"""
     _require_tool("restic", ["version"])
     
     repo = body.get("repo", "/backup/restic")
@@ -1430,14 +1514,8 @@ async def restic_snapshot(body: dict, user=Depends(verify_token)):
         raise HTTPException(status_code=400, detail="Paths required")
     
     cmd = ["restic", "-r", repo, "snapshot"] + paths
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    except subprocess.TimeoutExpired:
-        return {"status": "error", "message": "Snapshot timed out"}
-    
-    if result.returncode == 0:
-        return {"status": "created"}
-    return {"status": "error", "message": result.stderr}
+    task_id = _start_task(cmd, "restic", "snapshot", timeout=600)
+    return {"task_id": task_id, "status": "running"}
 
 
 @app.get("/api/backup/restic/snapshots")
@@ -1471,7 +1549,7 @@ async def rclone_status(user=Depends(verify_token)):
 
 @app.post("/api/backup/rclone/sync")
 async def rclone_sync(body: dict, user=Depends(verify_token)):
-    """Run RClone sync"""
+    """Run RClone sync (async — returns task_id, poll GET /api/backup/task/{id})"""
     _require_tool("rclone", ["version"])
     
     source = body.get("source", "")
@@ -1484,14 +1562,8 @@ async def rclone_sync(body: dict, user=Depends(verify_token)):
     cmd = ["rclone", "sync", source, destination]
     if config:
         cmd.extend(["--config", config])
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    except subprocess.TimeoutExpired:
-        return {"status": "error", "message": "Sync timed out"}
-    
-    if result.returncode == 0:
-        return {"status": "synced"}
-    return {"status": "error", "message": result.stderr}
+    task_id = _start_task(cmd, "rclone", "sync", timeout=600)
+    return {"task_id": task_id, "status": "running"}
 
 
 @app.get("/api/backup/rclone/configs")
@@ -1508,6 +1580,29 @@ async def rclone_configs(user=Depends(verify_token)):
         remotes = [r for r in result.stdout.strip().split("\n") if r]
         return {"remotes": remotes}
     return {"remotes": []}
+
+
+# ────────────────────────────────────────────────────────────
+# BACKGROUND TASK STATUS
+# ────────────────────────────────────────────────────────────
+
+
+@app.get("/api/backup/task/{task_id}")
+async def get_task_status(task_id: str, user=Depends(verify_token)):
+    """Poll background task status."""
+    with _task_lock:
+        t = _background_tasks.get(task_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return t
+
+
+@app.get("/api/backup/tasks")
+async def list_tasks(user=Depends(verify_token)):
+    """List all recent background tasks (newest first)."""
+    with _task_lock:
+        tasks = list(_background_tasks.values())
+    return {"tasks": sorted(tasks, key=lambda x: x.get("started_at", 0), reverse=True)}
 
 
 # ────────────────────────────────────────────────────────────
