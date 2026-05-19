@@ -60,21 +60,24 @@ def _load_jwt_secret() -> str:
     """Load JWT secret from config. Raises on missing/default."""
     secret = os.environ.get("FORGEOS_JWT_SECRET", "")
     if not secret:
-        # Try to read from forgeos.conf
+        # Try to read from forgeos.conf — use LAST non-default entry
         try:
             for line in CONFIG_FILE.read_text().splitlines():
                 if line.startswith("WEBUI_JWT_SECRET="):
-                    secret = line.split("=", 1)[1].strip().strip('"')
-                    break
+                    candidate = line.split("=", 1)[1].strip().strip('"')
+                    if candidate not in ("changeme-set-in-forgeos.conf", "changeme", ""):
+                        secret = candidate
         except Exception as e:
             print("forgeos: FAILED to read %s: %s" % (CONFIG_FILE, e), file=sys.stderr)
     if not secret or secret in ("changeme-set-in-forgeos.conf", "changeme", ""):
         import secrets
         secret = secrets.token_hex(32)
-        # Write it back to config so it persists
+        # Replace (not append) secret lines in config so it persists
         try:
-            with open(CONFIG_FILE, "a") as f:
-                f.write(f'\nWEBUI_JWT_SECRET="{secret}"\n')
+            lines = CONFIG_FILE.read_text().splitlines() if CONFIG_FILE.exists() else []
+            lines = [l for l in lines if not l.startswith("WEBUI_JWT_SECRET=")]
+            lines.append(f'WEBUI_JWT_SECRET="{secret}"')
+            CONFIG_FILE.write_text("\n".join(lines) + "\n")
         except Exception as e:
             print("forgeos: FAILED to write JWT secret to %s: %s" % (CONFIG_FILE, e), file=sys.stderr)
     return secret
@@ -423,7 +426,7 @@ async def storage_drives(user=Depends(verify_token)):
                         pass
                 # Determine health
                 health = 95
-                smart_status = smart_data.get("smart_status", {})
+                smart_status = smart_data.get("smart_status")
                 if isinstance(smart_status, dict):
                     health = 100 if smart_status.get("passed") else 50
                 drives.append({
@@ -506,14 +509,26 @@ async def create_snapshot(body: dict, user=Depends(verify_token)):
     if pool:
         pool = re.sub(r"[^a-zA-Z0-9_-]", "", pool)
         desc = re.sub(r"[^a-zA-Z0-9 _.-]", "", desc)[:80]
-        _run_args(["snapper", "-c", pool, "create",
-                   "--description", desc, "--cleanup-algorithm", "timeline"])
+        r = subprocess.run(
+            ["snapper", "-c", pool, "create",
+             "--description", desc, "--cleanup-algorithm", "timeline"],
+            capture_output=True, text=True, timeout=60
+        )
+        if r.returncode != 0:
+            raise HTTPException(status_code=500,
+                                detail="Snapshot failed: %s" % r.stderr.strip())
     else:
         configs = _run_args(["snapper", "list-configs"]).splitlines()
         configs = [l.split()[0] for l in configs if l.strip() and not l.startswith("Config")]
         for c in configs:
-            _run_args(["snapper", "-c", c, "create",
-                       "--description", desc, "--cleanup-algorithm", "timeline"])
+            r = subprocess.run(
+                ["snapper", "-c", c, "create",
+                 "--description", desc, "--cleanup-algorithm", "timeline"],
+                capture_output=True, text=True, timeout=60
+            )
+            if r.returncode != 0:
+                raise HTTPException(status_code=500,
+                                    detail="Snapshot failed for %s: %s" % (c, r.stderr.strip()))
     return {"ok": True, "message": f"Snapshot created: {desc}"}
 
 
@@ -769,7 +784,10 @@ async def docker_install(app: str, image: str = None, ports: List[str] = None, u
         port_args = ["-p", f"{app_info['port']}:{app_info['port']}"]
 
     cmd = ["docker", "run", "-d", "--name", app_info["name"]] + port_args + [app_info["image"]]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Docker pull timed out")
 
     if result.returncode == 0:
         return {"status": "installed", "app": app_info["name"]}
@@ -879,12 +897,12 @@ async def list_network(user=Depends(verify_token)):
                 ip_addr = ip_match.group(1).split('/')[0] if ip_match else "N/A"
                 rx_out = _run_args(["cat", f"/sys/class/net/{name}/statistics/rx_bytes"], timeout=2)
                 tx_out = _run_args(["cat", f"/sys/class/net/{name}/statistics/tx_bytes"], timeout=2)
-            ifaces.append({
-                "name": name,
-                "ip": ip_addr,
-                "rx": int(rx_out.strip() or 0),
-                "tx": int(tx_out.strip() or 0),
-            })
+                ifaces.append({
+                    "name": name,
+                    "ip": ip_addr,
+                    "rx": int(rx_out.strip() or 0),
+                    "tx": int(tx_out.strip() or 0),
+                })
     return {"interfaces": ifaces}
 
 
@@ -1330,15 +1348,18 @@ async def borg_status(user=Depends(verify_token)):
     installed = _check_tool("borg", ["version"])
     jobs = []
     if installed:
-        list_result = subprocess.run(
-            ["borg", "list", "--json", "/backup"],
-            capture_output=True, text=True
-        )
-        if list_result.returncode == 0:
-            try:
-                jobs = json.loads(list_result.stdout)
-            except Exception:
-                jobs = []
+        try:
+            list_result = subprocess.run(
+                ["borg", "list", "--json", "/backup"],
+                capture_output=True, text=True, timeout=30
+            )
+            if list_result.returncode == 0:
+                try:
+                    jobs = json.loads(list_result.stdout)
+                except Exception:
+                    jobs = []
+        except subprocess.TimeoutExpired:
+            pass  # jobs stays []
     return {"installed": installed, "jobs": jobs}
 
 
@@ -1356,7 +1377,10 @@ async def borg_create(body: dict, user=Depends(verify_token)):
     
     archive_name = f"{name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     cmd = ["borg", "create", f"{destination}::{archive_name}", source]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Backup creation timed out")
     
     if result.returncode == 0:
         return {"status": "created", "archive": archive_name}
@@ -1368,14 +1392,17 @@ async def borg_list(destination: str, user=Depends(verify_token)):
     """List archives in repository"""
     _require_tool("borg", ["version"])
     
-    result = subprocess.run(
-        ["borg", "list", "--json", destination],
-        capture_output=True, text=True
-    )
+    try:
+        result = subprocess.run(
+            ["borg", "list", "--json", destination],
+            capture_output=True, text=True, timeout=30
+        )
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Listing archives timed out")
     if result.returncode == 0:
         try:
             return {"archives": json.loads(result.stdout)}
-        except Exception:
+        except json.JSONDecodeError:
             return {"archives": []}
     raise HTTPException(status_code=500, detail="Failed to list archives")
 
@@ -1403,7 +1430,10 @@ async def restic_snapshot(body: dict, user=Depends(verify_token)):
         raise HTTPException(status_code=400, detail="Paths required")
     
     cmd = ["restic", "-r", repo, "snapshot"] + paths
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "Snapshot timed out"}
     
     if result.returncode == 0:
         return {"status": "created"}
@@ -1416,11 +1446,14 @@ async def restic_snapshots(repo: str, user=Depends(verify_token)):
     _require_tool("restic", ["version"])
     
     cmd = ["restic", "-r", repo, "snapshots", "--json"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except subprocess.TimeoutExpired:
+        return {"snapshots": []}
     if result.returncode == 0:
         try:
             return {"snapshots": json.loads(result.stdout)}
-        except Exception:
+        except json.JSONDecodeError:
             return {"snapshots": []}
     return {"snapshots": []}
 
@@ -1451,7 +1484,10 @@ async def rclone_sync(body: dict, user=Depends(verify_token)):
     cmd = ["rclone", "sync", source, destination]
     if config:
         cmd.extend(["--config", config])
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "Sync timed out"}
     
     if result.returncode == 0:
         return {"status": "synced"}
@@ -1464,7 +1500,10 @@ async def rclone_configs(user=Depends(verify_token)):
     if not _check_tool("rclone", ["version"]):
         return {"remotes": []}
     
-    result = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True)
+    try:
+        result = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True, timeout=10)
+    except subprocess.TimeoutExpired:
+        return {"remotes": []}
     if result.returncode == 0:
         remotes = [r for r in result.stdout.strip().split("\n") if r]
         return {"remotes": remotes}
