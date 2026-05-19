@@ -51,8 +51,8 @@ def _load_rustfs_creds() -> dict:
             with open(str(config_file), "a") as f:
                 f.write(f'\nRUSTFS_ACCESS_KEY="{creds["access_key"]}"\n')
                 f.write(f'\nRUSTFS_SECRET_KEY="{creds["secret_key"]}"\n')
-        except Exception:
-            pass
+        except Exception as e:
+            print("forgeos: FAILED to write RustFS creds to %s: %s" % (config_file, e), file=sys.stderr)
     
     return creds
 
@@ -61,7 +61,7 @@ _creds = _load_rustfs_creds()
 # ── Boto3 S3 Client ──
 def get_s3_client():
     """Create S3 client connected to RustFS."""
-    creds = _load_rustfs_creds()
+    creds = _creds
     return boto3.client(
         's3',
         endpoint_url=RUSTFS_API_ENDPOINT,
