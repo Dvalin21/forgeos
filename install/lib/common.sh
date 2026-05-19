@@ -242,7 +242,12 @@ ver_ge() {
 
 # ── Detect system disk (exclude from storage wizard) ──────────
 get_system_disk() {
-    lsblk -no pkname "$(findmnt -n -o SOURCE /)" 2>/dev/null \
-        | head -1 | sed 's/[0-9]*$//' \
-        | xargs -I{} echo "/dev/{}"
+    local root_dev
+    root_dev="$(findmnt -n -o SOURCE / 2>/dev/null)" || return 1
+    # pkname gives the kernel name of the parent device.
+    # For NVMe (nvme0n1p2 → nvme0n1) and SATA (sda2 → sda) this is correct.
+    local parent
+    parent="$(lsblk -no pkname "$root_dev" 2>/dev/null | head -1)" || return 1
+    [[ -n "$parent" ]] || return 1
+    echo "/dev/$parent"
 }

@@ -72,7 +72,7 @@ if ! $UNATTENDED; then
     # Hostname
     ask "Hostname" "$(hostname -s)"
     FORGEOS_HOSTNAME="$REPLY"
-    hostnamectl set-hostname "$FORGEOS_HOSTNAME" 2>/dev/null || true
+    hostnamectl set-hostname "$FORGEOS_HOSTNAME" 2>/dev/null || warn "Failed to set hostname"
     forgenas_set "HOSTNAME" "$FORGEOS_HOSTNAME"
 
     # Domain

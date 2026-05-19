@@ -300,16 +300,25 @@ async def filedb_get_settings():
         raise HTTPException(status_code=503, detail=str(e))
 
 
+_ALLOWED_SETTINGS = {
+    "snapshot_debounce_sec", "max_snapshots", "write_threshold", "watch_root",
+}
+
 @router.put("/settings")
 async def filedb_update_settings(body: dict):
-    """Update ForgeFileDB settings"""
+    """Update ForgeFileDB settings (whitelist-only keys)"""
     if MOCK_MODE:
         return {"ok": True, "settings": body, "mock_mode": True}
 
+    # Whitelist: only accept known keys to prevent CLI injection
+    safe = {k: v for k, v in body.items() if k in _ALLOWED_SETTINGS}
+    if not safe:
+        raise HTTPException(status_code=400, detail="No valid settings keys provided")
+
     try:
-        # Build CLI args from body
+        # Build CLI args from whitelisted keys only
         args = ['settings', 'set']
-        for key, value in body.items():
+        for key, value in safe.items():
             args.extend(['--' + key.replace('_', '-'), str(value)])
         args.append('--json')
         data = _run_filedb_cli(args)
@@ -367,21 +376,34 @@ async def websocket_filedb(ws: WebSocket):
                 "type": "status",
                 "data": get_mock_status()
             })
-
-        while True:
-            # In mock mode, send periodic updates
-            if MOCK_MODE:
+            # In mock mode, send periodic heartbeat updates
+            while True:
+                await asyncio.sleep(30)
                 await ws.send_json({
                     "type": "heartbeat",
                     "ts": datetime.now().isoformat()
                 })
-                await asyncio.sleep(30)
-            else:
-                # In production, this would listen to ForgeFileDB daemon events
-                data = await ws.receive_text()
-                # Echo back for now
-                await ws.send_text(f"Echo: {data}")
+        else:
+            # In production, forward ForgeFileDB daemon events
+            # Use subprocess to tail the daemon log for real-time updates
+            proc = await asyncio.create_subprocess_exec(
+                "tail", "-n", "0", "-F", str(FILEDB_LOG),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            try:
+                while True:
+                    if proc.stdout is None:
+                        break
+                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=30)
+                    if not line:
+                        break
+                    await ws.send_text(line.decode("utf-8", errors="replace").rstrip())
+            finally:
+                proc.kill()
 
+    except (WebSocketDisconnect, asyncio.TimeoutError):
+        pass
     except Exception as e:
         print(f"WebSocket error: {e}")
     finally:

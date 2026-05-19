@@ -3,7 +3,7 @@ import importlib.util
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from jose import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from starlette.routing import Route, WebSocketRoute, Mount
 
 spec = importlib.util.spec_from_file_location("forgeos_api", "src/forgeos-api.py")
@@ -24,7 +24,7 @@ JWT_SECRET = forgeos_api.JWT_SECRET
 JWT_ALGO = forgeos_api.JWT_ALGO
 
 def create_test_token():
-    payload = {"sub": "testuser", "role": "admin", "exp": datetime.utcnow() + timedelta(hours=12)}
+    payload = {"sub": "testuser", "role": "admin", "exp": datetime.now(tz=timezone.utc) + timedelta(hours=12)}
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
 client = TestClient(test_app)
