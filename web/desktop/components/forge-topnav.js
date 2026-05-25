@@ -312,8 +312,9 @@ class ForgeTopnav extends HTMLElement {
           if (action === 'settings') {
             this.navigateTo('settings');
           } else if (action === 'logout') {
-            console.log('Logout clicked');
-            // TODO: Implement logout
+            // Clear token and redirect to desktop login
+            localStorage.removeItem('forgeos_token');
+            window.location.href = '/desktop/index.html';
           } else if (action === 'profile') {
             console.log('Profile clicked');
             // TODO: Implement profile view
@@ -338,9 +339,12 @@ class ForgeTopnav extends HTMLElement {
     });
     const activeItem = this.shadowRoot.querySelector(`[data-page="${page}"]`);
     if (activeItem) activeItem.classList.add('active');
-    
-    // Navigate to page
-    window.location.href = `/desktop/${page}.html`;
+
+    // Dashboard lives in the desktop (index.html) — standalone pages for other apps
+    const urls = {
+      dashboard: '/desktop/index.html',
+    };
+    window.location.href = urls[page] || `/desktop/${page}.html`;
   }
 }
 

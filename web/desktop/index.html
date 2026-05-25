@@ -5,786 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ForgeOS</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<style>
-/* ═══════════════════════════════════════════════════════
-   FORGEOS MODERN DESKTOP - DSM 7 Inspired + Glassmorphism
-   Professional. Smooth. Modern.
-   ═══════════════════════════════════════════════════════ */
-
-:root {
-  /* ── Glassmorphism System ── */
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-bg-hover: rgba(255, 255, 255, 0.08);
-  --glass-bg-strong: rgba(255, 255, 255, 0.12);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-border-strong: rgba(255, 255, 255, 0.18);
-  --glass-blur: blur(20px);
-  --glass-blur-strong: blur(40px);
-  --glass-saturate: saturate(180%);
-  
-  /* ── Color System (Ocean Deep + Cyan Accent) ── */
-  --accent-primary: #00d4ff;
-  --accent-primary-glow: rgba(0, 212, 255, 0.3);
-  --accent-secondary: #0091d9;
-  --accent-success: #00e676;
-  --accent-warning: #ffb300;
-  --accent-danger: #ff5252;
-  
-  /* ── Background Layers ── */
-  --bg-void: #000000;
-  --bg-base: #0a0e17;
-  --bg-surface: #0f1923;
-  --bg-elevated: #141d2b;
-  --bg-overlay: #1a2538;
-  
-  /* ── Text ── */
-  --text-primary: #ffffff;
-  --text-secondary: #b0bec5;
-  --text-muted: #607d8b;
-  
-  /* ── Layout ── */
-  --taskbar-height: 52px;
-  --sidebar-width: 240px;
-  --topbar-height: 48px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  
-  /* ── Transitions ── */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
-  --duration-slow: 400ms;
-  
-  /* ── Shadows ── */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px var(--accent-primary-glow);
-}
-
-* { 
-  box-sizing: border-box; 
-  margin: 0; 
-  padding: 0; 
-}
-
-html, body { 
-  width: 100%; 
-  height: 100%; 
-  overflow: hidden; 
-}
-
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg-void);
-  color: var(--text-primary);
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
-}
-
-/* ═══════════════════════════════════════════════════════
-   DESKTOP BACKGROUND - Atmospheric Gradient
-   ═══════════════════════════════════════════════════════ */
-#desktop {
-  position: fixed;
-  inset: 0;
-  background: 
-    radial-gradient(ellipse at 20% 50%, rgba(0, 212, 255, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 20%, rgba(0, 145, 217, 0.04) 0%, transparent 40%),
-    radial-gradient(ellipse at 50% 80%, rgba(0, 230, 118, 0.02) 0%, transparent 40%),
-    linear-gradient(180deg, #0a0e17 0%, #070b12 100%);
-  display: flex;
-  flex-direction: column;
-}
-
-/* ═══════════════════════════════════════════════════════
-   TOP BAR - DSM Style (Clean, Minimal)
-   ═══════════════════════════════════════════════════════ */
-#topbar {
-  height: var(--topbar-height);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur) var(--glass-saturate);
-  -webkit-backdrop-filter: var(--glass-blur) var(--glass-saturate);
-  border-bottom: 1px solid var(--glass-border);
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 16px;
-  z-index: 100;
-  flex-shrink: 0;
-}
-
-.topbar-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: 1.5px;
-  color: var(--text-primary);
-}
-
-.logo-icon {
-  width: 28px;
-  height: 28px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--bg-void);
-}
-
-.topbar-search {
-  flex: 1;
-  max-width: 400px;
-  margin: 0 auto;
-}
-
-.search-input {
-  width: 100%;
-  height: 32px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  padding: 0 12px 0 36px;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-family: 'Inter', sans-serif;
-  transition: all var(--duration-normal) var(--ease-out);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23607d8b' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: 10px center;
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-  background-color: rgba(0, 212, 255, 0.05);
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
-}
-
-.search-input::placeholder {
-  color: var(--text-muted);
-}
-
-.topbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.topbar-btn {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: all var(--duration-fast) var(--ease-out);
-  border: none;
-  background: transparent;
-  position: relative;
-}
-
-.topbar-btn:hover {
-  background: var(--glass-bg-hover);
-  color: var(--text-primary);
-}
-
-.notification-dot {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 6px;
-  height: 6px;
-  background: var(--accent-danger);
-  border-radius: 50%;
-  border: 1px solid var(--bg-surface);
-}
-
-/* ═══════════════════════════════════════════════════════
-   MAIN CONTENT AREA
-   ═══════════════════════════════════════════════════════ */
-#main-content {
-  flex: 1;
-  display: flex;
-  overflow: hidden;
-  position: relative;
-}
-
-/* ═══════════════════════════════════════════════════════
-   SIDEBAR - Glassmorphic Navigation
-   ═══════════════════════════════════════════════════════ */
-#sidebar {
-  width: var(--sidebar-width);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur) var(--glass-saturate);
-  -webkit-backdrop-filter: var(--glass-blur) var(--glass-saturate);
-  border-right: 1px solid var(--glass-border);
-  display: flex;
-  flex-direction: column;
-  z-index: 50;
-  flex-shrink: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-}
-
-.sidebar-header {
-  padding: 20px 16px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: var(--text-muted);
-  animation: slideIn var(--duration-normal) var(--ease-out) backwards;
-}
-
-.sidebar-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  margin: 2px 8px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  transition: all var(--duration-fast) var(--ease-out);
-  position: relative;
-  animation: slideIn var(--duration-normal) var(--ease-out) backwards;
-}
-
-.sidebar-item:nth-child(1) { animation-delay: 50ms; }
-.sidebar-item:nth-child(2) { animation-delay: 100ms; }
-.sidebar-item:nth-child(3) { animation-delay: 150ms; }
-.sidebar-item:nth-child(4) { animation-delay: 200ms; }
-.sidebar-item:nth-child(5) { animation-delay: 250ms; }
-
-.sidebar-item:hover {
-  background: var(--glass-bg-hover);
-  color: var(--text-primary);
-}
-
-.sidebar-item.active {
-  background: rgba(0, 212, 255, 0.1);
-  color: var(--accent-primary);
-}
-
-.sidebar-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 20px;
-  background: var(--accent-primary);
-  border-radius: 0 2px 2px 0;
-}
-
-.sidebar-icon {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.sidebar-icon svg {
-  width: 20px;
-  height: 20px;
-  stroke: currentColor;
-  stroke-width: 2;
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.sidebar-badge {
-  margin-left: auto;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 600;
-  background: rgba(0, 212, 255, 0.15);
-  color: var(--accent-primary);
-}
-
-.sidebar-badge.warn { background: rgba(255, 179, 0, 0.15); color: var(--accent-warning); }
-.sidebar-badge.err { background: rgba(255, 82, 82, 0.15); color: var(--accent-danger); }
-.sidebar-badge.success { background: rgba(0, 230, 118, 0.15); color: var(--accent-success); }
-
-.sidebar-divider {
-  height: 1px;
-  background: var(--glass-border);
-  margin: 8px 16px;
-}
-
-/* ═══════════════════════════════════════════════════════
-   WINDOW AREA - DSM Style Windows
-   ═══════════════════════════════════════════════════════ */
-#window-area {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  padding: 20px;
-}
-
-.window {
-  position: absolute;
-  background: var(--glass-bg-strong);
-  backdrop-filter: var(--glass-blur-strong) var(--glass-saturate);
-  -webkit-backdrop-filter: var(--glass-blur-strong) var(--glass-saturate);
-  border: 1px solid var(--glass-border-strong);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg), inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  transition: box-shadow var(--duration-normal) var(--ease-out);
-  min-width: 400px;
-  min-height: 300px;
-  animation: fadeIn var(--duration-slow) var(--ease-out);
-}
-
-.window:hover {
-  box-shadow: var(--shadow-lg), var(--shadow-glow), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
-}
-
-.window.focused {
-  border-color: rgba(0, 212, 255, 0.3);
-  z-index: 10;
-}
-
-.window-titlebar {
-  height: 44px;
-  display: flex;
-  align-items: center;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--glass-border);
-  cursor: move;
-  user-select: none;
-  flex-shrink: 0;
-}
-
-.window-title {
-  flex: 1;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.window-title svg {
-  width: 16px;
-  height: 16px;
-  stroke: currentColor;
-  stroke-width: 2;
-  fill: none;
-  stroke-linecap: round;
-}
-
-.window-controls {
-  display: flex;
-  gap: 6px;
-}
-
-.window-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: all var(--duration-fast) var(--ease-out);
-  border: none;
-  background: transparent;
-}
-
-.window-btn:hover {
-  background: var(--glass-bg-hover);
-  color: var(--text-primary);
-}
-
-.window-btn.close:hover {
-  background: rgba(255, 82, 82, 0.2);
-  color: var(--accent-danger);
-}
-
-.window-btn svg {
-  width: 14px;
-  height: 14px;
-  stroke: currentColor;
-  stroke-width: 2;
-  fill: none;
-  stroke-linecap: round;
-}
-
-.window-content {
-  flex: 1;
-  overflow: auto;
-  padding: 20px;
-}
-
-/* ═══════════════════════════════════════════════════════
-   DASHBOARD WIDGETS - Glass Cards
-   ═══════════════════════════════════════════════════════ */
-.widget-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-  padding: 20px;
-}
-
-.glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur) var(--glass-saturate);
-  -webkit-backdrop-filter: var(--glass-blur) var(--glass-saturate);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-md);
-  padding: 20px;
-  transition: all var(--duration-normal) var(--ease-out);
-  cursor: pointer;
-  animation: fadeIn var(--duration-slow) var(--ease-out) backwards;
-}
-
-.glass-card:nth-child(1) { animation-delay: 100ms; }
-.glass-card:nth-child(2) { animation-delay: 200ms; }
-.glass-card:nth-child(3) { animation-delay: 300ms; }
-.glass-card:nth-child(4) { animation-delay: 400ms; }
-
-.glass-card:hover {
-  background: var(--glass-bg-hover);
-  border-color: var(--glass-border-strong);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.glass-card:active {
-  transform: translateY(0);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.card-title {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--text-muted);
-}
-
-.card-icon {
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: rgba(0, 212, 255, 0.1);
-  color: var(--accent-primary);
-}
-
-.card-icon svg {
-  width: 20px;
-  height: 20px;
-  stroke: currentColor;
-  stroke-width: 2;
-  fill: none;
-  stroke-linecap: round;
-}
-
-.card-value {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1;
-  margin-bottom: 8px;
-  font-variant-numeric: tabular-nums;
-}
-
-.card-label {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.card-trend {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  margin-top: 12px;
-}
-
-.card-trend svg {
-  width: 12px;
-  height: 12px;
-  stroke: currentColor;
-  stroke-width: 2;
-  fill: none;
-}
-
-.card-trend.up {
-  background: rgba(0, 230, 118, 0.1);
-  color: var(--accent-success);
-}
-
-.card-trend.down {
-  background: rgba(255, 82, 82, 0.1);
-  color: var(--accent-danger);
-}
-
-/* ═══════════════════════════════════════════════════════
-   TASKBAR - DSM Style Bottom Bar
-   ═══════════════════════════════════════════════════════ */
-#taskbar {
-  height: var(--taskbar-height);
-  background: var(--glass-bg-strong);
-  backdrop-filter: var(--glass-blur-strong) var(--glass-saturate);
-  -webkit-backdrop-filter: var(--glass-blur-strong) var(--glass-saturate);
-  border-top: 1px solid var(--glass-border-strong);
-  display: flex;
-  align-items: center;
-  padding: 0 12px;
-  gap: 4px;
-  z-index: 9000;
-  flex-shrink: 0;
-}
-
-.taskbar-start {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 16px;
-  height: 100%;
-  cursor: pointer;
-  border-right: 1px solid var(--glass-border);
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.taskbar-start:hover {
-  background: var(--glass-bg-hover);
-}
-
-.taskbar-start .logo-icon {
-  width: 22px;
-  height: 22px;
-  font-size: 11px;
-}
-
-.taskbar-start span {
-  font-weight: 600;
-  font-size: 14px;
-  letter-spacing: 1px;
-  color: var(--text-primary);
-}
-
-.taskbar-items {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 8px;
-}
-
-.taskbar-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  height: 40px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-  transition: all var(--duration-fast) var(--ease-out);
-  border-bottom: 2px solid transparent;
-}
-
-.taskbar-item svg {
-  width: 16px;
-  height: 16px;
-  stroke: currentColor;
-  stroke-width: 2;
-  fill: none;
-  stroke-linecap: round;
-}
-
-.taskbar-item:hover {
-  background: var(--glass-bg-hover);
-  color: var(--text-primary);
-}
-
-.taskbar-item.active {
-  background: var(--glass-bg);
-  color: var(--text-primary);
-  border-bottom-color: var(--accent-primary);
-}
-
-.taskbar-tray {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 0 8px;
-  height: 100%;
-  border-left: 1px solid var(--glass-border);
-}
-
-.tray-item {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  cursor: pointer;
-  color: var(--text-secondary);
-  transition: all var(--duration-fast) var(--ease-out);
-  position: relative;
-  border: none;
-  background: transparent;
-}
-
-.tray-item svg {
-  width: 16px;
-  height: 16px;
-  stroke: currentColor;
-  stroke-width: 2;
-  fill: none;
-  stroke-linecap: round;
-}
-
-.tray-item:hover {
-  background: var(--glass-bg-hover);
-  color: var(--text-primary);
-}
-
-.tray-status {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  border: 1px solid var(--bg-surface);
-}
-
-.tray-status.ok { background: var(--accent-success); }
-.tray-status.warn { background: var(--accent-warning); }
-.tray-status.err { background: var(--accent-danger); }
-
-#tray-clock {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 0 14px;
-  height: 100%;
-  border-left: 1px solid var(--glass-border);
-  cursor: default;
-  min-width: 76px;
-}
-
-#clk-time {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.1;
-  color: var(--text-primary);
-}
-
-#clk-date {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-/* ═══════════════════════════════════════════════════════
-   SCROLLBAR
-   ═══════════════════════════════════════════════════════ */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-/* ═══════════════════════════════════════════════════════
-   ANIMATIONS
-   ═══════════════════════════════════════════════════════ */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateX(-20px); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
-/* ═══════════════════════════════════════════════════════
-   RESPONSIVE
-   ═══════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-  #sidebar {
-    position: absolute;
-    left: -240px;
-    top: 0;
-    bottom: 0;
-    z-index: 200;
-    transition: left var(--duration-normal) var(--ease-out);
-  }
-  
-  #sidebar.open {
-    left: 0;
-  }
-  
-  .widget-grid {
-    grid-template-columns: 1fr;
-  }
-}
-</style>
+<link rel="stylesheet" href="css/forgeos.css">
+<script src="js/icons.js"></script>
 </head>
 <body>
 
 <!-- ═══════════════════════════════════════════════════════
      DESKTOP
      ═══════════════════════════════════════════════════════ -->
-<div id="desktop">
+<div id="desktop" class="auth-hidden">
   
   <!-- TOP BAR (Clean DSM 7 Style) -->
   <div id="topbar">
@@ -813,12 +42,18 @@ body {
         </svg>
       </button>
       
-      <button class="topbar-btn" title="User Menu">
+      <button class="topbar-btn" id="user-menu-btn" title="User Menu">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
           <circle cx="12" cy="7" r="4"/>
         </svg>
       </button>
+      <div id="user-menu" class="hidden" style="position: absolute; top: var(--topbar-height); right: 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); min-width: 180px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); overflow: hidden; z-index: 999;">
+        <button class="profile-menu-item" onclick="forgeOS.logout()" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 16px; background: none; border: none; color: var(--text-primary); cursor: pointer; font-size: 14px;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Logout
+        </button>
+      </div>
     </div>
   </div>
   
@@ -827,7 +62,12 @@ body {
     
     <!-- SIDEBAR -->
     <div id="sidebar">
-      <div class="sidebar-header">Applications</div>
+      <div class="sidebar-header">
+        <span>Applications</span>
+        <button id="sidebar-toggle" class="sidebar-toggle-btn" title="Collapse sidebar">
+          <svg viewBox="0 0 24 24" class="svg-icon" style="width: 16px; height: 16px;"><path d="M15 5l-7 7 7 7"/></svg>
+        </button>
+      </div>
       
       <div class="sidebar-item active" data-app="dashboard">
         <span class="sidebar-icon">
@@ -941,11 +181,11 @@ body {
                   <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M12 1v3M15 1v3M9 20v3M12 20v3M15 20v3M20 9h3M20 12h3M20 15h3M1 9h3M1 12h3M1 15h3"/></svg>
                 </div>
               </div>
-              <div class="card-value">23%</div>
-              <div class="card-label">Intel i7-12700K</div>
-              <div class="card-trend up">
+              <div class="card-value" data-stat="cpu">--%</div>
+              <div class="card-label" data-stat-label="cpu">i7-12700K</div>
+              <div class="card-trend up" data-stat-trend="cpu">
                 <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                Normal load
+                <span data-stat-trend="cpu">Loading...</span>
               </div>
             </div>
             
@@ -957,11 +197,11 @@ body {
                   <svg viewBox="0 0 24 24"><path d="M6 19v-8a6 6 0 0 1 12 0v8"/><rect x="4" y="19" width="16" height="3" rx="1"/><circle cx="12" cy="12" r="2"/></svg>
                 </div>
               </div>
-              <div class="card-value">12.4 GB</div>
-              <div class="card-label">/ 32 GB (38% used)</div>
-              <div class="card-trend up">
+              <div class="card-value" data-stat="memory">-- GB</div>
+              <div class="card-label" data-stat-label="memory">/ -- GB (--% used)</div>
+              <div class="card-trend up" data-stat-trend="memory">
                 <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                Available: 19.6 GB
+                <span data-stat-trend="memory">Loading...</span>
               </div>
             </div>
             
@@ -973,11 +213,11 @@ body {
                   <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                 </div>
               </div>
-              <div class="card-value">2.8 TB</div>
-              <div class="card-label">/ 8 TB (35% used)</div>
-              <div class="card-trend up">
+              <div class="card-value" data-stat="storage">-- TB</div>
+              <div class="card-label" data-stat-label="storage">/ -- TB</div>
+              <div class="card-trend up" data-stat-trend="storage">
                 <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                5.2 TB available
+                <span data-stat-trend="storage">Loading...</span>
               </div>
             </div>
             
@@ -989,11 +229,11 @@ body {
                   <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
                 </div>
               </div>
-              <div class="card-value">1.2 Gbps</div>
-              <div class="card-label">2.5G Ethernet (active)</div>
-              <div class="card-trend up">
+              <div class="card-value" data-stat="network">--</div>
+              <div class="card-label" data-stat-label="network">Total transferred</div>
+              <div class="card-trend up" data-stat-trend="network">
                 <svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                Up: 340 Mbps / Down: 860 Mbps
+                <span data-stat-trend="network">Loading...</span>
               </div>
             </div>
             
@@ -1098,8 +338,578 @@ body {
     </div>
   </div>
   
+  <!-- ═══════════════════════════════════════════════════════
+       MODAL SYSTEM
+       ═══════════════════════════════════════════════════════ -->
+  
+  <!-- Generic Confirm Modal -->
+  <div id="modal-confirm" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 440px;">
+      <div class="modal-header">
+        <h3 class="mt-0" id="modal-confirm-title">Confirm</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-confirm')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="modal-confirm-msg" style="color: var(--text-secondary); line-height: 1.6;"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-confirm')">Cancel</button>
+        <button class="btn btn-primary" id="modal-confirm-action">Confirm</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Create Pool Modal -->
+  <div id="modal-create-pool" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Create Storage Pool</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-create-pool')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Pool Name</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. Main Storage">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">RAID Level</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>RAID 0 (Striping)</option>
+              <option>RAID 1 (Mirroring)</option>
+              <option selected>RAID 5 (Single Parity)</option>
+              <option>RAID 6 (Dual Parity)</option>
+              <option>RAID 10 (Striped Mirror)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Drives</label>
+            <div class="flex-col gap-sm mt-sm">
+              <label class="flex items-center gap-sm" style="cursor: pointer;">
+                <input type="checkbox" checked> <span>/dev/sda (2.0 TB)</span>
+              </label>
+              <label class="flex items-center gap-sm" style="cursor: pointer;">
+                <input type="checkbox" checked> <span>/dev/sdb (2.0 TB)</span>
+              </label>
+              <label class="flex items-center gap-sm" style="cursor: pointer;">
+                <input type="checkbox"> <span>/dev/sdc (2.0 TB)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-create-pool')">Cancel</button>
+        <button class="btn btn-primary">Create Pool</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Add Drive Modal -->
+  <div id="modal-add-drive" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Add Drive</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-add-drive')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Device</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>/dev/sdd (4.0 TB - Unused)</option>
+              <option>/dev/sde (4.0 TB - Unused)</option>
+              <option>/dev/sdf (8.0 TB - Unused)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Target Pool</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Main Storage (RAID 5)</option>
+              <option>Backup Pool (RAID 1)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-add-drive')">Cancel</button>
+        <button class="btn btn-primary">Add Drive</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Create Snapshot Modal -->
+  <div id="modal-create-snapshot" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Create Snapshot</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-create-snapshot')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Snapshot Name</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. pre-upgrade">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Source</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>All databases</option>
+              <option>Share1 (/srv/nas/share1)</option>
+              <option>Share2 (/srv/nas/share2)</option>
+            </select>
+          </div>
+          <label class="flex items-center gap-sm" style="cursor: pointer;">
+            <input type="checkbox" checked> <span class="text-sm">Auto-prune after 30 days</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-create-snapshot')">Cancel</button>
+        <button class="btn btn-primary">Create Snapshot</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Add Firewall Rule Modal -->
+  <div id="modal-firewall-rule" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Add Firewall Rule</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-firewall-rule')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Direction</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Inbound</option>
+              <option>Outbound</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Protocol</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>TCP</option>
+              <option>UDP</option>
+              <option>ICMP</option>
+              <option>Any</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Port</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. 80, 443, 3000-3100">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Source IP / CIDR</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. 192.168.1.0/24">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Action</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Allow</option>
+              <option>Deny</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-firewall-rule')">Cancel</button>
+        <button class="btn btn-primary">Add Rule</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Share Modal -->
+  <div id="modal-share" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Create Share</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-share')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Share Name</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. shared-docs">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Path</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="/srv/nas/shared-docs">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Protocol</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>SMB (Windows)</option>
+              <option>NFS (Linux/Unix)</option>
+              <option>AFP (macOS)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-share')">Cancel</button>
+        <button class="btn btn-primary">Create Share</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ─── VPN Modal ─── -->
+  <div id="modal-vpn" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="mt-0">VPN Connection</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-vpn')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">VPN Provider</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>OpenVPN</option>
+              <option>WireGuard</option>
+              <option>IPsec/IKEv2</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Server Address</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="vpn.example.com">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Port</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="1194">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Authentication</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Username / Password</option>
+              <option>Certificate (PKI)</option>
+              <option>Pre-shared Key</option>
+            </select>
+          </div>
+          <label class="flex items-center gap-sm" style="cursor: pointer;">
+            <input type="checkbox"> <span class="text-sm">Auto-connect on boot</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-vpn')">Cancel</button>
+        <button class="btn btn-primary">Connect</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ─── Virtual Host Modal ─── -->
+  <div id="modal-vhost" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Virtual Host</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-vhost')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Domain Name</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="example.com">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Reverse Proxy Target</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="http://localhost:8080">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">SSL Certificate</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Let's Encrypt (Auto)</option>
+              <option>Custom Certificate</option>
+              <option>Self-Signed</option>
+            </select>
+          </div>
+          <div class="grid-2">
+            <div>
+              <label class="text-sm text-muted text-uppercase">Web Root</label>
+              <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="/var/www/html">
+            </div>
+            <div>
+              <label class="text-sm text-muted text-uppercase">PHP Version</label>
+              <select class="search-input" style="width: 100%; margin-top: 4px;">
+                <option>8.3</option>
+                <option>8.2</option>
+                <option>7.4</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-vhost')">Cancel</button>
+        <button class="btn btn-primary">Create Host</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ─── Mail Server Modal ─── -->
+  <div id="modal-mail" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Mail Server Settings</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-mail')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Domain</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="mail.example.com">
+          </div>
+          <div class="grid-2">
+            <div>
+              <label class="text-sm text-muted text-uppercase">IMAP Port</label>
+              <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" value="993">
+            </div>
+            <div>
+              <label class="text-sm text-muted text-uppercase">SMTP Port</label>
+              <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" value="587">
+            </div>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Max Mailbox Size</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>1 GB</option>
+              <option selected>5 GB</option>
+              <option>10 GB</option>
+              <option>Unlimited</option>
+            </select>
+          </div>
+          <label class="flex items-center gap-sm" style="cursor: pointer;">
+            <input type="checkbox" checked> <span class="text-sm">Enable Spam Filtering (Rspamd)</span>
+          </label>
+          <label class="flex items-center gap-sm" style="cursor: pointer;">
+            <input type="checkbox" checked> <span class="text-sm">Enable DKIM Signing</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-mail')">Cancel</button>
+        <button class="btn btn-primary">Save Settings</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ─── Authentication Modal ─── -->
+  <div id="modal-auth" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Authentication Settings</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-auth')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Authentication Provider</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option selected>Local Database</option>
+              <option>LDAP / Active Directory</option>
+              <option>OpenID Connect (OIDC)</option>
+              <option>SAML 2.0</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">2FA Enforcement</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Disabled</option>
+              <option>Optional</option>
+              <option selected>Required for admins</option>
+              <option>Required for all users</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Session Timeout</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>15 minutes</option>
+              <option>1 hour</option>
+              <option selected>8 hours</option>
+              <option>24 hours</option>
+              <option>Never</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Password Policy</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Basic (8+ chars)</option>
+              <option selected>Standard (10+ chars, mixed case)</option>
+              <option>Strict (12+ chars, special chars)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-auth')">Cancel</button>
+        <button class="btn btn-primary">Apply</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ─── Cloud Sync Modal ─── -->
+  <div id="modal-cloud" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Cloud Sync</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-cloud')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Cloud Provider</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Backblaze B2</option>
+              <option>Amazon S3</option>
+              <option>Google Cloud Storage</option>
+              <option>Azure Blob</option>
+              <option>Wasabi</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Bucket Name</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="forgeos-backup">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Access Key ID</label>
+            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="AKIA...">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Secret Access Key</label>
+            <input type="password" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="••••••••">
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Sync Direction</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Upload only (local → cloud)</option>
+              <option>Download only (cloud → local)</option>
+              <option>Bidirectional sync</option>
+            </select>
+          </div>
+          <label class="flex items-center gap-sm" style="cursor: pointer;">
+            <input type="checkbox" checked> <span class="text-sm">Enable scheduled sync (daily)</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-cloud')">Cancel</button>
+        <button class="btn btn-primary">Connect</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ─── Backup Modal ─── -->
+  <div id="modal-backup" class="modal-overlay hidden">
+    <div class="modal-content" style="max-width: 540px;">
+      <div class="modal-header">
+        <h3 class="mt-0">Configure Backup</h3>
+        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-backup')">
+          <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="flex-col gap-md">
+          <div>
+            <label class="text-sm text-muted text-uppercase">Backup Source</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>All shared folders</option>
+              <option>Select folders...</option>
+              <option>System configuration only</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Backup Destination</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Local volume</option>
+              <option>USB drive</option>
+              <option>Remote NAS (rsync)</option>
+              <option>Cloud (S3 compatible)</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Schedule</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Manual only</option>
+              <option>Daily</option>
+              <option selected>Weekly</option>
+              <option>Monthly</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-sm text-muted text-uppercase">Retention</label>
+            <select class="search-input" style="width: 100%; margin-top: 4px;">
+              <option>Keep all versions</option>
+              <option selected>Keep last 30 days</option>
+              <option>Keep last 90 days</option>
+              <option>Keep last 365 days</option>
+            </select>
+          </div>
+          <label class="flex items-center gap-sm" style="cursor: pointer;">
+            <input type="checkbox" checked> <span class="text-sm">Enable backup notifications</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="forgeOS.hideModal('modal-backup')">Cancel</button>
+        <button class="btn btn-primary">Save Backup Task</button>
+      </div>
+    </div>
+  </div>
+  
 </div>
 
+<!-- ─── LOGIN OVERLAY (sibling of #desktop, always visible until auth) ─── -->
+<div id="login-overlay" class="modal-overlay modal-visible">
+  <div class="modal-content" style="max-width: 400px;">
+    <div class="modal-header" style="text-align: center; border: none; padding-bottom: 0;">
+      <div class="logo-icon" style="width: 48px; height: 48px; font-size: 24px; margin: 0 auto 12px;">F</div>
+      <h3 class="mt-0" style="margin-bottom: 4px;">ForgeOS</h3>
+      <p class="text-sm text-muted" style="margin: 0 0 16px;">Sign in to your NAS</p>
+    </div>
+    <div class="modal-body">
+      <div id="login-error" class="text-sm" style="color: var(--accent-danger); display: none; margin-bottom: 12px;"></div>
+      <div class="flex-col gap-md">
+        <div>
+          <label class="text-sm text-muted text-uppercase">Username</label>
+          <input type="text" id="login-user" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="admin" autocomplete="username">
+        </div>
+        <div>
+          <label class="text-sm text-muted text-uppercase">Password</label>
+          <input type="password" id="login-pass" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button id="login-btn" class="btn btn-primary" style="width: 100%; margin-top: 8px;" onclick="forgeOS.login()">
+          Sign In
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/forgeos.js"></script>
+<script src="js/sidebar.js"></script>
 <script src="js/window-manager.js"></script>
 
 </body>

@@ -8,12 +8,14 @@ Provides:
 - Web Console (port 9001, embedded in ForgeOS WebGUI)
 """
 
-import os
+import os, sys
 import json
+import logging
 import subprocess
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
+from forgeos_auth import verify_token
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import boto3
@@ -72,7 +74,8 @@ def get_s3_client():
     )
 
 # ── Router ──
-router = APIRouter(prefix="/api/storage", tags=["RustFS Storage"])
+router = APIRouter(prefix="/api/storage", tags=["RustFS Storage"],
+                   dependencies=[Depends(verify_token)])
 
 # ── Health Check ──
 @router.get("/health")
@@ -192,8 +195,11 @@ async def storage_stats():
                 for obj in objs.get("Contents", []):
                     total_objects += 1
                     total_size += obj.get("Size", 0)
-            except:
-                pass
+            except Exception as e:
+                logging.getLogger("forgeos-rustfs").debug(
+                    "list_objects_v2 failed for bucket %s: %s",
+                    bucket.get("Name", "?"), e,
+                )
         
         return {
             "buckets": len(buckets),

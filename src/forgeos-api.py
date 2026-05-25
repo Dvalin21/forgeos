@@ -30,6 +30,15 @@ from pathlib import Path
 import sys
 import threading
 import uuid
+import logging
+
+logger = logging.getLogger("forgeos-api")
+_log_handler = logging.StreamHandler(sys.stderr)
+_log_handler.setFormatter(logging.Formatter(
+    "forgeos: %(levelname)s %(message)s [%(funcName)s:%(lineno)d]"
+))
+logger.addHandler(_log_handler)
+logger.setLevel(logging.INFO)
 
 import uvicorn
 from fastapi import (
@@ -39,9 +48,12 @@ from fastapi import (
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from passlib.context import CryptContext
 from jose import JWTError, jwt
+from forgeos_auth import (
+    JWT_SECRET, JWT_ALGO, JWT_EXPIRE,
+    pwd_ctx, LoginRequest,
+    load_users, save_users, create_token, verify_token,
+)
 
 # Optional psutil — try once at module level instead of in every function
 try:
@@ -55,39 +67,7 @@ except ImportError:
 # ────────────────────────────────────────────────────────────
 CONFIG_FILE = Path("/etc/forgeos/forgeos.conf")
 USERS_FILE  = Path("/etc/forgeos/api-users.json")
-# JWT secret MUST be set - never run with default
-
-
-def _load_jwt_secret() -> str:
-    """Load JWT secret from config. Raises on missing/default."""
-    secret = os.environ.get("FORGEOS_JWT_SECRET", "")
-    if not secret:
-        # Try to read from forgeos.conf — use LAST non-default entry
-        try:
-            for line in CONFIG_FILE.read_text().splitlines():
-                if line.startswith("WEBUI_JWT_SECRET="):
-                    candidate = line.split("=", 1)[1].strip().strip('"')
-                    if candidate not in ("changeme-set-in-forgeos.conf", "changeme", ""):
-                        secret = candidate
-        except Exception as e:
-            print("forgeos: FAILED to read %s: %s" % (CONFIG_FILE, e), file=sys.stderr)
-    if not secret or secret in ("changeme-set-in-forgeos.conf", "changeme", ""):
-        import secrets
-        secret = secrets.token_hex(32)
-        # Replace (not append) secret lines in config so it persists
-        try:
-            lines = CONFIG_FILE.read_text().splitlines() if CONFIG_FILE.exists() else []
-            lines = [l for l in lines if not l.startswith("WEBUI_JWT_SECRET=")]
-            lines.append(f'WEBUI_JWT_SECRET="{secret}"')
-            CONFIG_FILE.write_text("\n".join(lines) + "\n")
-        except Exception as e:
-            print("forgeos: FAILED to write JWT secret to %s: %s" % (CONFIG_FILE, e), file=sys.stderr)
-    return secret
-
-
-JWT_SECRET  = _load_jwt_secret()
-JWT_ALGO    = "HS256"
-JWT_EXPIRE  = 12  # hours
+# JWT config lives in forgeos_auth.py — JWT_SECRET, JWT_ALGO, JWT_EXPIRE, pwd_ctx
 WEB_ROOT    = Path(os.environ.get("FORGEOS_WEB_ROOT", "/opt/forgeos/web"))
 
 # Load config from forgeos.conf
@@ -196,34 +176,33 @@ def _start_task(cmd: list[str], tool: str, action: str, timeout: int = 600) -> s
 # ────────────────────────────────────────────────────────────
 app = FastAPI(title="ForgeOS API", version="1.0", docs_url=None, redoc_url=None)
 
-# Import ForgeFileDB router (after app is created)
+# Auth types + functions imported from forgeos_auth:
+#   JWT_SECRET, JWT_ALGO, JWT_EXPIRE, pwd_ctx, LoginRequest,
+#   load_users, save_users, create_token, verify_token
+
+
+# Import routers — these reference verify_token which is now defined
 try:
     from filedb_api import router as filedb_router
-    # ALL routes via this router require auth — enforced at the mount point
-    app.include_router(filedb_router, dependencies=[Depends(verify_token)])
+    app.include_router(filedb_router)
 except ImportError as e:
     print("forgeos: WARNING ForgeFileDB API not available: %s" % e, file=sys.stderr)
 
-# Import RustFS Storage router
 try:
     from rustfs_api import router as rustfs_router
-    # ALL routes via this router require auth
-    app.include_router(rustfs_router, dependencies=[Depends(verify_token)])
+    app.include_router(rustfs_router)
     print("RustFS Storage API loaded - replacing MinIO")
 except ImportError as e:
     print("forgeos: WARNING RustFS API not available: %s" % e, file=sys.stderr)
 
-# Import Docker & LXC Management router
 try:
     from docker_lxc_api import router as docker_lxc_router
-    # ALL routes via this router require auth
-    app.include_router(docker_lxc_router, dependencies=[Depends(verify_token)])
+    app.include_router(docker_lxc_router)
     print("Docker & LXC Management API loaded")
 except ImportError as e:
     print("forgeos: WARNING Docker/LXC API not available: %s" % e, file=sys.stderr)
 
-# CORS configuration - restrict to known origins in production
-# For development/development, consider using environment variable
+# CORS configuration
 _allowed_origins = os.environ.get("FORGEOS_CORS_ORIGINS", "").split(",") if os.environ.get("FORGEOS_CORS_ORIGINS") else ["*"]
 app.add_middleware(
     CORSMiddleware,
@@ -232,48 +211,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# ────────────────────────────────────────────────────────────
-# AUTH
-# ────────────────────────────────────────────────────────────
-
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-def load_users() -> dict:
-    if USERS_FILE.exists():
-        return json.loads(USERS_FILE.read_text())
-    # No default user - require first-time setup via installer
-    # This prevents hardcoded default credentials in production
-    return {}
-
-
-def create_token(username: str, role: str) -> str:
-    payload = {
-        "sub": username,
-        "role": role,
-        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE),
-    }
-    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
-
-
-def verify_token(request: Request) -> dict:
-    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-    if not token:
-        # Also check cookie for browser-based UI
-        token = request.cookies.get("forgeos_token", "")
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-        return payload
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
 @app.post("/api/auth/login")
@@ -305,7 +242,7 @@ async def change_password(body: dict, user=Depends(verify_token)):
     if not u or not pwd_ctx.verify(body.get("current", ""), u["hash"]):
         raise HTTPException(status_code=401, detail="Current password incorrect")
     users[user["sub"]]["hash"] = pwd_ctx.hash(body["new"])
-    USERS_FILE.write_text(json.dumps(users, indent=2))
+    save_users(users)
     return {"ok": True}
 
 # ────────────────────────────────────────────────────────────
@@ -355,7 +292,7 @@ def _sanitize_blockdev(name: str) -> str:
 def get_cpu_usage() -> float:
     if _HAVE_PSUTIL:
         return psutil.cpu_percent(interval=0.5)
-    # Fallback: read /proc/stat directly instead of parsing top(1) output
+    # Fallback: read /proc/stat directly
     try:
         with open("/proc/stat") as f:
             for line in f:
@@ -364,8 +301,8 @@ def get_cpu_usage() -> float:
                     idle = parts[3]
                     total = sum(parts)
                     return round(100.0 * (1.0 - idle / total) if total else 0.0, 1)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("get_cpu_usage fallback failed: %s", e)
     return 0.0
 
 
@@ -374,7 +311,7 @@ def get_memory() -> dict:
         m = psutil.virtual_memory()
         return {"total_gb": round(m.total/1e9, 1), "used_gb": round(m.used/1e9, 1),
                 "pct": m.percent}
-    # Fallback: read /proc/meminfo directly instead of parsing free(1) output
+    # Fallback: read /proc/meminfo directly
     try:
         mem = {}
         with open("/proc/meminfo") as f:
@@ -386,7 +323,8 @@ def get_memory() -> dict:
         used = total - free
         return {"total_gb": round(total/1e9, 1), "used_gb": round(used/1e9, 1),
                 "pct": round(used/total*100, 1) if total else 0}
-    except Exception:
+    except Exception as e:
+        logger.debug("get_memory fallback failed: %s", e)
         return {"total_gb": 0, "used_gb": 0, "pct": 0}
 
 
@@ -405,7 +343,8 @@ def get_uptime() -> str:
 def get_load() -> list[float]:
     try:
         return [round(x, 2) for x in __import__("os").getloadavg()]
-    except Exception:
+    except Exception as e:
+        logger.debug("get_load fallback failed: %s", e)
         return [0.0, 0.0, 0.0]
 
 
@@ -420,8 +359,8 @@ def get_temps() -> dict:
             try:
                 temps["cpu"] = round(int(Path(path).read_text().strip()) / 1000, 1)
                 break
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("get_temps read %s failed: %s", path, e)
     # Try psutil sensors
     if _HAVE_PSUTIL:
         try:
@@ -430,8 +369,8 @@ def get_temps() -> dict:
                     if e.current:
                         key = f"{name}/{e.label}" if e.label else name
                         temps[key] = round(e.current, 1)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("get_temps psutil failed: %s", e)
     return temps
 
 
@@ -473,7 +412,8 @@ async def storage_pools(user=Depends(verify_token)):
     out = _run_args(["forgeos-pool-status"], timeout=15)
     try:
         return json.loads(out)
-    except Exception:
+    except Exception as e:
+        logger.warning("pool-status JSON parse failed: %s", e)
         return {"pools": [], "unassigned": [], "error": "pool-status failed"}
 
 
@@ -501,8 +441,8 @@ async def storage_drives(user=Depends(verify_token)):
                 if smart_out:
                     try:
                         smart_data = json.loads(smart_out)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("smartctl -H JSON parse failed for %s: %s", name, e)
                 # Parse temperature from SMART attributes
                 temp_val = 0
                 if temp_out:
@@ -512,8 +452,8 @@ async def storage_drives(user=Depends(verify_token)):
                             if entry.get("ID") == 194:
                                 temp_val = int(entry.get("Value", 0))
                                 break
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("smartctl -A JSON parse failed for %s: %s", name, e)
                 # Determine health
                 health = 95
                 smart_status = smart_data.get("smart_status")
@@ -527,9 +467,9 @@ async def storage_drives(user=Depends(verify_token)):
                     "temp": temp_val,
                     "health": health,
                 })
-        except Exception:
-            pass
-    # Fallback: use lsblk directly without jq
+        except Exception as e:
+            logger.warning("lsblk parse failed: %s", e)
+    # Fallback: use lsblk directly
     if not drives:
         out = _run_args(["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MODEL"], timeout=10)
         try:
@@ -546,8 +486,8 @@ async def storage_drives(user=Depends(verify_token)):
                     "temp": 0,
                     "health": 95,
                 })
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("lsblk fallback parse failed: %s", e)
     return {"drives": drives}
 
 
@@ -885,48 +825,10 @@ async def docker_install(app: str, image: str = None, ports: List[str] = None, u
 
 
 # ────────────────────────────────────────────────────────────
-# DOCKER / INCUS
+# DOCKER / INCUS — full lifecycle via docker_lxc_api.py router
+#   (mounted at /api/docker with start/stop/restart/logs/exec,
+#    compose up/down, prune, images, LXC management)
 # ────────────────────────────────────────────────────────────
-
-
-@app.get("/api/docker/containers")
-async def docker_containers(user=Depends(verify_token)):
-    out = _run_shell('docker ps -a --format \'{"name":"{{.Names}}","image":"{{.Image}}","status":"{{.Status}}","state":"{{.State}}","ports":"{{.Ports}}"}\'')
-    containers = []
-    for line in out.splitlines():
-        try:
-            containers.append(json.loads(line))
-        except Exception:
-            pass
-    return {"containers": containers}
-
-
-@app.post("/api/docker/container/{name}/{action}")
-async def docker_action(name: str, action: str, user=Depends(verify_token)):
-    if user.get("role") != "admin":
-        raise HTTPException(403)
-    name   = re.sub(r"[^a-z0-9_-]", "", name)
-    action = action if action in ("start", "stop", "restart", "logs") else "logs"
-    if action == "logs":
-        return {"output": _run_args(["docker", "logs", "--tail", "50", name])}
-    result = _run_args(["docker", action, name])
-    return {"ok": True, "output": result}
-
-
-@app.get("/api/docker/stats")
-async def docker_stats(user=Depends(verify_token)):
-    """Docker stats summary"""
-    # Container count
-    containers = _run_shell("docker ps -q 2>/dev/null | wc -l").strip() or "0"
-    # Image count
-    images = _run_shell("docker images -q 2>/dev/null | wc -l").strip() or "0"
-    # Volume count
-    volumes = _run_shell("docker volume ls -q 2>/dev/null | wc -l").strip() or "0"
-    return {
-        "containers": int(containers),
-        "images": int(images),
-        "volumes": int(volumes),
-    }
 
 
 @app.get("/api/services")
@@ -973,7 +875,8 @@ async def list_network(user=Depends(verify_token)):
                             "name": iface.get("ifname", "?"),
                             "ip": addr_info.get("local", "N/A"),
                         })
-        except Exception:
+        except Exception as e:
+            logger.warning("ip -j addr JSON parse failed: %s", e)
             ifaces = []
     # Fallback: use ip addr
     if not ifaces:
@@ -1285,8 +1188,8 @@ async def ws_docker_exec(ws: WebSocket, container: str):
                         _, size = data.split(":", 1)
                         cols, rows = map(int, size.split(","))
                         await set_size(rows, cols)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("terminal RESIZE parse failed: %s", e)
                 else:
                     proc.stdin.write(data.encode())
                     await proc.stdin.drain()
@@ -1446,7 +1349,8 @@ async def borg_status(user=Depends(verify_token)):
             if list_result.returncode == 0:
                 try:
                     jobs = json.loads(list_result.stdout)
-                except Exception:
+                except Exception as e:
+                    logger.warning("borg list JSON parse failed: %s", e)
                     jobs = []
         except subprocess.TimeoutExpired:
             pass  # jobs stays []
@@ -1622,8 +1526,8 @@ async def imaging_status(user=Depends(verify_token)):
         if os.path.exists(img_dir):
             try:
                 images = os.listdir(img_dir)
-            except:
-                pass
+            except Exception as e:
+                logger.warning("imaging images list failed: %s", e)
     
     return {"fog_installed": fog_installed, "images": images, "hosts": hosts}
 
