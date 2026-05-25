@@ -16,9 +16,11 @@ from pathlib import Path
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
+from forgeos_auth import verify_token
 
 # ── Router ──
-router = APIRouter(prefix="/api/docker", tags=["Docker & LXC Management"])
+router = APIRouter(prefix="/api/docker", tags=["Docker & LXC Management"],
+                   dependencies=[Depends(verify_token)])
 
 # ── Configuration ──
 COMPOSE_PROJECT_NAME = os.environ.get("FORGEOS_COMPOSE_PROJECT", "forgeos")

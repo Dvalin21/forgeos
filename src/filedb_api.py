@@ -34,6 +34,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket
 from fastapi.responses import JSONResponse
+from forgeos_auth import verify_token
 
 # ────────────────────────────────────────────────────────────
 # CONFIG
@@ -45,7 +46,8 @@ FILEDB_LOG = Path('/var/log/forgeos/filedb.log')
 # ────────────────────────────────────────────────────────────
 # ROUTER
 # ────────────────────────────────────────────────────────────
-router = APIRouter(prefix='/api/filedb', tags=['filedb'])
+router = APIRouter(prefix='/api/filedb', tags=['filedb'],
+                   dependencies=[Depends(verify_token)])
 
 
 # ────────────────────────────────────────────────────────────
@@ -368,6 +370,13 @@ async def filedb_log(
 @router.websocket("/ws")
 async def websocket_filedb(ws: WebSocket):
     """WebSocket for real-time ForgeFileDB updates"""
+    # WebSocket routes do NOT inherit router-level dependencies.
+    # Verify token from query param manually.
+    from forgeos_auth import verify_ws_token
+    if not verify_ws_token(ws):
+        await ws.close(code=4001, reason="Unauthorized")
+        return
+
     await ws.accept()
 
     try:
