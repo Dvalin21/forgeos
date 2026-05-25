@@ -2,244 +2,228 @@
 ForgeFileDB API Module
 ═══════════════════════════════════════════════════════════════
 Provides REST API endpoints for ForgeFileDB management.
+Proxies requests to the ForgeFileDB daemon on localhost:12010.
 
 Endpoints:
-  GET  /api/filedb/status     - Daemon status
-  GET  /api/filedb/clients    - Connected SMB clients
-  GET  /api/filedb/databases  - Discovered DB files
-  GET  /api/filedb/locks      - Current file locks
-  GET  /api/filedb/snapshots - List snapshots
-  POST /api/filedb/snapshots  - Create snapshot
-  POST /api/filedb/restore    - Restore snapshot
-  GET  /api/filedb/settings   - Get settings
-  PUT  /api/filedb/settings   - Update settings
-  GET  /api/filedb/log        - Daemon log
+  GET    /api/filedb/status      - Daemon status + lock registry
+  GET    /api/filedb/clients     - Connected SMB clients
+  GET    /api/filedb/databases   - Discovered DB files
+  GET    /api/filedb/locks       - Current file lock state
+  GET    /api/filedb/snapshots   - List snapshots
+  POST   /api/filedb/snapshots   - Create snapshot
+  POST   /api/filedb/restore     - Restore snapshot
+  GET    /api/filedb/settings    - Get settings
+  PUT    /api/filedb/settings    - Update settings
+  GET    /api/filedb/log         - Daemon log
 
 WebSocket:
-  /ws/filedb                   - Real-time updates
-
-Mock Mode:
-  Set MOCK_FILEDB=true environment variable to return sample data
-  without requiring the actual ForgeFileDB daemon.
+  /ws/filedb                     - Real-time daemon events
 """
+
+from __future__ import annotations
 
 import asyncio
 import json
 import os
-import subprocess
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import httpx  # new dependency: httpx for async HTTP calls
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket
-from fastapi.responses import JSONResponse
-from forgeos_auth import verify_token
+from forgeos_auth import verify_token, verify_ws_token
 
-# ────────────────────────────────────────────────────────────
-# CONFIG
-# ────────────────────────────────────────────────────────────
-MOCK_MODE = os.environ.get('MOCK_FILEDB', 'false').lower() == 'true'
-FILEDB_CONFIG = Path('/etc/forgeos/filedb.conf')
-FILEDB_LOG = Path('/var/log/forgeos/filedb.log')
+# ── Config ──────────────────────────────────────────────────
+DAEMON_BASE = os.environ.get("FILEDB_DAEMON_URL", "http://127.0.0.1:12010")
+MOCK_MODE = os.environ.get("MOCK_FILEDB", "false").lower() == "true"
+DAEMON_TIMEOUT = 5  # seconds
 
-# ────────────────────────────────────────────────────────────
-# ROUTER
-# ────────────────────────────────────────────────────────────
-router = APIRouter(prefix='/api/filedb', tags=['filedb'],
-                   dependencies=[Depends(verify_token)])
+# ── Router ──────────────────────────────────────────────────
+router = APIRouter(
+    prefix="/api/filedb",
+    tags=["filedb"],
+    dependencies=[Depends(verify_token)],
+)
 
 
-# ────────────────────────────────────────────────────────────
-# MOCK DATA
-# ────────────────────────────────────────────────────────────
-def get_mock_status() -> dict:
-    return {
-        "daemon_running": True,
-        "connected_clients": 3,
-        "open_databases": 5,
-        "snapshots_today": 12,
-        "total_conflicts": 0,
-        "uptime": "2h 34m",
-        "version": "1.0.0",
-        "mock_mode": True
-    }
+# ── HTTP client helper ──────────────────────────────────────
+_client: httpx.AsyncClient | None = None
 
 
-def get_mock_clients() -> List[dict]:
-    return [
-        {"ip": "192.168.1.10", "user": "alice", "files_open": 3, "connected_since": "2026-04-28T14:20:00"},
-        {"ip": "192.168.1.15", "user": "bob", "files_open": 1, "connected_since": "2026-04-28T15:10:00"},
-        {"ip": "192.168.1.20", "user": "charlie", "files_open": 2, "connected_since": "2026-04-28T13:45:00"},
-    ]
+async def _get_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(base_url=DAEMON_BASE, timeout=DAEMON_TIMEOUT)
+    return _client
 
 
-def get_mock_databases() -> List[dict]:
-    return [
+async def _proxy_get(path: str) -> dict:
+    """GET from daemon, return JSON or raise 503."""
+    if MOCK_MODE:
+        raise RuntimeError("Mock mode enabled — daemon not contacted")
+    client = await _get_client()
+    try:
+        r = await client.get(path)
+        r.raise_for_status()
+        return r.json()
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"ForgeFileDB daemon unreachable: {e}",
+        )
+
+
+async def _proxy_post(path: str, body: dict | None = None) -> dict:
+    """POST to daemon, return JSON or raise 503."""
+    if MOCK_MODE:
+        raise RuntimeError("Mock mode enabled — daemon not contacted")
+    client = await _get_client()
+    try:
+        r = await client.post(path, json=body or {})
+        r.raise_for_status()
+        return r.json()
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"ForgeFileDB daemon unreachable: {e}",
+        )
+
+
+# ── Mock data (dev / demo only) ─────────────────────────────
+# These are only used when MOCK_FILEDB=true for development
+# without the actual daemon.
+
+_MOCK_STATUS = {
+    "daemon_running": True,
+    "connected_clients": 3,
+    "open_databases": 5,
+    "snapshots_today": 12,
+    "total_conflicts": 0,
+    "uptime": "2h 34m",
+    "version": "1.0.0",
+    "mock_mode": True,
+}
+
+_MOCK_CLIENTS = [
+    {"ip": "192.168.1.10", "user": "alice", "files_open": 3,
+     "connected_since": "2026-04-28T14:20:00"},
+    {"ip": "192.168.1.15", "user": "bob", "files_open": 1,
+     "connected_since": "2026-04-28T15:10:00"},
+    {"ip": "192.168.1.20", "user": "charlie", "files_open": 2,
+     "connected_since": "2026-04-28T13:45:00"},
+]
+
+_MOCK_DATABASES = {
+    "databases": [
         {
-            "directory": "/data/databases/finance",
-            "databases": [
-                {"name": "ledger.db", "size": 1048576, "modified": "2026-04-28T14:30:00", "locks": 0},
-                {"name": "payroll.db", "size": 2097152, "modified": "2026-04-28T13:15:00", "locks": 1},
-            ]
+            "dir": "/data/databases/finance",
+            "files": [
+                {"name": "ledger.db", "size": 1048576,
+                 "modified": "2026-04-28T14:30:00", "ext": ".db"},
+                {"name": "payroll.db", "size": 2097152,
+                 "modified": "2026-04-28T13:15:00", "ext": ".db"},
+            ],
         },
         {
-            "directory": "/data/databases/inventory",
-            "databases": [
-                {"name": "stock.db", "size": 5242880, "modified": "2026-04-28T15:00:00", "locks": 0},
-                {"name": "orders.db", "size": 3145728, "modified": "2026-04-28T14:45:00", "locks": 2},
-            ]
-        }
+            "dir": "/data/databases/inventory",
+            "files": [
+                {"name": "stock.db", "size": 5242880,
+                 "modified": "2026-04-28T15:00:00", "ext": ".db"},
+                {"name": "orders.db", "size": 3145728,
+                 "modified": "2026-04-28T14:45:00", "ext": ".db"},
+            ],
+        },
     ]
+}
 
-
-def get_mock_locks() -> List[dict]:
-    return [
-        {"file": "/data/databases/finance/payroll.db", "client_ip": "192.168.1.15", "user": "bob", "locked_since": "2026-04-28T15:05:00", "mode": "write"},
-        {"file": "/data/databases/inventory/orders.db", "client_ip": "192.168.1.10", "user": "alice", "locked_since": "2026-04-28T14:50:00", "mode": "write"},
-        {"file": "/data/databases/inventory/orders.db", "client_ip": "192.168.1.20", "user": "charlie", "locked_since": "2026-04-28T14:52:00", "mode": "read"},
+_MOCK_SNAPSHOTS = {
+    "snapshots": [
+        {"ts": "20260428T153000", "db_dir": "/data/databases/finance",
+         "method": "btrfs", "reason": "write_threshold"},
+        {"ts": "20260428T145000", "db_dir": "/data/databases/inventory",
+         "method": "btrfs", "reason": "user_request"},
     ]
+}
 
+_MOCK_SETTINGS = {
+    "snapshot_debounce_sec": 10,
+    "max_snapshots": 24,
+    "write_threshold": 100,
+    "watch_root": "/srv/nas",
+}
 
-def get_mock_snapshots() -> List[dict]:
-    now = datetime.now().isoformat()
-    return [
-        {"ts": "20260428T153000", "db_dir": "/data/databases/finance", "method": "auto", "reason": "write_threshold", "size": 3145728},
-        {"ts": "20260428T145000", "db_dir": "/data/databases/inventory", "method": "manual", "reason": "user_request", "size": 8388608},
-        {"ts": "20260428T140000", "db_dir": "/data/databases/finance", "method": "auto", "reason": "write_threshold", "size": 3145728},
+_MOCK_LOG = {
+    "lines": [
+        "[2026-04-28T15:30:00] START  ForgeFileDB daemon v1.0.0 started",
+        "[2026-04-28T15:30:01] SNAP   Auto-snapshot created for /data/databases/finance",
+        "[2026-04-28T15:25:00] LOCK   File locked: orders.db by 192.168.1.10",
     ]
+}
 
 
-def get_mock_settings() -> dict:
-    return {
-        "snapshot_debounce_sec": 10,
-        "max_snapshots": 24,
-        "write_threshold": 100,
-        "watch_root": "/data/databases",
-        "mock_mode": True
-    }
+# ── Endpoints ───────────────────────────────────────────────
 
-
-# ────────────────────────────────────────────────────────────
-# HELPERS
-# ────────────────────────────────────────────────────────────
-def _run_filedb_cli(args: list) -> dict:
-    """Run ForgeFileDB CLI and return parsed JSON response."""
-    if MOCK_MODE:
-        raise RuntimeError("Mock mode enabled")
-
-    try:
-        result = subprocess.run(
-            ['filedb-cli'] + args,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        if result.returncode != 0:
-            raise RuntimeError(result.stderr or "CLI command failed")
-        return json.loads(result.stdout) if result.stdout else {}
-    except FileNotFoundError:
-        raise RuntimeError("ForgeFileDB CLI not installed")
-    except subprocess.TimeoutExpired:
-        raise RuntimeError("CLI command timed out")
-    except json.JSONDecodeError:
-        raise RuntimeError("Invalid response from CLI")
-
-
-# ────────────────────────────────────────────────────────────
-# STATUS ENDPOINT
-# ────────────────────────────────────────────────────────────
 @router.get("/status")
 async def filedb_status():
-    """Get ForgeFileDB daemon status"""
+    """Daemon status and lock registry summary."""
     if MOCK_MODE:
-        return get_mock_status()
-
-    try:
-        return _run_filedb_cli(['status'])
-    except RuntimeError as e:
-        return JSONResponse(
-            status_code=503,
-            content={"status": "error", "message": str(e), "daemon_running": False}
-        )
+        return _MOCK_STATUS
+    return await _proxy_get("/api/status")
 
 
-# ────────────────────────────────────────────────────────────
-# CLIENTS ENDPOINT
-# ────────────────────────────────────────────────────────────
 @router.get("/clients")
 async def filedb_clients():
-    """List connected SMB clients with open files"""
+    """Connected SMB clients with open files."""
     if MOCK_MODE:
-        return {"clients": get_mock_clients()}
-
-    try:
-        data = _run_filedb_cli(['clients', '--json'])
-        return data
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        return {"clients": _MOCK_CLIENTS}
+    return await _proxy_get("/api/clients")
 
 
-# ────────────────────────────────────────────────────────────
-# DATABASES ENDPOINT
-# ────────────────────────────────────────────────────────────
 @router.get("/databases")
 async def filedb_databases():
-    """List discovered database files grouped by directory"""
+    """Discovered database files grouped by directory."""
     if MOCK_MODE:
-        return {"databases": get_mock_databases()}
-
-    try:
-        data = _run_filedb_cli(['databases', '--json'])
-        return data
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        return _MOCK_DATABASES
+    return await _proxy_get("/api/databases")
 
 
-# ────────────────────────────────────────────────────────────
-# LOCKS ENDPOINT
-# ────────────────────────────────────────────────────────────
 @router.get("/locks")
 async def filedb_locks():
-    """Get current file lock registry"""
+    """Current file lock registry."""
     if MOCK_MODE:
-        return {"locks": get_mock_locks()}
+        status = _MOCK_STATUS.copy()
+        status["lock_details"] = {
+            "files": {
+                "/data/databases/finance/payroll.db": {
+                    "holders": [
+                        {"client": "192.168.1.15", "mode": "EXCLUSIVE",
+                         "since": "2026-04-28T15:05:00"}
+                    ]
+                }
+            }
+        }
+        return status
+    return await _proxy_get("/api/status")
 
-    try:
-        data = _run_filedb_cli(['locks', '--json'])
-        return data
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
 
-
-# ────────────────────────────────────────────────────────────
-# SNAPSHOTS ENDPOINTS
-# ────────────────────────────────────────────────────────────
 @router.get("/snapshots")
 async def filedb_snapshots(
-    db_dir: Optional[str] = Query(None, description="Filter by database directory")
+    db_dir: Optional[str] = Query(None, description="Filter by database directory"),
 ):
-    """List snapshots, optionally filtered by directory"""
+    """List snapshots, optionally filtered by directory."""
     if MOCK_MODE:
-        snapshots = get_mock_snapshots()
+        snaps = _MOCK_SNAPSHOTS["snapshots"]
         if db_dir:
-            snapshots = [s for s in snapshots if s['db_dir'] == db_dir]
-        return {"snapshots": snapshots}
-
-    try:
-        args = ['snapshots', '--json']
-        if db_dir:
-            args.extend(['--dir', db_dir])
-        data = _run_filedb_cli(args)
-        return data
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+            snaps = [s for s in snaps if s["db_dir"] == db_dir]
+        return {"snapshots": snaps}
+    path = "/api/snapshots" + (f"?db_dir={db_dir}" if db_dir else "")
+    return await _proxy_get(path)
 
 
 @router.post("/snapshots")
 async def filedb_create_snapshot(body: dict):
-    """Create a snapshot for a database directory"""
-    db_dir = body.get('db_dir')
+    """Create a snapshot for a database directory."""
+    db_dir = body.get("db_dir")
     if not db_dir:
         raise HTTPException(status_code=400, detail="db_dir required")
 
@@ -249,172 +233,111 @@ async def filedb_create_snapshot(body: dict):
             "snapshot": {
                 "ts": datetime.now().strftime("%Y%m%dT%H%M%S"),
                 "db_dir": db_dir,
-                "method": "manual",
-                "reason": "user_request"
-            }
+                "method": "mock",
+                "reason": "user_request",
+            },
         }
-
-    try:
-        data = _run_filedb_cli(['snapshot', 'create', '--dir', db_dir, '--json'])
-        return data
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return await _proxy_post("/api/snapshots", {
+        "db_dir": db_dir,
+        "reason": body.get("reason", "manual"),
+    })
 
 
 @router.post("/restore")
 async def filedb_restore(body: dict):
-    """Restore a snapshot (in-place or to new location)"""
-    snap_ts = body.get('snap_ts')
-    db_dir = body.get('db_dir')
-    target_dir = body.get('target_dir')
-
+    """Restore a snapshot (in-place or to new location)."""
+    snap_ts = body.get("snap_ts")
+    db_dir = body.get("db_dir")
     if not snap_ts or not db_dir:
         raise HTTPException(status_code=400, detail="snap_ts and db_dir required")
 
     if MOCK_MODE:
+        target_dir = body.get("target_dir")
         if target_dir:
             return {"ok": True, "restored_to": target_dir}
-        else:
-            return {"ok": True, "restored_in_place": db_dir}
-
-    try:
-        args = ['snapshot', 'restore', '--ts', snap_ts, '--dir', db_dir]
-        if target_dir:
-            args.extend(['--target', target_dir])
-        data = _run_filedb_cli(args + ['--json'])
-        return data
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"ok": True, "restored_in_place": db_dir}
+    return await _proxy_post("/api/snapshots/restore", body)
 
 
-# ────────────────────────────────────────────────────────────
-# SETTINGS ENDPOINTS
-# ────────────────────────────────────────────────────────────
 @router.get("/settings")
 async def filedb_get_settings():
-    """Get ForgeFileDB settings"""
+    """Get daemon settings."""
     if MOCK_MODE:
-        return get_mock_settings()
-
-    try:
-        data = _run_filedb_cli(['settings', 'get', '--json'])
-        return data
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        return _MOCK_SETTINGS
+    return await _proxy_get("/api/settings")
 
 
 _ALLOWED_SETTINGS = {
-    "snapshot_debounce_sec", "max_snapshots", "write_threshold", "watch_root",
+    "snapshot_debounce_sec", "max_snapshots",
+    "write_threshold", "watch_root",
 }
+
 
 @router.put("/settings")
 async def filedb_update_settings(body: dict):
-    """Update ForgeFileDB settings (whitelist-only keys)"""
-    if MOCK_MODE:
-        return {"ok": True, "settings": body, "mock_mode": True}
-
-    # Whitelist: only accept known keys to prevent CLI injection
+    """Update daemon settings (whitelist-only keys)."""
     safe = {k: v for k, v in body.items() if k in _ALLOWED_SETTINGS}
     if not safe:
-        raise HTTPException(status_code=400, detail="No valid settings keys provided")
+        raise HTTPException(status_code=400, detail="No valid settings keys")
 
-    try:
-        # Build CLI args from whitelisted keys only
-        args = ['settings', 'set']
-        for key, value in safe.items():
-            args.extend(['--' + key.replace('_', '-'), str(value)])
-        args.append('--json')
-        data = _run_filedb_cli(args)
-        return data
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if MOCK_MODE:
+        return {"ok": True, "settings": safe, "mock_mode": True}
+    return await _proxy_post("/api/settings", body)
 
 
-# ────────────────────────────────────────────────────────────
-# LOG ENDPOINT
-# ────────────────────────────────────────────────────────────
 @router.get("/log")
 async def filedb_log(
-    lines: int = Query(100, description="Number of lines to return")
+    lines: int = Query(100, description="Number of lines"),
 ):
-    """Get ForgeFileDB daemon log (last N lines)"""
+    """Get daemon log (last N lines)."""
     if MOCK_MODE:
-        mock_lines = [
-            "[2026-04-28T15:30:00] START ForgeFileDB daemon v1.0.0 started",
-            "[2026-04-28T15:30:01] SNAP Auto-snapshot created for /data/databases/finance",
-            "[2026-04-28T15:25:00] LOCK File locked: /data/databases/inventory/orders.db by 192.168.1.10",
-            "[2026-04-28T15:20:00] SNAP Auto-snapshot created for /data/databases/inventory",
-            "[2026-04-28T15:15:00] WARN Write threshold exceeded for /data/databases/finance",
-        ]
-        return {"lines": mock_lines[:lines]}
-
-    try:
-        if not FILEDB_LOG.exists():
-            return {"lines": []}
-
-        result = subprocess.run(
-            ['tail', '-n', str(lines), str(FILEDB_LOG)],
-            capture_output=True,
-            text=True,
-            timeout=5
-        )
-        lines_list = result.stdout.strip().split('\n') if result.stdout else []
-        return {"lines": lines_list}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"lines": _MOCK_LOG["lines"][:lines]}
+    return await _proxy_get(f"/api/log?lines={lines}")
 
 
-# ────────────────────────────────────────────────────────────
-# WEBSOCKET ENDPOINT
-# ────────────────────────────────────────────────────────────
+# ── WebSocket ───────────────────────────────────────────────
+
 @router.websocket("/ws")
 async def websocket_filedb(ws: WebSocket):
-    """WebSocket for real-time ForgeFileDB updates"""
-    # WebSocket routes do NOT inherit router-level dependencies.
-    # Verify token from query param manually.
-    from forgeos_auth import verify_ws_token
+    """Real-time ForgeFileDB events via WebSocket.
+
+    In mock mode: sends periodic heartbeats.
+    In production: forwards daemon WebSocket events.
+    """
     if not verify_ws_token(ws):
         await ws.close(code=4001, reason="Unauthorized")
         return
 
     await ws.accept()
 
-    try:
-        # Send initial status
-        if MOCK_MODE:
-            await ws.send_json({
-                "type": "status",
-                "data": get_mock_status()
-            })
-            # In mock mode, send periodic heartbeat updates
+    if MOCK_MODE:
+        try:
             while True:
                 await asyncio.sleep(30)
                 await ws.send_json({
                     "type": "heartbeat",
-                    "ts": datetime.now().isoformat()
+                    "ts": datetime.now().isoformat(),
                 })
-        else:
-            # In production, forward ForgeFileDB daemon events
-            # Use subprocess to tail the daemon log for real-time updates
-            proc = await asyncio.create_subprocess_exec(
-                "tail", "-n", "0", "-F", str(FILEDB_LOG),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            try:
-                while True:
-                    if proc.stdout is None:
-                        break
-                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=30)
-                    if not line:
-                        break
-                    await ws.send_text(line.decode("utf-8", errors="replace").rstrip())
-            finally:
-                proc.kill()
+        except Exception:
+            pass
+        finally:
+            await ws.close()
+        return
 
-    except (WebSocketDisconnect, asyncio.TimeoutError):
+    # Production: proxy WebSocket from daemon
+    try:
+        async with httpx.AsyncClient() as client:
+            async with client.stream(
+                "GET", f"{DAEMON_BASE}/ws",
+                timeout=None,
+            ) as resp:
+                async for line in resp.aiter_lines():
+                    try:
+                        data = json.loads(line)
+                        await ws.send_json(data)
+                    except json.JSONDecodeError:
+                        await ws.send_text(line)
+    except Exception:
         pass
-    except Exception as e:
-        print(f"WebSocket error: {e}")
     finally:
         await ws.close()

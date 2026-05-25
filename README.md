@@ -43,10 +43,11 @@ The Python modules in `src/` are installed as a systemd service at `/opt/forgeos
 - **FileBrowser** — web-based file manager
 
 ### File-Based Database (ForgeFileDB)
-- Coordinates concurrent access for ElevateDB, DBISAM, dBase, FoxPro, MS Access, NexusDB, SQLite, Firebird, Paradox
-- Prevents SMB oplock corruption without client-side changes
-- Versioned snapshots with one-click restore (btrfs instant or rsync fallback)
-- mDNS discovery on `_forgeos-filedb._tcp` and `_edb-server._tcp`
+- **Oplock coordination** — inotify-based file access tracking on Samba shares. When a client opens a DB file, ForgeFileDB registers the access and serializes conflicting writes via fcntl advisory locks. No client-side changes needed — the app continues using its standard file/session mode.
+- **Supported formats** — file extension detection for ElevateDB (.edb/.edbt/.edbi), DBISAM/Paradox (.db/.px/.mb/.val), NexusDB (.nxd/.nxi/.nxl), dBase/FoxPro (.dbf/.cdx/.fpt/.idx), MS Access (.mdb/.accdb), SQLite (.sqlite/.sqlite3), Firebird (.fdb/.gdb)
+- **Lock registry** — tracks which client has each file open, distinguishes shared (read) vs exclusive (write) access, queues conflicting writes
+- **Versioned snapshots** — point-in-time copies on btrfs subvolumes (instant, copy-on-write) or rsync fallback for non-btrfs volumes. Auto-snapshot on write threshold, configurable debounce
+- **mDNS discovery** — broadcasts on `_forgeos-filedb._tcp` and `_edb-server._tcp` for LAN discovery
 
 ### Containers
 - **Docker CE** — official repo, overlay2 storage, Compose v2
