@@ -54,6 +54,7 @@ install_filedb_deps() {
     /opt/forgeos/venv/bin/pip install --quiet \
         fastapi \
         "uvicorn[standard]" \
+        httpx \
         inotify \
         >> "$FORGENAS_LOG" 2>&1 \
         || warn "Some Python packages failed (inotify will fall back to polling)"
