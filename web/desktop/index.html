@@ -49,7 +49,7 @@
         </svg>
       </button>
       <div id="user-menu" class="hidden" style="position: absolute; top: var(--topbar-height); right: 8px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); min-width: 180px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); overflow: hidden; z-index: 999;">
-        <button class="profile-menu-item" onclick="forgeOS.logout()" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 16px; background: none; border: none; color: var(--text-primary); cursor: pointer; font-size: 14px;">
+        <button class="profile-menu-item" data-action="logout" style="display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 16px; background: none; border: none; color: var(--text-primary); cursor: pointer; font-size: 14px;">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Logout
         </button>
@@ -244,7 +244,7 @@
             <div style="font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text-primary);">Recent Activity</div>
             <div class="glass-card" style="padding: 16px;">
               <div style="display: flex; flex-direction: column; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 8px; transition: background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                <div class="activity-item" style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 8px; transition: background 0.15s;">
                   <div style="width: 32px; height: 32px; background: rgba(0, 230, 118, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--accent-success);">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
                   </div>
@@ -255,7 +255,7 @@
                   <div style="font-size: 11px; color: var(--text-muted);">3 min ago</div>
                 </div>
                 
-                <div style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 8px; transition: background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                <div class="activity-item" style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 8px; transition: background 0.15s;">
                   <div style="width: 32px; height: 32px; background: rgba(0, 212, 255, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--accent-primary);">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82.33l.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l-.06-.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 .51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                   </div>
@@ -266,7 +266,7 @@
                   <div style="font-size: 11px; color: var(--text-muted);">15 min ago</div>
                 </div>
                 
-                <div style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 8px; transition: background 0.15s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
+                <div class="activity-item" style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 8px; transition: background 0.15s;">
                   <div style="width: 32px; height: 32px; background: rgba(255, 179, 0, 0.1); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--accent-warning);">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                   </div>
@@ -288,7 +288,7 @@
   
   <!-- TASKBAR -->
   <div id="taskbar">
-    <div class="taskbar-start" onclick="toggleSidebar()">
+    <div class="taskbar-start" data-action="toggle-sidebar">
       <div class="logo-icon">F</div>
       <span>ForgeOS</span>
     </div>
@@ -352,7 +352,7 @@
     <div class="modal-content" style="max-width: 440px;">
       <div class="modal-header">
         <h3 class="mt-0" id="modal-confirm-title">Confirm</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-confirm')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-confirm">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -360,7 +360,7 @@
         <p id="modal-confirm-msg" style="color: var(--text-secondary); line-height: 1.6;"></p>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-confirm')">Cancel</button>
+        <button class="btn" data-action="cancel" data-modal="modal-confirm">Cancel</button>
         <button class="btn btn-primary" id="modal-confirm-action">Confirm</button>
       </div>
     </div>
@@ -371,7 +371,7 @@
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <h3 class="mt-0">Create Storage Pool</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-create-pool')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-create-pool">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -408,8 +408,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-create-pool')">Cancel</button>
-        <button class="btn btn-primary" onclick="forgeOS.createPool()">Create Pool</button>
+        <button class="btn" data-action="cancel" data-modal="modal-create-pool">Cancel</button>
+        <button class="btn btn-primary" data-action="create-pool">Create Pool</button>
       </div>
     </div>
   </div>
@@ -419,7 +419,7 @@
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <h3 class="mt-0">Add Drive</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-add-drive')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-add-drive">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -443,8 +443,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-add-drive')">Cancel</button>
-        <button class="btn btn-primary" onclick="forgeOS.addDrive()">Add Drive</button>
+        <button class="btn" data-action="cancel" data-modal="modal-add-drive">Cancel</button>
+        <button class="btn btn-primary" data-action="add-drive">Add Drive</button>
       </div>
     </div>
   </div>
@@ -454,7 +454,7 @@
     <div class="modal-content" style="max-width: 480px;">
       <div class="modal-header">
         <h3 class="mt-0">Create Snapshot</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-create-snapshot')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-create-snapshot">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -478,8 +478,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-create-snapshot')">Cancel</button>
-        <button class="btn btn-primary" onclick="forgeOS.createSnapshot()">Create Snapshot</button>
+        <button class="btn" data-action="cancel" data-modal="modal-create-snapshot">Cancel</button>
+        <button class="btn btn-primary" data-action="create-snapshot">Create Snapshot</button>
       </div>
     </div>
   </div>
@@ -489,7 +489,7 @@
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <h3 class="mt-0">Add Firewall Rule</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-firewall-rule')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-firewall-rule">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -529,7 +529,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-firewall-rule')">Cancel</button>
+        <button class="btn" data-action="cancel" data-modal="modal-firewall-rule">Cancel</button>
         <button class="btn btn-primary">Add Rule</button>
       </div>
     </div>
@@ -540,7 +540,7 @@
     <div class="modal-content" style="max-width: 500px;">
       <div class="modal-header">
         <h3 class="mt-0">Create Share</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-share')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-share">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -565,8 +565,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-share')">Cancel</button>
-        <button class="btn btn-primary" onclick="forgeOS.createShare()">Create Share</button>
+        <button class="btn" data-action="cancel" data-modal="modal-share">Cancel</button>
+        <button class="btn btn-primary" data-action="create-share">Create Share</button>
       </div>
     </div>
   </div>
@@ -576,7 +576,7 @@
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <h3 class="mt-0">VPN Connection</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-vpn')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-vpn">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -612,7 +612,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-vpn')">Cancel</button>
+        <button class="btn" data-action="cancel" data-modal="modal-vpn">Cancel</button>
         <button class="btn btn-primary">Connect</button>
       </div>
     </div>
@@ -623,7 +623,7 @@
     <div class="modal-content" style="max-width: 540px;">
       <div class="modal-header">
         <h3 class="mt-0">Virtual Host</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-vhost')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-vhost">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -662,8 +662,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-vhost')">Cancel</button>
-        <button class="btn btn-primary" onclick="forgeOS.createVhost()">Create Host</button>
+        <button class="btn" data-action="cancel" data-modal="modal-vhost">Cancel</button>
+        <button class="btn btn-primary" data-action="create-vhost">Create Host</button>
       </div>
     </div>
   </div>
@@ -673,7 +673,7 @@
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <h3 class="mt-0">Mail Server Settings</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-mail')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-mail">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -711,7 +711,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-mail')">Cancel</button>
+        <button class="btn" data-action="cancel" data-modal="modal-mail">Cancel</button>
         <button class="btn btn-primary">Save Settings</button>
       </div>
     </div>
@@ -722,7 +722,7 @@
     <div class="modal-content" style="max-width: 520px;">
       <div class="modal-header">
         <h3 class="mt-0">Authentication Settings</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-auth')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-auth">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -767,7 +767,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-auth')">Cancel</button>
+        <button class="btn" data-action="cancel" data-modal="modal-auth">Cancel</button>
         <button class="btn btn-primary">Apply</button>
       </div>
     </div>
@@ -778,7 +778,7 @@
     <div class="modal-content" style="max-width: 540px;">
       <div class="modal-header">
         <h3 class="mt-0">Cloud Sync</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-cloud')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-cloud">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -820,7 +820,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-cloud')">Cancel</button>
+        <button class="btn" data-action="cancel" data-modal="modal-cloud">Cancel</button>
         <button class="btn btn-primary">Connect</button>
       </div>
     </div>
@@ -831,7 +831,7 @@
     <div class="modal-content" style="max-width: 540px;">
       <div class="modal-header">
         <h3 class="mt-0">Configure Backup</h3>
-        <button class="btn btn-icon" onclick="forgeOS.hideModal('modal-backup')">
+        <button class="btn btn-icon" data-action="cancel" data-modal="modal-backup">
           <svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
         </button>
       </div>
@@ -878,8 +878,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn" onclick="forgeOS.hideModal('modal-backup')">Cancel</button>
-        <button class="btn btn-primary" onclick="forgeOS.runBackup()">Run Backup Now</button>
+        <button class="btn" data-action="cancel" data-modal="modal-backup">Cancel</button>
+        <button class="btn btn-primary" data-action="run-backup">Run Backup Now</button>
       </div>
     </div>
   </div>
@@ -905,7 +905,7 @@
           <label class="text-sm text-muted text-uppercase">Password</label>
           <input type="password" id="login-pass" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="••••••••" autocomplete="current-password">
         </div>
-        <button id="login-btn" class="btn btn-primary" style="width: 100%; margin-top: 8px;" onclick="forgeOS.login()">
+        <button id="login-btn" class="btn btn-primary" style="width: 100%; margin-top: 8px;" data-action="login">
           Sign In
         </button>
       </div>

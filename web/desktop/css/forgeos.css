@@ -1502,3 +1502,8 @@ body.modal-open { overflow: hidden; }
   from { opacity: 0; transform: translateX(40px); }
   to   { opacity: 1; transform: translateX(0); }
 }
+
+/* Activity feed items — replaces inline onmouseover/onmouseout handlers */
+.activity-item:hover {
+  background: rgba(255,255,255,0.05);
+}

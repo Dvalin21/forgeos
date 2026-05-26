@@ -21,6 +21,9 @@ if _src_path not in sys.path:
     sys.path.insert(0, _src_path)
 
 
+# Ensure filedb_api loads in mock mode — must be set before any module import
+os.environ.setdefault("MOCK_FILEDB", "true")
+
 # Prevent tests from touching /etc/forgeos — use temp dirs instead
 @pytest.fixture(autouse=True)
 def _isolate_forgeos_config(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
