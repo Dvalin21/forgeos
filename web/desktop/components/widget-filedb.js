@@ -34,6 +34,15 @@ class WidgetFiledb extends ForgeWidget {
     const conflicts = data.total_conflicts || 0;
 
     content.innerHTML = `
+      <style>
+        .filedb-link {
+          display: block; text-align: center; padding: var(--space-sm);
+          background: rgba(124,77,255,0.1); color: var(--filedb, #7c4dff);
+          border-radius: var(--radius-sm); text-decoration: none;
+          font-size: 12px; font-weight: 600; transition: var(--transition);
+        }
+        .filedb-link:hover { background: rgba(124,77,255,0.2); }
+      </style>
       <div style="display: grid; gap: var(--space-sm);">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Status</span>
@@ -65,9 +74,7 @@ class WidgetFiledb extends ForgeWidget {
         ` : ''}
 
         <div style="margin-top: var(--space-sm);">
-          <a href="/filedb.html" style="display: block; text-align: center; padding: var(--space-sm); background: rgba(124,77,255,0.1); color: var(--filedb, #7c4dff); border-radius: var(--radius-sm); text-decoration: none; font-size: 12px; font-weight: 600; transition: var(--transition);" onmouseover="this.style.background='rgba(124,77,255,0.2)'" onmouseout="this.style.background='rgba(124,77,255,0.1)'">
-            Open ForgeFileDB →
-          </a>
+          <a href="/filedb.html" class="filedb-link">Open ForgeFileDB →</a>
         </div>
       </div>
     `;

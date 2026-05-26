@@ -50,7 +50,7 @@
           <div class="flex items-center gap-sm">
             <span class="status-badge status-running">Running</span>
             <div class="dropdown pos-relative">
-              <button class="btn btn-icon" onclick="toggleDropdown(this)" style="padding: var(--space-sm); background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px;">⋯</button>
+              <button class="btn btn-icon" data-action="toggle-dropdown" style="padding: var(--space-sm); background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px;">⋯</button>
               <div class="dropdown-menu hidden">
                 <button class="dropdown-item" data-action="terminal"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Terminal</button>
                 <button class="dropdown-item" data-action="logs"><svg viewBox="0 0 24 24" class="svg-icon"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Logs</button>
@@ -82,10 +82,10 @@
         </div>
         
         <div class="card-actions flex gap-sm mt-md pt-md" style="border-top: 1px solid var(--border);">
-          <button class="btn btn-sm btn-primary" onclick="openTerminal('nginx')"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Terminal</button>
-          <button class="btn btn-sm btn-outline" onclick="updateContainer('nginx', true)"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg> Update</button>
-          <button class="btn btn-sm btn-warning" onclick="stopContainer('nginx')"><svg viewBox="0 0 24 24" class="svg-icon"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop</button>
-          <button class="btn btn-sm btn-danger" onclick="downContainer('nginx')"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Down</button>
+          <button class="btn btn-sm btn-primary" data-action="open-terminal" data-container="nginx"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Terminal</button>
+          <button class="btn btn-sm btn-outline" data-action="update-container" data-container="nginx"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg> Update</button>
+          <button class="btn btn-sm btn-warning" data-action="stop-container" data-container="nginx"><svg viewBox="0 0 24 24" class="svg-icon"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop</button>
+          <button class="btn btn-sm btn-danger" data-action="down-container" data-container="nginx"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Down</button>
         </div>
         
         <!-- Compose Stack Indicator -->
@@ -103,7 +103,7 @@
     <div class="modal-content" style="height: 80%;">
       <div class="modal-header">
         <h3 class="mt-0">Terminal: <span id="terminal-container-name"></span></h3>
-        <button class="btn btn-icon" onclick="closeTerminal()"><svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
+        <button class="btn btn-icon" data-action="close-terminal"><svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
         <forge-terminal id="terminal-component" style="width: 100%; height: 100%;"></forge-terminal>
@@ -113,73 +113,6 @@
   
   <script src="components/forge-topnav.js"></script>
   <script src="components/forge-terminal.js"></script>
-  <script>
-    // Docker management functions
-    function openTerminal(containerName) {
-      document.getElementById('terminal-container-name').textContent = containerName;
-      document.getElementById('terminal-modal').classList.remove('hidden');
-      
-      // Set container name on terminal component
-      const terminal = document.getElementById('terminal-component');
-      terminal.setAttribute('container', containerName);
-    }
-    
-    function closeTerminal() {
-      document.getElementById('terminal-modal').classList.add('hidden');
-    }
-    
-    function updateContainer(containerName, isCompose) {
-      if (isCompose) {
-        if (confirm(`Update container ${containerName} via docker-compose?`)) {
-          alert(`Running: docker-compose pull && docker-compose up -d\n\n(Integration with Docker API pending)`);
-        }
-      } else {
-        if (confirm(`Update container ${containerName}?`)) {
-          alert(`Running: docker pull ${containerName} && docker stop ${containerName} && docker rm ${containerName} && docker run...\n\n(Integration with Docker API pending)`);
-        }
-      }
-    }
-    
-    function stopContainer(containerName) {
-      if (confirm(`Stop container ${containerName}?`)) {
-        alert(`Running: docker stop ${containerName}\n\n(Integration with Docker API pending)`);
-        // Update UI to show stopped status
-        const card = document.querySelector(`[data-container="${containerName}"]`);
-        if (card) {
-          card.querySelector('.status-badge').className = 'status-badge status-stopped';
-          card.querySelector('.status-badge').textContent = 'Stopped';
-        }
-      }
-    }
-    
-    function downContainer(containerName) {
-      if (confirm(`Stop and remove container ${containerName}? (docker down)`)) {
-        alert(`Running: docker stop ${containerName} && docker rm ${containerName}\n\n(Integration with Docker API pending)`);
-      }
-    }
-    
-    function toggleDropdown(btn) {
-      const menu = btn.nextElementSibling;
-      menu.classList.toggle('hidden');
-      
-      // Close when clicking outside
-      document.addEventListener('click', function closeMenu(e) {
-        if (!btn.contains(e.target) && !menu.contains(e.target)) {
-          menu.classList.add('hidden');
-          document.removeEventListener('click', closeMenu);
-        }
-      });
-    }
-    
-    // Filter functionality
-    document.querySelectorAll('.filters .btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.filters .btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        // Filter logic would go here
-        console.log('Filter:', btn.dataset.filter);
-      });
-    });
-  </script>
+  <script src="js/docker-page.js"></script>
 </body>
 </html>
