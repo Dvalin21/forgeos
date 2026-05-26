@@ -270,11 +270,11 @@ body {
 <div class="page-header">
   <h2>File Station (RustFS)</h2>
   <div class="header-actions">
-    <button class="btn" onclick="showSettings()"><svg viewBox="0 0 24 24" style="width: 16px; height: 16px; stroke: currentColor; stroke-width: 2; fill: none; vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings</button>
-    <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+    <button class="btn" data-action="toggle-settings"><svg viewBox="0 0 24 24" style="width: 16px; height: 16px; stroke: currentColor; stroke-width: 2; fill: none; vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings</button>
+    <button class="btn btn-primary" data-action="trigger-file-input">
       <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; stroke: currentColor; stroke-width: 2.5; fill: none; vertical-align: middle; margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload File
     </button>
-    <input type="file" id="file-input" multiple style="display: none" onchange="handleFileUpload(this.files)">
+    <input type="file" id="file-input" multiple style="display: none">
   </div>
 </div>
 
@@ -292,14 +292,14 @@ body {
 </div>
 
 <div class="breadcrumb">
-  <span onclick="navigateTo('')">Buckets</span>
+  <span data-action="navigate" data-path="">Buckets</span>
   <span class="separator">></span>
-  <span onclick="navigateTo('forgeos-main')">forgeos-main</span>
+  <span data-action="navigate" data-path="forgeos-main">forgeos-main</span>
   <span class="separator">></span>
   <span>documents</span>
 </div>
 
-<div class="upload-area" id="upload-area" ondrop="handleDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)">
+<div class="upload-area" id="upload-area">
   <div style="margin-bottom: 12px;"><svg viewBox="0 0 48 48" style="width: 48px; height: 48px; stroke: var(--text-muted); stroke-width: 1.5; fill: none;"><path d="M42 30v8a4 4 0 0 1-4 4H10a4 4 0 0 1-4-4v-8"/><polyline points="34 16 24 6 14 16"/><line x1="24" y1="6" x2="24" y2="30"/></svg></div>
   <div style="font-size: 14px; margin-bottom: 8px;">Drag & drop files here, or click Upload File</div>
   <div style="font-size: 12px;">Supports multi-part upload, S3-compatible API</div>
@@ -307,22 +307,22 @@ body {
 
 <div class="file-grid" id="file-grid">
   <!-- Files will be loaded from RustFS S3 API -->
-  <div class="file-item" onclick="openFile('report.pdf')">
+  <div class="file-item" data-action="open-file" data-filename="report.pdf">
     <div class="file-icon"><svg viewBox="0 0 48 48"><path d="M32 8H12a4 4 0 0 0-4 4v24a4 4 0 0 0 4 4h24a4 4 0 0 0 4-4V20z"/><polyline points="32 8 32 20 44 20"/></svg></div>
     <div class="file-name">report.pdf</div>
   </div>
   
-  <div class="file-item" onclick="openFolder('photos')">
+  <div class="file-item" data-action="open-folder" data-filename="photos">
     <div class="file-icon"><svg viewBox="0 0 48 48"><path d="M44 38a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V10a4 4 0 0 1 4-4h10l4 6h18a4 4 0 0 1 4 4z"/></svg></div>
     <div class="file-name">photos</div>
   </div>
   
-  <div class="file-item" onclick="openFile('data.csv')">
+  <div class="file-item" data-action="open-file" data-filename="data.csv">
     <div class="file-icon"><svg viewBox="0 0 48 48"><line x1="36" y1="40" x2="36" y2="20"/><line x1="24" y1="40" x2="24" y2="8"/><line x1="12" y1="40" x2="12" y2="28"/></svg></div>
     <div class="file-name">data.csv</div>
   </div>
   
-  <div class="file-item" onclick="openFile('backup.zip')">
+  <div class="file-item" data-action="open-file" data-filename="backup.zip">
     <div class="file-icon"><svg viewBox="0 0 48 48"><rect x="6" y="6" width="36" height="36" rx="4"/><line x1="6" y1="18" x2="42" y2="18"/><path d="M18 26h12"/></svg></div>
     <div class="file-name">backup.zip</div>
   </div>
@@ -363,89 +363,7 @@ body {
   </div>
 </div>
 
-<script>
-// RustFS API endpoint
-const RUSTFS_API = 'http://localhost:9000';
-const CURRENT_BUCKET = 'forgeos-main';
-
-// File navigation
-function navigateTo(path) {
-  console.log('Navigate to:', path);
-  // In production, this would call RustFS S3 API
-  // GET /{bucket}/{prefix}
-}
-
-function openFile(fileName) {
-  console.log('Open file:', fileName);
-  // In production: window.open(RUSTFS_API + '/' + CURRENT_BUCKET + '/' + fileName);
-}
-
-function openFolder(folderName) {
-  console.log('Open folder:', folderName);
-  // In production: navigateTo(CURRENT_BUCKET + '/' + folderName);
-}
-
-// File upload
-function handleFileUpload(files) {
-  if (!files || files.length === 0) return;
-  
-  console.log('Uploading', files.length, 'files to RustFS...');
-  
-  // In production, this would use S3 multipart upload API
-  // for (let file of files) {
-  //   const formData = new FormData();
-  //   formData.append('file', file);
-  //   fetch(RUSTFS_API + '/' + CURRENT_BUCKET + '/' + file.name, {
-  //     method: 'PUT',
-  //     body: file
-  //   });
-  // }
-  
-  alert('Upload functionality will connect to RustFS S3 API in production');
-}
-
-// Drag and drop
-function handleDragOver(e) {
-  e.preventDefault();
-  document.getElementById('upload-area').classList.add('dragover');
-}
-
-function handleDragLeave(e) {
-  document.getElementById('upload-area').classList.remove('dragover');
-}
-
-function handleDrop(e) {
-  e.preventDefault();
-  document.getElementById('upload-area').classList.remove('dragover');
-  handleFileUpload(e.dataTransfer.files);
-}
-
-// Settings toggle
-function showSettings() {
-  const panel = document.getElementById('settings-panel');
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-}
-
-// Load files from RustFS API (when backend is ready)
-async function loadFiles(bucket, prefix = '') {
-  try {
-    const response = await fetch(RUSTFS_API + '/' + bucket + '?prefix=' + prefix, {
-      headers: {
-        'Authorization': 'Bearer ' + (localStorage.getItem('forgeos_token') || '')
-      }
-    });
-    const text = await response.text();
-    const parser = new DOMParser();
-    const data = parser.parseFromString(text, "text/xml");
-    console.log('Files loaded:', data);
-  } catch (error) {
-    console.error('Error loading files:', error);
-  }
-}
-
-// Initialize
-// loadFiles(CURRENT_BUCKET);
-</script>
+<script src="js/filestation-rustfs.js"></script>
 
 </body>
 </html>

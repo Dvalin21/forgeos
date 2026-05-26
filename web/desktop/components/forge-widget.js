@@ -118,7 +118,9 @@ class ForgeWidget extends HTMLElement {
   showError(message) {
     const content = this.shadowRoot.querySelector('.content');
     if (content) {
-      content.innerHTML = `<div class="error">${message} <button onclick="this.getRootNode().host.loadData()">Retry</button></div>`;
+      content.innerHTML = `<div class="error">${message} <button class="retry-btn">Retry</button></div>`;
+      const btn = content.querySelector('.retry-btn');
+      if (btn) btn.addEventListener('click', () => this.loadData());
     }
   }
   
