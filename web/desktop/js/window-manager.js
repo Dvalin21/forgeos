@@ -24,6 +24,14 @@
   }
 
   // Clock Update
+  // ─── Auth-Aware Fetch (reads token from localStorage) ───
+  function forgeosFetch(path, options) {
+    var token = localStorage.getItem('forgeos_token');
+    var headers = (options && options.headers) || {};
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    return fetch(path, { ...(options || {}), headers: headers });
+  }
+
   function updateClock() {
     var now = new Date();
     var time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -150,6 +158,10 @@
     windowStack.push(appName);
     windowCounter++;
     focusWindow(appName);
+
+    // Auto-refresh live data windows
+    if (appName === 'docker') setTimeout(function() { window.ForgeOS.dockerRefresh(); }, 200);
+    if (appName === 'lxc') setTimeout(function() { window.ForgeOS.lxcRefresh(); }, 200);
 
     // Setup dragging for new window
     setupDragForWindow(win);
@@ -411,19 +423,71 @@
     createWindow: createWindow,
     getRustFSConsole: getRustFSConsole,
 
-    // Docker Containers
+    // Docker Containers — live data from API
     dockerRefresh: function() {
-      fetch('/api/docker/containers')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-          console.log('Docker containers:', data);
-        })
-        .catch(function(e) { console.error('Failed to refresh Docker:', e); });
+      var countEl = document.getElementById('docker-count');
+      var imagesEl = document.getElementById('docker-images');
+      var listEl = document.getElementById('docker-containers');
+      if (!listEl) return;
+
+      // Show loading state
+      listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">Loading containers...</div>';
+
+      Promise.all([
+        forgeosFetch('/api/docker/containers').then(function(r) { return r.ok ? r.json() : { containers: [] }; }),
+        forgeosFetch('/api/docker/images').then(function(r) { return r.ok ? r.json() : { images: [] }; })
+      ]).then(function(results) {
+        var containers = results[0].containers || [];
+        var images = results[1].images || [];
+
+        // Update counts
+        if (countEl) countEl.textContent = containers.length;
+        if (imagesEl) imagesEl.textContent = images.length;
+
+        // Render container list
+        if (containers.length === 0) {
+          listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">No containers found.</div>';
+          return;
+        }
+
+        var html = '';
+        containers.forEach(function(c) {
+          var name = c.Names || c.name || 'unknown';
+          var image = c.Image || c.image || '';
+          var state = c.State || c.state || 'unknown';
+          var running = state === 'running' || state === 'Running' || state === 'running (healthy)';
+          var statusColor = running ? 'var(--accent-success)' : 'var(--text-muted)';
+          var statusText = c.Status || c.status || state;
+
+          html += '<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;">' +
+            '<div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">' +
+              '<span style="color:' + statusColor + '; font-size:10px;">●</span>' +
+              '<span style="color:var(--text-primary); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + name + '</span>' +
+              (image ? '<span style="font-size:11px; color:var(--text-secondary); flex-shrink:0;">' + image + '</span>' : '') +
+              (statusText ? '<span style="font-size:10px; color:var(--text-muted); flex-shrink:0;">' + statusText + '</span>' : '') +
+            '</div>' +
+            '<div style="display:flex; gap:4px; flex-shrink:0;">' +
+              (running ?
+                '<button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="container-action" data-container="' + name.replace(/"/g, '&quot;') + '" data-name="stop">Stop</button>' +
+                '<button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="container-action" data-container="' + name.replace(/"/g, '&quot;') + '" data-name="restart">Restart</button>'
+              :
+                '<button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="container-action" data-container="' + name.replace(/"/g, '&quot;') + '" data-name="start">Start</button>'
+              ) +
+              '<button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="view-logs" data-container="' + name.replace(/"/g, '&quot;') + '">Logs</button>' +
+            '</div>' +
+          '</div>';
+        });
+
+        listEl.innerHTML = html;
+      }).catch(function(e) {
+        console.error('Docker refresh error:', e);
+        listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-danger);font-size:13px;">Failed to load containers.</div>';
+      });
     },
 
     containerAction: function(container, action) {
       if (!confirm('Are you sure you want to ' + action + ' ' + container + '?')) return;
-      fetch('/api/docker/containers/' + container + '/' + action, { method: 'POST' })
+      forgeosFetch('/api/docker/containers/' + container + '/' + action, { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function() {
           alert('Container ' + action + ' successful');
@@ -474,7 +538,7 @@
         if (e.target === overlay) document.body.removeChild(overlay);
       };
 
-      fetch('/api/docker/containers/' + encodeURIComponent(container) + '/logs')
+      forgeosFetch('/api/docker/containers/' + encodeURIComponent(container) + '/logs')
         .then(function(r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.text();
@@ -489,7 +553,7 @@
 
     // Docker Compose
     composeUp: function() {
-      fetch('/api/docker/compose/up', { method: 'POST' })
+      forgeosFetch('/api/docker/compose/up', { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function() { alert('Compose up successful'); })
         .catch(function(e) { alert('Error: ' + e); });
@@ -497,7 +561,7 @@
 
     composeAction: function(project, action) {
       if (!confirm('Are you sure you want to ' + action + ' project ' + project + '?')) return;
-      fetch('/api/docker/compose/' + action, { method: 'POST' })
+      forgeosFetch('/api/docker/compose/' + action, { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function() {
           alert('Compose ' + action + ' successful');
@@ -508,7 +572,7 @@
 
     dockerPrune: function() {
       if (!confirm('This will remove all stopped containers, unused networks, and dangling images. Continue?')) return;
-      fetch('/api/docker/prune', { method: 'POST' })
+      forgeosFetch('/api/docker/prune', { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(data) { alert('Prune complete. Removed: ' + JSON.stringify(data)); })
         .catch(function(e) { alert('Error: ' + e); });
@@ -519,19 +583,70 @@
       return false;
     },
 
-    // LXC Containers
+    // LXC Containers — live data from API
     lxcRefresh: function() {
-      fetch('/api/lxc/containers')
-        .then(function(r) { return r.json(); })
+      var countEl = document.getElementById('lxc-count');
+      var runningEl = document.getElementById('lxc-running');
+      var listEl = document.getElementById('lxc-containers');
+      if (!listEl) return;
+
+      // Show loading state
+      listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">Loading containers...</div>';
+
+      forgeosFetch('/api/docker/lxc/containers')
+        .then(function(r) { return r.ok ? r.json() : { containers: [] }; })
         .then(function(data) {
-          console.log('LXC containers:', data);
+          var containers = data.containers || [];
+          var running = 0;
+
+          if (countEl) countEl.textContent = containers.length;
+
+          // Render container list
+          if (containers.length === 0) {
+            if (runningEl) runningEl.textContent = '0';
+            listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">No containers found.</div>';
+            return;
+          }
+
+          var html = '';
+          containers.forEach(function(c) {
+            var name = c.name || 'unknown';
+            var state = c.status || c.state || 'unknown';
+            var isRunning = state === 'Running' || state === 'running';
+            if (isRunning) running++;
+            var ipv4 = c.ipv4 || c.addresses || '';
+
+            html += '<div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;">' +
+              '<div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1;">' +
+                '<span style="color:' + (isRunning ? 'var(--accent-success)' : 'var(--text-muted)') + '; font-size:10px;">●</span>' +
+                '<span style="color:var(--text-primary); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">' + name + '</span>' +
+                '<span style="font-size:11px; color:var(--text-secondary); flex-shrink:0;">' + state + '</span>' +
+                (ipv4 ? '<span style="font-size:10px; color:var(--text-muted); flex-shrink:0;">' + ipv4 + '</span>' : '') +
+              '</div>' +
+              '<div style="display:flex; gap:4px; flex-shrink:0;">' +
+                (isRunning ?
+                  '<button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="lxc-action" data-container="' + name.replace(/"/g, '&quot;') + '" data-name="stop">Stop</button>' +
+                  '<button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="lxc-action" data-container="' + name.replace(/"/g, '&quot;') + '" data-name="restart">Restart</button>'
+                :
+                  '<button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="lxc-action" data-container="' + name.replace(/"/g, '&quot;') + '" data-name="start">Start</button>'
+                ) +
+                '<button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="open-terminal" data-type="lxc" data-container="' + name.replace(/"/g, '&quot;') + '">Terminal</button>' +
+              '</div>' +
+            '</div>';
+          });
+
+          if (runningEl) runningEl.textContent = running;
+          listEl.innerHTML = html;
         })
-        .catch(function(e) { console.error('Failed to refresh LXC:', e); });
+        .catch(function(e) {
+          console.error('LXC refresh error:', e);
+          listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-danger);font-size:13px;">Failed to load containers.</div>';
+        });
     },
 
     lxcAction: function(container, action) {
       if (!confirm('Are you sure you want to ' + action + ' LXC container ' + container + '?')) return;
-      fetch('/api/lxc/containers/' + container + '/' + action, { method: 'POST' })
+      forgeosFetch('/api/docker/lxc/containers/' + container + '/' + action, { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function() {
           alert('LXC container ' + action + ' successful');
@@ -544,7 +659,7 @@
       var name = prompt('Container name:');
       var image = prompt('Image (e.g., ubuntu:22.04):', 'ubuntu:22.04');
       if (!name || !image) return;
-      fetch('/api/lxc/containers', {
+      forgeosFetch('/api/docker/lxc/containers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name, image: image })
