@@ -289,7 +289,7 @@ class InotifyWatcher:
                 if file_path in item.get("filename", ""):
                     return item.get("client_ip", "unknown")
         except Exception:
-            pass
+            log("DEBUG", "smbstatus lookup failed (best-effort)")
         return "unknown"
 
     def _is_db_file(self, name: str) -> bool:
@@ -483,6 +483,7 @@ class SnapshotManager:
             )
             return result.returncode == 0
         except Exception:
+            log("WARN", f"btrfs snapshot failed for {db_dir}")
             return False
 
     async def _rsync_snapshot(self, db_dir: Path, snap_path: Path):
@@ -522,6 +523,7 @@ class SnapshotManager:
                     capture_output=True, timeout=10
                 )
             except Exception:
+                log("WARN", f"btrfs delete failed for {old}, falling back to shutil.rmtree")
                 shutil.rmtree(old, ignore_errors=True)
             # Also remove metadata
             meta = old.parent / f"{old.name}.json"
@@ -543,7 +545,7 @@ class SnapshotManager:
                 try:
                     results.append(json.loads(meta_file.read_text()))
                 except Exception:
-                    pass
+                    log("WARN", f"corrupt snapshot metadata: {meta_file}")
         return results
 
     async def restore_snapshot(self, snap_ts: str, db_dir: str,
@@ -645,7 +647,7 @@ class MDNSBroadcaster:
         try:
             subprocess.run(["systemctl", "reload", "avahi-daemon"], capture_output=True)
         except Exception:
-            pass
+            log("DEBUG", "avahi-daemon reload on stop failed (non-critical)")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -853,6 +855,7 @@ async def _broadcast_event(event: dict):
         try:
             await ws.send_json(event)
         except Exception:
+            log("DEBUG", "removing dead WebSocket client")
             dead.append(ws)
     for ws in dead:
         if ws in _ws_clients:

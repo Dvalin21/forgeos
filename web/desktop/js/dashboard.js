@@ -55,4 +55,4 @@ class ForgeDashboard {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => new ForgeDashboard());
+// Initialized by forgeOS.js

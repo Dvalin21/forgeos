@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#080610"/>
+      <stop offset="50%"  stop-color="#0a0e1c"/>
+      <stop offset="100%" stop-color="#060812"/>
+    </linearGradient>
+    <filter id="blurXl"><feGaussianBlur stdDeviation="110"/></filter>
+    <filter id="blurLg"><feGaussianBlur stdDeviation="60"/></filter>
+    <filter id="blurMd"><feGaussianBlur stdDeviation="30"/></filter>
+    <filter id="blurSm"><feGaussianBlur stdDeviation="12"/></filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <!-- Deep ambient glow -->
+  <g filter="url(#blurXl)">
+    <ellipse cx="800" cy="540" rx="550" ry="400" fill="#003a5c" opacity="0.05"/>
+    <ellipse cx="1200" cy="600" rx="450" ry="300" fill="#0a1830" opacity="0.04"/>
+  </g>
+  <!-- Pulsing organic center - like a heartbeat visualized as fluid -->
+  <g filter="url(#blurLg)">
+    <path d="M300,800 C400,600 600,350 800,400 C1000,450 1000,250 1200,300 C1400,350 1500,550 1600,700 C1700,850 1800,900 1920,900 L1920,1080 L0,1080 Z"
+          fill="#004a68" opacity="0.06"/>
+    <ellipse cx="900" cy="400" rx="300" ry="180" fill="#006a90" opacity="0.04"/>
+    <ellipse cx="1100" cy="500" rx="200" ry="140" fill="#005080" opacity="0.04"/>
+  </g>
+  <!-- Radiating bands -->
+  <g filter="url(#blurMd)">
+    <path d="M400,600 C600,450 800,350 960,380 C1120,410 1300,350 1500,500"
+          fill="none" stroke="#0090b8" stroke-width="30" stroke-linecap="round" opacity="0.03"/>
+    <path d="M500,750 C700,600 900,500 1100,530 C1300,560 1400,500 1600,650"
+          fill="none" stroke="#0070a0" stroke-width="20" stroke-linecap="round" opacity="0.03"/>
+    <ellipse cx="960" cy="480" rx="140" ry="80" fill="#00a0c8" opacity="0.04"/>
+  </g>
+  <!-- Core accent -->
+  <g filter="url(#blurSm)">
+    <ellipse cx="960" cy="450" rx="50" ry="30" fill="#00bcd8" opacity="0.05"/>
+  </g>
+</svg>

@@ -4,8 +4,11 @@ ForgeOS Auth — shared JWT auth for API routers and WebSockets.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sys
+
+logger = logging.getLogger("forgeos-auth")
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -29,7 +32,7 @@ def _load_jwt_secret() -> str:
                     if candidate not in ("changeme-set-in-forgeos.conf", "changeme", ""):
                         secret = candidate
         except Exception as e:
-            print("forgeos: FAILED to read %s: %s" % (CONFIG_FILE, e), file=sys.stderr)
+            logger.warning("FAILED to read %s: %s", CONFIG_FILE, e)
     if not secret or secret in ("changeme-set-in-forgeos.conf", "changeme", ""):
         import secrets
         secret = secrets.token_hex(32)
@@ -40,7 +43,7 @@ def _load_jwt_secret() -> str:
             CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
             CONFIG_FILE.write_text("\n".join(lines) + "\n")
         except Exception as e:
-            print("forgeos: FAILED to persist JWT secret: %s" % e, file=sys.stderr)
+            logger.warning("FAILED to persist JWT secret: %s", e)
     return secret
 
 

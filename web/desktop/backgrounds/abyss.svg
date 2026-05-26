@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <defs>
+    <filter id="blurLg"><feGaussianBlur stdDeviation="25"/></filter>
+    <filter id="blurMd"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="blurSm"><feGaussianBlur stdDeviation="6"/></filter>
+  </defs>
+  <rect width="400" height="300" fill="#05080f"/>
+  <g filter="url(#blurLg)">
+    <ellipse cx="140" cy="120" rx="110" ry="80" fill="#006994" opacity="0.10"/>
+    <ellipse cx="290" cy="180" rx="90" ry="70" fill="#004b6e" opacity="0.08"/>
+    <ellipse cx="200" cy="220" rx="120" ry="50" fill="#0a2840" opacity="0.08"/>
+  </g>
+  <g filter="url(#blurMd)">
+    <ellipse cx="130" cy="100" rx="60" ry="40" fill="#00b4d8" opacity="0.06"/>
+    <ellipse cx="310" cy="110" rx="70" ry="40" fill="#005f8a" opacity="0.06"/>
+    <ellipse cx="150" cy="110" rx="20" ry="15" fill="#00c8e6" opacity="0.08"/>
+  </g>
+</svg>

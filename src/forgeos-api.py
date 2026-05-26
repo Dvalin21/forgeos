@@ -31,6 +31,7 @@ import sys
 import threading
 import uuid
 import logging
+from contextlib import asynccontextmanager
 
 logger = logging.getLogger("forgeos-api")
 _log_handler = logging.StreamHandler(sys.stderr)
@@ -172,9 +173,31 @@ def _start_task(cmd: list[str], tool: str, action: str, timeout: int = 600) -> s
 
 
 # ────────────────────────────────────────────────────────────
-# APP
+# APP / LIFECYCLE
 # ────────────────────────────────────────────────────────────
-app = FastAPI(title="ForgeOS API", version="1.0", docs_url=None, redoc_url=None)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Graceful startup/shutdown lifecycle."""
+    try:
+        yield
+    finally:
+        pending = list(_background_tasks.keys())
+        if pending:
+            logger.info("Shutdown — cancelling %d background tasks", len(pending))
+            for tid in pending:
+                t = _background_tasks[tid]
+                if t.get("task") and hasattr(t["task"], "cancel"):
+                    t["task"].cancel()
+                del _background_tasks[tid]
+        for h in logger.handlers:
+            h.flush()
+
+
+app = FastAPI(
+    title="ForgeOS API", version="1.0",
+    docs_url=None, redoc_url=None,
+    lifespan=lifespan,
+)
 
 # Auth types + functions imported from forgeos_auth:
 #   JWT_SECRET, JWT_ALGO, JWT_EXPIRE, pwd_ctx, LoginRequest,
@@ -186,21 +209,21 @@ try:
     from filedb_api import router as filedb_router
     app.include_router(filedb_router)
 except ImportError as e:
-    print("forgeos: WARNING ForgeFileDB API not available: %s" % e, file=sys.stderr)
+    logger.warning("ForgeFileDB API not available: %s", e)
 
 try:
     from rustfs_api import router as rustfs_router
     app.include_router(rustfs_router)
-    print("RustFS Storage API loaded - replacing MinIO")
+    logger.info("RustFS Storage API loaded")
 except ImportError as e:
-    print("forgeos: WARNING RustFS API not available: %s" % e, file=sys.stderr)
+    logger.warning("RustFS API not available: %s", e)
 
 try:
     from docker_lxc_api import router as docker_lxc_router
     app.include_router(docker_lxc_router)
-    print("Docker & LXC Management API loaded")
+    logger.info("Docker & LXC Management API loaded")
 except ImportError as e:
-    print("forgeos: WARNING Docker/LXC API not available: %s" % e, file=sys.stderr)
+    logger.warning("Docker/LXC API not available: %s", e)
 
 # CORS configuration
 _allowed_origins = os.environ.get("FORGEOS_CORS_ORIGINS", "").split(",") if os.environ.get("FORGEOS_CORS_ORIGINS") else ["*"]
@@ -213,18 +236,138 @@ app.add_middleware(
 )
 
 
+# ─── Security Headers (CSP via pure ASGI middleware) ───
+# Inline scripts/styles allowed because the existing UI uses onclick=
+# extensively. Still blocks external scripts, CDNs, eval, data URIs, etc.
+
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; "
+    "font-src 'self'; "
+    "connect-src 'self' ws: wss:; "
+    "form-action 'self'; "
+    "base-uri 'self'; "
+    "frame-ancestors 'none'; "
+    "object-src 'none'"
+)
+
+
+class SecurityHeadersMiddleware:
+    """ASGI middleware that adds security headers to every HTTP response."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message):
+            if message["type"] == "http.response.start":
+                headers = message.get("headers", [])
+                headers.append((b"content-security-policy", _CSP.encode()))
+                headers.append((b"x-content-type-options", b"nosniff"))
+                headers.append((b"x-frame-options", b"DENY"))
+                headers.append((b"referrer-policy", b"strict-origin-when-cross-origin"))
+                message["headers"] = headers
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+
+# In-memory rate limiter for login attempts — no external dependency needed
+_LOGIN_LIMIT_WINDOW = 300   # 5 minutes
+_LOGIN_LIMIT_MAX    = 10    # max attempts per window
+_login_attempts: dict[str, deque] = {}
+
+def _check_login_rate_limit(client_ip: str) -> None:
+    """Track login attempts per IP. Raises 429 if over limit."""
+    now = time.time()
+    window = _LOGIN_LIMIT_WINDOW
+    if client_ip not in _login_attempts:
+        _login_attempts[client_ip] = deque()
+    dq = _login_attempts[client_ip]
+    # Purge entries older than the window
+    while dq and dq[0] < now - window:
+        dq.popleft()
+    if len(dq) >= _LOGIN_LIMIT_MAX:
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
+    dq.append(now)
+
+
+# ─── Mutation rate limiter (ASGI middleware) ───
+# Protects all POST/PUT/DELETE from brute-force / DoS.
+# Login has its own stricter limiter inside the route handler.
+_MUTATION_WINDOW = 60     # 1-minute sliding window
+_MUTATION_MAX    = 30     # max mutations per window per IP
+_mutation_log: dict[str, deque] = {}
+
+
+class MutationRateLimitMiddleware:
+    """Rate-limit POST/PUT/DELETE per client IP."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        method = scope.get("method", "GET")
+        if method in ("POST", "PUT", "DELETE"):
+            client = scope.get("client")
+            ip = client[0] if client else "unknown"
+            now = time.time()
+
+            dq = _mutation_log.get(ip)
+            if dq is None:
+                _mutation_log[ip] = dq = deque()
+
+            while dq and dq[0] < now - _MUTATION_WINDOW:
+                dq.popleft()
+
+            if len(dq) >= _MUTATION_MAX:
+                body = b'{"detail":"Too many requests. Try again later."}'
+                await send({
+                    "type": "http.response.start",
+                    "status": 429,
+                    "headers": [
+                        (b"content-type", b"application/json"),
+                        (b"retry-after", b"60"),
+                    ],
+                })
+                await send({"type": "http.response.body", "body": body})
+                return
+
+            dq.append(now)
+
+        await self.app(scope, receive, send)
+
+
+app.add_middleware(MutationRateLimitMiddleware)
+
+
 @app.post("/api/auth/login")
 async def login(body: LoginRequest, request: Request):
+    _check_login_rate_limit(request.client.host)
     users = load_users()
     if not users:
         raise HTTPException(status_code=503, detail="No users configured. Run forgeos-install to set up admin user.")
     user = users.get(body.username)
     if not user or not pwd_ctx.verify(body.password, user["hash"]):
-        print("forgeos: FAILED LOGIN user=%s from=%s" % (body.username, request.client.host), file=sys.stderr)
+        logger.warning("FAILED LOGIN user=%s from=%s", body.username, request.client.host)
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_token(body.username, user["role"])
     resp = JSONResponse({"token": token, "username": body.username, "role": user["role"]})
-    resp.set_cookie("forgeos_token", token, httponly=True, samesite="strict", max_age=JWT_EXPIRE * 3600)
+    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    resp.set_cookie("forgeos_token", token, httponly=True, secure=secure, samesite="strict", max_age=JWT_EXPIRE * 3600)
     return resp
 
 
@@ -264,7 +407,7 @@ def _run_shell(cmd: str, timeout: int = 5) -> str:
     except subprocess.CalledProcessError:
         return ""
     except subprocess.TimeoutExpired:
-        print(f"_run_shell: timed out after {timeout}s: {cmd[:120]}", file=sys.stderr)
+        logger.warning("_run_shell timed out after %ss: %s", timeout, cmd[:120])
         return ""
 
 
@@ -279,7 +422,7 @@ def _run_args(args: list, timeout: int = 5) -> str:
         return ""
     except subprocess.TimeoutExpired:
         cmd_str = " ".join(str(a) for a in args)[:120]
-        print(f"_run_args: timed out after {timeout}s: {cmd_str}", file=sys.stderr)
+        logger.warning("_run_args timed out after %ss: %s", timeout, cmd_str)
         return ""
 
 
@@ -489,6 +632,71 @@ async def storage_drives(user=Depends(verify_token)):
         except Exception as e:
             logger.warning("lsblk fallback parse failed: %s", e)
     return {"drives": drives}
+
+
+@app.post("/api/storage/pool")
+async def create_pool(body: dict, user=Depends(verify_token)):
+    """Create a RAID pool using mdadm — wraps mdadm --create."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    name   = re.sub(r"[^a-zA-Z0-9_-]", "", body.get("name", ""))
+    level  = body.get("level", 5)
+    drives = body.get("drives", [])
+    if not name or len(name) < 2:
+        raise HTTPException(400, "Pool name must be at least 2 characters")
+    if level not in (0, 1, 5, 6, 10):
+        raise HTTPException(400, "Invalid RAID level — must be 0, 1, 5, 6, or 10")
+    if len(drives) < 2:
+        raise HTTPException(400, "At least 2 drives required")
+    # Sanitize drive paths
+    clean = []
+    for d in drives:
+        dev = re.sub(r"[^a-zA-Z0-9_/]", "", str(d))
+        if not dev.startswith("/dev/"):
+            dev = "/dev/" + dev
+        clean.append(dev)
+    try:
+        r = subprocess.run(
+            ["mdadm", "--create", f"/dev/md/{name}",
+             "--level", str(level),
+             "--raid-devices", str(len(clean)),
+             "--run"] + clean,
+            capture_output=True, text=True, timeout=120
+        )
+        if r.returncode != 0:
+            raise HTTPException(500, detail=r.stderr.strip() or "mdadm failed")
+    except FileNotFoundError:
+        raise HTTPException(500, detail="mdadm not installed on this system")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(500, detail="Pool creation timed out")
+    return {"ok": True, "message": f"RAID {level} pool '{name}' created ({len(clean)} drives)"}
+
+
+@app.post("/api/storage/drive")
+async def add_drive(body: dict, user=Depends(verify_token)):
+    """Add a drive to an existing RAID pool — wraps mdadm --manage --add."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    pool   = re.sub(r"[^a-zA-Z0-9_-]", "", body.get("pool", ""))
+    device = re.sub(r"[^a-zA-Z0-9_/]", "", str(body.get("device", "")))
+    if not pool:
+        raise HTTPException(400, "Pool name required")
+    if not device:
+        raise HTTPException(400, "Device path required")
+    if not device.startswith("/dev/"):
+        device = "/dev/" + device
+    try:
+        r = subprocess.run(
+            ["mdadm", "--manage", f"/dev/md/{pool}", "--add", device],
+            capture_output=True, text=True, timeout=30
+        )
+        if r.returncode != 0:
+            raise HTTPException(500, detail=r.stderr.strip() or "mdadm --add failed")
+    except FileNotFoundError:
+        raise HTTPException(500, detail="mdadm not installed on this system")
+    except subprocess.TimeoutExpired:
+        raise HTTPException(500, detail="Drive add timed out")
+    return {"ok": True, "message": f"Drive {device} added to pool {pool}"}
 
 
 @app.get("/api/storage/df")
@@ -912,6 +1120,12 @@ async def get_config(user=Depends(verify_token)):
 # NOTIFICATIONS
 # ────────────────────────────────────────────────────────────
 
+# In-memory notification stores — defined before first usage below.
+# NOTE: workers=1 in production. These are NOT thread-safe.
+# If workers>1 is needed, wrap access with asyncio.Lock.
+_notifications: deque[dict] = deque(maxlen=100)
+_drive_alerts:  dict[str, dict] = {}
+
 
 @app.post("/api/notify")
 async def notify(body: dict):
@@ -970,12 +1184,6 @@ async def get_notifications(user=Depends(verify_token)):
 @app.get("/api/drive-alerts")
 async def get_drive_alerts(user=Depends(verify_token)):
     return {"alerts": _drive_alerts}
-
-# In-memory notification stores
-# NOTE: workers=1 in production. These are NOT thread-safe.
-# If workers>1 is needed, wrap access with asyncio.Lock.
-_notifications: deque[dict] = deque(maxlen=100)
-_drive_alerts:  dict[str, dict] = {}
 
 # Alertmanager webhook bridge
 
@@ -1048,7 +1256,7 @@ async def save_settings(body: dict, user=Depends(verify_token)):
         if f'{k}=' not in text:
             text += f'\n{k}="{v}"'
     CONFIG_FILE.write_text(text)
-    print("forgeos: SETTINGS changed by %s: %s" % (user.get("sub", "unknown"), str(list(safe.keys()))), file=sys.stderr)
+    logger.info("SETTINGS changed by %s: %s", user.get("sub", "unknown"), list(safe.keys()))
     # Reload in-memory cache so settings take effect without restart
     _conf.clear()
     for line in CONFIG_FILE.read_text().splitlines():
@@ -1067,20 +1275,31 @@ async def health():
     return {"status": "ok", "ts": time.time()}
 
 # ────────────────────────────────────────────────────────────
-# WEBSOCKET — LIVE METRICS
 # ────────────────────────────────────────────────────────────
+# WEBSOCKET — token extracted from Sec-WebSocket-Protocol header,
+#             NOT from query params (avoids leaking in proxy logs).
+# ────────────────────────────────────────────────────────────
+
+
+def _ws_token(ws: WebSocket) -> str:
+    """Extract JWT from Sec-WebSocket-Protocol header.
+    Client sends: new WebSocket(url, ['forgeos', '<token>'])
+    Header arrives as: Sec-WebSocket-Protocol: forgeos, <token>
+    """
+    proto = ws.headers.get("sec-websocket-protocol", "")
+    parts = [p.strip() for p in proto.split(",")] if proto else []
+    return parts[1] if len(parts) > 1 else ""
 
 
 @app.websocket("/ws/metrics")
 async def ws_metrics(ws: WebSocket):
-    await ws.accept()
-    # Quick auth check via token param
-    token = ws.query_params.get("token", "")
+    token = _ws_token(ws)
     try:
         jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except JWTError:
         await ws.close(code=4001)
         return
+    await ws.accept(subprotocol="forgeos")
     try:
         while True:
             data = {
@@ -1111,15 +1330,15 @@ LOG_SOURCES = {
 
 @app.websocket("/ws/logs")
 async def ws_logs(ws: WebSocket):
-    await ws.accept()
-    token = ws.query_params.get("token", "")
+    token = _ws_token(ws)
     try:
         jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except JWTError:
         await ws.close(code=4001)
         return
+    await ws.accept(subprotocol="forgeos")
 
-    source = ws.query_params.get("source", "system")
+    source = ws.query_params.get("source", "system")  # harmless — not auth
     log_path = LOG_SOURCES.get(source, "/var/log/syslog")
 
     # Tail the log file
@@ -1147,14 +1366,13 @@ async def ws_logs(ws: WebSocket):
 @app.websocket("/ws/docker/exec/{container}")
 async def ws_docker_exec(ws: WebSocket, container: str):
     """WebSocket terminal for Docker container exec."""
-    await ws.accept()
-    
-    token = ws.query_params.get("token", "")
+    token = _ws_token(ws)
     try:
         jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except JWTError:
-        await ws.close(code=4001, reason="Unauthorized")
+        await ws.close(code=4001)
         return
+    await ws.accept(subprotocol="forgeos")
     
     # Start docker exec with PTY
     proc = await asyncio.create_subprocess_exec(
@@ -1224,9 +1442,13 @@ async def ws_docker_exec(ws: WebSocket, container: str):
 @app.websocket("/ws/lxc/exec/{container}")
 async def ws_lxc_exec(ws: WebSocket, container: str):
     """WebSocket terminal for LXC container exec."""
-    await ws.accept()
-    
-    token = ws.query_params.get("token", "")
+    token = _ws_token(ws)
+    try:
+        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except JWTError:
+        await ws.close(code=4001, reason="Unauthorized")
+        return
+    await ws.accept(subprotocol="forgeos")
     try:
         jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except JWTError:
@@ -1296,7 +1518,7 @@ else:
 # ────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("FORGEOS_PORT", "5080"))
-    print(f"Starting ForgeOS API on port {port}...")
+    logger.info("Starting ForgeOS API on port %s", port)
     uvicorn.run(
         "forgeos-api:app" if __package__ is None else app,
         host="0.0.0.0",

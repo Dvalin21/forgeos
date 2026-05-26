@@ -3,7 +3,7 @@ class WidgetSystem extends ForgeWidget {
   constructor() {
     super();
     this.title = 'System Health';
-    this.icon = '💻';
+    this.icon = '<svg viewBox="0 0 24 24" style="width: 18px; height: 18px; stroke: var(--accent-primary); stroke-width: 2; fill: none; vertical-align: middle;"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M12 1v3M15 1v3M9 20v3M12 20v3M15 20v3M20 9h3M20 12h3M20 15h3M1 9h3M1 12h3M1 15h3"/></svg>';
     this.refreshIntervalMs = 30000; // 30 seconds
   }
   

@@ -13,6 +13,8 @@ import json
 import logging
 import subprocess
 from pathlib import Path
+
+logger = logging.getLogger("forgeos-rustfs")
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from forgeos_auth import verify_token
@@ -54,7 +56,7 @@ def _load_rustfs_creds() -> dict:
                 f.write(f'\nRUSTFS_ACCESS_KEY="{creds["access_key"]}"\n')
                 f.write(f'\nRUSTFS_SECRET_KEY="{creds["secret_key"]}"\n')
         except Exception as e:
-            print("forgeos: FAILED to write RustFS creds to %s: %s" % (config_file, e), file=sys.stderr)
+            logger.warning("FAILED to write RustFS creds to %s: %s", config_file, e)
     
     return creds
 

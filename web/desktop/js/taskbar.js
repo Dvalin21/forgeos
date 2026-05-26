@@ -5,7 +5,7 @@ class ForgeTaskbar {
       { id: 'dashboard', icon: '◈', label: 'Dashboard' },
       { id: 'apps', icon: '◉', label: 'Apps' },
       { id: 'storage', icon: '⬡', label: 'Storage' },
-      { id: 'settings', icon: '⚙', label: 'Settings' }
+      { id: 'settings', icon: typeof Icons !== 'undefined' && Icons.settings ? Icons.settings() : '⚙', label: 'Settings' }
     ];
     this.activePanel = null;
     this.init();
@@ -42,6 +42,4 @@ class ForgeTaskbar {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  window.forgeTaskbar = new ForgeTaskbar();
-});
+// Initialized by forgeOS.js

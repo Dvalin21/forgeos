@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" width="400" height="300">
+  <defs>
+    <filter id="blurLg"><feGaussianBlur stdDeviation="24"/></filter>
+    <filter id="blurMd"><feGaussianBlur stdDeviation="12"/></filter>
+    <filter id="blurSm"><feGaussianBlur stdDeviation="5"/></filter>
+  </defs>
+  <rect width="400" height="300" fill="#080610"/>
+  <g filter="url(#blurLg)">
+    <ellipse cx="160" cy="150" rx="110" ry="80" fill="#003a5c" opacity="0.07"/>
+    <ellipse cx="240" cy="170" rx="90" ry="60" fill="#0a1830" opacity="0.06"/>
+    <path d="M60,220 C80,160 120,100 160,110 C200,120 200,70 240,80 C280,90 300,150 320,190 C340,230 360,250 400,250 L400,300 L0,300 Z" fill="#004a68" opacity="0.08"/>
+  </g>
+  <g filter="url(#blurMd)">
+    <ellipse cx="180" cy="120" rx="60" ry="40" fill="#006a90" opacity="0.06"/>
+    <ellipse cx="220" cy="140" rx="40" ry="30" fill="#005080" opacity="0.06"/>
+    <path d="M80,170 C120,130 160,100 192,105 C224,110 260,100 300,140" fill="none" stroke="#0090b8" stroke-width="6" opacity="0.04"/>
+    <ellipse cx="192" cy="135" rx="30" ry="18" fill="#00a0c8" opacity="0.06"/>
+  </g>
+  <g filter="url(#blurSm)">
+    <ellipse cx="192" cy="128" rx="12" ry="7" fill="#00bcd8" opacity="0.07"/>
+  </g>
+</svg>

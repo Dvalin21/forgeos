@@ -159,14 +159,34 @@
   function getWindowContent(appName) {
     var contents = {
       dashboard: '<div class="widget-grid">' +
-        '<div class="glass-card"><div class="card-header"><span class="card-title">CPU Usage</span><div class="card-icon"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/><path d="M9 1v3M12 1v3M15 1v3M9 20v3M12 20v3M15 20v3M20 9h3M20 12h3M20 15h3M1 9h3M1 12h3M1 15h3"/></svg></div></div><div class="card-value">23%</div><div class="card-label">Intel i7-12700K</div><div class="card-trend up"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Normal load</div></div>' +
-        '<div class="glass-card"><div class="card-header"><span class="card-title">Memory</span><div class="card-icon"><svg viewBox="0 0 24 24"><path d="M6 19v-8a6 6 0 0 1 12 0v8"/><rect x="4" y="19" width="16" height="3" rx="1"/><circle cx="12" cy="12" r="2"/></svg></div></div><div class="card-value">12.4 GB</div><div class="card-label">/ 32 GB (38% used)</div><div class="card-trend up"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Available: 19.6 GB</div></div>' +
-        '<div class="glass-card"><div class="card-header"><span class="card-title">Storage</span><div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div></div><div class="card-value">2.8 TB</div><div class="card-label">/ 8 TB (35% used)</div><div class="card-trend up"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> 5.2 TB available</div></div>' +
-        '<div class="glass-card"><div class="card-header"><span class="card-title">Network</span><div class="card-icon"><svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div></div><div class="card-value">1.2 Gbps</div><div class="card-label">2.5G Ethernet (active)</div><div class="card-trend up"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> Up: 340 Mbps / Down: 860 Mbps</div></div>' +
+        '<div class="glass-card">' +
+          '<div class="card-header"><span class="card-title">CPU Usage</span><div class="card-icon">' + (typeof Icons !== 'undefined' && Icons.cpu ? Icons.cpu() : '') + '</div></div>' +
+          '<div class="card-value" data-stat="cpu">--%</div>' +
+          '<div class="card-label" data-stat-label="cpu">i7-12700K</div>' +
+          '<div class="card-trend up" data-stat-trend="cpu"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> <span data-stat-trend="cpu">Loading...</span></div>' +
+        '</div>' +
+        '<div class="glass-card">' +
+          '<div class="card-header"><span class="card-title">Memory</span><div class="card-icon">' + (typeof Icons !== 'undefined' && Icons.memory ? Icons.memory() : '') + '</div></div>' +
+          '<div class="card-value" data-stat="memory">-- GB</div>' +
+          '<div class="card-label" data-stat-label="memory">/ -- GB (--% used)</div>' +
+          '<div class="card-trend up" data-stat-trend="memory"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> <span data-stat-trend="memory">Loading...</span></div>' +
+        '</div>' +
+        '<div class="glass-card">' +
+          '<div class="card-header"><span class="card-title">Storage</span><div class="card-icon">' + (typeof Icons !== 'undefined' && Icons.storage ? Icons.storage() : '') + '</div></div>' +
+          '<div class="card-value" data-stat="storage">-- TB</div>' +
+          '<div class="card-label" data-stat-label="storage">/ -- TB</div>' +
+          '<div class="card-trend up" data-stat-trend="storage"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> <span data-stat-trend="storage">Loading...</span></div>' +
+        '</div>' +
+        '<div class="glass-card">' +
+          '<div class="card-header"><span class="card-title">Network</span><div class="card-icon">' + (typeof Icons !== 'undefined' && Icons.network ? Icons.network() : '') + '</div></div>' +
+          '<div class="card-value" data-stat="network">--</div>' +
+          '<div class="card-label" data-stat-label="network">Total transferred</div>' +
+          '<div class="card-trend up" data-stat-trend="network"><svg viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg> <span data-stat-trend="network">Loading...</span></div>' +
+        '</div>' +
       '</div>',
       storage: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Storage Manager</h3><div class="glass-card" style="padding:20px;"><div style="display:flex;flex-direction:column;gap:12px;"><div style="display:flex;justify-content:space-between;align-items:center;"><span style="color:var(--text-primary);">Pool: Main Storage</span><span class="sidebar-badge">ONLINE</span></div><div style="height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;"><div style="width:35%;height:100%;background:var(--accent-primary);border-radius:4px;"></div></div><div style="display:flex;justify-content:space-between;color:var(--text-secondary);font-size:12px;"><span>2.8 TB used</span><span>5.2 TB free</span></div></div></div></div>',
       network: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Network Configuration</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">Network interfaces and configuration coming soon...</p></div></div>',
-      filestation: '<div style="padding:20px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;"><h3 style="color:var(--text-primary);">File Station (RustFS)</h3><div style="display:flex; gap:8px;"><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-primary); cursor:pointer;">Console</button><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--accent-primary); background:var(--accent-primary); color:#000; cursor:pointer; font-weight:600;">Upload</button></div></div><div style="margin-bottom:12px; padding:8px 12px; background:var(--glass-bg); border-radius:8px; font-size:12px; color:var(--text-secondary);">RustFS S3 API: <span style="color:var(--accent-success);">Connected</span> | Port 9000 | Bucket: forgeos-main</div><div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:12px;"><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div style="font-size:32px; margin-bottom:6px;">📁</div><div style="font-size:11px; color:var(--text-secondary);">report.pdf</div></div><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div style="font-size:32px; margin-bottom:6px;">📂</div><div style="font-size:11px; color:var(--text-secondary);">photos/</div></div><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div style="font-size:32px; margin-bottom:6px;">📊</div><div style="font-size:11px; color:var(--text-secondary);">data.csv</div></div><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div style="font-size:32px; margin-bottom:6px;">🗜️</div><div style="font-size:11px; color:var(--text-secondary);">backup.zip</div></div></div></div>',
+      filestation: '<div style="padding:20px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;"><h3 style="color:var(--text-primary);">File Station (RustFS)</h3><div style="display:flex; gap:8px;"><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-primary); cursor:pointer;">Console</button><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--accent-primary); background:var(--accent-primary); color:#000; cursor:pointer; font-weight:600;">Upload</button></div></div><div style="margin-bottom:12px; padding:8px 12px; background:var(--glass-bg); border-radius:8px; font-size:12px; color:var(--text-secondary);">RustFS S3 API: <span style="color:var(--accent-success);">Connected</span> | Port 9000 | Bucket: forgeos-main</div><div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:12px;"><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div class="file-icon-sm"><svg viewBox="0 0 32 32" style="width:32px;height:32px;stroke:var(--text-secondary);stroke-width:1.5;fill:none;"><path d="M21 4H7a2 2 0 0 0-2 2v20a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V10z"/><polyline points="21 4 21 10 27 10"/></svg></div><div style="font-size:11px; color:var(--text-secondary);">report.pdf</div></div><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div class="file-icon-sm"><svg viewBox="0 0 32 32" style="width:32px;height:32px;stroke:var(--text-secondary);stroke-width:1.5;fill:none;"><path d="M28 24a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6l3 4h11a2 2 0 0 1 2 2z"/></svg></div><div style="font-size:11px; color:var(--text-secondary);">photos/</div></div><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div class="file-icon-sm"><svg viewBox="0 0 32 32" style="width:32px;height:32px;stroke:var(--text-secondary);stroke-width:1.5;fill:none;"><line x1="24" y1="26" x2="24" y2="14"/><line x1="16" y1="26" x2="16" y2="6"/><line x1="8" y1="26" x2="8" y2="18"/></svg></div><div style="font-size:11px; color:var(--text-secondary);">data.csv</div></div><div style="padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px; text-align:center; cursor:pointer;"><div class="file-icon-sm"><svg viewBox="0 0 32 32" style="width:32px;height:32px;stroke:var(--text-secondary);stroke-width:1.5;fill:none;"><rect x="4" y="4" width="24" height="24" rx="3"/><line x1="4" y1="12" x2="28" y2="12"/><path d="M12 18h8"/></svg></div><div style="font-size:11px; color:var(--text-secondary);">backup.zip</div></div></div></div>',
       filedb: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">ForgeFileDB</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">Database management interface coming soon...</p></div></div>',
        docker: '<div style="padding:20px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;"><h3 style="color:var(--text-primary);">Docker & Compose</h3><div style="display:flex; gap:8px;"><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-primary); cursor:pointer;" onclick="ForgeOS.dockerRefresh()">↻ Refresh</button><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--accent-primary); background:var(--accent-primary); color:#000; cursor:pointer; font-weight:600;" onclick="ForgeOS.composeUp()">Compose Up</button><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--accent-danger); background:transparent; color:var(--accent-danger); cursor:pointer;" onclick="ForgeOS.dockerPrune()">Prune</button></div></div><div style="margin-bottom:12px; padding:8px 12px; background:var(--glass-bg); border-radius:8px; font-size:12px; color:var(--text-secondary);">Docker API: <span style="color:var(--accent-success);">● Active</span> | Containers: <span id="docker-count">12</span> | Images: <span id="docker-images">45</span> | <a href="#" style="color:var(--accent-primary);" onclick="ForgeOS.showPrune(); return false;">Clean up</a></div><div id="docker-containers" style="display:flex; flex-direction:column; gap:8px;"><div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;"><div style="display:flex; align-items:center; gap:8px;"><span style="color:var(--accent-success);">●</span><span style="color:var(--text-primary); font-weight:500;">nginx-proxy-manager</span><span style="font-size:11px; color:var(--text-secondary);">v2.11.1</span></div><div style="display:flex; gap:4px;"><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.containerAction(\'nginx-proxy-manager\', \'stop\')">Stop</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.containerAction(\'nginx-proxy-manager\', \'restart\')">Restart</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.containerAction(\'nginx-proxy-manager\', \'update\')">Update</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.viewLogs(\'nginx-proxy-manager\')">Logs</button></div></div><div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;"><div style="display:flex; align-items:center; gap:8px;"><span style="color:var(--accent-success);">●</span><span style="color:var(--text-primary); font-weight:500;">rustfs</span><span style="font-size:11px; color:var(--text-secondary);">latest</span></div><div style="display:flex; gap:4px;"><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.containerAction(\'rustfs\', \'stop\')">Stop</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.containerAction(\'rustfs\', \'restart\')">Restart</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.containerAction(\'rustfs\', \'update\')">Update</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.viewLogs(\'rustfs\')">Logs</button></div></div></div><div style="margin-top:16px; padding:12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;"><div style="font-size:12px; color:var(--text-secondary); margin-bottom:8px;">Docker Compose Projects</div><div style="display:flex; justify-content:space-between; align-items:center;"><span style="color:var(--text-primary); font-weight:500;">forgeos-stack</span><div style="display:flex; gap:4px;"><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--accent-success); background:var(--accent-success); color:#000; cursor:pointer;" onclick="ForgeOS.composeAction(\'forgeos-stack\', \'up\')">Up</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.composeAction(\'forgeos-stack\', \'down\')">Down</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.composeAction(\'forgeos-stack\', \'restart\')">Restart</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" onclick="ForgeOS.composeAction(\'forgeos-stack\', \'pull\')">Pull</button></div></div></div></div>',
       settings: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Settings</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">System settings coming soon...</p></div></div>',
@@ -178,21 +198,12 @@
     return contents[appName] || '<div style="padding:20px;color:var(--text-muted);">Window content for ' + appName + ' coming soon...</div>';
   }
 
-  // Get Window Icon
+  // Get Window Icon — uses canonical Icons system with fallback
   function getWindowIcon(appName) {
-    var icons = {
-      dashboard: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>',
-      storage: '<svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
-      network: '<svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>',
-      filestation: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16"/><path d="M12 4v16"/></svg>',
-      filedb: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
-      docker: '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="16" cy="12" r="1.5" fill="currentColor"/></svg>',
-      settings: '<svg viewBox="0 0 24 24"><path d="M12 2L2 22h20z"/><circle cx="12" cy="14" r="2"/></svg>',
-      firewall: '<svg viewBox="0 0 24 24"><path d="M12 2L2 22h20z"/><circle cx="12" cy="14" r="2"/></svg>',
-      fail2ban: '<svg viewBox="0 0 24 24" style="color:var(--accent-danger);"><path d="M12 2L2 22h20z"/><line x1="8" y1="8" x2="16" y2="16"/><line x1="16" y1="8" x2="8" y2="16"/></svg>',
-       lxc: '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>'
-    };
-    return icons[appName] || '';
+    if (typeof Icons !== 'undefined' && typeof Icons[appName] === 'function') {
+      return Icons[appName]();
+    }
+    return '';
   }
 
   // Get Window Title
@@ -230,6 +241,11 @@
       if (z > maxZ) maxZ = z;
     });
     win.style.zIndex = maxZ + 1;
+
+    // Notify forgeOS
+    if (window.forgeOS && window.forgeOS.dispatch) {
+      window.forgeOS.dispatch('window-focused', appName);
+    }
   }
 
   // Close Window
@@ -328,16 +344,8 @@
     });
   }
 
-  // Public API
-  window.ForgeOS = {
-    toggleSidebar: toggleSidebar,
-    focusWindow: focusWindow,
-    closeWindow: closeWindow,
-    createWindow: createWindow,
-    getRustFSConsole: getRustFSConsole
-  };
+  // ─── Unified ForgeOS Public API ───
 
-  // RustFS Console Content
   function getRustFSConsole() {
     return '<div style="display:flex; flex-direction:column; height:100%;">' +
       '<div style="padding:12px 16px; background:var(--glass-bg); border-bottom:1px solid var(--glass-border); display:flex; justify-content:space-between; align-items:center;">' +
@@ -346,7 +354,7 @@
       '</div>' +
       '<div style="flex:1; display:flex; align-items:center; justify-content:center; background:var(--bg-void);">' +
         '<div style="text-align:center; color:var(--text-muted);">' +
-          '<div style="font-size:48px; margin-bottom:16px;">🚀</div>' +
+          '<svg viewBox="0 0 48 48" style="width:48px;height:48px;stroke:var(--accent-primary);stroke-width:1.5;fill:none;margin-bottom:16px;"><path d="M12 36l-4 4M8 28l-4 4M20 40l-4 4"/><path d="M36 14c-4-4-12-8-20-4S6 24 8 28s10 2 14 6 4 12 8 14 14-4 18-12-8-16-12-20z"/></svg>' +
           '<div style="font-size:14px; margin-bottom:8px; color:var(--text-primary);">RustFS Management Console</div>' +
           '<div style="font-size:12px; margin-bottom:16px;">The full RustFS web console is embedded below in production</div>' +
           '<div style="display:flex; gap:8px; justify-content:center;">' +
@@ -359,91 +367,141 @@
     '</div>';
   }
 
-  // ForgeOS Docker/LXC Management Functions
   window.ForgeOS = {
+    // Window management
+    toggleSidebar: toggleSidebar,
+    focusWindow: focusWindow,
+    closeWindow: closeWindow,
+    createWindow: createWindow,
+    getRustFSConsole: getRustFSConsole,
+
     // Docker Containers
     dockerRefresh: function() {
       fetch('/api/docker/containers')
-        .then(r => r.json())
-        .then(data => {
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
           console.log('Docker containers:', data);
-          // Update UI with real data
         })
-        .catch(e => console.error('Failed to refresh Docker:', e));
+        .catch(function(e) { console.error('Failed to refresh Docker:', e); });
     },
 
     containerAction: function(container, action) {
       if (!confirm('Are you sure you want to ' + action + ' ' + container + '?')) return;
       fetch('/api/docker/containers/' + container + '/' + action, { method: 'POST' })
-        .then(r => r.json())
-        .then(data => {
+        .then(function(r) { return r.json(); })
+        .then(function() {
           alert('Container ' + action + ' successful');
-          ForgeOS.dockerRefresh();
+          window.ForgeOS.dockerRefresh();
         })
-        .catch(e => alert('Error: ' + e));
+        .catch(function(e) { alert('Error: ' + e); });
     },
 
     viewLogs: function(container) {
-      fetch('/api/docker/containers/' + container + '/logs')
-        .then(r => r.text())
-        .then(logs => {
-          var win = window.open('', 'Logs: ' + container, 'width=800,height=600');
-          win.document.write('<pre>' + logs + '</pre>');
+      // If we already have a log viewer open for this container, remove it
+      var existing = document.getElementById('log-viewer-' + container);
+      if (existing) { document.body.removeChild(existing); return; }
+
+      var overlay = document.createElement('div');
+      overlay.id = 'log-viewer-' + container;
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;';
+
+      var panel = document.createElement('div');
+      panel.style.cssText = 'background:#1a1a2e;border:1px solid #333;border-radius:8px;width:90%;height:80%;display:flex;flex-direction:column;';
+
+      var header = document.createElement('div');
+      header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #333;';
+
+      var title = document.createElement('span');
+      title.style.cssText = 'color:#e0e0e0;font-weight:600;';
+      title.textContent = 'Logs: ' + container;
+
+      var closeBtn = document.createElement('button');
+      closeBtn.textContent = '×';
+      closeBtn.style.cssText = 'background:none;border:none;color:#e0e0e0;font-size:24px;cursor:pointer;padding:0 4px;line-height:1;';
+      closeBtn.onclick = function() { document.body.removeChild(overlay); };
+
+      header.appendChild(title);
+      header.appendChild(closeBtn);
+
+      var pre = document.createElement('pre');
+      pre.id = 'log-viewer-content';
+      pre.style.cssText = 'flex:1;overflow:auto;margin:0;padding:16px;color:#c0c0c0;font-family:monospace;font-size:13px;line-height:1.4;white-space:pre-wrap;';
+      pre.textContent = 'Loading logs...';
+
+      panel.appendChild(header);
+      panel.appendChild(pre);
+      overlay.appendChild(panel);
+      document.body.appendChild(overlay);
+
+      // Close on backdrop click
+      overlay.onclick = function(e) {
+        if (e.target === overlay) document.body.removeChild(overlay);
+      };
+
+      fetch('/api/docker/containers/' + encodeURIComponent(container) + '/logs')
+        .then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.text();
+        })
+        .then(function(logs) {
+          pre.textContent = logs || '(no log output)';
+        })
+        .catch(function(err) {
+          pre.textContent = 'Failed to load logs: ' + err.message;
         });
     },
 
     // Docker Compose
     composeUp: function() {
-      fetch('/api/docker/compose/forgeos-stack/up', { method: 'POST' })
-        .then(r => r.json())
-        .then(data => alert('Compose up successful'))
-        .catch(e => alert('Error: ' + e));
+      fetch('/api/docker/compose/up', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function() { alert('Compose up successful'); })
+        .catch(function(e) { alert('Error: ' + e); });
     },
 
     composeAction: function(project, action) {
       if (!confirm('Are you sure you want to ' + action + ' project ' + project + '?')) return;
-      fetch('/api/docker/compose/' + project + '/' + action, { method: 'POST' })
-        .then(r => r.json())
-        .then(data => {
+      fetch('/api/docker/compose/' + action, { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function() {
           alert('Compose ' + action + ' successful');
-          ForgeOS.dockerRefresh();
+          window.ForgeOS.dockerRefresh();
         })
-        .catch(e => alert('Error: ' + e));
+        .catch(function(e) { alert('Error: ' + e); });
     },
 
     dockerPrune: function() {
       if (!confirm('This will remove all stopped containers, unused networks, and dangling images. Continue?')) return;
       fetch('/api/docker/prune', { method: 'POST' })
-        .then(r => r.json())
-        .then(data => alert('Prune complete. Removed: ' + JSON.stringify(data)))
-        .catch(e => alert('Error: ' + e));
+        .then(function(r) { return r.json(); })
+        .then(function(data) { alert('Prune complete. Removed: ' + JSON.stringify(data)); })
+        .catch(function(e) { alert('Error: ' + e); });
     },
 
     showPrune: function() {
-      ForgeOS.dockerPrune();
+      window.ForgeOS.dockerPrune();
       return false;
     },
 
     // LXC Containers
     lxcRefresh: function() {
       fetch('/api/lxc/containers')
-        .then(r => r.json())
-        .then(data => {
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
           console.log('LXC containers:', data);
-          // Update UI with real data
         })
-        .catch(e => console.error('Failed to refresh LXC:', e));
+        .catch(function(e) { console.error('Failed to refresh LXC:', e); });
     },
 
     lxcAction: function(container, action) {
       if (!confirm('Are you sure you want to ' + action + ' LXC container ' + container + '?')) return;
       fetch('/api/lxc/containers/' + container + '/' + action, { method: 'POST' })
-        .then(r => r.json())
-        .then(data => {
+        .then(function(r) { return r.json(); })
+        .then(function() {
           alert('LXC container ' + action + ' successful');
-          ForgeOS.lxcRefresh();
+          window.ForgeOS.lxcRefresh();
         })
-        .catch(e => alert('Error: ' + e));
+        .catch(function(e) { alert('Error: ' + e); });
     },
 
     lxcCreate: function() {
@@ -455,102 +513,61 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name, image: image })
       })
-        .then(r => r.json())
-        .then(data => {
+        .then(function(r) { return r.json(); })
+        .then(function() {
           alert('Container created');
-          ForgeOS.lxcRefresh();
+          window.ForgeOS.lxcRefresh();
         })
-        .catch(e => alert('Error: ' + e));
+        .catch(function(e) { alert('Error: ' + e); });
     },
 
     lxcExec: function(container) {
       alert('Opening console for ' + container + ' (WebSocket terminal coming soon)');
-      // TODO: Implement WebSocket terminal connection
     },
 
     // Terminal access for Docker/LXC containers
     openTerminal: function(type, container) {
       var token = localStorage.getItem('forgeos_token') || '';
-      var wsUrl = 'ws://' + window.location.host + '/ws/' + type + '/exec/' + container + '?token=' + encodeURIComponent(token);
-      
-      // Create terminal window
-      var win = window.open('', 'Terminal: ' + container, 'width=800,height=600,scrollbars=yes');
-      win.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Terminal: ${container}</title>
-          <style>
-            body { margin:0; padding:0; background:#000; font-family: monospace; }
-            #terminal { width:100%; height:100vh; background:#000; color:#0f0; padding:10px; box-sizing:border-box; overflow:auto; white-space:pre-wrap; }
-            #input-line { display:flex; align-items:center; }
-            #prompt { color:#0f0; margin-right:5px; }
-            #cmd { background:transparent; border:none; color:#0f0; font-family:monospace; font-size:14px; flex:1; outline:none; }
-          </style>
-        </head>
-        <body>
-          <div id="terminal"></div>
-          <div id="input-line">
-            <span id="prompt">${container}:~$ </span>
-            <input type="text" id="cmd" autofocus />
-          </div>
-          <script>
-            var ws = new WebSocket('${wsUrl}');
-            var term = document.getElementById('terminal');
-            var cmdInput = document.getElementById('cmd');
-            var history = [];
-            var historyIdx = -1;
-            
-            ws.onopen = function() { 
-              term.innerHTML += 'Connected to ${container}...\\n';
-              cmdInput.focus();
-            };
-            
-            ws.onmessage = function(e) {
-              term.innerHTML += e.data;
-              term.scrollTop = term.scrollHeight;
-            };
-            
-            ws.onclose = function() {
-              term.innerHTML += '\\n--- Connection closed ---\\n';
-            };
-            
-            cmdInput.addEventListener('keydown', function(e) {
-              if (e.key === 'Enter') {
-                var cmd = cmdInput.value;
-                term.innerHTML += '${container}:~$ ' + cmd + '\\n';
-                ws.send(cmd + '\\n');
-                history.push(cmd);
-                historyIdx = history.length;
-                cmdInput.value = '';
-                term.scrollTop = term.scrollHeight;
-              } else if (e.key === 'ArrowUp') {
-                if (historyIdx > 0) {
-                  historyIdx--;
-                  cmdInput.value = history[historyIdx];
-                }
-                e.preventDefault();
-              } else if (e.key === 'ArrowDown') {
-                if (historyIdx < history.length - 1) {
-                  historyIdx++;
-                  cmdInput.value = history[historyIdx];
-                } else {
-                  historyIdx = history.length;
-                  cmdInput.value = '';
-                }
-                e.preventDefault();
-              }
-            });
-            
-            // Handle window resize
-            window.addEventListener('resize', function() {
-              // Could send resize to WebSocket here
-            });
-          <\/script>
-        </body>
-        </html>
-      `);
-      win.document.close();
+      var wsUrl = 'ws://' + window.location.host + '/ws/' + type + '/exec/' + container;
+
+      var w = window.open('', 'Terminal: ' + container, 'width=800,height=600,scrollbars=yes');
+      w.document.write([
+        '<!DOCTYPE html><html><head><title>Terminal: ', container, '</title>',
+        '<style>',
+          'body{margin:0;padding:0;background:#000;font-family:monospace}',
+          '#terminal{width:100%;height:calc(100vh - 40px);background:#000;color:#0f0;padding:10px;box-sizing:border-box;overflow:auto;white-space:pre-wrap}',
+          '#input-line{display:flex;align-items:center;padding:5px 10px}',
+          '#prompt{color:#0f0;margin-right:5px}',
+          '#cmd{background:transparent;border:none;color:#0f0;font-family:monospace;font-size:14px;flex:1;outline:none}',
+        '</style></head><body>',
+        '<div id="terminal"></div>',
+        '<div id="input-line"><span id="prompt">', container, ' :~$ </span><input type="text" id="cmd" autofocus/></div>',
+        '<script>',
+          'var ws=new WebSocket("', wsUrl, '",["forgeos","', token, '"]);',
+          'var term=document.getElementById("terminal");',
+          'var cmdInput=document.getElementById("cmd");',
+          'var history=[];var historyIdx=-1;',
+          'ws.onopen=function(){term.innerHTML+="Connected to ', container, '...\\n";cmdInput.focus()};',
+          'ws.onmessage=function(e){term.innerHTML+=e.data;term.scrollTop=term.scrollHeight};',
+          'ws.onclose=function(){term.innerHTML+="\\n--- Connection closed ---\\n"};',
+          'cmdInput.addEventListener("keydown",function(e){',
+            'if(e.key==="Enter"){',
+              'var cmd=cmdInput.value;',
+              'term.innerHTML+="', container, ' :~$ "+cmd+"\\n";',
+              'ws.send(cmd+"\\n");history.push(cmd);historyIdx=history.length;cmdInput.value="";',
+              'term.scrollTop=term.scrollHeight',
+            '}else if(e.key==="ArrowUp"){',
+              'if(historyIdx>0){historyIdx--;cmdInput.value=history[historyIdx]}',
+              'e.preventDefault()',
+            '}else if(e.key==="ArrowDown"){',
+              'if(historyIdx<history.length-1){historyIdx++;cmdInput.value=history[historyIdx]}',
+              'else{historyIdx=history.length;cmdInput.value=""}',
+              'e.preventDefault()',
+            '}',
+          '});',
+        '<\/script></body></html>'
+      ].join(''));
+      w.document.close();
     }
   };
 

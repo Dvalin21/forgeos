@@ -34,7 +34,4 @@ class ForgeSidebar {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const sidebar = new ForgeSidebar();
-  sidebar.restore();
-});
+// Initialized by forgeOS.js

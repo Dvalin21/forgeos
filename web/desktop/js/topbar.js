@@ -39,6 +39,4 @@ class ForgeTopBar {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  window.forgeTopBar = new ForgeTopBar();
-});
+// Initialized by forgeOS.js

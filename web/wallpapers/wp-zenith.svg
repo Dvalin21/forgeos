@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#060614"/>
+      <stop offset="40%"  stop-color="#080a1e"/>
+      <stop offset="100%" stop-color="#0a0818"/>
+    </linearGradient>
+    <filter id="blurXl"><feGaussianBlur stdDeviation="130"/></filter>
+    <filter id="blurLg"><feGaussianBlur stdDeviation="65"/></filter>
+    <filter id="blurMd"><feGaussianBlur stdDeviation="32"/></filter>
+    <filter id="blurSm"><feGaussianBlur stdDeviation="14"/></filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <!-- Deep atmospheric void -->
+  <g filter="url(#blurXl)">
+    <ellipse cx="500" cy="350" rx="500" ry="400" fill="#003a5c" opacity="0.05"/>
+    <ellipse cx="1500" cy="750" rx="550" ry="350" fill="#002040" opacity="0.04"/>
+  </g>
+  <!-- Zenith - looking up through layers -->
+  <g filter="url(#blurLg)">
+    <path d="M960,0 C800,200 600,400 400,600 C200,800 100,950 0,1080 L1920,1080 C1800,900 1600,700 1400,500 C1200,300 1100,200 960,0 Z"
+          fill="#004a68" opacity="0.06"/>
+    <ellipse cx="700" cy="300" rx="280" ry="180" fill="#006a90" opacity="0.04"/>
+    <ellipse cx="1300" cy="500" rx="250" ry="160" fill="#003050" opacity="0.04"/>
+    <!-- Subtle violet at depth -->
+    <ellipse cx="1600" cy="800" rx="200" ry="140" fill="#100828" opacity="0.04"/>
+  </g>
+  <!-- Diagonal light rays -->
+  <g filter="url(#blurMd)">
+    <path d="M600,0 C700,200 800,400 900,600 C1000,800 1100,950 1200,1080"
+          fill="none" stroke="#0080aa" stroke-width="25" stroke-linecap="round" opacity="0.03"/>
+    <path d="M300,0 C400,200 500,400 600,600 C700,800 800,950 900,1080"
+          fill="none" stroke="#005080" stroke-width="20" stroke-linecap="round" opacity="0.03"/>
+    <ellipse cx="800" cy="350" rx="120" ry="70" fill="#00a0c8" opacity="0.04"/>
+  </g>
+  <!-- Bright upward accent -->
+  <g filter="url(#blurSm)">
+    <ellipse cx="780" cy="280" rx="40" ry="25" fill="#00bcd8" opacity="0.05"/>
+  </g>
+</svg>
