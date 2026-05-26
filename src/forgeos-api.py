@@ -1388,35 +1388,22 @@ async def ws_docker_exec(ws: WebSocket, container: str):
         await ws.close(code=4002, reason="Failed to start container shell")
         return
     
-    # Set terminal size helper
-    async def set_size(rows: int, cols: int):
-        try:
-            # Docker doesn't support TIOCSWINSZ directly via exec
-            # Would need docker exec -e COLUMNS=cols -e LINES=rows
-            pass
-        except Exception:
-            pass
-    
     # Forward WebSocket to process
     async def ws_to_proc():
         try:
             while True:
                 data = await ws.receive_text()
                 if data.startswith("RESIZE:"):
-                    # Handle terminal resize
-                    try:
-                        _, size = data.split(":", 1)
-                        cols, rows = map(int, size.split(","))
-                        await set_size(rows, cols)
-                    except Exception as e:
-                        logger.debug("terminal RESIZE parse failed: %s", e)
+                    # Docker doesn't support TIOCSWINSZ directly via exec
+                    pass
                 else:
                     proc.stdin.write(data.encode())
                     await proc.stdin.drain()
         except WebSocketDisconnect:
             proc.kill()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("ws_docker_exec ws_to_proc: %s", e)
+            proc.kill()
     
     async def proc_to_ws():
         try:
@@ -1425,8 +1412,10 @@ async def ws_docker_exec(ws: WebSocket, container: str):
                 if not data:
                     break
                 await ws.send_text(data.decode("utf-8", errors="replace"))
-        except Exception:
+        except WebSocketDisconnect:
             pass
+        except Exception as e:
+            logger.warning("ws_docker_exec proc_to_ws: %s", e)
     
     await asyncio.gather(
         asyncio.create_task(ws_to_proc()),
@@ -1475,15 +1464,15 @@ async def ws_lxc_exec(ws: WebSocket, container: str):
             while True:
                 data = await ws.receive_text()
                 if data.startswith("RESIZE:"):
-                    # Handle terminal resize if needed
                     pass
                 else:
                     proc.stdin.write(data.encode())
                     await proc.stdin.drain()
         except WebSocketDisconnect:
             proc.kill()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("ws_lxc_exec ws_to_proc: %s", e)
+            proc.kill()
     
     async def proc_to_ws():
         try:
@@ -1492,8 +1481,10 @@ async def ws_lxc_exec(ws: WebSocket, container: str):
                 if not data:
                     break
                 await ws.send_text(data.decode("utf-8", errors="replace"))
-        except Exception:
+        except WebSocketDisconnect:
             pass
+        except Exception as e:
+            logger.warning("ws_lxc_exec proc_to_ws: %s", e)
     
     await asyncio.gather(
         asyncio.create_task(ws_to_proc()),
