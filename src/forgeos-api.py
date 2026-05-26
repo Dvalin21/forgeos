@@ -237,12 +237,12 @@ app.add_middleware(
 
 
 # ─── Security Headers (CSP via pure ASGI middleware) ───
-# Inline scripts/styles allowed because the existing UI uses onclick=
-# extensively. Still blocks external scripts, CDNs, eval, data URIs, etc.
+# Strict CSP: no inline scripts (all onclick removed, external JS only).
+# Inline style= still permitted — 99 instances in the UI need cleaning.
 
 _CSP = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline'; "
+    "script-src 'self'; "
     "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data:; "
     "font-src 'self'; "
