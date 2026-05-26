@@ -150,16 +150,54 @@ window.forgeOS = (() => {
   }
 
   function setupModalDismiss() {
-    document.addEventListener('click', (e) => {
-      const modal = e.target.closest('.modal-overlay');
-      if (modal && e.target === modal) {
-        hideModal(modal.id);
-      }
-    });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         const visible = document.querySelector('.modal-overlay.modal-visible');
         if (visible) hideModal(visible.id);
+      }
+    });
+  }
+
+  // ─── Event Delegation (replaces all inline onclick handlers) ───
+
+  function setupActionDelegation() {
+    document.addEventListener('click', (e) => {
+      const target = e.target.closest('[data-action]');
+      if (!target) {
+        // Click on modal backdrop — dismiss
+        const modal = e.target.closest('.modal-overlay');
+        if (modal && e.target === modal) {
+          hideModal(modal.id);
+        }
+        return;
+      }
+
+      const action = target.getAttribute('data-action');
+      const modal  = target.getAttribute('data-modal');
+
+      if (modal && (action === 'hide-modal' || action === 'cancel')) {
+        hideModal(modal);
+        return;
+      }
+
+      switch (action) {
+        case 'login':            login(); break;
+        case 'logout':           logout(); break;
+        case 'toggle-sidebar':   if (typeof toggleSidebar === 'function') toggleSidebar(); break;
+        case 'create-pool':      createPool(); break;
+        case 'add-drive':        addDrive(); break;
+        case 'create-snapshot':  createSnapshot(); break;
+        case 'create-share':     createShare(); break;
+        case 'create-vhost':     createVhost(); break;
+        case 'run-backup':       runBackup(); break;
+        case 'dismiss-toast': {
+          const parent = target.closest('.toast');
+          if (parent) {
+            parent.classList.add('toast-out');
+            setTimeout(() => { if (parent.parentNode) parent.remove(); }, 200);
+          }
+          break;
+        }
       }
     });
   }
@@ -326,7 +364,7 @@ window.forgeOS = (() => {
     el.innerHTML =
       '<span class="toast-icon">' + (icons[type] || 'ⓘ') + '</span>' +
       '<span class="toast-msg">' + escapeHtml(msg) + '</span>' +
-      '<button class="toast-close" onclick="this.parentElement.classList.add(\'toast-out\');setTimeout(function(){this.parentElement.remove()}.bind(this),200)">×</button>';
+      '<button class="toast-close" data-action="dismiss-toast">×</button>';
     container.appendChild(el);
     setTimeout(function () {
       el.classList.add('toast-out');
@@ -414,6 +452,11 @@ window.forgeOS = (() => {
       updateTrend('cpu', stats.cpu_pct > 80 ? 'High load' : stats.cpu_pct > 50 ? 'Moderate load' : 'Normal load');
     }
 
+    // Fetch CPU model name from /api/system/info (async, best-effort)
+    api('/api/system/info').then(info => {
+      if (info && info.cpu) updateLabel('cpu', info.cpu.trim());
+    });
+
     // Memory
     if (stats.memory) {
       const m = stats.memory;
@@ -465,6 +508,7 @@ window.forgeOS = (() => {
   // ─── Init ───
 
   function init() {
+    setupActionDelegation();
     setupModalDismiss();
 
     // Auth gate — show login if no token

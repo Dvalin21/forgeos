@@ -1311,8 +1311,10 @@ async def ws_metrics(ws: WebSocket):
             }
             await ws.send_json(data)
             await asyncio.sleep(2)
-    except (WebSocketDisconnect, Exception):
-        pass
+    except WebSocketDisconnect:
+        pass  # normal disconnect
+    except Exception as e:
+        logger.warning("ws_live_stats disconnect: %s", e)
 
 # ────────────────────────────────────────────────────────────
 # WEBSOCKET — LIVE LOGS

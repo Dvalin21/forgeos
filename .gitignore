@@ -82,6 +82,9 @@ node_modules/
 npm-debug.log*
 yarn-error.log*
 
+# ── Prototypes (keep local, do not push) ──────────────────────
+web/desktop/index5-integrated.html
+
 # ── Backup / temp files ───────────────────────────────────────
 *.bak
 *.backup
