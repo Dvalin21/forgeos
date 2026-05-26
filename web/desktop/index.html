@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ForgeOS</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="fonts/fonts.css">
 <link rel="stylesheet" href="css/forgeos.css">
 <script src="js/icons.js"></script>
 </head>
@@ -336,11 +336,16 @@
         <div id="clk-date">Apr 29</div>
       </div>
     </div>
-  </div>
-  
-  <!-- ═══════════════════════════════════════════════════════
-       MODAL SYSTEM
-       ═══════════════════════════════════════════════════════ -->
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     TOAST CONTAINER
+     ═══════════════════════════════════════════════════════ -->
+<div id="toast-container"></div>
+
+<!-- ═══════════════════════════════════════════════════════
+     MODALS
+     ═══════════════════════════════════════════════════════ -->
   
   <!-- Generic Confirm Modal -->
   <div id="modal-confirm" class="modal-overlay hidden">
@@ -374,29 +379,29 @@
         <div class="flex-col gap-md">
           <div>
             <label class="text-sm text-muted text-uppercase">Pool Name</label>
-            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. Main Storage">
+            <input id="pool-name" type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. Main Storage">
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">RAID Level</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>RAID 0 (Striping)</option>
-              <option>RAID 1 (Mirroring)</option>
-              <option selected>RAID 5 (Single Parity)</option>
-              <option>RAID 6 (Dual Parity)</option>
-              <option>RAID 10 (Striped Mirror)</option>
+            <select id="pool-level" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="0">RAID 0 (Striping)</option>
+              <option value="1">RAID 1 (Mirroring)</option>
+              <option value="5" selected>RAID 5 (Single Parity)</option>
+              <option value="6">RAID 6 (Dual Parity)</option>
+              <option value="10">RAID 10 (Striped Mirror)</option>
             </select>
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">Drives</label>
             <div class="flex-col gap-sm mt-sm">
               <label class="flex items-center gap-sm" style="cursor: pointer;">
-                <input type="checkbox" checked> <span>/dev/sda (2.0 TB)</span>
+                <input type="checkbox" data-device="/dev/sda" checked> <span>/dev/sda (2.0 TB)</span>
               </label>
               <label class="flex items-center gap-sm" style="cursor: pointer;">
-                <input type="checkbox" checked> <span>/dev/sdb (2.0 TB)</span>
+                <input type="checkbox" data-device="/dev/sdb" checked> <span>/dev/sdb (2.0 TB)</span>
               </label>
               <label class="flex items-center gap-sm" style="cursor: pointer;">
-                <input type="checkbox"> <span>/dev/sdc (2.0 TB)</span>
+                <input type="checkbox" data-device="/dev/sdc"> <span>/dev/sdc (2.0 TB)</span>
               </label>
             </div>
           </div>
@@ -404,7 +409,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="forgeOS.hideModal('modal-create-pool')">Cancel</button>
-        <button class="btn btn-primary">Create Pool</button>
+        <button class="btn btn-primary" onclick="forgeOS.createPool()">Create Pool</button>
       </div>
     </div>
   </div>
@@ -422,24 +427,24 @@
         <div class="flex-col gap-md">
           <div>
             <label class="text-sm text-muted text-uppercase">Device</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>/dev/sdd (4.0 TB - Unused)</option>
-              <option>/dev/sde (4.0 TB - Unused)</option>
-              <option>/dev/sdf (8.0 TB - Unused)</option>
+            <select id="drive-device" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="/dev/sdd">/dev/sdd (4.0 TB - Unused)</option>
+              <option value="/dev/sde">/dev/sde (4.0 TB - Unused)</option>
+              <option value="/dev/sdf">/dev/sdf (8.0 TB - Unused)</option>
             </select>
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">Target Pool</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>Main Storage (RAID 5)</option>
-              <option>Backup Pool (RAID 1)</option>
+            <select id="drive-pool" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="Main Storage">Main Storage (RAID 5)</option>
+              <option value="Backup Pool">Backup Pool (RAID 1)</option>
             </select>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="forgeOS.hideModal('modal-add-drive')">Cancel</button>
-        <button class="btn btn-primary">Add Drive</button>
+        <button class="btn btn-primary" onclick="forgeOS.addDrive()">Add Drive</button>
       </div>
     </div>
   </div>
@@ -457,24 +462,24 @@
         <div class="flex-col gap-md">
           <div>
             <label class="text-sm text-muted text-uppercase">Snapshot Name</label>
-            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. pre-upgrade">
+            <input id="snap-name" type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. pre-upgrade">
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">Source</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>All databases</option>
-              <option>Share1 (/srv/nas/share1)</option>
-              <option>Share2 (/srv/nas/share2)</option>
+            <select id="snap-source" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="">All snapable configs</option>
+              <option value="share1">Share1 (/srv/nas/share1)</option>
+              <option value="share2">Share2 (/srv/nas/share2)</option>
             </select>
           </div>
           <label class="flex items-center gap-sm" style="cursor: pointer;">
-            <input type="checkbox" checked> <span class="text-sm">Auto-prune after 30 days</span>
+            <input id="snap-prune" type="checkbox" checked> <span class="text-sm">Auto-prune after 30 days</span>
           </label>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="forgeOS.hideModal('modal-create-snapshot')">Cancel</button>
-        <button class="btn btn-primary">Create Snapshot</button>
+        <button class="btn btn-primary" onclick="forgeOS.createSnapshot()">Create Snapshot</button>
       </div>
     </div>
   </div>
@@ -543,25 +548,25 @@
         <div class="flex-col gap-md">
           <div>
             <label class="text-sm text-muted text-uppercase">Share Name</label>
-            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. shared-docs">
+            <input id="share-name" type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="e.g. shared-docs">
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">Path</label>
-            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="/srv/nas/shared-docs">
+            <input id="share-path" type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="/srv/nas/shared-docs">
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">Protocol</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>SMB (Windows)</option>
-              <option>NFS (Linux/Unix)</option>
-              <option>AFP (macOS)</option>
+            <select id="share-type" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="standard">SMB (Windows)</option>
+              <option value="nfs">NFS (Linux/Unix)</option>
+              <option value="afp">AFP (macOS)</option>
             </select>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="forgeOS.hideModal('modal-share')">Cancel</button>
-        <button class="btn btn-primary">Create Share</button>
+        <button class="btn btn-primary" onclick="forgeOS.createShare()">Create Share</button>
       </div>
     </div>
   </div>
@@ -626,31 +631,31 @@
         <div class="flex-col gap-md">
           <div>
             <label class="text-sm text-muted text-uppercase">Domain Name</label>
-            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="example.com">
+            <input id="vhost-domain" type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="example.com">
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">Reverse Proxy Target</label>
-            <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="http://localhost:8080">
+            <input id="vhost-target" type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="http://localhost:8080">
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">SSL Certificate</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>Let's Encrypt (Auto)</option>
-              <option>Custom Certificate</option>
-              <option>Self-Signed</option>
+            <select id="vhost-tls" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="acme">Let's Encrypt (Auto)</option>
+              <option value="custom">Custom Certificate</option>
+              <option value="selfsigned">Self-Signed</option>
             </select>
           </div>
           <div class="grid-2">
             <div>
               <label class="text-sm text-muted text-uppercase">Web Root</label>
-              <input type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="/var/www/html">
+              <input id="vhost-webroot" type="text" class="search-input" style="width: 100%; margin-top: 4px;" placeholder="/var/www/html">
             </div>
             <div>
               <label class="text-sm text-muted text-uppercase">PHP Version</label>
-              <select class="search-input" style="width: 100%; margin-top: 4px;">
-                <option>8.3</option>
-                <option>8.2</option>
-                <option>7.4</option>
+              <select id="vhost-php" class="search-input" style="width: 100%; margin-top: 4px;">
+                <option value="8.3">8.3</option>
+                <option value="8.2">8.2</option>
+                <option value="7.4">7.4</option>
               </select>
             </div>
           </div>
@@ -658,7 +663,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="forgeOS.hideModal('modal-vhost')">Cancel</button>
-        <button class="btn btn-primary">Create Host</button>
+        <button class="btn btn-primary" onclick="forgeOS.createVhost()">Create Host</button>
       </div>
     </div>
   </div>
@@ -834,47 +839,47 @@
         <div class="flex-col gap-md">
           <div>
             <label class="text-sm text-muted text-uppercase">Backup Source</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>All shared folders</option>
-              <option>Select folders...</option>
-              <option>System configuration only</option>
+            <select id="backup-source" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="/srv/nas">All shared folders</option>
+              <option value="">Select folders...</option>
+              <option value="/etc">System configuration only</option>
             </select>
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">Backup Destination</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>Local volume</option>
-              <option>USB drive</option>
-              <option>Remote NAS (rsync)</option>
-              <option>Cloud (S3 compatible)</option>
+            <select id="backup-dest" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="/backup">Local volume</option>
+              <option value="/mnt/usb">USB drive</option>
+              <option value="rsync://">Remote NAS (rsync)</option>
+              <option value="s3:">Cloud (S3 compatible)</option>
             </select>
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">Schedule</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>Manual only</option>
-              <option>Daily</option>
-              <option selected>Weekly</option>
-              <option>Monthly</option>
+            <select id="backup-schedule" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="manual">Manual only</option>
+              <option value="daily">Daily</option>
+              <option value="weekly" selected>Weekly</option>
+              <option value="monthly">Monthly</option>
             </select>
           </div>
           <div>
             <label class="text-sm text-muted text-uppercase">Retention</label>
-            <select class="search-input" style="width: 100%; margin-top: 4px;">
-              <option>Keep all versions</option>
-              <option selected>Keep last 30 days</option>
-              <option>Keep last 90 days</option>
-              <option>Keep last 365 days</option>
+            <select id="backup-retention" class="search-input" style="width: 100%; margin-top: 4px;">
+              <option value="all">Keep all versions</option>
+              <option value="30" selected>Keep last 30 days</option>
+              <option value="90">Keep last 90 days</option>
+              <option value="365">Keep last 365 days</option>
             </select>
           </div>
           <label class="flex items-center gap-sm" style="cursor: pointer;">
-            <input type="checkbox" checked> <span class="text-sm">Enable backup notifications</span>
+            <input id="backup-notify" type="checkbox" checked> <span class="text-sm">Enable backup notifications</span>
           </label>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="forgeOS.hideModal('modal-backup')">Cancel</button>
-        <button class="btn btn-primary">Save Backup Task</button>
+        <button class="btn btn-primary" onclick="forgeOS.runBackup()">Run Backup Now</button>
       </div>
     </div>
   </div>

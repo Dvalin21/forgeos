@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ForgeFileDB</title>
 <link rel="stylesheet" href="css/forgeos.css">
+<script src="js/icons.js"></script>
 <style>
 /* ForgeFileDB-specific overrides */
 :root {
@@ -98,12 +99,7 @@ body {
 .ts-val.ok     { color: var(--ok); }
 .ts-val.warn   { color: var(--warn); }
 
-#connection-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--ok); box-shadow: 0 0 8px var(--ok);
-  animation: blink 2s ease-in-out infinite;
-}
-#connection-dot.dead { background: var(--err); box-shadow: 0 0 8px var(--err); animation: none; }
+
 @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 
 /* ── MAIN LAYOUT ── */
@@ -359,7 +355,8 @@ body {
 
 /* ── EMPTY STATE ── */
 .empty { text-align: center; padding: 40px; color: var(--text-muted); font-family: var(--font-sans); font-size: 14px; letter-spacing: 1px; }
-.empty-ico { font-size: 36px; margin-bottom: 10px; }
+.empty-ico { margin-bottom: 10px; }
+.empty-ico svg { display: block; width: 36px; height: 36px; stroke: var(--text-muted); stroke-width: 1.5; fill: none; margin: 0 auto 10px auto; }
 
 /* ── MODAL ── */
 .modal-overlay {
@@ -415,7 +412,7 @@ body {
       <div class="ts-lbl">Conflicts</div>
     </div>
   </div>
-  <div id="connection-dot" title="API connection"></div>
+
 </div>
 
 <!-- MAIN -->
@@ -425,34 +422,34 @@ body {
   <div id="sidebar">
     <div class="nav-grp">Monitor</div>
     <div class="nav-item active" data-page="overview">
-      <span class="nav-ico">📡</span>Overview
+      <span class="nav-ico"><svg viewBox="0 0 24 24" class="svg-icon svg-icon-sm"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></span>Overview
       <span class="nav-badge" id="nav-clients">0</span>
     </div>
     <div class="nav-item" data-page="databases">
-      <span class="nav-ico">🗄</span>Databases
+      <span class="nav-ico"><svg viewBox="0 0 24 24" class="svg-icon svg-icon-sm"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>Databases
     </div>
     <div class="nav-item" data-page="locks">
-      <span class="nav-ico">🔒</span>Active Locks
+      <span class="nav-ico"><svg viewBox="0 0 24 24" class="svg-icon svg-icon-sm"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>Active Locks
     </div>
 
     <div class="nav-grp">Versions</div>
     <div class="nav-item" data-page="snapshots">
-      <span class="nav-ico">📸</span>Snapshots
+      <span class="nav-ico"><svg viewBox="0 0 24 24" class="svg-icon svg-icon-sm"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>Snapshots
       <span class="nav-badge ok" id="nav-snaps">0</span>
     </div>
     <div class="nav-item" data-page="restore">
-      <span class="nav-ico">⏪</span>Restore
+      <span class="nav-ico"><svg viewBox="0 0 24 24" class="svg-icon svg-icon-sm"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg></span>Restore
     </div>
 
     <div class="nav-grp">System</div>
     <div class="nav-item" data-page="howworks">
-      <span class="nav-ico">ℹ</span>How It Works
+      <span class="nav-ico"><svg viewBox="0 0 24 24" class="svg-icon svg-icon-sm"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></span>How It Works
     </div>
     <div class="nav-item" data-page="settings">
-      <span class="nav-ico">⚙</span>Settings
+      <span class="nav-ico"><svg viewBox="0 0 24 24" class="svg-icon svg-icon-sm"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>Settings
     </div>
     <div class="nav-item" data-page="logs">
-      <span class="nav-ico">📋</span>Logs
+      <span class="nav-ico"><svg viewBox="0 0 24 24" class="svg-icon svg-icon-sm"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>Logs
     </div>
 
     <div id="sidebar-footer">
@@ -501,7 +498,7 @@ body {
             <span>IP Address</span><span>Open Files</span><span>Duration</span><span>Access</span>
           </div>
           <div id="clients-list">
-            <div class="empty"><div class="empty-ico">📡</div>No clients connected</div>
+            <div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></div>No clients connected</div>
           </div>
         </div>
       </div>
@@ -509,21 +506,20 @@ body {
       <div>
         <div class="sh">Active File Locks</div>
         <div class="client-table" id="locks-mini">
-          <div class="empty"><div class="empty-ico">🔓</div>No files locked</div>
+          <div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>No files locked</div>
         </div>
       </div>
-    </div>
 
     <!-- DATABASES PAGE -->
     <div class="page" id="page-databases">
-      <div class="page-title" style="display:flex;align-items:center;gap:10px">
+      <div class="page-title flex items-center" style="gap:10px">
         Discovered Databases
         <small>All file-based databases on watched shares</small>
-        <div class="btn" id="refresh-dbs" style="margin-left:auto">↺ Refresh</div>
-        <div class="btn primary" id="snap-all-btn">📸 Snapshot All</div>
+        <div class="btn ml-auto" id="refresh-dbs">↺ Refresh</div>
+        <div class="btn primary" id="snap-all-btn"><svg viewBox="0 0 24 24" class="svg-icon mr-xs"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Snapshot All</div>
       </div>
       <div id="db-groups">
-        <div class="empty"><div class="empty-ico">🔍</div>Scanning shares...</div>
+        <div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Scanning shares...</div>
       </div>
     </div>
 
@@ -534,9 +530,9 @@ body {
         <small>Current file-level lock registry</small>
       </div>
       <div class="client-table" id="locks-full">
-        <div class="empty"><div class="empty-ico">🔓</div>No active locks</div>
+        <div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>No active locks</div>
       </div>
-      <div style="margin-top:10px">
+      <div class="mt-sm">
         <div class="sh">Conflict Analysis</div>
         <div class="how-card">
           <p>Write conflicts are <strong>normal and expected</strong> in multi-user database environments.
@@ -550,10 +546,10 @@ body {
 
     <!-- SNAPSHOTS PAGE -->
     <div class="page" id="page-snapshots">
-      <div class="page-title" style="display:flex;align-items:center">
+      <div class="page-title flex items-center">
         Snapshots
-        <small style="margin-left:10px">Versioned point-in-time backups</small>
-        <div style="margin-left:auto;display:flex;gap:8px">
+        <small class="ml-sm">Versioned point-in-time backups</small>
+        <div class="ml-auto flex gap-sm">
           <div class="btn" id="filter-snaps">All databases ▾</div>
           <div class="btn primary" id="create-snap-btn">+ Create Snapshot</div>
         </div>
@@ -563,7 +559,7 @@ body {
           <span>Timestamp</span><span>Database Dir</span><span>Method</span><span>Reason</span><span>Actions</span>
         </div>
         <div id="snaps-list">
-          <div class="empty"><div class="empty-ico">📸</div>No snapshots yet — they're created automatically on write activity</div>
+          <div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>No snapshots yet — they're created automatically on write activity</div>
         </div>
       </div>
     </div>
@@ -574,7 +570,7 @@ body {
         Restore
         <small>Point-in-time restore from snapshots</small>
       </div>
-      <div class="how-grid" style="margin-bottom:12px">
+      <div class="how-grid mb-sm">
         <div class="how-card">
           <h3>In-Place Restore</h3>
           <p>Restores a snapshot directly back to the original database directory.
@@ -589,14 +585,14 @@ body {
       </div>
       <div class="setting-card">
         <div class="setting-label">Select Snapshot to Restore</div>
-        <select class="setting-input" id="restore-snap-select" style="margin-bottom:10px">
+        <select class="setting-input mb-sm" id="restore-snap-select">
           <option value="">— Select a snapshot —</option>
         </select>
-        <div class="setting-label" style="margin-top:10px">Restore Target (leave blank for in-place)</div>
+        <div class="setting-label mt-sm">Restore Target (leave blank for in-place)</div>
         <input class="setting-input" type="text" id="restore-target" placeholder="/tmp/forgeos-restore (blank = in-place)">
-        <div style="margin-top:12px;display:flex;gap:8px">
-          <div class="btn danger" id="restore-btn">⏪ Restore Snapshot</div>
-          <span id="restore-status" style="font-size:11px;color:var(--text-secondary);align-self:center"></span>
+        <div class="mt-sm flex gap-sm">
+          <div class="btn danger" id="restore-btn"><svg viewBox="0 0 24 24" class="svg-icon mr-xs"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg> Restore Snapshot</div>
+          <span id="restore-status" class="text-sm text-secondary flex-center"></span>
         </div>
       </div>
     </div>
@@ -676,18 +672,18 @@ body {
           <input class="setting-input" type="text" id="s-watchroot" value="/srv/nas">
         </div>
       </div>
-      <div style="margin-top:14px;display:flex;gap:8px">
+      <div class="mt-sm flex gap-sm">
         <div class="btn primary" id="save-settings">Save Settings</div>
-        <span id="settings-status" style="font-size:11px;color:var(--text-secondary);align-self:center"></span>
+        <span id="settings-status" class="text-sm text-secondary flex-center"></span>
       </div>
     </div>
 
     <!-- LOGS PAGE -->
     <div class="page" id="page-logs" style="padding:0">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0">
-        <span style="font-family:var(--font-sans);font-size:16px;font-weight:700;letter-spacing:1px">Daemon Log</span>
+      <div class="flex items-center gap-sm" style="padding:12px 16px;border-bottom:1px solid var(--border);flex-shrink:0">
+        <span class="text-lg" style="font-weight:700;letter-spacing:1px">Daemon Log</span>
         <div class="btn sm" id="clear-log">Clear</div>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text-secondary);margin-left:auto">
+        <label class="flex items-center ml-auto" style="gap:6px;cursor:pointer;font-size:11px;color:var(--text-secondary)">
           <input type="checkbox" id="autoscroll" checked> Auto-scroll
         </label>
       </div>
@@ -700,8 +696,8 @@ body {
 <!-- Restore Confirm Modal -->
 <div class="modal-overlay" id="modal-restore">
   <div class="modal">
-    <h2>⏪ Confirm Restore</h2>
-    <p style="color:var(--text-secondary);font-size:12px;line-height:1.7" id="modal-restore-msg"></p>
+    <h2><svg viewBox="0 0 24 24" class="svg-icon mr-xs"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg> Confirm Restore</h2>
+    <p class="text-secondary text-sm" style="line-height:1.7" id="modal-restore-msg"></p>
     <div class="modal-actions">
       <div class="btn" id="modal-cancel">Cancel</div>
       <div class="btn danger" id="modal-confirm">Restore</div>
@@ -731,25 +727,6 @@ document.querySelectorAll('.nav-item[data-page]').forEach(item => {
   });
 });
 
-// ── WebSocket ──
-function connectWS() {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  ws = new WebSocket(`${proto}://${location.host}/ws`);
-
-  ws.onopen = () => {
-    document.getElementById('connection-dot').classList.remove('dead');
-  };
-  ws.onmessage = evt => {
-    const msg = JSON.parse(evt.data);
-    if (msg.type === 'status') updateStatus(msg.data);
-    if (msg.type === 'snapshot_created') appendLog('SNAP', msg.data.snap_path || 'snapshot');
-    if (msg.type === 'restore_complete') appendLog('RESTORE', JSON.stringify(msg.data));
-  };
-  ws.onclose = () => {
-    document.getElementById('connection-dot').classList.add('dead');
-    setTimeout(connectWS, 3000);
-  };
-}
 
 // ── Status update ──
 function updateStatus(data) {
@@ -781,7 +758,7 @@ function updateStatus(data) {
 function renderClients(clients) {
   const el = document.getElementById('clients-list');
   if (!clients.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-ico">📡</div>No clients connected</div>';
+    el.innerHTML = '<div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></div>No clients connected</div>';
     return;
   }
   el.innerHTML = clients.map(c => {
@@ -804,7 +781,7 @@ function renderLocksMin(lockData) {
   const files = lockData.files || {};
   const entries = Object.entries(files);
   if (!entries.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-ico">🔓</div>No files locked</div>';
+    el.innerHTML = '<div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>No files locked</div>';
     return;
   }
   el.innerHTML = entries.map(([path, info]) => {
@@ -825,22 +802,22 @@ function renderLocksMin(lockData) {
 // ── Databases page ──
 async function loadDatabases() {
   const el = document.getElementById('db-groups');
-  el.innerHTML = '<div class="empty"><div class="empty-ico">🔍</div>Scanning...</div>';
+  el.innerHTML = '<div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>Scanning...</div>';
   try {
     const r = await fetch(`${API}/api/filedb/databases`);
     const data = await r.json();
     _dbs = data.databases || [];
     if (!_dbs.length) {
-      el.innerHTML = '<div class="empty"><div class="empty-ico">🗄</div>No database files found on watched shares</div>';
+      el.innerHTML = '<div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>No database files found on watched shares</div>';
       return;
     }
     el.innerHTML = _dbs.map(grp => `
       <div class="db-group">
         <div class="db-group-head" onclick="this.nextElementSibling.style.display = this.nextElementSibling.style.display === 'none' ? '' : 'none'">
-          <span style="font-size:14px">📁</span>
+          <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; stroke: var(--text-secondary); stroke-width: 1.5; fill: none; flex-shrink: 0;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           <span class="db-group-dir">${grp.dir}</span>
           <span class="db-group-count">${grp.files.length} file${grp.files.length===1?'':'s'}</span>
-          <div class="btn sm" onclick="event.stopPropagation();snapDir('${grp.dir}')">📸 Snapshot</div>
+          <div class="btn sm" onclick="event.stopPropagation();snapDir('${grp.dir}')"><svg viewBox="0 0 24 24" style="width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none; vertical-align: middle; margin-right: 2px;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> Snapshot</div>
         </div>
         <div>
           ${grp.files.map(f => `<div class="db-file-row">
@@ -865,17 +842,33 @@ function fmtSize(b) {
 }
 
 async function snapDir(dir) {
-  await fetch(`${API}/api/filedb/snapshots`, {
-    method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({db_dir: dir, reason: 'manual:ui'})
-  });
-  appendLog('SNAP', `Manual snapshot: ${dir}`);
+  try {
+    const r = await fetch(`${API}/api/filedb/snapshots`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({db_dir: dir, reason: 'manual:ui'})
+    });
+    if (r.ok) {
+      appendLog('SNAP', `Snapshot: ${dir}`);
+    } else {
+      appendLog('SNAP', `ERROR snapshotting ${dir}: HTTP ${r.status}`);
+    }
+  } catch (e) {
+    appendLog('SNAP', `ERROR snapshotting ${dir}: ${e.message}`);
+  }
 }
 
 document.getElementById('refresh-dbs')?.addEventListener('click', loadDatabases);
 document.getElementById('snap-all-btn')?.addEventListener('click', async () => {
-  for (const grp of _dbs) await snapDir(grp.dir);
-  appendLog('SNAP', `Snapshots created for ${_dbs.length} database dirs`);
+  let ok = 0, fail = 0;
+  for (const grp of _dbs) {
+    try {
+      await snapDir(grp.dir);
+      ok++;
+    } catch {
+      fail++;
+    }
+  }
+  appendLog('SNAP', `Snap-all done: ${ok} succeeded, ${fail} failed`);
 });
 
 // ── Snapshots page ──
@@ -887,7 +880,7 @@ async function loadSnapshots() {
     _snapshots = data.snapshots || [];
     document.getElementById('nav-snaps').textContent = _snapshots.length;
     if (!_snapshots.length) {
-      el.innerHTML = '<div class="empty"><div class="empty-ico">📸</div>No snapshots yet</div>';
+      el.innerHTML = '<div class="empty"><div class="empty-ico"><svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>No snapshots yet</div>';
       return;
     }
     el.innerHTML = _snapshots.map(s => `<div class="snap-row">
@@ -941,7 +934,7 @@ document.getElementById('restore-btn')?.addEventListener('click', () => {
       });
       const data = await r.json();
       document.getElementById('restore-status').textContent = data.ok
-        ? `✓ Restored — ${data.restored_in_place || data.restored_to}`
+        ? `<svg viewBox="0 0 24 24" style="width: 14px; height: 14px; stroke: var(--accent-success); stroke-width: 2.5; fill: none; vertical-align: middle; margin-right: 2px;"><polyline points="20 6 9 17 4 12"/></svg> Restored — ${data.restored_in_place || data.restored_to}`
         : `Error: ${data.error}`;
     } catch(e) {
       document.getElementById('restore-status').textContent = `Error: ${e.message}`;
@@ -977,7 +970,7 @@ document.getElementById('save-settings')?.addEventListener('click', async () => 
       method: 'PUT', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(body)
     });
-    document.getElementById('settings-status').textContent = '✓ Saved (restart daemon to apply)';
+    document.getElementById('settings-status').innerHTML = '<svg viewBox="0 0 24 24" style="width: 14px; height: 14px; stroke: var(--accent-success); stroke-width: 2.5; fill: none; vertical-align: middle; margin-right: 2px;"><polyline points="20 6 9 17 4 12"/></svg> Saved (restart daemon to apply)';
   } catch(e) {
     document.getElementById('settings-status').textContent = `Error: ${e.message}`;
   }
@@ -1018,8 +1011,7 @@ document.getElementById('clear-log')?.addEventListener('click', () => {
 });
 
 // ── Init ──
-connectWS();
-// Initial REST fetch as fallback
+// Initial REST fetch
 fetch(`${API}/api/filedb/status`).then(r => r.json()).then(updateStatus).catch(() => {});
 fetch(`${API}/api/health`).then(r => r.json()).then(d => {
   document.getElementById('footer-host').textContent = d.product + ' ' + d.version;

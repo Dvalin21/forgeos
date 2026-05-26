@@ -9,29 +9,29 @@
 <body>
   <forge-topnav></forge-topnav>
   
-  <div class="page-content" style="margin-top: var(--topnav-height); padding: var(--space-lg);">
+  <div class="page-content page-content-lg">
     <div class="page-header flex justify-between items-center mb-lg">
       <div>
-        <h2 style="margin: 0;">Docker Containers</h2>
-        <p style="color: var(--text-muted); margin-top: var(--space-sm); font-size: 14px;">Manage containers, images, and stacks</p>
+        <h2 class="mb-0">Docker Containers</h2>
+        <p class="text-muted mt-sm text-md">Manage containers, images, and stacks</p>
       </div>
       <div class="flex gap-md">
         <button class="btn btn-outline" id="btn-prune">
-          <span>🗑️</span> Prune
+          <svg viewBox="0 0 24 24" class="svg-icon mr-xs"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Prune
         </button>
         <button class="btn btn-primary" id="btn-new-container">
-          <span>➕</span> New Container
+          <svg viewBox="0 0 24 24" class="svg-icon mr-xs"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> New Container
         </button>
       </div>
     </div>
     
     <!-- Filters -->
-    <div class="filters flex gap-sm mb-lg" style="background: var(--bg-surface); padding: var(--space-md); border-radius: var(--radius-lg); border: 1px solid var(--border);">
+    <div class="filters flex items-center gap-sm mb-lg card">
       <button class="btn btn-sm active" data-filter="running">Running</button>
       <button class="btn btn-sm" data-filter="stopped">Stopped</button>
       <button class="btn btn-sm" data-filter="all">All</button>
-      <div style="margin-left: auto;">
-        <input type="text" class="search-input" placeholder="Search containers..." style="padding: var(--space-sm) var(--space-md); background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-md); color: var(--text-primary); font-size: 13px;">
+      <div class="ml-auto">
+        <input type="text" class="search-input" placeholder="Search containers...">
       </div>
     </div>
     
@@ -41,56 +41,56 @@
       <div class="container-card" data-container="nginx" data-status="running" data-has-compose="true">
         <div class="card-header flex justify-between items-center">
           <div class="flex items-center gap-md">
-            <div class="container-icon" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: var(--glow-sm);">🐳</div>
+            <div class="container-icon flex-center" style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-lg); box-shadow: var(--glow-sm);"><svg viewBox="0 0 24 24" style="width: 24px; height: 24px; stroke: white; stroke-width: 2; fill: none;"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8" cy="12" r="1.5" fill="white"/><circle cx="12" cy="12" r="1.5" fill="white"/><circle cx="16" cy="12" r="1.5" fill="white"/></svg></div>
             <div>
-              <h3 style="margin: 0; font-size: 16px;">nginx</h3>
-              <span style="color: var(--text-muted); font-size: 12px;">v1.25 • 2 hours ago</span>
+              <h3 class="mt-0 text-lg">nginx</h3>
+              <span class="text-muted text-sm">v1.25 • 2 hours ago</span>
             </div>
           </div>
           <div class="flex items-center gap-sm">
             <span class="status-badge status-running">Running</span>
-            <div class="dropdown" style="position: relative;">
+            <div class="dropdown pos-relative">
               <button class="btn btn-icon" onclick="toggleDropdown(this)" style="padding: var(--space-sm); background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px;">⋯</button>
-              <div class="dropdown-menu hidden" style="position: absolute; right: 0; top: 100%; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); min-width: 160px; z-index: 100; box-shadow: var(--shadow-lg);">
-                <button class="dropdown-item" data-action="terminal">💻 Terminal</button>
-                <button class="dropdown-item" data-action="logs">📋 Logs</button>
-                <button class="dropdown-item" data-action="inspect">🔍 Inspect</button>
-                <div style="height: 1px; background: var(--border); margin: var(--space-sm) 0;"></div>
-                <button class="dropdown-item" data-action="stop">⏹️ Stop</button>
-                <button class="dropdown-item" data-action="restart">🔄 Restart</button>
-                <button class="dropdown-item" data-action="remove">🗑️ Remove</button>
+              <div class="dropdown-menu hidden">
+                <button class="dropdown-item" data-action="terminal"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Terminal</button>
+                <button class="dropdown-item" data-action="logs"><svg viewBox="0 0 24 24" class="svg-icon"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Logs</button>
+                <button class="dropdown-item" data-action="inspect"><svg viewBox="0 0 24 24" class="svg-icon"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg> Inspect</button>
+                <div class="divider">
+                <button class="dropdown-item" data-action="stop"><svg viewBox="0 0 24 24" class="svg-icon"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop</button>
+                <button class="dropdown-item" data-action="restart"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg> Restart</button>
+                <button class="dropdown-item" data-action="remove"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Remove</button>
               </div>
             </div>
           </div>
         </div>
         
         <div class="card-body mt-md">
-          <div class="grid grid-3 gap-md" style="display: grid; grid-template-columns: repeat(3, 1fr);">
+          <div class="grid grid-3 gap-md">
             <div class="info-item">
-              <span style="color: var(--text-muted); font-size: 12px;">PORTS</span>
-              <p style="margin: var(--space-xs) 0 0 0; font-size: 14px;">0.0.0.0:80→80/tcp</p>
+              <span class="text-muted text-sm text-uppercase">PORTS</span>
+              <p class="mt-xs text-md">0.0.0.0:80→80/tcp</p>
             </div>
             <div class="info-item">
-              <span style="color: var(--text-muted); font-size: 12px;">NETWORK</span>
-              <p style="margin: var(--space-xs) 0 0 0; font-size: 14px;">bridge</p>
+              <span class="text-muted text-sm text-uppercase">NETWORK</span>
+              <p class="mt-xs text-md">bridge</p>
             </div>
             <div class="info-item">
-              <span style="color: var(--text-muted); font-size: 12px;">VOLUMES</span>
-              <p style="margin: var(--space-xs) 0 0 0; font-size: 14px;">/data/nginx:/usr/share/nginx/html</p>
+              <span class="text-muted text-sm text-uppercase">VOLUMES</span>
+              <p class="mt-xs text-md">/data/nginx:/usr/share/nginx/html</p>
             </div>
           </div>
         </div>
         
-        <div class="card-actions flex gap-sm mt-md pt-md" style="border-top: 1px solid var(--border-light);">
-          <button class="btn btn-sm btn-primary" onclick="openTerminal('nginx')">💻 Terminal</button>
-          <button class="btn btn-sm btn-outline" onclick="updateContainer('nginx', true)">🔄 Update</button>
-          <button class="btn btn-sm btn-warning" onclick="stopContainer('nginx')">⏹️ Stop</button>
-          <button class="btn btn-sm btn-danger" onclick="downContainer('nginx')">⬇️ Down</button>
+        <div class="card-actions flex gap-sm mt-md pt-md" style="border-top: 1px solid var(--border);">
+          <button class="btn btn-sm btn-primary" onclick="openTerminal('nginx')"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg> Terminal</button>
+          <button class="btn btn-sm btn-outline" onclick="updateContainer('nginx', true)"><svg viewBox="0 0 24 24" class="svg-icon"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M21 3v6h-6"/></svg> Update</button>
+          <button class="btn btn-sm btn-warning" onclick="stopContainer('nginx')"><svg viewBox="0 0 24 24" class="svg-icon"><rect x="6" y="6" width="12" height="12" rx="2"/></svg> Stop</button>
+          <button class="btn btn-sm btn-danger" onclick="downContainer('nginx')"><svg viewBox="0 0 24 24" class="svg-icon"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> Down</button>
         </div>
         
         <!-- Compose Stack Indicator -->
-        <div class="compose-badge" style="position: absolute; top: var(--space-md); right: var(--space-md); background: rgba(0,180,216,0.15); color: var(--accent-primary); padding: 4px 12px; border-radius: 12px; font-size: 11px; font-weight: 600;">
-          📦 Compose Stack
+        <div class="compose-badge badge badge-primary pos-absolute" style="top: var(--space-md); right: var(--space-md);">
+          <svg viewBox="0 0 24 24" class="svg-icon mr-xs"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> Compose Stack
         </div>
       </div>
       
@@ -99,13 +99,13 @@
   </div>
   
   <!-- Terminal Modal -->
-  <div id="terminal-modal" class="modal hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 2000; display: flex; align-items: center; justify-content: center;">
-    <div class="modal-content" style="background: var(--bg-surface); border-radius: var(--radius-lg); width: 90%; max-width: 900px; height: 80%; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
-      <div class="modal-header flex justify-between items-center p-lg" style="border-bottom: 1px solid var(--border);">
-        <h3 style="margin: 0;">Terminal: <span id="terminal-container-name"></span></h3>
-        <button class="btn btn-icon" onclick="closeTerminal()" style="padding: var(--space-sm); background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 20px;">✕</button>
+  <div id="terminal-modal" class="modal hidden modal-overlay">
+    <div class="modal-content" style="height: 80%;">
+      <div class="modal-header">
+        <h3 class="mt-0">Terminal: <span id="terminal-container-name"></span></h3>
+        <button class="btn btn-icon" onclick="closeTerminal()"><svg viewBox="0 0 24 24" class="svg-icon"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button>
       </div>
-      <div class="modal-body flex-1 p-lg" style="overflow: hidden;">
+      <div class="modal-body">
         <forge-terminal id="terminal-component" style="width: 100%; height: 100%;"></forge-terminal>
       </div>
     </div>

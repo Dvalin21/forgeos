@@ -33,8 +33,13 @@ class WidgetAlerts extends ForgeWidget {
   }
 
   getSeverityIcon(severity) {
-    const icons = { 'critical': '🔥', 'warning': '⚠️', 'info': 'ℹ️', 'success': '✅' };
-    return icons[severity] || 'ℹ️';
+    const icons = {
+      'critical': '<svg viewBox="0 0 24 24" style="width: 16px; height: 16px; stroke: var(--accent-danger); stroke-width: 2; fill: none;"><polygon points="12 2 2 22 22 22 12 2"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>',
+      'warning': '<svg viewBox="0 0 24 24" style="width: 16px; height: 16px; stroke: var(--accent-warning); stroke-width: 2; fill: none;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+      'info': '<svg viewBox="0 0 24 24" style="width: 16px; height: 16px; stroke: var(--accent-primary); stroke-width: 2; fill: none;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
+      'success': '<svg viewBox="0 0 24 24" style="width: 16px; height: 16px; stroke: var(--accent-success); stroke-width: 2.5; fill: none;"><polyline points="20 6 9 17 4 12"/></svg>'
+    };
+    return icons[severity] || icons.info;
   }
 
   formatTime(timestamp) {

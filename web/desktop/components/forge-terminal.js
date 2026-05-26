@@ -132,7 +132,7 @@ class ForgeTerminal extends HTMLElement {
       
       <div class="terminal-header">
         <div class="terminal-title">
-          <span>🐳</span>
+          <svg viewBox="0 0 24 24" style="width: 16px; height: 16px; stroke: var(--accent-primary); stroke-width: 2; fill: none;"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
           <span>Terminal: ${this.containerName}</span>
         </div>
         <div class="terminal-controls">

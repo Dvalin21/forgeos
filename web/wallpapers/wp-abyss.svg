@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#05080f"/>
+      <stop offset="40%"  stop-color="#080f1a"/>
+      <stop offset="100%" stop-color="#0a0e17"/>
+    </linearGradient>
+    <filter id="blurLg"><feGaussianBlur stdDeviation="80"/></filter>
+    <filter id="blurMd"><feGaussianBlur stdDeviation="40"/></filter>
+    <filter id="blurSm"><feGaussianBlur stdDeviation="20"/></filter>
+  </defs>
+  <!-- Base -->
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <!-- Deep organic glow forms -->
+  <g filter="url(#blurLg)">
+    <ellipse cx="680" cy="420" rx="520" ry="380" fill="#006994" opacity="0.08"/>
+    <ellipse cx="1400" cy="650" rx="440" ry="320" fill="#004b6e" opacity="0.06"/>
+    <ellipse cx="950" cy="800" rx="600" ry="240" fill="#0a2840" opacity="0.07"/>
+  </g>
+  <!-- Mid-layer organic shapes -->
+  <g filter="url(#blurMd)">
+    <path d="M200,1080 C300,700 500,400 800,300 C1100,200 1300,350 1600,250 C1800,180 1920,300 1920,500 L1920,1080 Z"
+          fill="#0088aa" opacity="0.05"/>
+    <ellipse cx="400" cy="300" rx="300" ry="200" fill="#00b4d8" opacity="0.04"/>
+    <ellipse cx="1500" cy="400" rx="350" ry="180" fill="#005f8a" opacity="0.05"/>
+    <!-- Soft accent core -->
+    <ellipse cx="600" cy="380" rx="100" ry="80" fill="#00c8e6" opacity="0.06"/>
+  </g>
+  <!-- Fine detail glows -->
+  <g filter="url(#blurSm)">
+    <ellipse cx="720" cy="340" rx="60" ry="40" fill="#00d4f0" opacity="0.05"/>
+    <ellipse cx="500" cy="480" rx="40" ry="30" fill="#0090b8" opacity="0.04"/>
+  </g>
+</svg>

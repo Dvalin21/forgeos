@@ -1,0 +1,2905 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ForgeOS Control Center</title>
+  <style>
+    /* ── Theme Variables ── */
+    :root,
+    [data-theme="light"] {
+      --bg: #eef3f8;
+      --surface: #ffffff;
+      --surface-2: #f7faff;
+      --surface-3: #edf4ff;
+      --text: #152238;
+      --muted: #68758b;
+      --line: rgba(21,34,56,.10);
+      --line-soft: rgba(21,34,56,.06);
+      --line-heavy: rgba(21,34,56,.08);
+      --primary: #2962ff;
+      --primary-2: #00a4b8;
+      --primary-soft: rgba(41,98,255,.12);
+      --success: #10a66a;
+      --warn: #d88a00;
+      --danger: #cf3d46;
+      --glass-bg: rgba(255,255,255,.78);
+      --glass-bg-2: rgba(255,255,255,.82);
+      --glass-bg-3: rgba(255,255,255,.8);
+      --nav-title: #8793a6;
+      --nav-link: #3a495f;
+      --icon-color: #516178;
+      --th-color: #7a879b;
+      --time-color: #98a3b5;
+      --avatar-bg: linear-gradient(135deg, #26364d, #2962ff);
+      --donut-track: rgba(41,98,255,.10);
+      --donut-shadow: 0 20px 38px rgba(41,98,255,.10);
+      --donut-ring: rgba(255,255,255,.78);
+      --bar-bg: rgba(21,34,56,.08);
+      --chart-bg: #ffffff;
+      --chart-grid: rgba(21,34,56,.06);
+      --network-bg: #fff;
+      --shadow: 0 18px 55px rgba(19,35,58,.12);
+      --shadow-soft: 0 10px 30px rgba(19,35,58,.08);
+      --sidebar-shadow: 8px 0 36px rgba(19,35,58,.06);
+      --primary-glow: rgba(41,98,255,.28);
+      --hero-shadow: 0 28px 72px rgba(41,98,255,.22);
+      --search-shadow: 0 8px 24px rgba(19,35,58,.05);
+      --switch-bg: rgba(21,34,56,.14);
+      --modal-backdrop: rgba(0,0,0,.55);
+      --input-bg: rgba(255,255,255,.85);
+      --body-bg-1: rgba(41,98,255,.18);
+      --body-bg-2: rgba(0,164,184,.16);
+      --body-bg-3: #f8fbff;
+      --body-bg-4: #e8f1fb;
+      --sidebar-footer-start: rgba(41,98,255,.10);
+      --sidebar-footer-end: rgba(0,164,184,.10);
+      --scrollbar-bg: transparent;
+      --scrollbar-thumb: rgba(21,34,56,.15);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f1419;
+      --surface: #161b28;
+      --surface-2: #1e2438;
+      --surface-3: #2d3552;
+      --text: #e6edf3;
+      --muted: #8b95a5;
+      --line: rgba(255,255,255,.08);
+      --line-soft: rgba(255,255,255,.04);
+      --line-heavy: rgba(255,255,255,.06);
+      --primary: #5b8cff;
+      --primary-2: #00c9db;
+      --primary-soft: rgba(91,140,255,.28);
+      --success: #3fb950;
+      --warn: #d29922;
+      --danger: #f85149;
+      --glass-bg: rgba(15,20,25,.92);
+      --glass-bg-2: rgba(15,20,25,.88);
+      --glass-bg-3: rgba(15,20,25,.85);
+      --nav-title: #8b95a5;
+      --nav-link: #b8c4ce;
+      --icon-color: #b8c4ce;
+      --th-color: #8b95a5;
+      --time-color: #8b95a5;
+      --avatar-bg: linear-gradient(135deg, #1a2a3d, #5b8cff);
+      --donut-track: rgba(91,140,255,.12);
+      --donut-shadow: 0 20px 38px rgba(91,140,255,.15);
+      --donut-ring: rgba(22,27,40,.85);
+      --bar-bg: rgba(255,255,255,.08);
+      --chart-bg: #161b28;
+      --chart-grid: rgba(255,255,255,.06);
+      --network-bg: #161b28;
+      --shadow: 0 18px 55px rgba(0,0,0,.4);
+      --shadow-soft: 0 10px 30px rgba(0,0,0,.3);
+      --sidebar-shadow: 8px 0 36px rgba(0,0,0,.3);
+      --primary-glow: rgba(91,140,255,.3);
+      --hero-shadow: 0 28px 72px rgba(91,140,255,.2);
+      --search-shadow: 0 8px 24px rgba(0,0,0,.25);
+      --switch-bg: rgba(255,255,255,.14);
+      --modal-backdrop: rgba(0,0,0,.75);
+      --input-bg: rgba(22,27,40,.92);
+      --body-bg-1: rgba(91,140,255,.10);
+      --body-bg-2: rgba(0,201,219,.08);
+      --body-bg-3: #0f1419;
+      --body-bg-4: #0f1419;
+      --sidebar-footer-start: rgba(91,140,255,.10);
+      --sidebar-footer-end: rgba(0,201,219,.08);
+      --scrollbar-bg: transparent;
+      --scrollbar-thumb: rgba(255,255,255,.10);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(circle at 15% 8%, var(--body-bg-1), transparent 28%),
+        radial-gradient(circle at 92% 12%, var(--body-bg-2), transparent 30%),
+        linear-gradient(135deg, var(--body-bg-3) 0%, var(--bg) 45%, var(--body-bg-4) 100%);
+      transition: background .25s, color .25s;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; background: var(--scrollbar-bg); }
+    ::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--scrollbar-thumb); }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    :root {
+      --radius: 24px;
+      --radius-sm: 16px;
+      --sidebar: 292px;
+      --topbar: 76px;
+      --font: Inter, Roboto, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar) minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 22px 18px;
+      border-right: 1px solid var(--line);
+      background: var(--glass-bg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: var(--sidebar-shadow);
+      z-index: 4;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 12px 22px;
+    }
+
+    .brand-mark {
+      width: 52px;
+      height: 52px;
+      border-radius: 18px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, var(--primary), var(--primary-2));
+      color: #fff;
+      box-shadow: 0 16px 30px var(--primary-glow);
+    }
+
+    svg { width: 22px; height: 22px; display: block; }
+    .brand h1 { margin: 0; font-size: 20px; letter-spacing: -.03em; }
+    .brand p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+
+    .nav-title {
+      margin: 18px 13px 8px;
+      color: var(--nav-title);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .nav {
+      display: grid;
+      gap: 6px;
+    }
+
+    .nav a {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 46px;
+      padding: 10px 14px;
+      color: var(--nav-link);
+      text-decoration: none;
+      border-radius: 16px;
+      font-size: 14px;
+      font-weight: 700;
+      transition: .18s ease;
+    }
+
+    .nav a:hover,
+    .nav a.active {
+      color: var(--primary);
+      background: var(--primary-soft);
+      transform: translateX(2px);
+    }
+
+    .nav a.active::before {
+      content: "";
+      position: absolute;
+      left: -18px;
+      top: 11px;
+      bottom: 11px;
+      width: 5px;
+      border-radius: 0 10px 10px 0;
+      background: var(--primary);
+    }
+
+    .nav svg,
+    .mini-icon svg,
+    .icon-badge svg,
+    .metric-icon svg,
+    .button svg {
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.9;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .sidebar-footer {
+      position: absolute;
+      left: 18px;
+      right: 18px;
+      bottom: 22px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: linear-gradient(160deg, var(--sidebar-footer-start), var(--sidebar-footer-end));
+    }
+
+    .sidebar-footer strong { display: block; margin-bottom: 8px; font-size: 13px; }
+    .sidebar-footer span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .main {
+      min-width: 0;
+      padding: 22px 28px 34px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) auto;
+      gap: 20px;
+      align-items: center;
+      height: var(--topbar);
+      margin: -22px -28px 22px;
+      padding: 16px 28px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      border-bottom: 1px solid var(--line-soft);
+    }
+
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      height: 48px;
+      max-width: 660px;
+      padding: 0 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--glass-bg-3);
+      box-shadow: var(--search-shadow);
+      color: var(--muted);
+      transition: border-color .15s, background .25s;
+    }
+    .search:focus-within { border-color: var(--primary); }
+
+    .search input {
+      width: 100%;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      font: 600 14px var(--font);
+      color: var(--text);
+    }
+    .search input::placeholder { color: var(--muted); }
+
+    .top-actions { display: flex; gap: 10px; align-items: center; }
+
+    .circle-btn {
+      width: 46px;
+      height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: var(--glass-bg-2);
+      color: var(--icon-color);
+      box-shadow: var(--shadow-soft);
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+    }
+    .circle-btn:hover { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+    .circle-btn svg { color: inherit; }
+
+    .profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 7px 12px 7px 7px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--glass-bg-2);
+      box-shadow: var(--shadow-soft);
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 13px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 900;
+      background: var(--avatar-bg);
+    }
+
+    .profile strong { display: block; font-size: 13px; }
+    .profile span { display: block; color: var(--muted); font-size: 11px; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.48fr) minmax(310px, .72fr);
+      gap: 22px;
+      margin-bottom: 22px;
+    }
+
+    .panel {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line-heavy);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow-soft);
+      transition: background .25s, border-color .25s, box-shadow .25s;
+    }
+
+    .panel.pad { padding: 22px; }
+
+    .hero-card {
+      min-height: 280px;
+      padding: 28px;
+      color: #fff;
+      background:
+        radial-gradient(circle at 88% 14%, rgba(255,255,255,.22), transparent 22%),
+        radial-gradient(circle at 20% 85%, rgba(0,255,218,.18), transparent 28%),
+        linear-gradient(135deg, #172a48 0%, #2552d9 55%, #00a4b8 100%);
+      box-shadow: var(--hero-shadow);
+    }
+
+    .hero-card::after {
+      content: "";
+      position: absolute;
+      width: 420px;
+      height: 420px;
+      right: -170px;
+      bottom: -200px;
+      border-radius: 50%;
+      border: 60px solid rgba(255,255,255,.10);
+      pointer-events: none;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.14);
+      color: rgba(255,255,255,.88);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+    .eyebrow svg { width: 16px; height: 16px; color: currentColor; }
+
+    .hero-card h2 {
+      position: relative;
+      z-index: 1;
+      max-width: 670px;
+      margin: 22px 0 12px;
+      font-size: clamp(31px, 4.2vw, 55px);
+      line-height: .95;
+      letter-spacing: -.06em;
+    }
+
+    .hero-card p {
+      position: relative;
+      z-index: 1;
+      max-width: 650px;
+      margin: 0;
+      color: rgba(255,255,255,.78);
+      font-size: 15px;
+      line-height: 1.65;
+    }
+
+    .hero-actions {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 25px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      height: 44px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 15px;
+      font: 800 13px var(--font);
+      text-decoration: none;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+    .button:hover { opacity: .85; }
+    .button.primary { color: #14325f; background: #fff; }
+    .button.ghost { color: #fff; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); }
+
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .status-pill {
+      padding: 13px;
+      border: 1px solid rgba(255,255,255,.16);
+      border-radius: 18px;
+      background: rgba(255,255,255,.11);
+    }
+    .status-pill span { display: block; color: rgba(255,255,255,.68); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
+    .status-pill strong { display: block; margin-top: 6px; font-size: 20px; }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .section-head h3 { margin: 0; font-size: 18px; letter-spacing: -.03em; }
+    .section-head p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: var(--surface-3);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+      transition: background .25s, color .25s;
+    }
+
+    .health-stack { display: grid; gap: 12px; }
+
+    .mini-card {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: var(--surface-2);
+      transition: background .25s, border-color .25s;
+    }
+
+    .mini-icon,
+    .metric-icon,
+    .icon-badge {
+      display: grid;
+      place-items: center;
+      flex: none;
+      border-radius: 16px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      transition: background .25s, color .25s;
+    }
+    .mini-icon { width: 44px; height: 44px; }
+    .metric-icon { width: 48px; height: 48px; }
+    .icon-badge { width: 42px; height: 42px; }
+
+    .mini-card h4 { margin: 0; font-size: 13px; }
+    .mini-card p { margin: 4px 0 0; color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .mini-card b { font-size: 13px; color: var(--success); }
+    .mini-card.warning b { color: var(--warn); }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .metric { padding: 18px; min-height: 160px; }
+
+    .metric-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .metric label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 10px;
+      font-size: 31px;
+      letter-spacing: -.05em;
+    }
+
+    .trend {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .bar {
+      position: relative;
+      height: 9px;
+      margin-top: 18px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--bar-bg);
+    }
+    .bar > i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--primary), var(--primary-2));
+    }
+    .bar.warn > i { background: linear-gradient(90deg, #f0a400, #ff7043); }
+    .bar.good > i { background: linear-gradient(90deg, #0aa363, #00a4b8); }
+
+    .content-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(340px, .65fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .storage-layout {
+      display: grid;
+      grid-template-columns: minmax(260px, .75fr) minmax(0, 1.25fr);
+      gap: 18px;
+      align-items: center;
+    }
+
+    .donut {
+      --pct: 72%;
+      width: min(270px, 100%);
+      aspect-ratio: 1;
+      margin: 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: conic-gradient(var(--primary) 0 var(--pct), var(--donut-track) var(--pct) 100%);
+      box-shadow: inset 0 0 0 22px var(--donut-ring), var(--donut-shadow);
+    }
+
+    .donut-inner {
+      width: 68%;
+      aspect-ratio: 1;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border-radius: 50%;
+      background: var(--surface);
+      box-shadow: inset 0 0 0 1px var(--line);
+      transition: background .25s;
+    }
+    .donut-inner strong { display: block; font-size: 36px; letter-spacing: -.06em; }
+    .donut-inner span { color: var(--muted); font-size: 12px; font-weight: 800; }
+
+    .volume-list { display: grid; gap: 12px; }
+    .volume {
+      padding: 15px;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: var(--surface-2);
+      transition: background .25s, border-color .25s;
+    }
+    .volume-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 14px; }
+    .volume h4 { margin: 0; font-size: 14px; }
+    .volume p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 18px; }
+    table { width: 100%; border-collapse: collapse; background: var(--surface); transition: background .25s; }
+    th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
+    th { color: var(--th-color); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; background: var(--surface-2); }
+    tr:last-child td { border-bottom: 0; }
+    .file-cell { display: flex; align-items: center; gap: 10px; font-weight: 800; }
+    .file-cell .icon-badge { width: 34px; height: 34px; border-radius: 12px; }
+
+    .status { font-weight: 900; }
+    .status.ok { color: var(--success); }
+    .status.warn { color: var(--warn); }
+    .status.danger { color: var(--danger); }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .app-card {
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface-2);
+      transition: transform .16s ease, box-shadow .16s ease, background .25s, border-color .25s;
+    }
+    .app-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); }
+    .app-card .icon-badge { margin-bottom: 14px; }
+    .app-card h4 { margin: 0 0 5px; font-size: 14px; }
+    .app-card p { margin: 0 0 13px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .switch {
+      width: 44px;
+      height: 24px;
+      border-radius: 999px;
+      padding: 3px;
+      background: var(--switch-bg);
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .switch i { display: block; width: 18px; height: 18px; border-radius: 50%; background: var(--surface); box-shadow: 0 3px 9px rgba(0,0,0,.18); transition: transform .2s; }
+    .switch.on { background: var(--primary); }
+    .switch.on i { transform: translateX(20px); }
+
+    .activity { display: grid; gap: 13px; }
+    .event {
+      display: grid;
+      grid-template-columns: 42px minmax(0,1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    .event h4 { margin: 0 0 4px; font-size: 13px; }
+    .event p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .event time { display: block; margin-top: 5px; color: var(--time-color); font-size: 11px; font-weight: 800; }
+
+    .quick-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .quick {
+      min-height: 100px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 19px;
+      background: var(--surface-2);
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s, background .25s, border-color .25s;
+    }
+    .quick:hover { transform: translateY(-2px); box-shadow: var(--shadow-soft); }
+    .quick h4 { margin: 12px 0 4px; font-size: 13px; }
+    .quick p { margin: 0; color: var(--muted); font-size: 12px; }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 22px;
+      margin-top: 22px;
+    }
+
+    .network-chart {
+      height: 178px;
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      overflow: hidden;
+      background:
+        linear-gradient(var(--chart-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--chart-grid) 1px, transparent 1px),
+        var(--network-bg);
+      background-size: 100% 44px, 58px 100%, auto;
+    }
+    .network-chart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+    .network-chart path { fill: none; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+    .network-chart .rx { stroke: var(--primary); }
+    .network-chart .tx { stroke: var(--primary-2); opacity: .86; }
+
+    .tasks { display: grid; gap: 12px; }
+    .task {
+      display: grid;
+      grid-template-columns: minmax(0,1fr) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface-2);
+      transition: background .25s, border-color .25s;
+    }
+    .task h4 { margin: 0 0 4px; font-size: 13px; }
+    .task p { margin: 0; color: var(--muted); font-size: 12px; }
+
+    .mobile-menu { display: none; }
+
+    /* ── Theme Toggle ── */
+    .theme-toggle {
+      width: 46px;
+      height: 46px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: var(--glass-bg-2);
+      color: var(--icon-color);
+      box-shadow: var(--shadow-soft);
+      cursor: pointer;
+      transition: background .15s, color .15s, border-color .15s;
+      font-family: var(--font);
+    }
+    .theme-toggle:hover { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+    .theme-toggle svg { width: 20px; height: 20px; color: inherit; }
+
+    /* ── Modal System ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: none;
+      place-items: center;
+      background: var(--modal-backdrop);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      animation: fadeIn .15s ease;
+    }
+    .modal-overlay.open { display: grid; }
+
+    .modal {
+      width: min(540px, calc(100vw - 40px));
+      max-height: calc(100vh - 60px);
+      overflow-y: auto;
+      padding: 28px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      animation: slideUp .2s ease;
+      transition: background .25s, border-color .25s;
+    }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 22px;
+    }
+    .modal-header h2 { margin: 0; font-size: 20px; letter-spacing: -.03em; }
+    .modal-close {
+      width: 36px; height: 36px;
+      border: 0; border-radius: 12px;
+      display: grid; place-items: center;
+      background: var(--surface-2);
+      color: var(--muted);
+      cursor: pointer;
+      font: 700 16px var(--font);
+      transition: background .15s, color .15s;
+    }
+    .modal-close:hover { background: var(--danger); color: #fff; }
+
+    .form-group { margin-bottom: 18px; }
+    .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .form-group .hint {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--input-bg);
+      color: var(--text);
+      font: 500 14px var(--font);
+      transition: border-color .15s, background .25s, color .25s;
+      outline: 0;
+    }
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-soft);
+    }
+    .form-group textarea { min-height: 72px; resize: vertical; }
+    .form-group select { cursor: pointer; appearance: auto; }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .modal-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 22px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 42px;
+      padding: 0 20px;
+      border: 0;
+      border-radius: 14px;
+      font: 700 13px var(--font);
+      cursor: pointer;
+      transition: background .15s, opacity .15s;
+    }
+    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-primary:hover { opacity: .85; }
+    .btn-secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); }
+    .btn-secondary:hover { background: var(--surface-3); }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .btn-danger:hover { opacity: .85; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      right: 30px;
+      z-index: 99999;
+      padding: 14px 22px;
+      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font: 600 13px var(--font);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: slideUp .25s ease;
+      pointer-events: none;
+      transition: background .25s, border-color .25s;
+    }
+    .toast.success { border-left: 4px solid var(--success); }
+    .toast.error { border-left: 4px solid var(--danger); }
+
+    @media (max-width: 1220px) {
+      .grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .hero, .content-grid, .two-col { grid-template-columns: 1fr; }
+      .storage-layout { grid-template-columns: 1fr; }
+      .app-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .sidebar-footer { position: static; margin-top: 18px; }
+      .sidebar { overflow-y: auto; }
+    }
+
+    @media (max-width: 880px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: min(320px, 90vw);
+        transform: translateX(-100%);
+        transition: transform .25s ease;
+      }
+      .sidebar.open { transform: translateX(0); }
+      .main { padding: 18px; }
+      .topbar { margin: -18px -18px 18px; padding: 13px 18px; grid-template-columns: auto minmax(0, 1fr) auto; }
+      .mobile-menu { display: grid; cursor: pointer; }
+      .search { max-width: none; }
+      .profile { display: none; }
+      .hero-card { padding: 22px; }
+      .app-grid, .quick-actions, .grid-4, .two-col { grid-template-columns: 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 560px) {
+      .top-actions .circle-btn:not(.mobile-menu):not(.theme-toggle) { display: none; }
+      .topbar { gap: 10px; }
+      .search input::placeholder { color: transparent; }
+      th:nth-child(3), td:nth-child(3), th:nth-child(4), td:nth-child(4) { display: none; }
+    }
+
+    /* ── Page System ── */
+    .page { display: none; }
+    .page.active { display: block; animation: fadeIn .2s ease; }
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+    .page-header h2 { margin: 0; font-size: 22px; letter-spacing: -.04em; }
+    .page-header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .page-header .page-actions { display: flex; gap: 10px; align-items: center; }
+    .page-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 18px;
+    }
+    .page-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 1220px) { .page-grid.cols-3 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 880px) { .page-grid { grid-template-columns: 1fr; } .page-grid.cols-3 { grid-template-columns: 1fr; } }
+
+    /* ── Settings Hub Icons ── */
+    .hub-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .hub-card {
+      display: grid;
+      place-items: center;
+      gap: 12px;
+      padding: 24px 16px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: var(--surface-2);
+      text-align: center;
+      text-decoration: none;
+      color: var(--text);
+      cursor: pointer;
+      transition: transform .15s, box-shadow .15s, background .25s, border-color .25s;
+    }
+    .hub-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-soft); background: var(--surface); }
+    .hub-card .icon-badge { width: 56px; height: 56px; border-radius: 18px; }
+    .hub-card .icon-badge svg { width: 26px; height: 26px; }
+    .hub-card h4 { margin: 0; font-size: 13px; }
+    .hub-card p { margin: 0; color: var(--muted); font-size: 11px; }
+
+    /* ── Settings Sections ── */
+    .settings-grid {
+      display: grid;
+      gap: 14px;
+    }
+    .setting-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--surface-2);
+      transition: background .25s, border-color .25s;
+    }
+    .setting-row h4 { margin: 0 0 4px; font-size: 13px; }
+    .setting-row p { margin: 0; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M4 7.5h16v9H4z"/><path d="M7 10.5h3M14 10.5h3M7 14h10"/><path d="M9 4.5h6M9 19.5h6"/></svg>
+        </div>
+        <div>
+          <h1>ForgeOS</h1>
+          <p>Control Center</p>
+        </div>
+      </div>
+
+      <div class="nav-title">System</div>
+      <nav class="nav">
+        <a class="active" href="#dashboard" data-page="dashboard"><svg viewBox="0 0 24 24"><path d="M4 13h7V4H4zM13 20h7V4h-7zM4 20h7v-5H4z"/></svg>Dashboard</a>
+        <a href="#storage" data-page="storage"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>Storage</a>
+        <a href="#files" data-page="files"><svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/><path d="M3.8 8.5V5.7c0-1.1.9-2 2-2h4.1l1.7 1.8h5.2c1.1 0 2 .9 2 2v1"/></svg>File Station</a>
+        <a href="#mail" data-page="mail"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><path d="M7 8V5h10v3M8 12h8M8 15h5"/></svg>ForgeMail</a>
+        <a href="#apps" data-page="apps"><svg viewBox="0 0 24 24"><path d="M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5zM13 13h6v6h-6z"/></svg>Apps & Services</a>
+        <a href="#backup" data-page="backup"><svg viewBox="0 0 24 24"><path d="M12 5v8l4 2"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>Backup & Snapshots</a>
+      </nav>
+
+      <div class="nav-title">Administration</div>
+      <nav class="nav">
+        <a href="#users" data-page="users"><svg viewBox="0 0 24 24"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/><path d="M18 10.5c1.7.3 3 1.8 3 3.5M6 10.5C4.3 10.8 3 12.3 3 14"/></svg>Users &amp; Groups</a>
+        <a href="#network" data-page="network"><svg viewBox="0 0 24 24"><path d="M12 4v5M5 20v-4.5A3.5 3.5 0 0 1 8.5 12h7A3.5 3.5 0 0 1 19 15.5V20"/><path d="M8 20h0M16 20h0M12 20h0"/><rect x="9" y="3" width="6" height="6" rx="1.5"/></svg>Network</a>
+        <a href="#security" data-page="security"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/><path d="M9.5 12l1.8 1.8 3.7-4"/></svg>Security</a>
+        <a href="#settings" data-page="settings"><svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/><path d="M19.4 15a1.8 1.8 0 0 0 .4 2l.1.1-2.1 3.6-.2-.1a1.8 1.8 0 0 0-2.1.3l-.2.1h-4.2l-.2-.1a1.8 1.8 0 0 0-2.1-.3l-.2.1-2.1-3.6.1-.1a1.8 1.8 0 0 0 .4-2 8 8 0 0 1 0-6 1.8 1.8 0 0 0-.4-2l-.1-.1 2.1-3.6.2.1a1.8 1.8 0 0 0 2.1-.3l.2-.1h4.2l.2.1a1.8 1.8 0 0 0 2.1.3l.2-.1 2.1 3.6-.1.1a1.8 1.8 0 0 0-.4 2 8 8 0 0 1 0 6z"/></svg>Settings</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <strong>ForgeOS Status: Healthy</strong>
+        <span>LHSR pools normal. All volumes mounted. No degraded VDEVs. Snapshot replication completed 17 minutes ago.</span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="circle-btn mobile-menu" aria-label="Open menu"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+        <div class="search" role="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.8 18.2a7.4 7.4 0 1 1 0-14.8 7.4 7.4 0 0 1 0 14.8z"/><path d="M16.2 16.2L21 21"/></svg>
+          <input placeholder="Search files, users, pools, apps, settings" />
+        </div>
+        <div class="top-actions">
+          <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+            <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 3v1M12 20v1M4.2 4.2l.7.7M19.1 19.1l.7.7M3 12h1M20 12h1M4.2 19.8l.7-.7M19.1 4.9l.7-.7"/><circle cx="12" cy="12" r="5"/></svg>
+            <svg class="moon-icon" viewBox="0 0 24 24" style="display:none"><path d="M20.2 13.5A8 8 0 0 1 11 3.8 8 8 0 1 0 20.2 13.5z"/></svg>
+          </button>
+          <button class="circle-btn" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 6-3 8h18c0-2-3-1-3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button>
+          <button class="circle-btn" aria-label="Terminal" id="terminalBtn"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M7 9l3 3-3 3M12 15h5"/></svg></button>
+          <div class="profile">
+            <div class="avatar">A</div>
+            <div><strong>admin</strong><span>Local account</span></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="page active" id="page-dashboard">
+      <section class="hero">
+        <div class="panel hero-card">
+          <span class="eyebrow"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/><path d="M9.5 12l1.8 1.8 3.7-4"/></svg>LHSR‑protected storage appliance</span>
+          <div style="display:flex;flex-wrap:wrap;gap:16px;position:relative;z-index:1;margin:18px 0 8px">
+            <div style="flex:1;min-width:180px">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                <div style="width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.14);display:grid;place-items:center;flex:none">
+                  <svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9"><path d="M5 5h14v14H5z"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg>
+                </div>
+                <div><strong style="font-size:13px;display:block">forgenas-primary</strong><span style="font-size:11px;opacity:.7">forgenas-primary.local</span></div>
+              </div>
+              <div style="display:grid;gap:6px;font-size:12px;opacity:.85">
+                <span>ForgeOS 1.0 &middot; Linux 6.8.12</span>
+                <span>Kernel: LHSR module v2.1.4 loaded</span>
+              </div>
+            </div>
+            <div style="flex:1;min-width:180px">
+              <div style="display:grid;gap:6px;font-size:12px;opacity:.85;padding-top:4px">
+                <span>8-disk RAIDZ2 pool &middot; 64 GB ECC</span>
+                <span>2&times;10GbE LACP bond &middot; 4&times;1GbE failover</span>
+                <span>Last boot: 28d 14h ago &middot; 12 services running</span>
+              </div>
+            </div>
+          </div>
+          <div class="hero-actions">
+            <a class="button primary" href="#storage"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg>Open Storage Manager</a>
+            <a class="button ghost" href="#backup"><svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>Review Backups</a>
+          </div>
+          <div class="status-grid">
+            <div class="status-pill"><span>Uptime</span><strong>28d 14h</strong></div>
+            <div class="status-pill"><span>Protected data</span><strong>18.6 TB</strong></div>
+            <div class="status-pill"><span>LAN throughput</span><strong>6.4 Gb/s</strong></div>
+            <div class="status-pill"><span>Active sessions</span><strong>37</strong></div>
+          </div>
+        </div>
+
+        <aside class="panel pad">
+          <div class="section-head">
+            <div><h3>Health Center</h3><p>System state at a glance</p></div>
+            <span class="chip">Healthy</span>
+          </div>
+          <div class="health-stack">
+            <div class="mini-card"><div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></div><div><h4>CPU package</h4><p>42&deg;C, balanced governor</p></div><b>OK</b></div>
+            <div class="mini-card"><div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></div><div><h4>LHSR pool</h4><p>RAIDZ2, 8 disks, 0 errors</p></div><b>OK</b></div>
+            <div class="mini-card warning"><div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 4 7-9"/><path d="M20 7v6h-6"/></svg></div><div><h4>Scrub schedule</h4><p>Next scrub Sunday 02:00</p></div><b>Due</b></div>
+            <div class="mini-card"><div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M8 17.5H7a4 4 0 0 1 0-8 6 6 0 0 1 11.7 1.5A3.5 3.5 0 0 1 18 18h-2"/><path d="M12 12v8M9 15l3-3 3 3"/></svg></div><div><h4>Cloud sync</h4><p>Remote targets current</p></div><b>OK</b></div>
+          </div>
+        </aside>
+      </section>
+
+      <section class="grid-4" aria-label="Metrics">
+        <article class="panel metric">
+          <div class="metric-top"><div><label>CPU Load</label><strong>31%</strong></div><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></div></div>
+          <div class="trend">20 threads available</div><div class="bar good"><i style="width:31%"></i></div>
+        </article>
+        <article class="panel metric">
+          <div class="metric-top"><div><label>Memory</label><strong>44%</strong></div><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M7 8h10M7 12h10M7 16h6"/><path d="M5 4h14v16H5z"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2"/></svg></div></div>
+          <div class="trend">28.1 GB of 64 GB used</div><div class="bar"><i style="width:44%"></i></div>
+        </article>
+        <article class="panel metric">
+          <div class="metric-top"><div><label>Volume Use</label><strong>72%</strong></div><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></div></div>
+          <div class="trend">7.3 TB free</div><div class="bar warn"><i style="width:72%"></i></div>
+        </article>
+        <article class="panel metric">
+          <div class="metric-top"><div><label>Network</label><strong>6.4G</strong></div><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M12 4v5M5 20v-4.5A3.5 3.5 0 0 1 8.5 12h7A3.5 3.5 0 0 1 19 15.5V20"/><path d="M8 20h0M16 20h0M12 20h0"/><rect x="9" y="3" width="6" height="6" rx="1.5"/></svg></div></div>
+          <div class="trend">RX 4.8 Gb/s &middot; TX 1.6 Gb/s</div><div class="bar good"><i style="width:64%"></i></div>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <div class="left-stack">
+          <article id="storage" class="panel pad">
+            <div class="section-head">
+              <div><h3>Storage Manager</h3><p>LHSR pools, volumes, disks, and RAID health</p></div>
+              <span class="chip">RAIDZ2 Online</span>
+            </div>
+            <div class="storage-layout">
+              <div class="donut" style="--pct:72%"><div class="donut-inner"><div><strong>72%</strong><span>Pool used</span></div></div></div>
+              <div class="volume-list">
+                <div class="volume"><div class="volume-head"><div><h4>main-pool / main-data</h4><p>LHSR RAIDZ2, compression on, auto‑heal enabled</p></div><strong>18.6 / 25.9 TB</strong></div><div class="bar warn"><i style="width:72%"></i></div></div>
+                <div class="volume"><div class="volume-head"><div><h4>fast-pool / vm-store</h4><p>LHSR mirror, sync writes optimized</p></div><strong>3.1 / 6.0 TB</strong></div><div class="bar"><i style="width:52%"></i></div></div>
+                <div class="volume"><div class="volume-head"><div><h4>ssd-cache</h4><p>L2ARC read cache, warm, no errors</p></div><strong>1.2 / 2.0 TB</strong></div><div class="bar good"><i style="width:60%"></i></div></div>
+              </div>
+            </div>
+          </article>
+
+          <article id="files" class="panel pad" style="margin-top:22px;">
+            <div class="section-head">
+              <div><h3>File Station</h3><p>Shares and administrative file activity</p></div>
+              <a class="button" style="background:var(--primary-soft); color:var(--primary); cursor:pointer;" id="newShareBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New Share</a>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Name</th><th>Owner</th><th>Size</th><th>Modified</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></span>Clients</div></td><td>admins</td><td>4.8 TB</td><td>Today 14:22</td><td class="status ok">Online</td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></span>Media Archive</div></td><td>media</td><td>9.2 TB</td><td>Yesterday 21:09</td><td class="status ok">Indexed</td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></span>VM Backups</div></td><td>root</td><td>2.4 TB</td><td>Today 03:30</td><td class="status warn">Pruning</td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></span>Home Directories</div></td><td>users</td><td>1.1 TB</td><td>Today 08:44</td><td class="status ok">Protected</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article id="services" class="panel pad" style="margin-top:22px;">
+            <div class="section-head">
+              <div><h3>Apps &amp; Services</h3><p>Running workloads on ForgeOS</p></div>
+              <span class="chip">6 running</span>
+            </div>
+            <div class="app-grid">
+              <div class="app-card"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 8h16v10H4z"/><path d="M7 8V5h10v3M8 12h8M8 15h5"/></svg></div><h4>SMB Service</h4><p>Windows file sharing with ACL support.</p><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+              <div class="app-card"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M5 8h14M5 12h14M5 16h14"/><path d="M4 4h16v16H4z"/></svg></div><h4>NFS Exports</h4><p>Linux and hypervisor storage mounts.</p><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+              <div class="app-card"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><path d="M8 17v3M16 17v3M8 4v3M16 4v3"/></svg></div><h4>Docker Engine</h4><p>Container runtime for app stacks.</p><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+              <div class="app-card"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M8 17.5H7a4 4 0 0 1 0-8 6 6 0 0 1 11.7 1.5A3.5 3.5 0 0 1 18 18h-2"/><path d="M12 12v8M9 15l3-3 3 3"/></svg></div><h4>KTC_Mail</h4><p>ForgeMail webmail + Postfix/Dovecot.</p><div style="display:flex;align-items:center;justify-content:space-between"><a style="font-size:12px;color:var(--primary);cursor:pointer;font-weight:700" data-modal="mail">Configure</a><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div></div>
+              <div class="app-card"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></div><h4>LHSR Monitor</h4><p>Self-healing RAID health daemon.</p><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+              <div class="app-card"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/><path d="M9.5 12l1.8 1.8 3.7-4"/></svg></div><h4>Firewall</h4><p>Local rules and service exposure.</p><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+            </div>
+          </article>
+        </div>
+
+        <aside class="right-stack">
+          <section class="panel pad">
+            <div class="section-head"><div><h3>Quick Actions</h3><p>Common operations</p></div></div>
+            <div class="quick-actions">
+              <div class="quick" data-modal="share"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div><h4>Create share</h4><p>Provision an SMB or NFS export</p></div>
+              <div class="quick" data-modal="scrub"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 4 7-9"/><path d="M20 7v6h-6"/></svg></div><h4>Run scrub</h4><p>Verify LHSR pool integrity</p></div>
+              <div class="quick" data-modal="snapshot"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 5v8l4 2"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/></svg></div><h4>Snapshot</h4><p>Create LHSR recovery point</p></div>
+              <div class="quick" data-modal="shell"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="M7 9l3 3-3 3M12 15h5"/></svg></div><h4>Shell</h4><p>Launch admin terminal</p></div>
+            </div>
+          </section>
+
+          <section id="backup" class="panel pad" style="margin-top:22px;">
+            <div class="section-head"><div><h3>Backup Jobs</h3><p>LHSR snapshot and replication status</p></div><div style="display:flex;gap:8px"><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" data-modal="backup-job"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>New Job</span><span class="chip">4 jobs</span></div></div>
+            <div class="tasks">
+              <div class="task"><div><h4>Home directories</h4><p>Hourly LHSR snapshots, 48 retained</p></div><span class="status ok">Done</span></div>
+              <div class="task"><div><h4>VM Backups</h4><p>Incremental backup running</p></div><span class="status warn">62%</span></div>
+              <div class="task"><div><h4>Client archive</h4><p>Replicated to offsite target</p></div><span class="status ok">Done</span></div>
+              <div class="task"><div><h4>System config</h4><p>Encrypted export every night</p></div><span class="status ok">Ready</span></div>
+            </div>
+          </section>
+
+          <section class="panel pad" style="margin-top:22px;">
+            <div class="section-head"><div><h3>Activity Log</h3><p>Recent administrative events</p></div></div>
+            <div class="activity">
+              <div class="event"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/><path d="M9.5 12l1.8 1.8 3.7-4"/></svg></div><div><h4>Security scan passed</h4><p>No exposed admin ports detected.</p><time>8 minutes ago</time></div></div>
+              <div class="event"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></div><div><h4>LHSR scrub completed</h4><p>Pool main-pool: 0 errors, 28.3 TB verified.</p><time>24 minutes ago</time></div></div>
+              <div class="event"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/></svg></div><div><h4>User session opened</h4><p>Admin login from LAN management subnet.</p><time>41 minutes ago</time></div></div>
+            </div>
+          </section>
+        </aside>
+      </section>
+
+      <section class="two-col">
+        <article id="network" class="panel pad">
+          <div class="section-head"><div><h3>Network Monitor</h3><p>Live throughput for bonded interfaces</p></div><div style="display:flex;gap:8px"><span class="chip" style="cursor:pointer" data-modal="network">Configure</span><span class="chip">bond0 active</span></div></div>
+          <div class="network-chart" aria-label="Network throughput graph">
+            <svg preserveAspectRatio="none" viewBox="0 0 680 180" aria-hidden="true">
+              <path class="rx" d="M0 130 C45 80 80 110 120 70 S220 98 270 48 360 112 420 58 520 70 580 32 640 62 680 40"/>
+              <path class="tx" d="M0 150 C52 132 76 148 124 118 S218 142 274 94 354 138 418 92 510 114 580 78 636 100 680 86"/>
+            </svg>
+          </div>
+        </article>
+
+        <article id="users" class="panel pad">
+          <div class="section-head">
+            <div><h3>Users &amp; Permissions</h3><p>Account, group, and share-level access</p></div>
+            <div style="display:flex;gap:8px">
+              <a class="button" style="background:var(--primary-soft); color:var(--primary); height:36px; padding:0 14px; border-radius:12px; font-size:12px; cursor:pointer;" id="addUserBtn"><svg viewBox="0 0 24 24"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/><path d="M19 8v4M17 10h4"/></svg>Add User</a>
+              <span class="chip">37 sessions</span>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Group</th><th>Members</th><th>Scope</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>Admins</td><td>3</td><td>Full system</td><td class="status ok">MFA</td></tr>
+                <tr><td>Staff</td><td>18</td><td>Client shares</td><td class="status ok">Active</td></tr>
+                <tr><td>Media</td><td>6</td><td>Read library</td><td class="status ok">Active</td></tr>
+                <tr><td>Guests</td><td>2</td><td>Temporary access</td><td class="status warn">Expiring</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="two-col">
+        <article id="security" class="panel pad">
+          <div class="section-head"><div><h3>Security Center</h3><p>Firewall, login policy, certificates, and update posture</p></div><div style="display:flex;gap:8px"><span class="chip" style="cursor:pointer" data-modal="security">Settings</span><span class="chip">Hardened</span></div></div>
+          <div class="tasks">
+            <div class="task"><div><h4>Two-factor authentication</h4><p>Required for admin and remote users</p></div><span class="status ok">Enabled</span></div>
+            <div class="task"><div><h4>Certificate renewal</h4><p>Wildcard certificate renews in 42 days</p></div><span class="status ok">Valid</span></div>
+            <div class="task"><div><h4>Login protection</h4><p>Progressive delays + subnet allow-list</p></div><span class="status ok">Active</span></div>
+            <div class="task"><div><h4>LHSR integrity checks</h4><p>Automatic checksum verification, self-heal on read</p></div><span class="status ok">Active</span></div>
+          </div>
+        </article>
+
+        <article id="settings" class="panel pad">
+          <div class="section-head"><div><h3>System Settings</h3><p>Appliance identity, updates, and policies</p></div><span class="chip">Auto patch</span></div>
+          <div class="tasks">
+            <div class="task"><div><h4>Hostname</h4><p>forgenas-primary.local</p></div><span class="chip" style="background:var(--primary-soft);color:var(--primary);cursor:pointer" id="settingsHostnameBtn">Edit</span></div>
+            <div class="task"><div><h4>Update channel</h4><p>Stable, security patches only</p></div><span class="chip" style="background:var(--primary-soft);color:var(--primary);cursor:pointer" data-modal="update">Edit</span></div>
+            <div class="task"><div><h4>Power schedule</h4><p>No shutdown schedule configured</p></div><span class="chip" style="background:var(--primary-soft);color:var(--primary);cursor:pointer" data-modal="power">Configure</span></div>
+          </div>
+        </article>
+      </section>
+      </div><!-- /page-dashboard -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           PAGE: Storage Manager
+           ════════════════════════════════════════════════════════════ -->
+      <div class="page" id="page-storage">
+        <div class="page-header">
+          <div><h2>Storage Manager</h2><p>LHSR pools, VDEVs, disks, scrub management, and snapshots</p></div>
+          <div class="page-actions">
+            <button class="btn btn-primary" onclick="showToast('Pool creation wizard launched.','success')"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>Create Pool</button>
+          </div>
+        </div>
+
+        <div class="page-grid">
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Pools</h3></div><span class="chip">2 pools, 1 cache</span></div>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <thead><tr><th>Pool</th><th>Layout</th><th>Total</th><th>Used</th><th>Health</th><th>Scrub</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></span>main-pool</div></td><td>RAIDZ2 (8 disks)</td><td>25.9 TB</td><td>18.6 TB <span class="status warn">72%</span></td><td class="status ok">Online</td><td>Due Sun 02:00</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="openModal('modal-scrub')">Scrub</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></span>fast-pool</div></td><td>Mirror (2 SSD)</td><td>6.0 TB</td><td>3.1 TB <span class="status">52%</span></td><td class="status ok">Online</td><td>Not scheduled</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="openModal('modal-scrub')">Scrub</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M12 4v5M5 20v-4.5A3.5 3.5 0 0 1 8.5 12h7A3.5 3.5 0 0 1 19 15.5V20"/><path d="M8 20h0M16 20h0M12 20h0"/></svg></span>ssd-cache</div></td><td>L2ARC (2 NVMe)</td><td>2.0 TB</td><td>1.2 TB <span class="status">60%</span></td><td class="status ok">Warm</td><td>N/A</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Cache statistics shown.','success')">Stats</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+              <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Add VDEV wizard opened.','success')"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 5v14M5 12h14"/></svg> Add VDEV</span>
+              <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Disk replacement wizard opened.','success')">Replace Disk</span>
+              <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Pool expansion options shown.','success')">Expand Pool</span>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>LHSR Self-Heal</h3><p>Kernel RAID module status</p></div><span class="chip">v2.1.4 loaded</span></div>
+            <div class="tasks" style="margin-top:4px">
+              <div class="task"><div><h4>Module status</h4><p>lhsr.ko loaded, 0 errors, auto-heal enabled</p></div><span class="status ok">Active</span></div>
+              <div class="task"><div><h4>Checksums verified</h4><p>28.3 TB verified in last scrub cycle</p></div><span class="status ok">Pass</span></div>
+              <div class="task"><div><h4>Auto-repair triggers</h4><p>Checksum mismatch auto-corrected on read</p></div>
+                <select style="width:auto;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--input-bg);color:var(--text);font:600 12px var(--font);outline:0" onchange="showToast('Auto-repair setting updated.','success')">
+                  <option selected>Enabled (recommended)</option>
+                  <option>Read-only (detect only)</option>
+                  <option>Disabled</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Snapshots</h3></div><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="openModal('modal-snapshot')"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 5v14M5 12h14"/></svg> Create</span></div>
+            <div class="tasks" style="margin-top:4px">
+              <div class="task"><div><h4>main-data @ 2026-05-24 02:00</h4><p>Hourly auto-snapshot, retained 48</p></div><span class="status ok">Done</span></div>
+              <div class="task"><div><h4>main-data @ 2026-05-23 22:00</h4><p>Manual — pre-upgrade checkpoint</p></div><span class="status ok">Stable</span></div>
+              <div class="task"><div><h4>vm-store @ 2026-05-24 01:00</h4><p>Replication checkpoint</p></div><span class="status ok">Replicated</span></div>
+            </div>
+            <div style="margin-top:10px">
+              <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Auto-snapshot schedule</label>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <select style="padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:600 12px var(--font);flex:1;min-width:120px">
+                  <option>Every hour, retain 48</option>
+                  <option selected>Every 6 hours, retain 30</option>
+                  <option>Daily at 02:00, retain 14</option>
+                  <option>Custom schedule</option>
+                </select>
+                <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Snapshot schedule updated.','success')">Apply</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Scrub Schedule</h3></div></div>
+            <div class="tasks" style="margin-top:4px">
+              <div class="task"><div><h4>main-pool</h4><p>Every Sunday 02:00, low priority</p></div><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="openModal('modal-scrub')">Edit</span></div>
+              <div class="task"><div><h4>fast-pool</h4><p>No scrub schedule configured</p></div><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="openModal('modal-scrub')">Configure</span></div>
+            </div>
+            <div style="margin-top:12px">
+              <span class="chip" style="cursor:pointer" onclick="openModal('modal-scrub')">Run scrub now</span>
+            </div>
+          </div>
+        </div>
+      </div><!-- /page-storage -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           PAGE: File Station
+           ════════════════════════════════════════════════════════════ -->
+      <div class="page" id="page-files">
+        <div class="page-header">
+          <div><h2>File Station</h2><p>Shared folders, permissions, and quotas</p></div>
+          <div class="page-actions">
+            <button class="btn btn-primary" onclick="openModal('modal-share')"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>Create Share</button>
+          </div>
+        </div>
+
+        <div class="page-grid">
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Shares</h3><p>SMB / NFS exports</p></div><span class="chip">4 shares</span></div>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <thead><tr><th>Name</th><th>Protocol</th><th>Path</th><th>Owner</th><th>Quota</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></span>Clients</div></td><td>SMB</td><td>/volume1/shares/clients</td><td>admins</td><td>10 TB</td><td class="status ok">Online</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary);font-size:11px">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></span>Media Archive</div></td><td>SMB+NFS</td><td>/volume1/shares/media</td><td>media</td><td>20 TB</td><td class="status ok">Indexed</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary);font-size:11px">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></span>VM Backups</div></td><td>NFS</td><td>/volume1/shares/vmbackups</td><td>root</td><td>5 TB</td><td class="status warn">Pruning</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary);font-size:11px">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></span>Home Directories</div></td><td>SMB</td><td>/volume1/homes</td><td>users</td><td>2 TB</td><td class="status ok">Protected</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary);font-size:11px">Edit</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Share Permissions</h3><p>Quick ACL editor</p></div></div>
+            <div class="form-group">
+              <label>Share</label>
+              <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                <option>Clients</option>
+                <option>Media Archive</option>
+                <option>VM Backups</option>
+                <option>Home Directories</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Group / User</label>
+              <input type="text" placeholder="Type to search users and groups" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" />
+            </div>
+            <div class="form-group">
+              <label>Access level</label>
+              <div style="display:flex;gap:12px;padding:6px 0">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="radio" name="permLevel" checked /> Read / Write</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="radio" name="permLevel" /> Read Only</label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="radio" name="permLevel" /> Deny</label>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="showToast('Permission applied to share.','success')">Apply Permission</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Quota Management</h3></div></div>
+            <div class="tasks" style="margin-top:4px">
+              <div class="task"><div><h4>Global default quota</h4><p>Per-user limit on home directories</p></div>
+                <select style="width:auto;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--input-bg);color:var(--text);font:600 12px var(--font);outline:0" onchange="showToast('Default quota updated.','success')">
+                  <option>1 TB</option>
+                  <option selected>2 TB</option>
+                  <option>5 TB</option>
+                  <option>No limit</option>
+                </select>
+              </div>
+              <div class="task"><div><h4>Share-level quotas</h4><p>Per-share capacity limits</p></div><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Share quota editor opened.','success')">Manage</span></div>
+              <div class="task"><div><h4>Notifications at 80%</h4><p>Alert admin when quota approaches limit</p></div>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:12px"><input type="checkbox" checked /> Enable</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /page-files -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           PAGE: ForgeMail (placeholder until KTC_Mail pull)
+           ════════════════════════════════════════════════════════════ -->
+      <div class="page" id="page-mail">
+        <div class="page-header">
+          <div><h2>ForgeMail</h2><p>Mail server — will be integrated when KTC_Mail is pulled into ForgeOS</p></div>
+          <div class="page-actions">
+            <span class="chip">Coming Soon</span>
+          </div>
+        </div>
+        <div class="page-grid">
+          <div class="panel pad" style="display:grid;place-items:center;min-height:200px;text-align:center">
+            <div>
+              <div class="icon-badge" style="width:72px;height:72px;border-radius:22px;margin:0 auto 18px">
+                <svg viewBox="0 0 24 24" style="width:32px;height:32px"><path d="M4 7h16v10H4z"/><path d="M7 8V5h10v3M8 12h8M8 15h5"/></svg>
+              </div>
+              <h3 style="margin:0 0 8px">ForgeMail Not Yet Integrated</h3>
+              <p style="color:var(--muted);max-width:420px;line-height:1.6;margin:0">
+                KTC_Mail is a separate project that will be pulled into ForgeOS to become ForgeMail.
+                When integrated, this page will provide full mail server management: domains, mailboxes,
+                SMTP/IMAP configuration, TLS certificates, antivirus (ClamAV), and spam filtering (Rspamd).
+              </p>
+              <div style="margin-top:18px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+                <span class="chip">Postfix MTA</span>
+                <span class="chip">Dovecot IMAP/POP3</span>
+                <span class="chip">Rspamd</span>
+                <span class="chip">ClamAV</span>
+              </div>
+              <p style="color:var(--muted);font-size:12px;margin-top:18px">KTC_Mail and ForgeMail remain separate projects.</p>
+            </div>
+          </div>
+        </div>
+      </div><!-- /page-mail -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           PAGE: Apps & Services
+           ════════════════════════════════════════════════════════════ -->
+      <div class="page" id="page-apps">
+        <div class="page-header">
+          <div><h2>Apps &amp; Services</h2><p>Enable, disable, and configure ForgeOS services</p></div>
+          <div class="page-actions">
+            <span class="chip">6 running</span>
+          </div>
+        </div>
+        <div class="page-grid cols-3">
+          <div class="panel pad">
+            <div class="section-head"><div><h3>SMB Service</h3></div><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+            <p style="font-size:12px;color:var(--muted);margin:4px 0 14px">Windows file sharing with ACL support</p>
+            <div class="form-group"><label>Workgroup</label><input type="text" value="FORGEWORK" style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0" /></div>
+            <div class="form-group"><label>Min protocol</label><select style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0"><option>SMB2</option><option selected>SMB3</option></select></div>
+            <button class="btn btn-primary" style="width:100%" onclick="showToast('SMB settings saved.','success')">Save</button>
+          </div>
+          <div class="panel pad">
+            <div class="section-head"><div><h3>NFS Exports</h3></div><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+            <p style="font-size:12px;color:var(--muted);margin:4px 0 14px">Linux and hypervisor storage mounts</p>
+            <div class="form-group"><label>Version</label><select style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0"><option selected>NFSv4</option><option>NFSv3</option><option>NFSv4 + NFSv3</option></select></div>
+            <div class="form-group"><label>Root squash</label><select style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0"><option selected>Root squash enabled</option><option>No root squash</option></select></div>
+            <button class="btn btn-primary" style="width:100%" onclick="showToast('NFS settings saved.','success')">Save</button>
+          </div>
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Docker Engine</h3></div><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+            <p style="font-size:12px;color:var(--muted);margin:4px 0 14px">Container runtime for app stacks</p>
+            <div class="form-group"><label>Data directory</label><input type="text" value="/volume1/docker" style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0" /></div>
+            <div class="form-group"><label>Registry mirror</label><input type="text" placeholder="https://mirror.example.com" style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0" /></div>
+            <button class="btn btn-primary" style="width:100%" onclick="showToast('Docker settings saved.','success')">Save</button>
+          </div>
+          <div class="panel pad">
+            <div class="section-head"><div><h3>LHSR Monitor</h3></div><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+            <p style="font-size:12px;color:var(--muted);margin:4px 0 14px">Self-healing RAID health daemon</p>
+            <div class="form-group"><label>Scan interval</label><select style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0"><option>Every hour</option><option selected>Every 6 hours</option><option>Daily</option></select></div>
+            <div class="form-group"><label>Alert on error</label><select style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0"><option selected>Email + Notification</option><option>Notification only</option><option>Disabled</option></select></div>
+            <button class="btn btn-primary" style="width:100%" onclick="showToast('LHSR monitor settings saved.','success')">Save</button>
+          </div>
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Firewall</h3></div><div class="switch on" onclick="this.classList.toggle('on')"><i></i></div></div>
+            <p style="font-size:12px;color:var(--muted);margin:4px 0 14px">Local rules and service exposure</p>
+            <div class="form-group"><label>Default policy</label><select style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0"><option selected>Allow LAN, deny WAN</option><option>Allow all</option><option>Deny all (whitelist)</option></select></div>
+            <div class="form-group"><label>Rate limiting</label><select style="width:100%;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:500 13px var(--font);outline:0"><option selected>Enabled (100 conn/min)</option><option>Enabled (1000 conn/min)</option><option>Disabled</option></select></div>
+            <button class="btn btn-primary" style="width:100%" onclick="showToast('Firewall settings saved.','success')">Save</button>
+          </div>
+          <div class="panel pad" style="display:grid;place-items:center;min-height:180px;border:2px dashed var(--line);background:transparent">
+            <div style="text-align:center">
+              <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('App store opened.','success')"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg> Install new app</span>
+              <p style="color:var(--muted);font-size:12px;margin-top:12px">Extend ForgeOS with community packages</p>
+            </div>
+          </div>
+        </div>
+      </div><!-- /page-apps -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           PAGE: Network
+           ════════════════════════════════════════════════════════════ -->
+      <div class="page" id="page-network">
+        <div class="page-header">
+          <div><h2>Network</h2><p>Interfaces, bonding, DNS, and VLAN configuration</p></div>
+          <div class="page-actions">
+            <span class="chip">bond0 active</span>
+          </div>
+        </div>
+
+        <div class="page-grid">
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Interfaces</h3></div><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('New interface wizard opened.','success')">+ Add</span></div>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <thead><tr><th>Interface</th><th>Type</th><th>IP Address</th><th>Netmask</th><th>MTU</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 4v5M5 20v-4.5A3.5 3.5 0 0 1 8.5 12h7A3.5 3.5 0 0 1 19 15.5V20"/></svg></span>bond0</div></td><td>LACP bond</td><td>10.28.1.100</td><td>255.255.255.0</td><td>9000</td><td class="status ok">Up</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary);font-size:11px" onclick="openModal('modal-network')">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 4v5M5 20v-4.5A3.5 3.5 0 0 1 8.5 12h7A3.5 3.5 0 0 1 19 15.5V20"/></svg></span>bond1</div></td><td>Failover</td><td>10.28.2.100</td><td>255.255.255.0</td><td>1500</td><td class="status warn">Standby</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary);font-size:11px" onclick="openModal('modal-network')">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 4v5M5 20v-4.5A3.5 3.5 0 0 1 8.5 12h7A3.5 3.5 0 0 1 19 15.5V20"/></svg></span>eth0</div></td><td>Physical</td><td>DHCP</td><td>—</td><td>1500</td><td class="status ok">Up</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary);font-size:11px" onclick="openModal('modal-network')">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 4v5M5 20v-4.5A3.5 3.5 0 0 1 8.5 12h7A3.5 3.5 0 0 1 19 15.5V20"/></svg></span>eth1</div></td><td>Physical</td><td>DHCP</td><td>—</td><td>1500</td><td class="status ok">Up</td><td><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary);font-size:11px" onclick="openModal('modal-network')">Edit</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap">
+              <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Bond creation wizard opened.','success')">Create Bond</span>
+              <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('VLAN creation wizard opened.','success')">Add VLAN</span>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>DNS &amp; Gateway</h3></div></div>
+            <div class="form-group"><label>Primary DNS</label><input type="text" value="1.1.1.1" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <div class="form-group"><label>Secondary DNS</label><input type="text" value="8.8.8.8" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <div class="form-group"><label>Default gateway</label><input type="text" value="10.28.1.1" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <div class="form-group"><label>Domain search list</label><input type="text" value="forgenas.local, local" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <button class="btn btn-primary" onclick="showToast('DNS and gateway settings saved.','success')">Save Network Settings</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Bond Members</h3><p>bond0 LACP configuration</p></div><span class="chip">2 members</span></div>
+            <div class="tasks" style="margin-top:4px">
+              <div class="task"><div><h4>eth0</h4><p>1 GbE, full duplex, link up</p></div><span class="status ok">Active</span></div>
+              <div class="task"><div><h4>eth1</h4><p>1 GbE, full duplex, link up</p></div><span class="status ok">Active</span></div>
+            </div>
+            <div style="margin-top:12px">
+              <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Bond member configuration opened.','success')">Manage members</span>
+            </div>
+          </div>
+        </div>
+      </div><!-- /page-network -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           PAGE: Security
+           ════════════════════════════════════════════════════════════ -->
+      <div class="page" id="page-security">
+        <div class="page-header">
+          <div><h2>Security Center</h2><p>Authentication, firewall, certificates, and access control</p></div>
+          <div class="page-actions">
+            <span class="chip">Hardened</span>
+          </div>
+        </div>
+
+        <div class="page-grid">
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Two-Factor Authentication</h3></div></div>
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+                <input type="checkbox" checked onchange="showToast('2FA setting updated.','success')" /> Require 2FA for admin accounts
+              </label>
+            </div>
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+                <input type="checkbox" onchange="showToast('2FA setting updated.','success')" /> Require 2FA for remote access
+              </label>
+            </div>
+            <div class="form-group">
+              <label>2FA method</label>
+              <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                <option selected>TOTP (authenticator app)</option>
+                <option>YubiKey / WebAuthn</option>
+                <option>Email OTP</option>
+                <option>SMS OTP</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="showToast('2FA settings saved.','success')">Save</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Login Protection</h3></div></div>
+            <div class="form-group"><label>Mode</label>
+              <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                <option selected>Progressive delay</option>
+                <option>Captcha after 3 failures</option>
+                <option>Lock after 5 failures</option>
+                <option>Disabled</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Session timeout</label>
+              <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                <option>15 minutes</option>
+                <option selected>30 minutes</option>
+                <option>1 hour</option>
+                <option>24 hours</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Admin subnet allow-list</label><input type="text" value="10.28.1.0/24, 192.168.1.0/24" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <button class="btn btn-primary" onclick="showToast('Login protection saved.','success')">Save</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Firewall Rules</h3></div><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('New firewall rule wizard opened.','success')">+ Add Rule</span></div>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <thead><tr><th>Service</th><th>Port</th><th>Source</th><th>Policy</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td>Web GUI (HTTPS)</td><td>443</td><td>Any</td><td class="status ok">Allow</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                  <tr><td>SSH</td><td>2222</td><td>10.28.1.0/24</td><td class="status ok">Allow</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                  <tr><td>SMB</td><td>445</td><td>10.28.0.0/16</td><td class="status ok">Allow</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                  <tr><td>All other WAN</td><td>*</td><td>0.0.0.0/0</td><td class="status danger">Deny</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>TLS Certificates</h3></div><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Certificate upload wizard opened.','success')">+ Upload</span></div>
+            <div class="tasks" style="margin-top:4px">
+              <div class="task"><div><h4>Wildcard &mdash; *.forgenas.local</h4><p>Let&rsquo;s Encrypt, expires in 42 days, auto-renew enabled</p></div><span class="status ok">Valid</span></div>
+              <div class="task"><div><h4>Self-signed &mdash; forgenas-primary</h4><p>Fallback certificate, never expires</p></div><span class="status warn">Fallback</span></div>
+            </div>
+            <div style="margin-top:12px">
+              <label style="font-size:12px;font-weight:700;display:block;margin-bottom:4px">Auto-renew</label>
+              <div style="display:flex;gap:10px;align-items:center">
+                <select style="padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--input-bg);color:var(--text);font:600 12px var(--font);flex:1">
+                  <option selected>Let&rsquo;s Encrypt (auto)</option>
+                  <option>Manual renewal only</option>
+                  <option>Disabled</option>
+                </select>
+                <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Certificate settings saved.','success')">Apply</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>SSH Access</h3></div></div>
+            <div class="form-group"><label>Port</label><input type="number" value="2222" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <div class="form-group"><label>Password auth</label>
+              <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                <option>Allow</option>
+                <option selected>Key only</option>
+                <option>Disabled</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Allow-list</label><input type="text" value="10.28.1.0/24" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <button class="btn btn-primary" onclick="showToast('SSH settings saved.','success')">Save SSH Settings</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Audit Log</h3><p>Recent security-relevant events</p></div></div>
+            <div class="activity">
+              <div class="event"><div class="icon-badge"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/></svg></div><div><h4>Security scan</h4><p>No exposed admin ports detected.</p><time>8 min ago</time></div></div>
+              <div class="event"><div class="icon-badge"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/></svg></div><div><h4>Admin login</h4><p>From LAN management subnet.</p><time>41 min ago</time></div></div>
+              <div class="event"><div class="icon-badge"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></div><div><h4>Scrub completed</h4><p>main-pool: 0 errors.</p><time>24 min ago</time></div></div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /page-security -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           PAGE: Users & Groups
+           ════════════════════════════════════════════════════════════ -->
+      <div class="page" id="page-users">
+        <div class="page-header">
+          <div><h2>Users &amp; Groups</h2><p>Account management, group membership, and permissions</p></div>
+          <div class="page-actions">
+            <button class="btn btn-primary" onclick="openModal('modal-user')"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/><path d="M19 8v4M17 10h4"/></svg>Add User</button>
+          </div>
+        </div>
+
+        <div class="page-grid">
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Users</h3></div><span class="chip">37 active sessions</span></div>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <thead><tr><th>Username</th><th>Full Name</th><th>Group</th><th>MFA</th><th>Status</th><th>Last Login</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px;background:var(--avatar-bg);color:#fff;font-weight:800;font-size:13px">A</span>admin</div></td><td>Administrator</td><td>admins</td><td class="status ok">Enabled</td><td class="status ok">Active</td><td>Today 08:14</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px;background:var(--surface-3);color:var(--text);font-weight:800;font-size:13px">J</span>jdoe</div></td><td>Jane Doe</td><td>staff</td><td class="status ok">Enabled</td><td class="status ok">Active</td><td>Today 09:02</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px;background:var(--surface-3);color:var(--text);font-weight:800;font-size:13px">M</span>msmith</div></td><td>Mike Smith</td><td>media</td><td class="status warn">Not set</td><td class="status ok">Active</td><td>Yesterday 16:30</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px;background:var(--surface-3);color:var(--text);font-weight:800;font-size:13px">G</span>guest1</div></td><td>Guest User</td><td>guests</td><td class="status warn">Not set</td><td class="status warn">Expiring</td><td>2026-05-20</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Groups</h3></div><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('Group creation wizard opened.','success')">+ New Group</span></div>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <thead><tr><th>Group</th><th>Members</th><th>Scope</th><th>Quota</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/></svg></span>admins</div></td><td>3</td><td>Full system</td><td>Unlimited</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/></svg></span>staff</div></td><td>18</td><td>Client shares</td><td>2 TB</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/></svg></span>media</div></td><td>6</td><td>Read library</td><td>5 TB</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/></svg></span>guests</div></td><td>2</td><td>Temporary access</td><td>100 GB</td><td><span class="chip" style="cursor:pointer;font-size:11px">Edit</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Permission Matrix</h3><p>Share access by group</p></div></div>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <thead><tr><th>Share / Group</th><th>admins</th><th>staff</th><th>media</th><th>guests</th></tr></thead>
+                <tbody>
+                  <tr><td>Clients</td><td class="status ok">RW</td><td class="status ok">RW</td><td class="status warn">RO</td><td class="status danger">—</td></tr>
+                  <tr><td>Media Archive</td><td class="status ok">RW</td><td class="status warn">RO</td><td class="status ok">RW</td><td class="status warn">RO</td></tr>
+                  <tr><td>VM Backups</td><td class="status ok">RW</td><td class="status danger">—</td><td class="status danger">—</td><td class="status danger">—</td></tr>
+                  <tr><td>Home Directories</td><td class="status ok">RW</td><td class="status ok">RW</td><td class="status ok">RW</td><td class="status danger">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p style="color:var(--muted);font-size:11px;margin-top:10px">Click a cell to toggle permission. RW = Read/Write, RO = Read Only, &mdash; = Deny.</p>
+          </div>
+        </div>
+      </div><!-- /page-users -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           PAGE: Backup & Snapshots
+           ════════════════════════════════════════════════════════════ -->
+      <div class="page" id="page-backup">
+        <div class="page-header">
+          <div><h2>Backup &amp; Snapshots</h2><p>LHSR snapshot jobs, replication targets, and restore</p></div>
+          <div class="page-actions">
+            <button class="btn btn-primary" onclick="openModal('modal-backup-job')"><svg viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>New Job</button>
+          </div>
+        </div>
+
+        <div class="page-grid">
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Backup Jobs</h3></div><span class="chip">4 jobs</span></div>
+            <div class="table-wrap" style="margin-top:12px">
+              <table>
+                <thead><tr><th>Name</th><th>Source</th><th>Destination</th><th>Schedule</th><th>Retention</th><th>Last Run</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 5v8l4 2"/></svg></span>Home dirs</div></td><td>Homes</td><td>Local snapshot</td><td>Hourly</td><td>48</td><td>Today 09:00</td><td class="status ok">Done</td><td><span class="chip" style="cursor:pointer;font-size:11px" onclick="showToast('Job details opened.','success')">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 5v8l4 2"/></svg></span>VM Backups</div></td><td>vm-store</td><td>Remote replication</td><td>Daily 03:00</td><td>30</td><td>Today 03:00</td><td class="status warn">Running</td><td><span class="chip" style="cursor:pointer;font-size:11px" onclick="showToast('Job details opened.','success')">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 5v8l4 2"/></svg></span>Client archive</div></td><td>main-data</td><td>Offsite target</td><td>Weekly Sun 02:00</td><td>12</td><td>Yesterday 02:00</td><td class="status ok">Done</td><td><span class="chip" style="cursor:pointer;font-size:11px" onclick="showToast('Job details opened.','success')">Edit</span></td></tr>
+                  <tr><td><div class="file-cell"><span class="icon-badge" style="width:32px;height:32px;border-radius:10px"><svg viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M12 5v8l4 2"/></svg></span>System config</div></td><td>/etc</td><td>Encrypted export</td><td>Daily 04:00</td><td>90</td><td>Today 04:00</td><td class="status ok">Ready</td><td><span class="chip" style="cursor:pointer;font-size:11px" onclick="showToast('Job details opened.','success')">Edit</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Snapshot Schedule</h3><p>Automatic snapshot timing</p></div></div>
+            <div class="tasks" style="margin-top:4px">
+              <div class="task"><div><h4>main-pool / main-data</h4><p>Every 6 hours, retain 30</p></div>
+                <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="openModal('modal-snapshot')">Edit</span>
+              </div>
+              <div class="task"><div><h4>fast-pool / vm-store</h4><p>Every hour, retain 48</p></div>
+                <span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="openModal('modal-snapshot')">Edit</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Replication Targets</h3></div><span class="chip" style="cursor:pointer;background:var(--primary-soft);color:var(--primary)" onclick="showToast('New replication target wizard opened.','success')">+ Add</span></div>
+            <div class="tasks" style="margin-top:4px">
+              <div class="task"><div><h4>Offsite NAS</h4><p>rsync+ssh &middot; backup@10.28.2.50 &middot; /volume1/replica</p></div><span class="status ok">Online</span></div>
+              <div class="task"><div><h4>Cloud target</h4><p>Rclone &middot; Backblaze B2 &middot; bucket: forgeos-backups</p></div><span class="status ok">Configured</span></div>
+            </div>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Restore</h3></div></div>
+            <div class="form-group"><label>From snapshot</label>
+              <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                <option>main-data @ 2026-05-24 02:00</option>
+                <option>main-data @ 2026-05-23 22:00 (pre-upgrade)</option>
+                <option>vm-store @ 2026-05-24 01:00</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Restore to path</label><input type="text" value="/volume1/restore/" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:13px"><input type="checkbox" checked /> Preserve ACLs and permissions</label>
+            </div>
+            <button class="btn btn-primary" onclick="showToast('Restore job queued.','success')">Start Restore</button>
+          </div>
+        </div>
+      </div><!-- /page-backup -->
+
+      <!-- ════════════════════════════════════════════════════════════
+           PAGE: Settings (Hub + System Config)
+           ════════════════════════════════════════════════════════════ -->
+      <div class="page" id="page-settings">
+        <div class="page-header">
+          <div><h2>Settings</h2><p>Configuration hub &mdash; click a section or configure system-level settings below</p></div>
+        </div>
+
+        <!-- Settings Hub: Icon grid linking to each section -->
+        <div class="hub-grid">
+          <a class="hub-card" href="#storage" data-page="storage">
+            <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></span>
+            <h4>Storage</h4><p>Pools, disks, scrub, snapshots</p>
+          </a>
+          <a class="hub-card" href="#files" data-page="files">
+            <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></span>
+            <h4>File Station</h4><p>Shares, permissions, quotas</p>
+          </a>
+          <a class="hub-card" href="#mail" data-page="mail">
+            <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 7h16v10H4z"/><path d="M7 8V5h10v3M8 12h8M8 15h5"/></svg></span>
+            <h4>ForgeMail</h4><p>Mail server (coming soon)</p>
+          </a>
+          <a class="hub-card" href="#apps" data-page="apps">
+            <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5zM13 13h6v6h-6z"/></svg></span>
+            <h4>Apps &amp; Services</h4><p>Service config, toggles</p>
+          </a>
+          <a class="hub-card" href="#network" data-page="network">
+            <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 4v5M5 20v-4.5A3.5 3.5 0 0 1 8.5 12h7A3.5 3.5 0 0 1 19 15.5V20"/></svg></span>
+            <h4>Network</h4><p>Interfaces, DNS, bond, VLAN</p>
+          </a>
+          <a class="hub-card" href="#security" data-page="security">
+            <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/></svg></span>
+            <h4>Security</h4><p>2FA, firewall, certs, SSH</p>
+          </a>
+          <a class="hub-card" href="#users" data-page="users">
+            <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M16 19c0-2.2-1.8-4-4-4s-4 1.8-4 4"/><circle cx="12" cy="9" r="3"/></svg></span>
+            <h4>Users &amp; Groups</h4><p>Accounts, permissions</p>
+          </a>
+          <a class="hub-card" href="#backup" data-page="backup">
+            <span class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 5v8l4 2"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/></svg></span>
+            <h4>Backup</h4><p>Jobs, snapshots, restore</p>
+          </a>
+        </div>
+
+        <!-- System-level settings -->
+        <div class="page-grid">
+          <div class="panel pad">
+            <div class="section-head"><div><h3>System Identity</h3></div></div>
+            <div class="form-row">
+              <div class="form-group"><label>Hostname</label><input type="text" value="forgenas-primary" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" id="settingsHostnameInput" /></div>
+              <div class="form-group"><label>Domain</label><input type="text" value="local" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            </div>
+            <button class="btn btn-primary" onclick="handleSettingsHostname()">Save Identity</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Updates &amp; Maintenance</h3></div></div>
+            <div class="form-group"><label>Update channel</label>
+              <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                <option selected>Stable &mdash; security patches only</option>
+                <option>Beta &mdash; feature releases</option>
+                <option>Dev &mdash; daily builds</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+                <input type="checkbox" checked onchange="showToast('Auto-patch setting updated.','success')" /> Automatic security patches
+              </label>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Patch day</label>
+                <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                  <option>Daily</option><option selected>Sunday</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option>
+                </select>
+              </div>
+              <div class="form-group"><label>Time</label><input type="time" value="03:00" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            </div>
+            <button class="btn btn-primary" onclick="showToast('Update settings saved.','success')">Save</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Power Schedule</h3></div></div>
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+                <input type="checkbox" onchange="showToast('Power schedule toggled.','success')" /> Enable shutdown schedule
+              </label>
+            </div>
+            <div class="form-row">
+              <div class="form-group"><label>Shutdown</label><input type="time" value="23:00" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+              <div class="form-group"><label>Wake</label><input type="time" value="07:00" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            </div>
+            <div class="form-group"><label>UPS action</label>
+              <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                <option selected>Immediate safe shutdown</option>
+                <option>Wait 5 minutes then shutdown</option>
+                <option>Shutdown at 15% battery</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="showToast('Power schedule saved.','success')">Save</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Notifications</h3></div></div>
+            <div class="form-group"><label>Email address</label><input type="email" value="admin@forgenas.local" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <div class="form-group"><label>Alert severity</label>
+              <select style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0">
+                <option selected>All alerts (info + warning + error)</option>
+                <option>Warnings and errors only</option>
+                <option>Errors only</option>
+                <option>Disabled</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:13px"><input type="checkbox" checked onchange="showToast('Webhook setting updated.','success')" /> Send critical alerts via webhook</label>
+            </div>
+            <button class="btn btn-primary" onclick="showToast('Notification settings saved.','success')">Save</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>NTP Configuration</h3></div></div>
+            <div class="form-group"><label>Time servers</label><input type="text" value="pool.ntp.org, time.google.com" style="width:100%;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 14px var(--font);outline:0" /></div>
+            <div class="form-group">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:13px"><input type="checkbox" checked onchange="showToast('NTP setting updated.','success')" /> Use local hardware clock as fallback</label>
+            </div>
+            <button class="btn btn-primary" onclick="showToast('NTP settings saved.','success')">Save</button>
+          </div>
+
+          <div class="panel pad">
+            <div class="section-head"><div><h3>Hardware Information</h3></div></div>
+            <div class="tasks" style="margin-top:4px">
+              <div class="task"><div><h4>CPU</h4><p>Intel Xeon E-2388G, 8 cores / 16 threads</p></div><span class="status ok">42&deg;C</span></div>
+              <div class="task"><div><h4>Memory</h4><p>64 GB ECC DDR4-3200 (4 &times; 16 GB)</p></div><span class="status ok">44% used</span></div>
+              <div class="task"><div><h4>System disk</h4><p>2 &times; 480 GB NVMe mirror (boot pool)</p></div><span class="status ok">Healthy</span></div>
+              <div class="task"><div><h4>ForgeOS version</h4><p>1.0.0 (build 2026-05-14), Linux 6.8.12</p></div><span class="chip">Current</span></div>
+            </div>
+          </div>
+
+          <div class="panel pad" style="border-color:var(--danger)">
+            <div class="section-head"><div><h3>Danger Zone</h3></div></div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <button class="btn btn-secondary" onclick="showToast('System will reboot in 30 seconds.','success')">Reboot System</button>
+              <button class="btn btn-secondary" onclick="showToast('System will shut down.','success')">Shut Down</button>
+              <button class="btn btn-danger" onclick="showToast('Factory reset requires confirmation.','error')">Factory Reset</button>
+            </div>
+          </div>
+        </div>
+      </div><!-- /page-settings -->
+
+    </main>
+  </div>
+
+  <!-- ── Modal: Create Share ── -->
+  <div class="modal-overlay" id="modal-share">
+    <div class="modal" role="dialog" aria-labelledby="share-title">
+      <div class="modal-header">
+        <h2 id="share-title">Create Share</h2>
+        <button class="modal-close" data-close="modal-share">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Share name</label>
+            <input type="text" placeholder="e.g. Projects, Media, Backups" id="shareNameInput" />
+          </div>
+          <div class="form-group">
+            <label>Protocol</label>
+            <select id="shareProtocolInput">
+              <option value="SMB">SMB (Windows)</option>
+              <option value="NFS">NFS (Linux)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Path</label>
+          <input type="text" placeholder="/volume1/shares/projects" />
+          <span class="hint">Absolute path on pool. Directory created if needed.</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Owner / Group</label>
+            <input type="text" placeholder="staff:staff" />
+          </div>
+          <div class="form-group">
+            <label>Quota</label>
+            <select>
+              <option value="none">No quota</option>
+              <option value="100GB">100 GB</option>
+              <option value="500GB">500 GB</option>
+              <option value="1TB">1 TB</option>
+              <option value="5TB">5 TB</option>
+              <option value="10TB">10 TB</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Permissions</label>
+          <div style="display:flex;gap:16px;padding:8px 0">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="radio" name="sharePerm" value="rw" checked /> Read / Write</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="radio" name="sharePerm" value="ro" /> Read Only</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="radio" name="sharePerm" value="deny" /> Deny</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-share">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleShare()">Create Share</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: Run Scrub ── -->
+  <div class="modal-overlay" id="modal-scrub">
+    <div class="modal" role="dialog" aria-labelledby="scrub-title">
+      <div class="modal-header">
+        <h2 id="scrub-title">Run Scrub</h2>
+        <button class="modal-close" data-close="modal-scrub">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-group">
+          <label>Pool</label>
+          <select id="scrubPoolSelect">
+            <option value="main-pool">main-pool (RAIDZ2, 8 disks)</option>
+            <option value="fast-pool">fast-pool (SSD mirror)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="scrubPrioritySelect">
+            <option value="low">Low (background, no I/O impact)</option>
+            <option value="normal" selected>Normal (balanced)</option>
+            <option value="high">High (reserve bandwidth)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Schedule</label>
+          <div style="display:flex;gap:20px;padding:8px 0">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="radio" name="scrubSchedule" value="now" checked /> Run now</label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="radio" name="scrubSchedule" value="scheduled" /> Schedule</label>
+          </div>
+        </div>
+        <div class="form-group" id="scrubScheduleFields" style="display:none">
+          <div class="form-row">
+            <div class="form-group"><label>Day</label><select><option>Sunday</option><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option></select></div>
+            <div class="form-group"><label>Time</label><input type="time" value="02:00" /></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-scrub">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleScrub()">Start Scrub</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: Create Snapshot ── -->
+  <div class="modal-overlay" id="modal-snapshot">
+    <div class="modal" role="dialog" aria-labelledby="snap-title">
+      <div class="modal-header">
+        <h2 id="snap-title">Create LHSR Snapshot</h2>
+        <button class="modal-close" data-close="modal-snapshot">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Volume / Dataset</label>
+            <select id="snapVolSelect">
+              <option value="main-data">main-pool / main-data</option>
+              <option value="vm-store">fast-pool / vm-store</option>
+              <option value="config">System config</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Name</label>
+            <input type="text" placeholder="manual-2026-05-24" id="snapNameInput" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea placeholder="Why this snapshot is being created"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Retention</label>
+            <select>
+              <option value="7">7 snapshots</option>
+              <option value="14">14 snapshots</option>
+              <option value="30" selected>30 snapshots</option>
+              <option value="0">Forever (manual)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select>
+              <option value="filesystem">Filesystem snapshot</option>
+              <option value="replication">Replication checkpoint</option>
+              <option value="app-consistent">Application-consistent</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-snapshot">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleSnapshot()">Create Snapshot</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: Shell ── -->
+  <div class="modal-overlay" id="modal-shell">
+    <div class="modal" role="dialog" aria-labelledby="shell-title" style="width:min(740px,calc(100vw-40px))">
+      <div class="modal-header">
+        <h2 id="shell-title">Terminal</h2>
+        <button class="modal-close" data-close="modal-shell">&times;</button>
+      </div>
+      <div style="background:#0d1117;border-radius:16px;padding:16px;font-family:'JetBrains Mono','Cascadia Code','Fira Code',monospace;font-size:13px;line-height:1.6;color:#e6edf3;min-height:280px;max-height:420px;overflow-y:auto;white-space:pre-wrap" id="terminalOutput">
+<span style="color:#8b9495">Last login: Sun May 24 09:14:22 2026 from 192.168.1.100</span>
+<span style="color:#3fb950">admin@forgenas</span><span style="color:#8b9495">:~$</span> <span id="terminalCursor">|</span>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <input type="text" id="terminalInput" placeholder="Type a command and press Enter..." style="flex:1;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--input-bg);color:var(--text);font:500 13px 'JetBrains Mono','Fira Code',monospace;outline:0" autocomplete="off" />
+        <button class="btn btn-primary" id="terminalSend">Run</button>
+        <button class="btn btn-secondary" id="terminalClear">Clear</button>
+      </div>
+      <div class="modal-footer" style="border-top:0;margin-top:8px;padding-top:0">
+        <span style="color:var(--muted);font-size:11px">Commands are simulated for preview. Real execution will be wired to the NAS shell.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Modal: Add User ── -->
+  <div class="modal-overlay" id="modal-user">
+    <div class="modal" role="dialog" aria-labelledby="user-title">
+      <div class="modal-header">
+        <h2 id="user-title">Add User</h2>
+        <button class="modal-close" data-close="modal-user">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Username</label>
+            <input type="text" placeholder="jdoe" id="userNameInput" />
+          </div>
+          <div class="form-group">
+            <label>Full name</label>
+            <input type="text" placeholder="Jane Doe" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" placeholder="Min. 12 characters" />
+          </div>
+          <div class="form-group">
+            <label>Primary group</label>
+            <select>
+              <option value="staff">Staff</option>
+              <option value="media">Media</option>
+              <option value="admins">Admins</option>
+              <option value="guests">Guests</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Share access</label>
+          <div style="display:grid;gap:8px;padding:6px 0">
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600"><input type="checkbox" checked /> Clients (Read/Write)</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600"><input type="checkbox" /> Media Archive (Read)</label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600"><input type="checkbox" checked /> Home Directory</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:13px"><input type="checkbox" checked /> Require two-factor authentication</label>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-user">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleAddUser()">Create User</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: Settings / Hostname ── -->
+  <div class="modal-overlay" id="modal-hostname">
+    <div class="modal" role="dialog" aria-labelledby="host-title">
+      <div class="modal-header">
+        <h2 id="host-title">System Identity</h2>
+        <button class="modal-close" data-close="modal-hostname">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-group">
+          <label>Hostname</label>
+          <input type="text" value="forgenas-primary" id="hostnameInput" />
+          <span class="hint">Changes apply after reboot.</span>
+        </div>
+        <div class="form-group">
+          <label>Domain</label>
+          <input type="text" value="local" />
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-hostname">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleHostname()">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: Network Interface ── -->
+  <div class="modal-overlay" id="modal-network">
+    <div class="modal" role="dialog" aria-labelledby="net-title">
+      <div class="modal-header">
+        <h2 id="net-title">Configure Interface</h2>
+        <button class="modal-close" data-close="modal-network">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-group">
+          <label>Interface</label>
+          <select>
+            <option value="bond0">bond0 (Primary LACP)</option>
+            <option value="bond1">bond1 (Failover)</option>
+            <option value="eth0">eth0 (Direct)</option>
+            <option value="eth1">eth1 (Direct)</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Configuration</label>
+            <select id="netConfigMode">
+              <option value="dhcp">DHCP</option>
+              <option value="static" selected>Static</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>MTU</label>
+            <input type="number" value="9000" min="1280" max="9000" />
+            <span class="hint">Jumbo frames (1500&ndash;9000)</span>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>IP Address</label>
+            <input type="text" value="10.28.1.100" placeholder="192.168.1.100" />
+          </div>
+          <div class="form-group">
+            <label>Netmask</label>
+            <select>
+              <option value="24">255.255.255.0 (/24)</option>
+              <option value="23">255.255.254.0 (/23)</option>
+              <option value="16">255.255.0.0 (/16)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Gateway</label>
+          <input type="text" value="10.28.1.1" />
+        </div>
+        <div class="form-group">
+          <label>DNS Servers</label>
+          <input type="text" value="1.1.1.1, 8.8.8.8" />
+          <span class="hint">Comma-separated list</span>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-network">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleNetwork()">Apply</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: Security Settings ── -->
+  <div class="modal-overlay" id="modal-security">
+    <div class="modal" role="dialog" aria-labelledby="sec-title">
+      <div class="modal-header">
+        <h2 id="sec-title">Security Settings</h2>
+        <button class="modal-close" data-close="modal-security">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+            <input type="checkbox" checked id="sec2fa" /> Require two-factor authentication
+          </label>
+          <span class="hint" style="margin-left:28px;">Applies to admin accounts and remote users</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Login protection</label>
+            <select id="secLoginProtection">
+              <option value="off">Off</option>
+              <option value="delay" selected>Progressive delay</option>
+              <option value="captcha">Captcha after 3 failures</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Session timeout</label>
+            <select>
+              <option value="15">15 minutes</option>
+              <option value="30" selected>30 minutes</option>
+              <option value="60">1 hour</option>
+              <option value="1440">24 hours</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Failed attempts before lock</label>
+            <select>
+              <option value="3">3</option>
+              <option value="5" selected>5</option>
+              <option value="10">10</option>
+              <option value="0">Never lock</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>SSH Port</label>
+            <input type="number" value="2222" min="22" max="65535" />
+            <span class="hint">Default: 22, change after initial setup</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Admin subnet allow-list</label>
+          <input type="text" value="10.28.1.0/24, 192.168.1.0/24" placeholder="CIDR ranges, comma separated" />
+          <span class="hint">Comma-separated CIDR ranges. Leave empty for any subnet.</span>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-security">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleSecurity()">Save Security Settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: Update Channel ── -->
+  <div class="modal-overlay" id="modal-update">
+    <div class="modal" role="dialog" aria-labelledby="update-title">
+      <div class="modal-header">
+        <h2 id="update-title">Update Settings</h2>
+        <button class="modal-close" data-close="modal-update">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-group">
+          <label>Update channel</label>
+          <select id="updateChannelSelect">
+            <option value="stable" selected>Stable &mdash; security patches only (recommended)</option>
+            <option value="beta">Beta &mdash; feature releases before wide rollout</option>
+            <option value="dev">Dev &mdash; daily builds, may be unstable</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+            <input type="checkbox" checked id="updateAutoPatch" /> Automatic security patches
+          </label>
+          <span class="hint" style="margin-left:28px;">Critical patches applied without manual approval</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Patch day</label>
+            <select>
+              <option value="daily">Daily</option>
+              <option value="sunday" selected>Sunday</option>
+              <option value="monday">Monday</option>
+              <option value="tuesday">Tuesday</option>
+              <option value="wednesday">Wednesday</option>
+              <option value="thursday">Thursday</option>
+              <option value="friday">Friday</option>
+              <option value="saturday">Saturday</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Patch time</label>
+            <input type="time" value="03:00" />
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+            <input type="checkbox" /> Auto-reboot after patch
+          </label>
+          <span class="hint" style="margin-left:28px;">Reboot during maintenance window if patch requires it</span>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-update">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleUpdate()">Save Update Settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: Power Schedule ── -->
+  <div class="modal-overlay" id="modal-power">
+    <div class="modal" role="dialog" aria-labelledby="power-title">
+      <div class="modal-header">
+        <h2 id="power-title">Power Schedule</h2>
+        <button class="modal-close" data-close="modal-power">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+            <input type="checkbox" id="powerScheduleEnable" /> Enable shutdown schedule
+          </label>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Shutdown time</label>
+            <input type="time" value="23:00" />
+          </div>
+          <div class="form-group">
+            <label>Wake time</label>
+            <input type="time" value="07:00" />
+            <span class="hint">Requires WOL-capable hardware</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Active nights</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;padding:8px 0">
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600"><input type="checkbox" checked /> Mon</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600"><input type="checkbox" checked /> Tue</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600"><input type="checkbox" checked /> Wed</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600"><input type="checkbox" checked /> Thu</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600"><input type="checkbox" checked /> Fri</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600"><input type="checkbox" /> Sat</label>
+            <label style="display:flex;align-items:center;gap:5px;font-size:13px;font-weight:600"><input type="checkbox" /> Sun</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>UPS behavior on power loss</label>
+          <select>
+            <option value="safe">Safe shutdown after 5 minutes on UPS</option>
+            <option value="immediate" selected>Immediate safe shutdown</option>
+            <option value="exhaust">Shutdown at 15% battery remaining</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-power">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handlePower()">Save Schedule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: New Backup Job ── -->
+  <div class="modal-overlay" id="modal-backup-job">
+    <div class="modal" role="dialog" aria-labelledby="backup-title">
+      <div class="modal-header">
+        <h2 id="backup-title">New Backup Job</h2>
+        <button class="modal-close" data-close="modal-backup-job">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-group">
+          <label>Job name</label>
+          <input type="text" placeholder="e.g. Home directories, VM images" id="backupJobName" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Source</label>
+            <select id="backupSourceSelect">
+              <option value="main-data">main-pool / main-data</option>
+              <option value="vm-store">fast-pool / vm-store</option>
+              <option value="homes">Home directories</option>
+              <option value="config">System configuration</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Destination</label>
+            <select>
+              <option value="local">Local LHSR snapshot</option>
+              <option value="remote">Remote replication target</option>
+              <option value="external">External USB / eSATA</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Schedule</label>
+            <select>
+              <option value="hourly">Hourly</option>
+              <option value="daily" selected>Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="custom">Custom cron</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Retention</label>
+            <select>
+              <option value="7">7 versions</option>
+              <option value="14">14 versions</option>
+              <option value="30" selected>30 versions</option>
+              <option value="90">90 versions</option>
+              <option value="0">Keep all</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+            <input type="checkbox" checked /> Encrypt backup
+          </label>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-weight:600;font-size:14px">
+            <input type="checkbox" checked /> Enable LHSR self-heal integration
+          </label>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-backup-job">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleBackupJob()">Create Job</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Modal: KTC_Mail Server ── -->
+  <div class="modal-overlay" id="modal-mail">
+    <div class="modal" role="dialog" aria-labelledby="mail-title" style="width:min(560px,calc(100vw-40px))">
+      <div class="modal-header">
+        <h2 id="mail-title">KTC_Mail / ForgeMail</h2>
+        <button class="modal-close" data-close="modal-mail">&times;</button>
+      </div>
+      <form onsubmit="return false">
+        <div class="form-group">
+          <label>Mail domain</label>
+          <input type="text" value="forgenas.local" id="mailDomainInput" />
+          <span class="hint">The domain part of your email addresses</span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>SMTP port</label>
+            <select>
+              <option value="25">25 (plain, unencrypted)</option>
+              <option value="465">465 (SMTPS, SSL)</option>
+              <option value="587" selected>587 (submission, STARTTLS)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>IMAP / POP3</label>
+            <select>
+              <option value="imap" selected>IMAP (keep mail on server)</option>
+              <option value="pop3">POP3 (download and delete)</option>
+              <option value="both">Both IMAP and POP3</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>TLS certificate</label>
+            <select>
+              <option value="auto" selected>Auto (Let&rsquo;s Encrypt)</option>
+              <option value="manual">Manual upload</option>
+              <option value="selfsigned">Self-signed (testing only)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Max mailbox size</label>
+            <select>
+              <option value="1GB">1 GB</option>
+              <option value="5GB">5 GB</option>
+              <option value="10GB" selected>10 GB</option>
+              <option value="unlimited">Unlimited</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:14px;padding:6px 0"><input type="checkbox" checked /> ClamAV antivirus scanning</label>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:14px;padding:6px 0"><input type="checkbox" checked /> Rspamd spam filtering</label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Max outbound rate (per hour)</label>
+          <select>
+            <option value="100">100 messages</option>
+            <option value="500">500 messages</option>
+            <option value="2000" selected>2,000 messages</option>
+            <option value="unlimited">Unlimited</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-close="modal-mail">Cancel</button>
+          <button class="btn btn-primary" type="button" onclick="handleMailConfig()">Save Mail Settings</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /* ── Theme System ── */
+    (function() {
+      const stored = localStorage.getItem('forgeos-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      let theme = stored || (prefersDark ? 'dark' : 'light');
+      applyTheme(theme);
+
+      document.getElementById('themeToggle').addEventListener('click', function() {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+        localStorage.setItem('forgeos-theme', next);
+      });
+
+      function applyTheme(t) {
+        document.documentElement.setAttribute('data-theme', t);
+        const sun = document.querySelector('.sun-icon');
+        const moon = document.querySelector('.moon-icon');
+        if (sun && moon) {
+          sun.style.display = (t === 'dark') ? 'none' : 'block';
+          moon.style.display = (t === 'dark') ? 'block' : 'none';
+        }
+      }
+    })();
+
+    /* ── Page Switcher ── */
+    // Router: map page name → show/hide. Uses history.pushState to avoid
+    // scroll conflicts with old section IDs that live inside #page-dashboard.
+    function switchPage(page) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      const target = document.getElementById('page-' + page);
+      if (target) target.classList.add('active');
+      document.querySelectorAll('.nav a').forEach(a => {
+        a.classList.toggle('active', a.dataset.page === page);
+      });
+      document.querySelector('.sidebar')?.classList.remove('open');
+    }
+
+    // Nav clicks: pushState (no scroll), then switch
+    document.querySelectorAll('.nav a[data-page]').forEach(a => {
+      a.addEventListener('click', function(e) {
+        e.preventDefault();
+        const page = this.dataset.page;
+        if (page) { history.pushState(null, '', '#' + page); switchPage(page); }
+      });
+    });
+
+    // Hub-card clicks in Settings page
+    document.querySelectorAll('.hub-card[data-page]').forEach(card => {
+      card.addEventListener('click', function(e) {
+        e.preventDefault();
+        const page = this.dataset.page;
+        if (page) { history.pushState(null, '', '#' + page); switchPage(page); }
+      });
+    });
+
+    // Browser back/forward
+    window.addEventListener('popstate', function() {
+      const page = location.hash.slice(1) || 'dashboard';
+      switchPage(page);
+    });
+
+    // Initial page
+    (function() {
+      const page = location.hash.slice(1) || 'dashboard';
+      if (!location.hash) history.replaceState(null, '', '#dashboard');
+      switchPage(page);
+    })();
+
+    /* ── Mobile sidebar ── */
+    document.querySelector('.mobile-menu')?.addEventListener('click', function() {
+      document.querySelector('.sidebar')?.classList.toggle('open');
+    });
+
+    /* ── Modal System ── */
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+    }
+
+    // Quick action cards open modals
+    document.querySelectorAll('[data-modal]').forEach(el => {
+      el.addEventListener('click', function() {
+        openModal('modal-' + this.getAttribute('data-modal'));
+      });
+    });
+
+    // Close buttons
+    document.querySelectorAll('[data-close]').forEach(el => {
+      el.addEventListener('click', function() {
+        closeModal(this.getAttribute('data-close'));
+      });
+    });
+
+    // Backdrop click closes
+    document.querySelectorAll('.modal-overlay').forEach(el => {
+      el.addEventListener('click', function(e) {
+        if (e.target === this) closeModal(this.id);
+      });
+    });
+
+    // Escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay.open').forEach(el => closeModal(el.id));
+      }
+    });
+
+    // Specific trigger buttons
+    document.getElementById('newShareBtn')?.addEventListener('click', function() {
+      openModal('modal-share');
+    });
+    document.getElementById('addUserBtn')?.addEventListener('click', function() {
+      openModal('modal-user');
+    });
+    document.getElementById('terminalBtn')?.addEventListener('click', function() {
+      openModal('modal-shell');
+    });
+    document.getElementById('settingsHostnameBtn')?.addEventListener('click', function() {
+      openModal('modal-hostname');
+    });
+
+    // Scrub schedule radio toggle
+    document.querySelectorAll('[name="scrubSchedule"]').forEach(radio => {
+      radio.addEventListener('change', function() {
+        document.getElementById('scrubScheduleFields').style.display =
+          this.value === 'scheduled' ? 'block' : 'none';
+      });
+    });
+
+    /* ── Toast ── */
+    function showToast(msg, type) {
+      const old = document.querySelector('.toast');
+      if (old) old.remove();
+      const el = document.createElement('div');
+      el.className = 'toast ' + (type || 'success');
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(() => { if (el.parentNode) el.remove(); }, 3000);
+    }
+
+    /* ── Form Handlers ── */
+    function handleShare() {
+      const name = document.getElementById('shareNameInput')?.value || 'Untitled';
+      closeModal('modal-share');
+      showToast('Share "' + name + '" created.', 'success');
+    }
+    function handleScrub() {
+      const pool = document.getElementById('scrubPoolSelect');
+      const name = pool ? pool.options[pool.selectedIndex].text : 'pool';
+      closeModal('modal-scrub');
+      showToast('Scrub started on ' + name + '.', 'success');
+    }
+    function handleSnapshot() {
+      const vol = document.getElementById('snapVolSelect');
+      const name = vol ? vol.options[vol.selectedIndex].text : 'volume';
+      closeModal('modal-snapshot');
+      showToast('Snapshot created for ' + name + '.', 'success');
+    }
+    function handleAddUser() {
+      const name = document.getElementById('userNameInput')?.value || 'Unknown';
+      closeModal('modal-user');
+      showToast('User "' + name + '" created.', 'success');
+    }
+    function handleHostname() {
+      const host = document.getElementById('hostnameInput')?.value || 'forgenas';
+      closeModal('modal-hostname');
+      showToast('Hostname updated to "' + host + '".', 'success');
+    }
+    function handleNetwork() {
+      closeModal('modal-network');
+      showToast('Network configuration applied to bond0.', 'success');
+    }
+    function handleSecurity() {
+      const mode = document.getElementById('secLoginProtection');
+      const label = mode ? ' with ' + mode.options[mode.selectedIndex].text : '';
+      closeModal('modal-security');
+      showToast('Security settings saved' + label + '.', 'success');
+    }
+    function handleUpdate() {
+      const ch = document.getElementById('updateChannelSelect');
+      const channel = ch ? ch.options[ch.selectedIndex].text.split(' —')[0] : 'Stable';
+      closeModal('modal-update');
+      showToast('Update channel set to ' + channel + '.', 'success');
+    }
+    function handlePower() {
+      const enabled = document.getElementById('powerScheduleEnable')?.checked;
+      closeModal('modal-power');
+      showToast(enabled ? 'Power schedule saved.' : 'Power schedule disabled.', 'success');
+    }
+    function handleBackupJob() {
+      const name = document.getElementById('backupJobName')?.value || 'Backup job';
+      closeModal('modal-backup-job');
+      showToast('Backup job "' + name + '" created.', 'success');
+    }
+    function handleMailConfig() {
+      const domain = document.getElementById('mailDomainInput')?.value || 'forgenas.local';
+      closeModal('modal-mail');
+      showToast('Mail settings saved for ' + domain + '.', 'success');
+    }
+    function handleSettingsHostname() {
+      const el = document.getElementById('settingsHostnameInput');
+      const host = el?.value || 'forgenas-primary';
+      showToast('Hostname updated to "' + host + '". Will apply after reboot.', 'success');
+    }
+
+    /* ── Terminal ── */
+    const terminalCommands = {
+      'help': 'Available commands:\n  help        Show this message\n  ls          List directory contents\n  df -h       Show disk usage\n  zpool list  Show pool status\n  top         Show system processes\n  uptime      Show system uptime\n  exit        Close terminal',
+      'ls': 'Documents  Downloads  Photos  Projects  scripts  shares',
+      'df -h': 'Filesystem      Size  Used  Avail  Use%  Mounted on\nmain-pool      26T   19T   7.3T   72%  /volume1\nfast-pool      6.0T  3.1T  2.9T   52%  /volume2\nssd-cache      2.0T  1.2T  800G   60%  /cache',
+      'zpool list': 'NAME         SIZE  ALLOC  FREE  HEALTH  ALTROOT\nmain-pool    32T   23T   9T     ONLINE   -\nfast-pool    4T    1.5T  2.5T   ONLINE   -',
+      'uptime': ' 09:14:22 up 28 days, 14:22, 1 user, load average: 0.31, 0.28, 0.22',
+      'top': 'top - 09:14:22 up 28 days, 1 user, load: 0.31\nTasks: 187 total, 1 running, 186 sleeping\nMem:  64G total, 28.1G used, 35.9G free\nSwap: 8G total, 0 used',
+    };
+    let terminalHistory = [], historyIndex = -1;
+
+    function runTerminalCommand(cmd) {
+      const out = document.getElementById('terminalOutput');
+      const trimmed = cmd.trim().toLowerCase();
+      if (trimmed === 'exit' || trimmed === 'quit') {
+        closeModal('modal-shell');
+        showToast('Terminal session ended.', 'success');
+        return;
+      }
+      if (trimmed === 'clear') {
+        out.innerHTML = '';
+        appendPrompt();
+        return;
+      }
+      let result = 'Command not found. Type "help" for available commands.';
+      for (const [key, val] of Object.entries(terminalCommands)) {
+        if (trimmed === key) { result = val; break; }
+      }
+      const line = document.createElement('div');
+      line.innerHTML = '<span style="color:#3fb950">admin@forgenas</span><span style="color:#8b9495">:~$</span> ' + escapeHtml(cmd.trim());
+      out.appendChild(line);
+      const res = document.createElement('div');
+      res.innerHTML = result.replace(/\n/g, '<br>');
+      res.style.color = '#c9d1d9';
+      res.style.marginBottom = '8px';
+      out.appendChild(res);
+      appendPrompt();
+      out.scrollTop = out.scrollHeight;
+    }
+
+    function appendPrompt() {
+      const out = document.getElementById('terminalOutput');
+      const p = document.createElement('div');
+      p.innerHTML = '<span style="color:#3fb950">admin@forgenas</span><span style="color:#8b9495">:~$</span> <span id="terminalCursor">|</span>';
+      out.appendChild(p);
+    }
+
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    document.getElementById('terminalSend')?.addEventListener('click', function() {
+      const input = document.getElementById('terminalInput');
+      if (input.value.trim()) {
+        terminalHistory.push(input.value.trim());
+        historyIndex = terminalHistory.length;
+        runTerminalCommand(input.value);
+        input.value = '';
+      }
+    });
+
+    document.getElementById('terminalInput')?.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        document.getElementById('terminalSend').click();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (historyIndex > 0) {
+          historyIndex--;
+          this.value = terminalHistory[historyIndex];
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (historyIndex < terminalHistory.length - 1) {
+          historyIndex++;
+          this.value = terminalHistory[historyIndex];
+        } else {
+          historyIndex = terminalHistory.length;
+          this.value = '';
+        }
+      }
+    });
+
+    document.getElementById('terminalClear')?.addEventListener('click', function() {
+      document.getElementById('terminalOutput').innerHTML = '';
+      appendPrompt();
+      document.getElementById('terminalInput').value = '';
+    });
+  </script>
+</body>
+</html>

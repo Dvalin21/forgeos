@@ -199,6 +199,172 @@ window.forgeOS = (() => {
     hideModal('modal-terminal');
   }
 
+  // ─── Modal Form Handlers ───
+
+  function _submitAndToast(path, body, modalId, successMsg) {
+    return api(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then(function (res) {
+      if (res && (res.ok || res.task_id)) {
+        showToast(successMsg || 'Operation completed', 'success');
+        if (modalId) hideModal(modalId);
+        refreshDashboard();
+        return res;
+      }
+      showToast(res?.detail || 'Operation failed', 'error');
+      return null;
+    });
+  }
+
+  async function createSnapshot() {
+    const nameEl = document.getElementById('snap-name');
+    const srcEl  = document.getElementById('snap-source');
+    const name   = nameEl ? nameEl.value.trim() : '';
+    const pool   = srcEl  ? srcEl.value : '';
+    if (!name) { showToast('Please enter a snapshot name.', 'warning'); return; }
+    var res = await _submitAndToast('/api/storage/snapshot',
+      { pool: pool, description: name }, 'modal-create-snapshot',
+      'Snapshot created');
+    if (res && res.task_id) pollTask(res.task_id);
+  }
+
+  async function createShare() {
+    const nameEl = document.getElementById('share-name');
+    const pathEl = document.getElementById('share-path');
+    const typeEl = document.getElementById('share-type');
+    const name   = nameEl ? nameEl.value.trim() : '';
+    const path   = pathEl ? pathEl.value.trim() : '';
+    const type   = typeEl ? typeEl.value : 'standard';
+    if (!name || !path) { showToast('Share name and path are required.', 'warning'); return; }
+    _submitAndToast('/api/samba/share',
+      { name: name, path: path, type: type, writable: true },
+      'modal-share', 'Share created');
+  }
+
+  async function createVhost() {
+    const domainEl = document.getElementById('vhost-domain');
+    const targetEl = document.getElementById('vhost-target');
+    const tlsEl    = document.getElementById('vhost-tls');
+    const domain   = domainEl ? domainEl.value.trim() : '';
+    const target   = targetEl ? targetEl.value.trim() : '';
+    const tls      = tlsEl    ? tlsEl.value : 'acme';
+    if (!domain || !target) { showToast('Domain and target are required.', 'warning'); return; }
+    var port = 80;
+    try {
+      var url = new URL(target);
+      port = parseInt(url.port) || (url.protocol === 'https:' ? 443 : 80);
+    } catch (e) {
+      var parts = target.split(':');
+      port = parts.length > 1 ? parseInt(parts[parts.length - 1]) : 80;
+      if (isNaN(port)) port = 80;
+    }
+    var name = domain.replace(/[^a-z0-9-]/g, '').toLowerCase().slice(0, 64);
+    _submitAndToast('/api/nginx/vhost',
+      { name: name, domain: domain, port: port, tls: tls, websocket: false, auth: 'none' },
+      'modal-vhost', 'Virtual host created');
+  }
+
+  async function createPool() {
+    const nameEl  = document.getElementById('pool-name');
+    const levelEl = document.getElementById('pool-level');
+    const name    = nameEl ? nameEl.value.trim() : '';
+    const level   = levelEl ? parseInt(levelEl.value) : 5;
+    if (!name) { showToast('Please enter a pool name.', 'warning'); return; }
+    var drives = [];
+    document.querySelectorAll('#modal-create-pool [data-device]:checked').forEach(function (cb) {
+      drives.push(cb.getAttribute('data-device'));
+    });
+    if (drives.length < 2) { showToast('Select at least 2 drives.', 'warning'); return; }
+    _submitAndToast('/api/storage/pool',
+      { name: name, level: level, drives: drives },
+      'modal-create-pool', 'Pool created');
+  }
+
+  async function addDrive() {
+    var devEl  = document.getElementById('drive-device');
+    var poolEl = document.getElementById('drive-pool');
+    var device = devEl  ? devEl.value : '';
+    var pool   = poolEl ? poolEl.value : '';
+    if (!device || !pool) { showToast('Device and pool are required.', 'warning'); return; }
+    _submitAndToast('/api/storage/drive',
+      { device: device, pool: pool },
+      'modal-add-drive', 'Drive added to pool');
+  }
+
+  async function runBackup() {
+    const srcEl  = document.getElementById('backup-source');
+    const dstEl  = document.getElementById('backup-dest');
+    const source = srcEl ? srcEl.value : '';
+    const dest   = dstEl ? dstEl.value : '';
+    if (!source) { showConfirm('Validation', 'Please select a backup source.'); return; }
+    const res = await api('/api/backup/borg/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'web-backup', source, destination: dest }),
+    });
+    if (res && res.task_id) {
+      showToast('Backup started — tracking progress...', 'info', 4000);
+      pollTask(res.task_id);
+      hideModal('modal-backup');
+    } else {
+      showConfirm('Error', res?.detail || 'Backup failed to start');
+    }
+  }
+
+  // ─── Toast Notifications ───
+
+  function showToast(msg, type, duration) {
+    type = type || 'info';
+    duration = duration || 5000;
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const icons = { success: '✓', error: '✗', info: 'ⓘ', warning: '⚠' };
+    const el = document.createElement('div');
+    el.className = 'toast toast-' + type;
+    el.innerHTML =
+      '<span class="toast-icon">' + (icons[type] || 'ⓘ') + '</span>' +
+      '<span class="toast-msg">' + escapeHtml(msg) + '</span>' +
+      '<button class="toast-close" onclick="this.parentElement.classList.add(\'toast-out\');setTimeout(function(){this.parentElement.remove()}.bind(this),200)">×</button>';
+    container.appendChild(el);
+    setTimeout(function () {
+      el.classList.add('toast-out');
+      setTimeout(function () { if (el.parentNode) el.remove(); }, 200);
+    }, duration);
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // ─── Async Task Poller ───
+
+  var _taskPollers = {};
+
+  function pollTask(taskId, onDone, onFail, interval) {
+    interval = interval || 3000;
+    if (_taskPollers[taskId]) return;
+    var poller = setInterval(async function () {
+      var res = await api('/api/backup/task/' + taskId);
+      if (!res) return; // still running or 404
+      clearInterval(poller);
+      delete _taskPollers[taskId];
+      var msg = (res.tool ? res.tool + ' ' : '') + (res.action || 'task');
+      if (res.status === 'done') {
+        showToast(msg + ' completed', 'success');
+        if (typeof onDone === 'function') onDone(res);
+      } else if (res.status === 'failed') {
+        showToast(msg + ' failed: ' + (res.error || 'unknown error'), 'error');
+        if (typeof onFail === 'function') onFail(res);
+      }
+      refreshDashboard();
+    }, interval);
+    _taskPollers[taskId] = poller;
+  }
+
   // ─── API Client (Auth-Aware) ───
 
   async function api(path, options) {
@@ -326,7 +492,10 @@ window.forgeOS = (() => {
     dispatch, listen, openWindow, init,
     showModal, hideModal, showConfirm,
     openTerminal, closeTerminal,
+    createSnapshot, createShare, createVhost,
+    createPool, addDrive, runBackup,
     api, refreshDashboard,
+    showToast, pollTask,
     login, logout, getToken, checkAuth,
   };
 })();

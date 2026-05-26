@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#050812"/>
+      <stop offset="50%"  stop-color="#080d1c"/>
+      <stop offset="100%" stop-color="#0a0e1a"/>
+    </linearGradient>
+    <filter id="blurXl"><feGaussianBlur stdDeviation="100"/></filter>
+    <filter id="blurLg"><feGaussianBlur stdDeviation="55"/></filter>
+    <filter id="blurMd"><feGaussianBlur stdDeviation="28"/></filter>
+    <filter id="blurSm"><feGaussianBlur stdDeviation="10"/></filter>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <!-- Deep atmospheric base -->
+  <g filter="url(#blurXl)">
+    <ellipse cx="600" cy="500" rx="500" ry="400" fill="#003a5c" opacity="0.05"/>
+    <ellipse cx="1400" cy="600" rx="450" ry="350" fill="#002040" opacity="0.05"/>
+  </g>
+  <!-- Flowing strata-like bands -->
+  <g filter="url(#blurLg)">
+    <path d="M-100,300 C200,250 500,350 800,280 C1100,210 1400,320 1700,260 C1900,220 2000,280 2000,400 L2000,0 L-100,0 Z"
+          fill="#005080" opacity="0.04"/>
+    <path d="M-100,700 C300,600 600,750 900,680 C1200,610 1500,720 1800,650 C1950,610 2000,650 2000,800 L2000,1080 L-100,1080 Z"
+          fill="#002850" opacity="0.05"/>
+    <!-- Organic intersecting forms -->
+    <ellipse cx="500" cy="400" rx="280" ry="160" fill="#0070a0" opacity="0.03"/>
+    <ellipse cx="1500" cy="650" rx="250" ry="150" fill="#003a60" opacity="0.04"/>
+  </g>
+  <!-- Mid-level flow -->
+  <g filter="url(#blurMd)">
+    <path d="M-100,520 C400,450 800,570 1200,500 C1600,430 1800,480 2000,550"
+          fill="none" stroke="#0080b0" stroke-width="25" stroke-linecap="round" opacity="0.03"/>
+    <ellipse cx="1000" cy="500" rx="180" ry="100" fill="#0090c0" opacity="0.03"/>
+  </g>
+  <!-- Accent -->
+  <g filter="url(#blurSm)">
+    <ellipse cx="950" cy="480" rx="40" ry="25" fill="#00a8d0" opacity="0.04"/>
+  </g>
+</svg>
