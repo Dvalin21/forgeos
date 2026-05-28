@@ -162,6 +162,18 @@
     // Auto-refresh live data windows
     if (appName === 'docker') setTimeout(function() { window.ForgeOS.dockerRefresh(); }, 200);
     if (appName === 'lxc') setTimeout(function() { window.ForgeOS.lxcRefresh(); }, 200);
+    if (appName === 'backup') setTimeout(function() { window.ForgeOS.backupRefresh(); }, 200);
+    if (appName === 'auditlog') {
+      setTimeout(function() { ForgeOS._auditPageOffset = 0; ForgeOS.auditRefresh(); }, 200);
+      // Populate action filter dropdown
+      setTimeout(function() {
+        var sel = document.getElementById('audit-filter-action');
+        if (sel) {
+          var actions = ['backup.job.create','backup.job.update','backup.job.delete','backup.job.run','backup.borg.create','backup.restic.snapshot','backup.rclone.sync','docker.install','nginx.vhost.create','nginx.vhost.delete','nginx.config.update','nginx.reload','nginx.certbot','settings.update','auth.password.change','samba.share.create','samba.share.delete','samba.config.update','storage.pool.create','storage.drive.add','storage.snapshot.create'];
+          actions.forEach(function(a) { var o = document.createElement('option'); o.value = a; o.textContent = a; sel.appendChild(o); });
+        }
+      }, 300);
+    }
 
     // Setup dragging for new window
     setupDragForWindow(win);
@@ -205,6 +217,8 @@
       firewall: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Firewall</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">Firewall rules management coming soon...</p></div></div>',
       fail2ban: '<div style="padding:20px;"><h3 style="margin-bottom:16px;color:var(--text-primary);">Fail2ban</h3><div class="glass-card" style="padding:20px;"><p style="color:var(--text-secondary);">Intrusion detection logs coming soon...</p></div></div>',
        lxc: '<div style="padding:20px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;"><h3 style="color:var(--text-primary);">LXC Containers</h3><div style="display:flex; gap:8px;"><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-primary); cursor:pointer;" data-action="lxc-refresh">↻ Refresh</button><button class="btn" style="padding:6px 12px; border-radius:6px; border:1px solid var(--accent-primary); background:var(--accent-primary); color:#000; cursor:pointer; font-weight:600;" data-action="lxc-create">Create Container</button></div></div><div style="margin-bottom:12px; padding:8px 12px; background:var(--glass-bg); border-radius:8px; font-size:12px; color:var(--text-secondary);">LXD/LXC: <span style="color:var(--accent-success);">● Active</span> | Containers: <span id="lxc-count">4</span> | Running: <span id="lxc-running">2</span></div><div id="lxc-containers" style="display:flex; flex-direction:column; gap:8px;"><div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;"><div style="display:flex; align-items:center; gap:8px;"><span style="color:var(--accent-success);">●</span><span style="color:var(--text-primary); font-weight:500;">ubuntu-web</span><span style="font-size:11px; color:var(--text-secondary);">Ubuntu 22.04</span></div><div style="display:flex; gap:4px;"><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="lxc-action" data-container="ubuntu-web" data-name="stop">Stop</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="lxc-action" data-container="ubuntu-web" data-name="restart">Restart</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--accent-success); background:transparent; color:var(--accent-success); cursor:pointer;" data-action="open-terminal" data-type="lxc" data-container="ubuntu-web">Terminal</button></div></div><div style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--glass-bg); border:1px solid var(--glass-border); border-radius:8px;"><div style="display:flex; align-items:center; gap:8px;"><span style="color:var(--accent-warning);">○</span><span style="color:var(--text-primary); font-weight:500;">debian-db</span><span style="font-size:11px; color:var(--text-secondary);">Debian 12</span></div><div style="display:flex; gap:4px;"><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--accent-success); background:var(--accent-success); color:#000; cursor:pointer;" data-action="lxc-action" data-container="debian-db" data-name="start">Start</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--glass-border); background:var(--glass-bg); color:var(--text-secondary); cursor:pointer;" data-action="lxc-action" data-container="debian-db" data-name="restart">Restart</button><button class="btn" style="padding:4px 8px; font-size:11px; border-radius:4px; border:1px solid var(--accent-success); background:transparent; color:var(--accent-success); cursor:pointer;" data-action="open-terminal" data-type="lxc" data-container="debian-db">Terminal</button></div></div></div></div>'
+      backup: '<div id="backup-window" style="padding:20px;display:flex;flex-direction:column;height:100%;overflow:hidden;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-shrink:0;"><h3 style="color:var(--text-primary);margin:0;">Backup Scheduler</h3><div style="display:flex;gap:8px;"><button class="btn" style="padding:6px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-bg);color:var(--text-primary);cursor:pointer;" onclick="ForgeOS.backupRefresh()">\u21bb Refresh</button><button class="btn" style="padding:6px 12px;border-radius:6px;border:1px solid var(--accent-primary);background:var(--accent-primary);color:#000;cursor:pointer;font-weight:600;" onclick="ForgeOS.backupShowCreate()">+ New Job</button></div></div><div id="backup-status" style="margin-bottom:12px;padding:8px 12px;background:var(--glass-bg);border-radius:8px;font-size:12px;color:var(--text-secondary);flex-shrink:0;">Loading jobs...</div><div id="backup-job-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;"></div></div>',
+      auditlog: '<div id="audit-window" style="padding:20px;display:flex;flex-direction:column;height:100%;overflow:hidden;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-shrink:0;"><h3 style="color:var(--text-primary);margin:0;">Audit Log</h3><div style="display:flex;gap:8px;"><button class="btn" style="padding:6px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-bg);color:var(--text-primary);cursor:pointer;" onclick="ForgeOS.auditRefresh()">\u21bb Refresh</button></div></div><div style="display:flex;gap:8px;margin-bottom:12px;flex-shrink:0;flex-wrap:wrap;"><select id="audit-filter-action" class="search-input" style="width:160px;padding:6px 8px;" onchange="ForgeOS.auditRefresh()"><option value="">All actions</option></select><input id="audit-filter-who" type="text" class="search-input" style="width:160px;padding:6px 8px;" placeholder="Filter by user..." oninput="ForgeOS.auditRefresh()"><span id="audit-count" style="font-size:12px;color:var(--text-secondary);align-self:center;">0 entries</span></div><div id="audit-log-list" style="flex:1;overflow-y:auto;"></div><div style="display:flex;justify-content:center;gap:8px;padding-top:8px;flex-shrink:0;"><button class="btn" style="padding:4px 12px;font-size:11px;" onclick="ForgeOS.auditPage(-1)">\u2190 Prev</button><span id="audit-page" style="font-size:11px;color:var(--text-secondary);align-self:center;">Page 1</span><button class="btn" style="padding:4px 12px;font-size:11px;" onclick="ForgeOS.auditPage(1)">Next \u2192</button></div></div>'
     };
 
     return contents[appName] || '<div style="padding:20px;color:var(--text-muted);">Window content for ' + appName + ' coming soon...</div>';
@@ -230,7 +244,9 @@
       settings: 'Settings',
       firewall: 'Firewall',
       fail2ban: 'Fail2ban',
-       lxc: 'LXC'
+       lxc: 'LXC',
+      backup: 'Backup Scheduler',
+      auditlog: 'Audit Log'
     };
     return titles[appName] || appName;
   }
@@ -719,6 +735,229 @@
         '<\/script></body></html>'
       ].join(''));
       w.document.close();
+    },
+
+    // ── Backup Scheduler ──────────────────────────────────
+
+    backupRefresh: function() {
+      var listEl = document.getElementById('backup-job-list');
+      var statusEl = document.getElementById('backup-status');
+      var badgeEl = document.querySelector('[data-badge="backup-jobs"]');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">Loading jobs...</div>';
+
+      forgeosFetch('/api/backup/jobs').then(function(r) {
+        if (!r.ok) { listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-danger);font-size:13px;">Failed to load jobs</div>'; return; }
+        return r.json();
+      }).then(function(data) {
+        var jobs = data && data.jobs ? data.jobs : (Array.isArray(data) ? data : []);
+        if (badgeEl) badgeEl.textContent = jobs.length;
+
+        if (jobs.length === 0) {
+          listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">No backup jobs configured. Click "+ New Job" to create one.</div>';
+          if (statusEl) statusEl.textContent = '0 jobs configured';
+          return;
+        }
+
+        var enabled = jobs.filter(function(j) { return j.enabled !== false; }).length;
+        if (statusEl) statusEl.textContent = jobs.length + ' jobs (' + enabled + ' enabled)';
+
+        var html = '';
+        jobs.forEach(function(job) {
+          var name = job.name || job.id || 'Unnamed';
+          var tool = job.tool || 'unknown';
+          var schedule = job.schedule || 'manual';
+          var enabled = job.enabled !== false;
+          var lastRun = job.last_run_ts ? new Date(job.last_run_ts * 1000).toLocaleString() : 'Never';
+          var lastStatus = job.last_status || '';
+          var statusBadge = enabled
+            ? '<span class="sidebar-badge success">ON</span>'
+            : '<span class="sidebar-badge">OFF</span>';
+          var runColor = lastStatus === 'done' ? 'var(--accent-success)' : (lastStatus === 'failed' ? 'var(--accent-danger)' : 'var(--text-muted)');
+
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:8px;">' +
+            '<div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">' +
+              '<span style="color:' + (enabled ? 'var(--accent-success)' : 'var(--text-muted)') + ';font-size:10px;">●</span>' +
+              '<div style="min-width:0;"><div style="color:var(--text-primary);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + name.replace(/"/g, '&quot;') + '</div>' +
+              '<div style="font-size:11px;color:var(--text-secondary);">' + tool + ' · ' + schedule + '</div></div>' +
+            '</div>' +
+            '<div style="text-align:right;margin-right:12px;flex-shrink:0;">' +
+              '<div style="font-size:11px;color:var(--text-secondary);">' + lastRun + '</div>' +
+              (lastStatus ? '<div style="font-size:10px;color:' + runColor + ';">' + lastStatus + '</div>' : '') +
+            '</div>' +
+            '<div style="display:flex;gap:4px;flex-shrink:0;">' +
+              '<button class="btn" style="padding:4px 8px;font-size:11px;border-radius:4px;border:1px solid var(--accent-primary);background:transparent;color:var(--accent-primary);cursor:pointer;" onclick="ForgeOS.backupRunJob(\'' + job.id + '\')">Run</button>' +
+              '<button class="btn" style="padding:4px 8px;font-size:11px;border-radius:4px;border:1px solid var(--glass-border);background:var(--glass-bg);color:var(--text-secondary);cursor:pointer;" onclick="ForgeOS.backupShowEdit(\'' + job.id + '\')">Edit</button>' +
+              '<button class="btn" style="padding:4px 8px;font-size:11px;border-radius:4px;border:1px solid var(--accent-danger);background:transparent;color:var(--accent-danger);cursor:pointer;" onclick="ForgeOS.backupDeleteJob(\'' + job.id + '\')">Del</button>' +
+            '</div>' +
+          '</div>';
+        });
+        listEl.innerHTML = html;
+      }).catch(function(e) {
+        console.error('Backup refresh error:', e);
+        listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-danger);font-size:13px;">Failed to load backup jobs.</div>';
+      });
+    },
+
+    backupShowCreate: function() {
+      var modal = document.getElementById('modal-backup-job');
+      if (modal) {
+        modal.querySelector('[data-job-id]') && modal.querySelector('[data-job-id]').removeAttribute('data-job-id');
+        modal.querySelector('h3') && (modal.querySelector('h3').textContent = 'Create Backup Job');
+        var btn = modal.querySelector('[data-action="save-backup-job"]');
+        if (btn) btn.textContent = 'Create Job';
+        document.getElementById('backup-job-name') && (document.getElementById('backup-job-name').value = '');
+        document.getElementById('backup-job-tool') && (document.getElementById('backup-job-tool').value = 'borg');
+        document.getElementById('backup-job-source') && (document.getElementById('backup-job-source').value = '["/srv/nas"]');
+        document.getElementById('backup-job-dest') && (document.getElementById('backup-job-dest').value = '/backup');
+        document.getElementById('backup-job-schedule') && (document.getElementById('backup-job-schedule').value = 'daily');
+        document.getElementById('backup-job-enabled') && (document.getElementById('backup-job-enabled').checked = true);
+        window.forgeOS.showModal('modal-backup-job');
+      }
+    },
+
+    backupShowEdit: function(jobId) {
+      forgeosFetch('/api/backup/jobs/' + jobId).then(function(r) { return r.ok ? r.json() : null; }).then(function(job) {
+        if (!job) { window.forgeOS.showToast('Job not found', 'danger'); return; }
+        var modal = document.getElementById('modal-backup-job');
+        if (!modal) return;
+        modal.setAttribute('data-job-id', jobId);
+        modal.querySelector('h3') && (modal.querySelector('h3').textContent = 'Edit Backup Job');
+        var btn = modal.querySelector('[data-action="save-backup-job"]');
+        if (btn) btn.textContent = 'Save Changes';
+        document.getElementById('backup-job-name') && (document.getElementById('backup-job-name').value = job.name || '');
+        document.getElementById('backup-job-tool') && (document.getElementById('backup-job-tool').value = job.tool || 'borg');
+        document.getElementById('backup-job-source') && (document.getElementById('backup-job-source').value = JSON.stringify(job.source || []));
+        document.getElementById('backup-job-dest') && (document.getElementById('backup-job-dest').value = job.destination || '');
+        document.getElementById('backup-job-schedule') && (document.getElementById('backup-job-schedule').value = job.schedule || 'daily');
+        document.getElementById('backup-job-enabled') && (document.getElementById('backup-job-enabled').checked = job.enabled !== false);
+        window.forgeOS.showModal('modal-backup-job');
+      });
+    },
+
+    backupSaveJob: function() {
+      var modal = document.getElementById('modal-backup-job');
+      if (!modal) return;
+      var jobId = modal.getAttribute('data-job-id');
+      var name = document.getElementById('backup-job-name') ? document.getElementById('backup-job-name').value.trim() : '';
+      if (!name) { window.forgeOS.showToast('Name is required', 'warning'); return; }
+      var tool = document.getElementById('backup-job-tool') ? document.getElementById('backup-job-tool').value : 'borg';
+      var sourceRaw = document.getElementById('backup-job-source') ? document.getElementById('backup-job-source').value : '[]';
+      var source = [];
+      try { source = JSON.parse(sourceRaw); } catch(e) { source = [sourceRaw]; }
+      var destination = document.getElementById('backup-job-dest') ? document.getElementById('backup-job-dest').value.trim() : '';
+      if (!destination) { window.forgeOS.showToast('Destination is required', 'warning'); return; }
+      var schedule = document.getElementById('backup-job-schedule') ? document.getElementById('backup-job-schedule').value : 'daily';
+      var enabled = document.getElementById('backup-job-enabled') ? document.getElementById('backup-job-enabled').checked : true;
+
+      var body = { name: name, tool: tool, source: source, destination: destination, schedule: schedule, enabled: enabled };
+      var method = jobId ? 'PUT' : 'POST';
+      var url = jobId ? '/api/backup/jobs/' + jobId : '/api/backup/jobs';
+      var label = jobId ? 'updated' : 'created';
+
+      forgeosFetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      }).then(function(r) {
+        if (!r.ok) { return r.json().then(function(d) { throw new Error(d.detail || 'Save failed'); }); }
+        window.forgeOS.hideModal('modal-backup-job');
+        window.forgeOS.showToast('Backup job "' + name + '" ' + label, 'success');
+        ForgeOS.backupRefresh();
+      }).catch(function(e) {
+        window.forgeOS.showToast('Error: ' + e.message, 'danger');
+      });
+    },
+
+    backupRunJob: function(jobId) {
+      if (!confirm('Run this backup job now?')) return;
+      forgeosFetch('/api/backup/jobs/' + jobId + '/run', { method: 'POST' }).then(function(r) {
+        if (!r.ok) { return r.json().then(function(d) { throw new Error(d.detail || 'Run failed'); }); }
+        window.forgeOS.showToast('Backup job started', 'success');
+        ForgeOS.backupRefresh();
+      }).catch(function(e) {
+        window.forgeOS.showToast('Error: ' + e.message, 'danger');
+      });
+    },
+
+    backupDeleteJob: function(jobId) {
+      if (!confirm('Delete this backup job? This cannot be undone.')) return;
+      forgeosFetch('/api/backup/jobs/' + jobId, { method: 'DELETE' }).then(function(r) {
+        if (!r.ok) { return r.json().then(function(d) { throw new Error(d.detail || 'Delete failed'); }); }
+        window.forgeOS.showToast('Backup job deleted', 'success');
+        ForgeOS.backupRefresh();
+      }).catch(function(e) {
+        window.forgeOS.showToast('Error: ' + e.message, 'danger');
+      });
+    },
+
+    // ── Audit Log ─────────────────────────────────────────
+
+    _auditPageOffset: 0,
+    _auditPageLimit: 50,
+
+    auditRefresh: function() {
+      var listEl = document.getElementById('audit-log-list');
+      var countEl = document.getElementById('audit-count');
+      var pageEl = document.getElementById('audit-page');
+      if (!listEl) return;
+
+      var action = document.getElementById('audit-filter-action') ? document.getElementById('audit-filter-action').value : '';
+      var who = document.getElementById('audit-filter-who') ? document.getElementById('audit-filter-who').value.trim() : '';
+
+      var params = '?limit=' + ForgeOS._auditPageLimit + '&offset=' + ForgeOS._auditPageOffset;
+      if (action) params += '&action=' + encodeURIComponent(action);
+      if (who) params += '&who=' + encodeURIComponent(who);
+
+      listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">Loading...</div>';
+
+      forgeosFetch('/api/audit' + params).then(function(r) {
+        if (!r.ok) { listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-danger);font-size:13px;">Failed to load audit log.</div>'; return; }
+        return r.json();
+      }).then(function(data) {
+        if (!data || !data.entries) {
+          listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">No data</div>';
+          return;
+        }
+        if (countEl) countEl.textContent = data.total + ' entries';
+        if (pageEl) pageEl.textContent = 'Page ' + (Math.floor(ForgeOS._auditPageOffset / ForgeOS._auditPageLimit) + 1);
+
+        if (data.entries.length === 0) {
+          listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);font-size:13px;">No audit entries found.</div>';
+          return;
+        }
+
+        var html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
+          '<thead><tr style="color:var(--text-secondary);border-bottom:1px solid var(--glass-border);">' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:500;">Time</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:500;">User</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:500;">Action</th>' +
+            '<th style="padding:6px 8px;text-align:center;font-weight:500;">Status</th>' +
+            '<th style="padding:6px 8px;text-align:left;font-weight:500;">Detail</th>' +
+          '</tr></thead><tbody>';
+
+        data.entries.forEach(function(entry) {
+          var statusColor = entry.status === 'success' ? 'var(--accent-success)' : (entry.status === 'failure' ? 'var(--accent-danger)' : 'var(--text-muted)');
+          html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">' +
+            '<td style="padding:6px 8px;color:var(--text-secondary);white-space:nowrap;">' + (entry.timestamp || '').replace('T', ' ') + '</td>' +
+            '<td style="padding:6px 8px;color:var(--text-primary);">' + (entry.who || '') + '</td>' +
+            '<td style="padding:6px 8px;color:var(--text-primary);">' + (entry.action || '') + '</td>' +
+            '<td style="padding:6px 8px;text-align:center;"><span style="color:' + statusColor + ';">' + (entry.status || '') + '</span></td>' +
+            '<td style="padding:6px 8px;color:var(--text-secondary);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (entry.detail || '').replace(/"/g, '&quot;') + '">' + (entry.detail || '') + '</td>' +
+          '</tr>';
+        });
+
+        html += '</tbody></table>';
+        listEl.innerHTML = html;
+      }).catch(function(e) {
+        console.error('Audit refresh error:', e);
+        listEl.innerHTML = '<div style="padding:30px;text-align:center;color:var(--accent-danger);font-size:13px;">Failed to load audit log.</div>';
+      });
+    },
+
+    auditPage: function(delta) {
+      ForgeOS._auditPageOffset = Math.max(0, ForgeOS._auditPageOffset + delta * ForgeOS._auditPageLimit);
+      ForgeOS.auditRefresh();
     }
   };
 
