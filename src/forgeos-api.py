@@ -19,6 +19,7 @@ Security:
 
 from typing import List
 import json
+import sqlite3
 import os
 import re
 import subprocess
@@ -94,6 +95,238 @@ _background_tasks: dict[str, dict] = {}
 _task_lock = threading.Lock()
 _TASK_TTL = 3600  # purge finished tasks after 1 hour
 _MAX_TASKS = 100
+_DATA_DIR = Path(os.environ.get("FORGEOS_DATA_DIR", "/var/lib/forgeos"))
+_TASKS_FILE = _DATA_DIR / "background-tasks.json"
+
+# ────────────────────────────────────────────────────────────
+# BACKUP JOB SCHEDULER
+#   Persist scheduled backup jobs to JSON. A background
+#   asyncio task (started in lifespan) checks every 60s
+#   whether any enabled jobs are due to run.
+# ────────────────────────────────────────────────────────────
+_backup_jobs: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
+_JOBS_FILE = _DATA_DIR / "backup-jobs.json"
+_AUDIT_FILE = _DATA_DIR / "audit-log.json"     # used by _migrate_from_json()
+_SCHEDULER_INTERVAL = 60  # check every 60 seconds
+
+# ────────────────────────────────────────────────────────────
+# SQLite PERSISTENCE LAYER
+#   Single DB replacing 3 JSON files (tasks, backup jobs, audit).
+#   In-memory dicts kept for hot task/job reads; audit queries
+#   go directly to SQLite. JSON files are migrated on first run.
+# ────────────────────────────────────────────────────────────
+_DB: sqlite3.Connection | None = None
+
+
+def _get_db() -> sqlite3.Connection:
+    """Get the shared SQLite connection (WAL mode, init once)."""
+    global _DB
+    if _DB is None:
+        db_path = _DATA_DIR / "forgeos.db"
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        _DB = sqlite3.connect(str(db_path), check_same_thread=False)
+        _DB.execute("PRAGMA journal_mode=WAL")
+        _DB.execute("PRAGMA foreign_keys=ON")
+        _init_schema()
+        _migrate_from_json()
+    return _DB
+
+
+def _init_schema() -> None:
+    """Create tables if they don't exist."""
+    conn = _get_db()
+    conn.executescript("""
+        PRAGMA user_version = 1;
+        CREATE TABLE IF NOT EXISTS tasks (
+            id        TEXT PRIMARY KEY,
+            tool      TEXT NOT NULL,
+            action    TEXT NOT NULL,
+            status    TEXT NOT NULL DEFAULT 'pending',
+            started_at REAL NOT NULL,
+            finished_at REAL,
+            result    TEXT,
+            error     TEXT,
+            job_id    TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS backup_jobs (
+            id          TEXT PRIMARY KEY,
+            name        TEXT NOT NULL,
+            tool        TEXT NOT NULL,
+            source      TEXT NOT NULL,
+            destination TEXT NOT NULL,
+            schedule    TEXT NOT NULL DEFAULT 'daily',
+            enabled     INTEGER NOT NULL DEFAULT 1,
+            last_run_ts REAL,
+            last_status TEXT,
+            last_error  TEXT,
+            config      TEXT,
+            created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            who       TEXT NOT NULL,
+            action    TEXT NOT NULL,
+            status    TEXT NOT NULL,
+            detail    TEXT NOT NULL DEFAULT ''
+        );
+        CREATE INDEX IF NOT EXISTS idx_audit_ts     ON audit_log(timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action);
+        CREATE INDEX IF NOT EXISTS idx_audit_who    ON audit_log(who);
+        CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+    """)
+    # Migrate v0→v1: add runs column for run history persistence
+    try:
+        conn.execute("ALTER TABLE backup_jobs ADD COLUMN runs TEXT DEFAULT '[]'")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+    conn.commit()
+
+
+def _migrate_from_json() -> None:
+    """One-time migration from legacy JSON files to SQLite."""
+    conn = _get_db()
+
+    # Migrate tasks
+    if _TASKS_FILE.exists():
+        try:
+            data = json.loads(_TASKS_FILE.read_text())
+            for tid, t in data.items():
+                conn.execute(
+                    "INSERT OR IGNORE INTO tasks (id, tool, action, status, started_at, finished_at, result, error, job_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (tid, t.get("tool", ""), t.get("action", ""), t.get("status", "pending"),
+                     t.get("started_at", 0), t.get("finished_at"), t.get("result"),
+                     t.get("error"), t.get("job_id"))
+                )
+            conn.commit()
+            _TASKS_FILE.rename(_TASKS_FILE.with_suffix(".json.migrated"))
+            logger.info("Migrated %d tasks from JSON to SQLite", len(data))
+        except Exception as e:
+            logger.warning("Failed to migrate tasks from JSON: %s", e)
+
+    # Migrate backup jobs
+    if _JOBS_FILE.exists():
+        try:
+            data = json.loads(_JOBS_FILE.read_text())
+            for jid, j in data.items():
+                conn.execute(
+                    "INSERT OR IGNORE INTO backup_jobs (id, name, tool, source, destination, schedule, enabled, last_run_ts, last_status, last_error, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (jid, j.get("name", ""), j.get("tool", ""), json.dumps(j.get("source", [])),
+                     j.get("destination", ""), j.get("schedule", "daily"),
+                     1 if j.get("enabled", True) else 0,
+                     j.get("last_run_ts"), j.get("last_status"), j.get("last_error"), j.get("config"))
+                )
+            conn.commit()
+            _JOBS_FILE.rename(_JOBS_FILE.with_suffix(".json.migrated"))
+            logger.info("Migrated %d backup jobs from JSON to SQLite", len(data))
+        except Exception as e:
+            logger.warning("Failed to migrate backup jobs from JSON: %s", e)
+
+    # Migrate audit log
+    if _AUDIT_FILE.exists():
+        try:
+            data = json.loads(_AUDIT_FILE.read_text())
+            for entry in data:
+                conn.execute(
+                    "INSERT INTO audit_log (timestamp, who, action, status, detail) VALUES (?, ?, ?, ?, ?)",
+                    (entry.get("timestamp", ""), entry.get("who", ""), entry.get("action", ""),
+                     entry.get("status", ""), entry.get("detail", ""))
+                )
+            conn.commit()
+            _AUDIT_FILE.rename(_AUDIT_FILE.with_suffix(".json.migrated"))
+            logger.info("Migrated %d audit entries from JSON to SQLite", len(data))
+        except Exception as e:
+            logger.warning("Failed to migrate audit log from JSON: %s", e)
+
+
+# ────────────────────────────────────────────────────────────
+# AUDIT LOG — SQLite-backed, no in-memory list
+# ────────────────────────────────────────────────────────────
+
+
+def _audit(who: str, action: str, status: str, detail: str | None = None) -> None:
+    """Record an auditable action directly in SQLite.
+
+    Args:
+        who:   Username (user["sub"] from the JWT).
+        action: Machine-readable action name, e.g. "backup.job.create".
+        status: "success" or "failure".
+        detail: Human-readable description of what happened.
+    """
+    try:
+        conn = _get_db()
+        conn.execute(
+            "INSERT INTO audit_log (timestamp, who, action, status, detail) VALUES (?, ?, ?, ?, ?)",
+            (datetime.now().isoformat(), who, action, status, detail or "")
+        )
+        conn.commit()
+    except Exception as e:
+        logger.warning("Failed to write audit entry: %s", e)
+
+
+# Shutdown guard — prevents re-entry of the lifespan shutdown handler.
+# Set to True when shutdown starts; any re-entry returns immediately.
+_shutting_down = False
+_shutdown_lock = threading.Lock()
+
+
+def _persist_tasks() -> None:
+    """Write in-memory task state to SQLite so it survives restart."""
+    try:
+        conn = _get_db()
+        with _task_lock:
+            for tid, t in _background_tasks.items():
+                entry = dict(t)
+                entry.pop("thread", None)
+                conn.execute(
+                    """INSERT INTO tasks (id, tool, action, status, started_at, finished_at, result, error, job_id)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(id) DO UPDATE SET
+                           status=excluded.status,
+                           finished_at=excluded.finished_at,
+                           result=excluded.result,
+                           error=excluded.error""",
+                    (tid, entry.get("tool", ""), entry.get("action", ""),
+                     entry.get("status", "pending"),
+                     entry.get("started_at", 0), entry.get("finished_at"),
+                     entry.get("result"), entry.get("error"), entry.get("job_id"))
+                )
+            conn.commit()
+    except Exception as e:
+        logger.warning("Failed to persist tasks to DB: %s", e)
+
+
+def _load_tasks() -> None:
+    """Load tasks from SQLite into memory.
+
+    Any task that was 'pending' or 'running' when the server
+    last shut down (or crashed) gets marked 'cancelled' —
+    the daemon thread died with the process.
+    """
+    try:
+        conn = _get_db()
+        now = time.time()
+        rows = conn.execute("SELECT * FROM tasks").fetchall()
+        columns = [desc[0] for desc in conn.description]
+        with _task_lock:
+            for row in rows:
+                t = dict(zip(columns, row))
+                tid = t.pop("id")
+                t.pop("created_at", None)
+                if t.get("status") in ("pending", "running"):
+                    t["status"] = "cancelled"
+                    t["error"] = "Server restarted while task was in flight"
+                    t["finished_at"] = now
+                    conn.execute("UPDATE tasks SET status=?, error=?, finished_at=? WHERE id=?",
+                                 (t["status"], t["error"], t["finished_at"], tid))
+                if tid not in _background_tasks:
+                    _background_tasks[tid] = t
+            conn.commit()
+    except Exception as e:
+        logger.warning("Failed to load tasks from DB: %s", e)
 
 
 def _task_cleanup() -> None:
@@ -113,14 +346,18 @@ def _task_cleanup() -> None:
             )
             for tid, _ in sorted_tasks[:len(_background_tasks) - _MAX_TASKS]:
                 del _background_tasks[tid]
+    _persist_tasks()
 
 
-def _run_background(cmd: list[str], task_id: str, timeout: int = 600) -> None:
-    """Run a command in a daemon thread, updating task state."""
+def _run_background(cmd: list[str], task_id: str, timeout: int = 600,
+                    job_id: str | None = None) -> None:
+    """Run a command in a daemon thread, updating task and (optionally) job state."""
     with _task_lock:
         t = _background_tasks.get(task_id)
         if t:
             t["status"] = "running"
+    final_status = "failed"
+    final_error = None
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         with _task_lock:
@@ -129,27 +366,34 @@ def _run_background(cmd: list[str], task_id: str, timeout: int = 600) -> None:
                 if r.returncode == 0:
                     t["status"] = "done"
                     t["result"] = r.stdout.strip()
+                    final_status = "done"
                 else:
                     t["status"] = "failed"
                     t["error"] = r.stderr.strip() or "Exit code %d" % r.returncode
+                    final_error = t["error"]
                 t["finished_at"] = time.time()
     except subprocess.TimeoutExpired:
+        final_error = "Command timed out"
         with _task_lock:
             t = _background_tasks.get(task_id)
             if t:
                 t["status"] = "failed"
-                t["error"] = "Command timed out"
+                t["error"] = final_error
                 t["finished_at"] = time.time()
     except Exception as e:
+        final_error = str(e)
         with _task_lock:
             t = _background_tasks.get(task_id)
             if t:
                 t["status"] = "failed"
-                t["error"] = str(e)
+                t["error"] = final_error
                 t["finished_at"] = time.time()
+    _persist_tasks()
+    _update_job_from_task(task_id, final_status, final_error)
 
 
-def _start_task(cmd: list[str], tool: str, action: str, timeout: int = 600) -> str:
+def _start_task(cmd: list[str], tool: str, action: str,
+                timeout: int = 600, job_id: str | None = None) -> str:
     """Launch a command in background and return its task_id."""
     _task_cleanup()
     task_id = str(uuid.uuid4())
@@ -164,12 +408,187 @@ def _start_task(cmd: list[str], tool: str, action: str, timeout: int = 600) -> s
             "finished_at": None,
             "result": None,
             "error": None,
+            "job_id": job_id,
         }
     t = threading.Thread(
-        target=_run_background, args=(cmd, task_id, timeout), daemon=True
+        target=_run_background, args=(cmd, task_id, timeout, job_id), daemon=True
     )
+    with _task_lock:
+        _background_tasks[task_id]["thread"] = t
+    _persist_tasks()
     t.start()
     return task_id
+
+
+# ── Backup job persistence ──────────────────────────────────
+
+def _persist_jobs() -> None:
+    """Write backup job configs to SQLite."""
+    try:
+        conn = _get_db()
+        with _jobs_lock:
+            for jid, j in _backup_jobs.items():
+                runs = j.get("runs", [])
+                conn.execute(
+                    """INSERT INTO backup_jobs (id, name, tool, source, destination, schedule, enabled, last_run_ts, last_status, last_error, config, runs)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(id) DO UPDATE SET
+                           name=excluded.name, tool=excluded.tool, source=excluded.source,
+                           destination=excluded.destination, schedule=excluded.schedule,
+                           enabled=excluded.enabled, last_run_ts=excluded.last_run_ts,
+                           last_status=excluded.last_status, last_error=excluded.last_error,
+                           config=excluded.config, runs=excluded.runs,
+                           updated_at=datetime('now')""",
+                    (jid, j.get("name", ""), j.get("tool", ""),
+                     json.dumps(j.get("source", [])), j.get("destination", ""),
+                     j.get("schedule", "daily"),
+                     1 if j.get("enabled", True) else 0,
+                     j.get("last_run_ts"), j.get("last_status"),
+                     j.get("last_error"), j.get("config"),
+                     json.dumps(runs[-_MAX_JOB_HISTORY:]))
+                )
+            conn.commit()
+    except Exception as e:
+        logger.warning("Failed to persist backup jobs to DB: %s", e)
+
+
+def _load_jobs() -> None:
+    """Load backup job configs from SQLite into memory."""
+    try:
+        conn = _get_db()
+        rows = conn.execute("SELECT * FROM backup_jobs").fetchall()
+        columns = [desc[0] for desc in conn.description]
+        with _jobs_lock:
+            _backup_jobs.clear()
+            for row in rows:
+                j = dict(zip(columns, row))
+                jid = j.pop("id")
+                j.pop("created_at", None)
+                j.pop("updated_at", None)
+                # source stored as JSON string in DB — convert back to list
+                if isinstance(j.get("source"), str):
+                    try:
+                        j["source"] = json.loads(j["source"])
+                    except (json.JSONDecodeError, TypeError):
+                        j["source"] = [j["source"]]
+                # runs stored as JSON string in DB — convert back to list
+                if isinstance(j.get("runs"), str):
+                    try:
+                        j["runs"] = json.loads(j["runs"])
+                    except (json.JSONDecodeError, TypeError):
+                        j["runs"] = []
+                _backup_jobs[jid] = j
+    except Exception as e:
+        logger.warning("Failed to load backup jobs from DB: %s", e)
+
+
+def _schedule_to_seconds(schedule: str) -> int:
+    """Convert a schedule string to interval in seconds."""
+    s = schedule.strip().lower()
+    if s == "hourly":
+        return 3600
+    if s == "daily":
+        return 86400
+    if s == "weekly":
+        return 604800
+    if s == "monthly":
+        return 2592000
+    # Assume it's already a number of seconds
+    try:
+        return max(60, int(s))
+    except (ValueError, TypeError):
+        return 86400  # default to daily
+
+
+async def _scheduler_loop() -> None:
+    """Background loop: check every 60s for jobs that are due."""
+    while not _shutting_down:
+        try:
+            now = time.time()
+            with _jobs_lock:
+                jobs = list(_backup_jobs.values())
+            for job in jobs:
+                if not job.get("enabled", True):
+                    continue
+                last = job.get("last_run_ts", 0)
+                interval = _schedule_to_seconds(job.get("schedule", "daily"))
+                if now - last >= interval:
+                    _execute_backup_job(job["id"])
+        except Exception as e:
+            logger.warning("Scheduler check failed: %s", e)
+        # Sleep in 1s increments so shutdown doesn't wait 60s
+        for _ in range(_SCHEDULER_INTERVAL):
+            if _shutting_down:
+                return
+            await asyncio.sleep(1)
+
+
+def _execute_backup_job(job_id: str) -> None:
+    """Dispatch a backup job using the appropriate tool."""
+    with _jobs_lock:
+        job = _backup_jobs.get(job_id)
+    if not job:
+        return
+
+    tool = job.get("tool", "")
+    source = job.get("source", [])
+    dest = job.get("destination", "")
+
+    if tool == "borg":
+        archive_name = f"{job.get('name', 'backup')}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        cmd = ["borg", "create", f"{dest}::{archive_name}"] + source
+        task_id = _start_task(cmd, "borg", "scheduled", timeout=600, job_id=job_id)
+    elif tool == "restic":
+        cmd = ["restic", "-r", dest, "backup"] + source
+        task_id = _start_task(cmd, "restic", "scheduled", timeout=600, job_id=job_id)
+    elif tool == "rclone":
+        cmd = ["rclone", "sync"] + source + [dest]
+        task_id = _start_task(cmd, "rclone", "scheduled", timeout=600, job_id=job_id)
+    else:
+        logger.warning("Unknown backup tool '%s' for job %s", tool, job_id)
+        return
+
+    with _jobs_lock:
+        j = _backup_jobs.get(job_id)
+        if j:
+            j["last_run_ts"] = time.time()
+            j["last_run"] = datetime.now().isoformat()
+            j["last_task_id"] = task_id
+            j["last_status"] = "running"
+    _persist_jobs()
+
+
+_MAX_JOB_HISTORY = 20  # keep this many completed runs per job
+
+
+def _update_job_from_task(task_id: str, status: str, error: str | None = None) -> None:
+    """Update a backup job's last_status when its task finishes.
+
+    Always writes last_error: None on success, error string on failure.
+    This prevents stale errors from a previous run persisting.
+
+    Appends a run record to the job's runs[] list (capped at
+    _MAX_JOB_HISTORY) so run history survives task cleanup.
+    """
+    with _jobs_lock:
+        for job in _backup_jobs.values():
+            if job.get("last_task_id") == task_id:
+                job["last_status"] = status
+                job["last_error"] = error  # None clears on success
+                # Append run record
+                runs = job.setdefault("runs", [])
+                runs.append({
+                    "task_id": task_id,
+                    "started_at": job.get("last_run"),
+                    "finished_at": datetime.now().isoformat(),
+                    "status": status,
+                    "error": error,
+                })
+                # Keep only the last N
+                if len(runs) > _MAX_JOB_HISTORY:
+                    job["runs"] = runs[-_MAX_JOB_HISTORY:]
+                break
+    _persist_jobs()
 
 
 # ────────────────────────────────────────────────────────────
@@ -177,18 +596,42 @@ def _start_task(cmd: list[str], tool: str, action: str, timeout: int = 600) -> s
 # ────────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """Graceful startup/shutdown lifecycle."""
+    """Graceful startup/shutdown lifecycle.
+
+    Re-entry guard (_shutting_down flag) prevents double-execution
+    if systemd sends SIGTERM while shutdown is already in progress.
+    Most thread-unsafe work happens with _task_lock held.
+    """
+    _load_tasks()
+    _load_jobs()
+    # Audit log is queried directly from SQLite — no in-memory load needed
+    scheduler_task = asyncio.create_task(_scheduler_loop())
     try:
         yield
     finally:
-        pending = list(_background_tasks.keys())
+        scheduler_task.cancel()
+        # Re-entry guard: if shutdown is already running, skip.
+        with _shutdown_lock:
+            if _shutting_down:
+                logger.warning("Shutdown re-entry blocked (already shutting down)")
+                return
+            _shutting_down = True
+
+        pending = list(_background_tasks.items())
         if pending:
-            logger.info("Shutdown — cancelling %d background tasks", len(pending))
-            for tid in pending:
-                t = _background_tasks[tid]
-                if t.get("task") and hasattr(t["task"], "cancel"):
-                    t["task"].cancel()
-                del _background_tasks[tid]
+            logger.warning("Shutdown — %d background tasks in flight", len(pending))
+            for tid, t in pending:
+                thread = t.get("thread")
+                if thread and thread.is_alive():
+                    logger.warning("  Task %s (%s/%s) still running — will be killed",
+                                   tid, t.get("tool","?"), t.get("action","?"))
+                    # Can't safely kill a thread; will be terminated by process exit.
+                    # Mark it so frontend sees "cancelled" on next poll.
+                    t["status"] = "cancelled"
+                    t["error"] = "Server shutdown during task execution"
+                    t["finished_at"] = time.time()
+            # Persist cancelled tasks so frontend can poll once after restart
+            _persist_tasks()
         for h in logger.handlers:
             h.flush()
 
@@ -386,29 +829,12 @@ async def change_password(body: dict, user=Depends(verify_token)):
         raise HTTPException(status_code=401, detail="Current password incorrect")
     users[user["sub"]]["hash"] = pwd_ctx.hash(body["new"])
     save_users(users)
+    _audit(user["sub"], "auth.password.change", "success", "Password changed")
     return {"ok": True}
 
 # ────────────────────────────────────────────────────────────
 # SYSTEM METRICS
 # ────────────────────────────────────────────────────────────
-
-
-def _run_shell(cmd: str, timeout: int = 5) -> str:
-    """Run a shell command with shell=True (needed for pipes, redirects, &&).
-
-    WARNING: Only call with commands that contain NO unsanitized user input.
-    User-supplied values must be validated before interpolation.
-    """
-    try:
-        return subprocess.check_output(
-            cmd, shell=True, stderr=subprocess.DEVNULL,
-            text=True, timeout=timeout
-        ).strip()
-    except subprocess.CalledProcessError:
-        return ""
-    except subprocess.TimeoutExpired:
-        logger.warning("_run_shell timed out after %ss: %s", timeout, cmd[:120])
-        return ""
 
 
 def _run_args(args: list, timeout: int = 5) -> str:
@@ -534,11 +960,21 @@ async def system_stats(user=Depends(verify_token)):
 
 @app.get("/api/system/info")
 async def system_info(user=Depends(verify_token)):
+    # Read CPU model directly from /proc/cpuinfo — no shell piping needed
+    cpu_model = ""
+    try:
+        with open("/proc/cpuinfo") as f:
+            for line in f:
+                if line.startswith("model name"):
+                    cpu_model = line.split(":", 1)[-1].strip()
+                    break
+    except OSError:
+        pass
     return {
         "hostname":   _run_args(["hostname", "-f"]),
         "os":         _run_args(["lsb_release", "-ds"]),
         "kernel":     _run_args(["uname", "-r"]),
-        "cpu":        _run_shell("grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2").strip(),
+        "cpu":        cpu_model,
         "cpu_cores":  _run_args(["nproc"]),
         "forgeos_ver": conf("FORGEOS_VERSION", "1.0"),
         "uptime":     get_uptime(),
@@ -669,6 +1105,8 @@ async def create_pool(body: dict, user=Depends(verify_token)):
         raise HTTPException(500, detail="mdadm not installed on this system")
     except subprocess.TimeoutExpired:
         raise HTTPException(500, detail="Pool creation timed out")
+    _audit(user["sub"], "storage.pool.create", "success",
+            f"RAID {level} pool '{name}' created ({len(clean)} drives)")
     return {"ok": True, "message": f"RAID {level} pool '{name}' created ({len(clean)} drives)"}
 
 
@@ -696,6 +1134,8 @@ async def add_drive(body: dict, user=Depends(verify_token)):
         raise HTTPException(500, detail="mdadm not installed on this system")
     except subprocess.TimeoutExpired:
         raise HTTPException(500, detail="Drive add timed out")
+    _audit(user["sub"], "storage.drive.add", "success",
+            f"Drive {device} added to pool {pool}")
     return {"ok": True, "message": f"Drive {device} added to pool {pool}"}
 
 
@@ -767,6 +1207,8 @@ async def create_snapshot(body: dict, user=Depends(verify_token)):
             if r.returncode != 0:
                 raise HTTPException(status_code=500,
                                     detail="Snapshot failed for %s: %s" % (c, r.stderr.strip()))
+    _audit(user["sub"], "storage.snapshot.create", "success",
+            f"Snapshot '{desc}' on {'all configs' if not pool else pool}")
     return {"ok": True, "message": f"Snapshot created: {desc}"}
 
 
@@ -848,6 +1290,8 @@ async def add_vhost(body: dict, user=Depends(verify_token)):
         "forgeos-nginx", "add-vhost", name, domain, str(port),
         tls, auth, "yes" if ws else "no"
     ])
+    _audit(user["sub"], "nginx.vhost.create", "success",
+            f"Vhost '{name}' for {domain} (port {port}, tls={tls})")
     return {"ok": True, "message": result}
 
 
@@ -857,6 +1301,7 @@ async def remove_vhost(name: str, user=Depends(verify_token)):
         raise HTTPException(403)
     name = re.sub(r"[^a-z0-9-]", "", name)
     result = _run_args(["forgeos-nginx", "remove-vhost", name])
+    _audit(user["sub"], "nginx.vhost.delete", "success", f"Vhost '{name}' removed")
     return {"ok": True, "message": result}
 
 
@@ -888,6 +1333,7 @@ async def nginx_save_raw(body: dict, user=Depends(verify_token)):
     if "failed" in test.lower() or "test is successful" not in test:
         raise HTTPException(400, detail={"error": "Live config test failed", "output": test})
     _run_args(["systemctl", "reload", "nginx"])
+    _audit(user["sub"], "nginx.config.update", "success", "Raw nginx config updated & reloaded")
     return {"ok": True}
 
 
@@ -900,6 +1346,7 @@ async def nginx_reload(user=Depends(verify_token)):
     if "test is successful" not in test:
         return {"ok": False, "error": "Config test failed", "output": test}
     result = _run_args(["systemctl", "reload", "nginx"])
+    _audit(user["sub"], "nginx.reload", "success", "Nginx reloaded")
     return {"ok": True, "output": result}
 
 
@@ -925,6 +1372,7 @@ async def request_cert(body: dict, user=Depends(verify_token)):
     cmd = ["certbot", "certonly", "--nginx", "--non-interactive",
            "--agree-tos", "--email", email or f"admin@{domain}", "-d", domain]
     result = _run_args(cmd, timeout=120)
+    _audit(user["sub"], "nginx.certbot", "success", f"Cert requested for {domain}")
     return {"ok": True, "output": result}
 
 # ────────────────────────────────────────────────────────────
@@ -934,7 +1382,7 @@ async def request_cert(body: dict, user=Depends(verify_token)):
 
 @app.get("/api/samba/shares")
 async def samba_shares(user=Depends(verify_token)):
-    raw = _run_shell("forgeos-samba list 2>&1")
+    raw = _run_args(["forgeos-samba", "list"])
     return {"raw": raw}
 
 
@@ -949,6 +1397,8 @@ async def create_share(body: dict, user=Depends(verify_token)):
     users   = body.get("users", "@users")
     comment = body.get("comment", "")
     result  = _run_args(["forgeos-samba", "create", name, path, type_, write, users, comment])
+    _audit(user["sub"], "samba.share.create", "success",
+            f"Share '{name}' at '{path}' ({'rw' if write == 'yes' else 'ro'})")
     return {"ok": True, "message": result}
 
 
@@ -958,6 +1408,7 @@ async def remove_share(name: str, user=Depends(verify_token)):
         raise HTTPException(403)
     name = re.sub(r"[^a-z0-9_-]", "", name)
     result = _run_args(["forgeos-samba", "remove", name])
+    _audit(user["sub"], "samba.share.delete", "success", f"Share '{name}' removed")
     return {"ok": True, "message": result}
 
 
@@ -978,12 +1429,14 @@ async def samba_save_raw(body: dict, user=Depends(verify_token)):
     )
     if result.returncode != 0:
         raise HTTPException(400, detail=result.stderr.strip() or "samba config rejected")
+    _audit(user["sub"], "samba.config.update", "success", "Raw Samba config updated")
     return {"ok": True, "message": result.stdout.strip()}
 
 
 @app.get("/api/samba/connections")
 async def samba_connections(user=Depends(verify_token)):
-    return {"output": _run_shell("smbstatus 2>/dev/null || echo 'No connections'")}
+    out = _run_args(["smbstatus"])
+    return {"output": out or "No connections"}
 
 # ────────────────────────────────────────────────────────────
 # DOCKER APP BROWSER
@@ -1028,7 +1481,11 @@ async def docker_install(app: str, image: str = None, ports: List[str] = None, u
         raise HTTPException(status_code=504, detail="Docker pull timed out")
 
     if result.returncode == 0:
+        _audit(user["sub"], "docker.install", "success",
+                f"App '{app_info['name']}' installed (image: {app_info['image']})")
         return {"status": "installed", "app": app_info["name"]}
+    _audit(user["sub"], "docker.install", "failure",
+            f"App '{app_info['name']}' install failed: {result.stderr.strip()[:200]}")
     raise HTTPException(status_code=500, detail=result.stderr.strip() or "docker run failed")
 
 
@@ -1055,12 +1512,21 @@ async def list_services(user=Depends(verify_token)):
         ("redis-server", "Redis", "Cache server"),
     ]
     for svc, name, desc in check_services:
-        # Check if service is active
+        # Check if service is active — no shell, use _run_args() directly
         if svc.startswith("wg-quick"):
-            out = _run_shell(f"systemctl is-active {svc}@*.service 2>/dev/null || echo inactive", timeout=3)
+            # WireGuard uses instance units like wg-quick@wg0.service
+            # List units matching the template to find active instances
+            units_out = _run_args(
+                ["systemctl", "list-units", f"{svc}*", "--no-legend"],
+                timeout=3
+            )
+            if units_out and "active" in units_out.splitlines()[0] if units_out else False:
+                status = "running"
+            else:
+                status = "stopped"
         else:
-            out = _run_shell(f"systemctl is-active {svc} 2>/dev/null || echo 'inactive'", timeout=3)
-        status = "running" if out.strip() == "active" else "stopped"
+            out = _run_args(["systemctl", "is-active", svc], timeout=3)
+            status = "running" if out.strip() == "active" else "stopped"
         services.append({"name": name, "desc": desc, "status": status})
     return {"services": services}
 
@@ -1207,19 +1673,31 @@ async def alertmanager_webhook(body: dict):
 
 @app.get("/api/security/fail2ban")
 async def fail2ban_status(user=Depends(verify_token)):
-    return {"output": _run_shell("fail2ban-client status 2>/dev/null && fail2ban-client status sshd 2>/dev/null || echo 'fail2ban not running'")}
+    # Run both commands separately, combine in Python — no shell piping
+    out1 = _run_args(["fail2ban-client", "status"])
+    out2 = _run_args(["fail2ban-client", "status", "sshd"])
+    if out1:
+        combined = out1
+        if out2:
+            combined += "\n" + out2
+        return {"output": combined}
+    return {"output": "fail2ban not running"}
 
 
 @app.get("/api/security/crowdsec")
 async def crowdsec_status(user=Depends(verify_token)):
-    return {"output": _run_shell("cscli decisions list 2>/dev/null || echo 'CrowdSec not installed'")}
+    out = _run_args(["cscli", "decisions", "list"])
+    return {"output": out or "CrowdSec not installed"}
 
 
 @app.get("/api/security/firewall")
 async def firewall_status(user=Depends(verify_token)):
+    ufw_out = _run_args(["ufw", "status", "verbose"])
+    iptables_out = _run_args(["iptables", "-L"])
+    iptables_count = str(len(iptables_out.splitlines())) if iptables_out else "0"
     return {
-        "ufw": _run_shell("ufw status verbose 2>/dev/null"),
-        "iptables_count": _run_shell("iptables -L | wc -l"),
+        "ufw": ufw_out,
+        "iptables_count": iptables_count,
     }
 
 # ────────────────────────────────────────────────────────────
@@ -1256,7 +1734,8 @@ async def save_settings(body: dict, user=Depends(verify_token)):
         if f'{k}=' not in text:
             text += f'\n{k}="{v}"'
     CONFIG_FILE.write_text(text)
-    logger.info("SETTINGS changed by %s: %s", user.get("sub", "unknown"), list(safe.keys()))
+    _audit(user["sub"], "settings.update", "success",
+            f"Settings changed: {', '.join(f'{k}={v}' for k, v in safe.items())}")
     # Reload in-memory cache so settings take effect without restart
     _conf.clear()
     for line in CONFIG_FILE.read_text().splitlines():
@@ -1587,6 +2066,8 @@ async def borg_create(body: dict, user=Depends(verify_token)):
     archive_name = f"{name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     cmd = ["borg", "create", f"{destination}::{archive_name}", source]
     task_id = _start_task(cmd, "borg", "create", timeout=600)
+    _audit(user["sub"], "backup.borg.create", "success",
+            f"Borg archive '{archive_name}' from {source} to {destination}")
     return {"task_id": task_id, "archive": archive_name, "status": "running"}
 
 
@@ -1634,6 +2115,8 @@ async def restic_snapshot(body: dict, user=Depends(verify_token)):
     
     cmd = ["restic", "-r", repo, "snapshot"] + paths
     task_id = _start_task(cmd, "restic", "snapshot", timeout=600)
+    _audit(user["sub"], "backup.restic.snapshot", "success",
+            f"Restic snapshot of {len(paths)} paths to {repo}")
     return {"task_id": task_id, "status": "running"}
 
 
@@ -1682,6 +2165,8 @@ async def rclone_sync(body: dict, user=Depends(verify_token)):
     if config:
         cmd.extend(["--config", config])
     task_id = _start_task(cmd, "rclone", "sync", timeout=600)
+    _audit(user["sub"], "backup.rclone.sync", "success",
+            f"Rclone sync from {source} to {destination}")
     return {"task_id": task_id, "status": "running"}
 
 
@@ -1699,6 +2184,123 @@ async def rclone_configs(user=Depends(verify_token)):
         remotes = [r for r in result.stdout.strip().split("\n") if r]
         return {"remotes": remotes}
     return {"remotes": []}
+
+
+# ────────────────────────────────────────────────────────────
+# SCHEDULED BACKUP JOBS — CRUD
+# ────────────────────────────────────────────────────────────
+
+
+@app.get("/api/backup/jobs")
+async def list_backup_jobs(user=Depends(verify_token)):
+    """List all configured backup jobs."""
+    with _jobs_lock:
+        jobs = sorted(
+            _backup_jobs.values(),
+            key=lambda j: j.get("created_at", ""),
+            reverse=True,
+        )
+    return {"jobs": jobs}
+
+
+@app.post("/api/backup/jobs")
+async def create_backup_job(body: dict, user=Depends(verify_token)):
+    """Create a new scheduled backup job."""
+    tool = body.get("tool", "")
+    if tool not in ("borg", "restic", "rclone"):
+        raise HTTPException(status_code=400, detail=f"Unsupported tool: {tool}")
+    if not body.get("source"):
+        raise HTTPException(status_code=400, detail="source required")
+    if not body.get("destination"):
+        raise HTTPException(status_code=400, detail="destination required")
+
+    job_id = str(uuid.uuid4())
+    now = datetime.now().isoformat()
+    with _jobs_lock:
+        _backup_jobs[job_id] = {
+            "id": job_id,
+            "name": body.get("name", f"{tool} backup"),
+            "tool": tool,
+            "enabled": body.get("enabled", True),
+            "source": body.get("source", []),
+            "destination": body.get("destination", ""),
+            "schedule": body.get("schedule", "daily"),
+            "retention": body.get("retention", {}),
+            "created_at": now,
+            "updated_at": now,
+            "last_run": None,
+            "last_run_ts": 0,
+            "last_status": None,
+            "last_task_id": None,
+        }
+    _persist_jobs()
+    name = body.get("name", f"{tool} backup")
+    _audit(user["sub"], "backup.job.create", "success",
+            f"Created {tool} backup job '{name}' ({job_id})")
+    return _backup_jobs[job_id]
+
+
+@app.get("/api/backup/jobs/{job_id}")
+async def get_backup_job(job_id: str, user=Depends(verify_token)):
+    """Get a single backup job by ID."""
+    with _jobs_lock:
+        job = _backup_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+
+@app.put("/api/backup/jobs/{job_id}")
+async def update_backup_job(job_id: str, body: dict, user=Depends(verify_token)):
+    """Update an existing backup job."""
+    with _jobs_lock:
+        job = _backup_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    # Only update fields that are provided
+    updatable = {"name", "tool", "enabled", "source", "destination",
+                 "schedule", "retention"}
+    updated_fields = []
+    with _jobs_lock:
+        for key in updatable:
+            if key in body:
+                old = job.get(key)
+                if old != body[key]:
+                    updated_fields.append(key)
+                job[key] = body[key]
+        job["updated_at"] = datetime.now().isoformat()
+    _persist_jobs()
+    _audit(user["sub"], "backup.job.update", "success",
+            f"Updated job '{job.get('name', job_id)}': {', '.join(updated_fields)}")
+    return job
+
+
+@app.delete("/api/backup/jobs/{job_id}")
+async def delete_backup_job(job_id: str, user=Depends(verify_token)):
+    """Delete a backup job."""
+    with _jobs_lock:
+        if job_id not in _backup_jobs:
+            raise HTTPException(status_code=404, detail="Job not found")
+        name = _backup_jobs[job_id].get("name", job_id)
+        del _backup_jobs[job_id]
+    _persist_jobs()
+    _audit(user["sub"], "backup.job.delete", "success",
+            f"Deleted backup job '{name}' ({job_id})")
+    return {"ok": True, "deleted": job_id}
+
+
+@app.post("/api/backup/jobs/{job_id}/run")
+async def run_backup_job_now(job_id: str, user=Depends(verify_token)):
+    """Trigger an immediate run of a backup job."""
+    with _jobs_lock:
+        job = _backup_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    _execute_backup_job(job_id)
+    _audit(user["sub"], "backup.job.run", "success",
+            f"Triggered backup job '{job.get('name', job_id)}'")
+    return {"ok": True, "job_id": job_id, "status": "triggered"}
 
 
 # ────────────────────────────────────────────────────────────
@@ -1722,6 +2324,47 @@ async def list_tasks(user=Depends(verify_token)):
     with _task_lock:
         tasks = list(_background_tasks.values())
     return {"tasks": sorted(tasks, key=lambda x: x.get("started_at", 0), reverse=True)}
+
+
+# ────────────────────────────────────────────────────────────
+# AUDIT LOG
+# ────────────────────────────────────────────────────────────
+
+
+@app.get("/api/audit")
+async def list_audit_log(user=Depends(verify_token),
+                         limit: int = 100, offset: int = 0,
+                         action: str | None = None,
+                         who: str | None = None):
+    """Query the audit log. Newest first, with optional filters.
+
+    Query params:
+      limit   — max entries to return (default 100, max 1000)
+      offset  — skip N entries from the front (for pagination)
+      action  — filter by action name (e.g. "backup.job.create")
+      who     — filter by username
+    """
+    limit = min(limit, 1000)
+    conn = _get_db()
+    where = []
+    params = []
+    if action:
+        where.append("action = ?")
+        params.append(action)
+    if who:
+        where.append("who = ?")
+        params.append(who)
+    where_clause = (" WHERE " + " AND ".join(where)) if where else ""
+    total_row = conn.execute(
+        f"SELECT count(*) FROM audit_log{where_clause}", params
+    ).fetchone()
+    total = total_row[0] if total_row else 0
+    rows = conn.execute(
+        f"SELECT timestamp, who, action, status, detail FROM audit_log{where_clause} ORDER BY id DESC LIMIT ? OFFSET ?",
+        params + [limit, offset]
+    ).fetchall()
+    columns = ["timestamp", "who", "action", "status", "detail"]
+    return {"entries": [dict(zip(columns, r)) for r in rows], "total": total, "limit": limit, "offset": offset}
 
 
 # ────────────────────────────────────────────────────────────
