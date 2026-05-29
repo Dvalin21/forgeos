@@ -668,6 +668,14 @@ try:
 except ImportError as e:
     logger.warning("Docker/LXC API not available: %s", e)
 
+try:
+    from forgeos_pages_api import router as pages_router, set_audit
+    set_audit(_audit)
+    app.include_router(pages_router)
+    logger.info("ForgeOS Pages API loaded (file station, firewall, storage drives, docker compose, nginx, ForgeDB extensions)")
+except ImportError as e:
+    logger.warning("ForgeOS Pages API not available: %s", e)
+
 # CORS configuration
 _allowed_origins = os.environ.get("FORGEOS_CORS_ORIGINS", "").split(",") if os.environ.get("FORGEOS_CORS_ORIGINS") else ["*"]
 app.add_middleware(
