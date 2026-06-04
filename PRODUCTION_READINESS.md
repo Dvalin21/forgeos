@@ -41,12 +41,14 @@ These are the seven items identified by the 2026-06-04 reading of the codebase. 
 | ID | Severity | Status | Title | File(s) |
 |---|---|---|---|---|
 | C-001 | CRIT | 🔴 OPEN | JWT secret bootstrap race — secret generated on first start, two parallel workers can write conflicting values | `src/forgeos_auth.py:25-46`, `install/modules/99-finalize.sh` |
-| C-002 | HIGH | 🔴 OPEN | `forgeos-api.py` is 2,410 lines in one file — splits into per-domain routers | `src/forgeos-api.py` |
+| C-002 | HIGH | 🟢 DONE | `forgeos-api.py` was 2,410 lines — split into per-domain routers across 10 commits. Now 1,308 LOC orchestrator + 11 router files. **Sprint 1 complete.** | `src/forgeos-api.py` + new router files |
 | C-003 | MED | 🔴 OPEN | OS minimums unpinned — `install.sh` does not refuse old Ubuntu/Debian versions | `install/install.sh`, `pyproject.toml`, `README.md` |
 | C-004 | MED | 🔴 OPEN | Zero test coverage for `forgeos_pages_api.py` (1,410 LOC) and `rustfs_api.py` (270 LOC) | `tests/` |
 | C-005 | LOW | 🔴 OPEN | Backup tree `backups/20260417/` lives inside `src/` causing duplicate grep hits across the codebase | `src/`, `.gitignore` |
 | C-006 | LOW | 🔴 OPEN | Installer module numbering has gaps (no 08, 19, 20, 21) — either renumber or document the gaps | `install/modules/` |
 | C-007 | LOW | 🔴 OPEN | Status documents disagree with current main — three different UI designs described across `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, current code | `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, `HARDWARE_TEST_REPORT.md` |
+| C-008 | MED | 🔴 OPEN | `if __name__ == "__main__":` block lives at line ~1240 of forgeos-api.py with code still after it. Should be moved to the bottom of the file. **Discovered during Sprint 1.** | `src/forgeos-api.py` |
+| C-009 | MED | 🔴 OPEN | Notification routes (notify, drive-alert, notifications, drive-alerts, alert-webhook) have ZERO test coverage. **Discovered during Sprint 1.** Roll into Sprint 4 scope alongside C-004. | `tests/`, `src/notifications_api.py` |
 
 ### Detail — C-001 JWT secret bootstrap race
 
@@ -176,28 +178,41 @@ Sprints are a unit of focus, not a unit of time. Each sprint has a clear goal an
 ### Sprint 0 — Registry setup
 **Goal:** This document exists, committed, on main.
 **Done condition:** Commit lands, this file at HEAD.
-**Status:** 🟡 IN-PROGRESS (this is that commit)
+**Status:** 🟢 DONE (commit `c5c4523`)
 
-### Sprint 1 — Small concerns batch
-**Goal:** Close the cheap concerns first to build momentum.
+### Sprint 1 — The big refactor (C-002) — DONE first per user preference
+**Goal:** `forgeos-api.py` split into per-domain routers.
+**Scope:** Mechanical move, no behavior change. 10 incremental commits.
+**Done condition:** 87/87 tests pass identically after each commit. Registry DONE.
+**Risk acknowledged at start:** Highest in the plan. Spanned multiple turns.
+**Status:** 🟢 DONE
+**Outcome:** `forgeos-api.py` 2,410 → 1,308 LOC (-45.7%). 11 router files created.
+**Commits:**
+- 1/10 `9353ec3` auth_api.py (3 routes)
+- 2/10 `4b8f61c` system_api.py (7 routes + 6 metrics helpers)
+- 3/10 `b91823b` storage_api.py (10 routes)
+- 4/10 `e27b182` nginx_api.py (8 routes)
+- 5/10 `23c8b8f` samba_api.py (6 routes)
+- 6/10 docker_api.py + security_api.py (5 routes total, single commit)
+- 7/10 `7766d30` notifications_api.py (5 routes + module state)
+- 8/10 `3dacb7b` backup_api.py (16 routes — largest, plus _check_tool/_require_tool helpers)
+- 9/10 audit_api.py + imaging_api.py (4 routes, single commit)
+- 10/10 this registry update
+
+### Sprint 2 — Small concerns batch (was originally Sprint 1)
+**Goal:** Close the cheap concerns now that the refactor is done.
 **Scope:** C-005, C-006, C-007 (backup move, module numbering doc, status docs archive).
 **Done condition:** Three commits, registry reflects DONE for each, 87/87 tests pass.
 
-### Sprint 2 — JWT secret hardening
+### Sprint 3 — JWT secret hardening
 **Goal:** C-001 closed.
 **Scope:** Move secret generation to installer, API refuses placeholder.
 **Done condition:** Code committed, registry DONE, 87/87 tests pass, new test coverage for the refuse-placeholder path.
 
-### Sprint 3 — OS minimums and test gaps
+### Sprint 4 — OS minimums and test gaps
 **Goal:** C-003 and C-004 closed.
 **Scope:** Preflight rejects unsupported OS; tests added for `forgeos_pages_api.py` and `rustfs_api.py`.
 **Done condition:** Registry DONE, ≥90/90 tests passing (87 baseline + new tests).
-
-### Sprint 4 — The big refactor (C-002)
-**Goal:** `forgeos-api.py` split into per-domain routers.
-**Scope:** Mechanical move, no behavior change.
-**Done condition:** 87/87 tests still pass identically. Imports cleaned. Registry DONE.
-**Risk:** Highest in the plan. May span multiple turns.
 
 ### Sprint 5 — LTH-001 WireGuard
 **Goal:** WireGuard peer management end-to-end.
@@ -239,6 +254,16 @@ The 87-test baseline is the floor. Every sprint must end with at least the basel
 |---|---:|---:|---:|---|
 | Baseline (pre-Sprint-0) | 87 | — | — | At commit `79b1c72` |
 | Sprint 0 | 87 | 0 | 0 | Registry only, no code change |
+| Sprint 1 commit 1/10 | 87 | 0 | 0 | auth_api.py extracted |
+| Sprint 1 commit 2/10 | 87 | 0 | 0 | system_api.py extracted; one ordering bug caught + fixed mid-commit |
+| Sprint 1 commit 3/10 | 87 | 0 | 0 | storage_api.py extracted; missing `re` import caught + fixed mid-commit |
+| Sprint 1 commit 4/10 | 87 | 0 | 0 | nginx_api.py extracted |
+| Sprint 1 commit 5/10 | 87 | 0 | 0 | samba_api.py extracted |
+| Sprint 1 commit 6/10 | 87 | 0 | 0 | docker_api.py + security_api.py extracted (single commit) |
+| Sprint 1 commit 7/10 | 87 | 0 | 0 | notifications_api.py extracted; revealed C-009 (zero coverage for these routes) |
+| Sprint 1 commit 8/10 | 87 | 0 | 0 | backup_api.py extracted (16 routes, largest single extraction); revealed C-008 (__main__ misplacement) |
+| Sprint 1 commit 9/10 | 87 | 0 | 0 | audit_api.py + imaging_api.py extracted (single commit). Main file is now 1,308 LOC. |
+| Sprint 1 commit 10/10 | 87 | 0 | 0 | Registry update — this commit |
 
 ---
 
