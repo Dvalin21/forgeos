@@ -806,20 +806,9 @@ app.add_middleware(MutationRateLimitMiddleware)
 
 
 # ────────────────────────────────────────────────────────────
-# AUTH — extracted to auth_api.py (Sprint 1 of forgeos-api refactor)
-# ────────────────────────────────────────────────────────────
-try:
-    from auth_api import router as auth_router, set_helpers as set_auth_helpers
-    set_auth_helpers(audit=_audit, check_rate_limit=_check_login_rate_limit)
-    app.include_router(auth_router)
-    logger.info("Auth API loaded")
-except ImportError as e:
-    logger.error("Auth API failed to load: %s", e)
-    raise
-
-
-# ────────────────────────────────────────────────────────────
-# SYSTEM METRICS
+# Shared subprocess + sanitize helpers — used by every router.
+# Defined here (before any include_router) so set_helpers() calls
+# can pass them in.
 # ────────────────────────────────────────────────────────────
 
 
@@ -844,128 +833,45 @@ def _sanitize_blockdev(name: str) -> str:
     return safe[:64]
 
 
-def get_cpu_usage() -> float:
-    if _HAVE_PSUTIL:
-        return psutil.cpu_percent(interval=0.5)
-    # Fallback: read /proc/stat directly
-    try:
-        with open("/proc/stat") as f:
-            for line in f:
-                if line.startswith("cpu "):
-                    parts = [int(x) for x in line.strip().split()[1:]]
-                    idle = parts[3]
-                    total = sum(parts)
-                    return round(100.0 * (1.0 - idle / total) if total else 0.0, 1)
-    except Exception as e:
-        logger.debug("get_cpu_usage fallback failed: %s", e)
-    return 0.0
+# ────────────────────────────────────────────────────────────
+# AUTH — extracted to auth_api.py (Sprint 1 of forgeos-api refactor)
+# ────────────────────────────────────────────────────────────
+try:
+    from auth_api import router as auth_router, set_helpers as set_auth_helpers
+    set_auth_helpers(audit=_audit, check_rate_limit=_check_login_rate_limit)
+    app.include_router(auth_router)
+    logger.info("Auth API loaded")
+except ImportError as e:
+    logger.error("Auth API failed to load: %s", e)
+    raise
 
 
-def get_memory() -> dict:
-    if _HAVE_PSUTIL:
-        m = psutil.virtual_memory()
-        return {"total_gb": round(m.total/1e9, 1), "used_gb": round(m.used/1e9, 1),
-                "pct": m.percent}
-    # Fallback: read /proc/meminfo directly
-    try:
-        mem = {}
-        with open("/proc/meminfo") as f:
-            for line in f:
-                k, _, v = line.partition(":")
-                mem[k.strip()] = int(v.strip().split()[0]) * 1024
-        total = mem.get("MemTotal", 0)
-        free = mem.get("MemFree", 0) + mem.get("Buffers", 0) + mem.get("Cached", 0)
-        used = total - free
-        return {"total_gb": round(total/1e9, 1), "used_gb": round(used/1e9, 1),
-                "pct": round(used/total*100, 1) if total else 0}
-    except Exception as e:
-        logger.debug("get_memory fallback failed: %s", e)
-        return {"total_gb": 0, "used_gb": 0, "pct": 0}
+# ────────────────────────────────────────────────────────────
+# SYSTEM — extracted to system_api.py (Sprint 1, commit 2)
+# Routes: /api/system/stats /api/system/info /api/services
+#         /api/network /api/config /api/settings (GET+PUT)
+# ────────────────────────────────────────────────────────────
+try:
+    from system_api import router as system_router, set_helpers as set_system_helpers
+    set_system_helpers(
+        run_args=_run_args,
+        audit=_audit,
+        conf=conf,
+        conf_file=CONFIG_FILE,
+        conf_cache=_conf,
+    )
+    app.include_router(system_router)
+    logger.info("System API loaded")
+except ImportError as e:
+    logger.error("System API failed to load: %s", e)
+    raise
 
 
-def get_network() -> dict:
-    if _HAVE_PSUTIL:
-        io = psutil.net_io_counters()
-        return {"bytes_sent": io.bytes_sent, "bytes_recv": io.bytes_recv}
-    return {}
-
-
-def get_uptime() -> str:
-    out = _run_args(["uptime", "-p"])
-    return out.replace("up ", "") if out else "unknown"
-
-
-def get_load() -> list[float]:
-    try:
-        return [round(x, 2) for x in __import__("os").getloadavg()]
-    except Exception as e:
-        logger.debug("get_load fallback failed: %s", e)
-        return [0.0, 0.0, 0.0]
-
-
-def get_temps() -> dict:
-    temps: dict[str, float] = {}
-    # CPU temp (various kernel interfaces)
-    for path in [
-        "/sys/class/thermal/thermal_zone0/temp",
-        "/sys/class/hwmon/hwmon0/temp1_input",
-    ]:
-        if Path(path).exists():
-            try:
-                temps["cpu"] = round(int(Path(path).read_text().strip()) / 1000, 1)
-                break
-            except Exception as e:
-                logger.debug("get_temps read %s failed: %s", path, e)
-    # Try psutil sensors
-    if _HAVE_PSUTIL:
-        try:
-            for name, entries in psutil.sensors_temperatures().items():
-                for e in entries:
-                    if e.current:
-                        key = f"{name}/{e.label}" if e.label else name
-                        temps[key] = round(e.current, 1)
-        except Exception as e:
-            logger.debug("get_temps psutil failed: %s", e)
-    return temps
-
-
-@app.get("/api/system/stats")
-async def system_stats(user=Depends(verify_token)):
-    return {
-        "cpu_pct": get_cpu_usage(),
-        "memory": get_memory(),
-        "network": get_network(),
-        "uptime": get_uptime(),
-        "load": get_load(),
-        "temps": get_temps(),
-        "hostname": _run_args(["hostname", "-f"]),
-        "kernel": _run_args(["uname", "-r"]),
-        "timestamp": time.time(),
-    }
-
-
-@app.get("/api/system/info")
-async def system_info(user=Depends(verify_token)):
-    # Read CPU model directly from /proc/cpuinfo — no shell piping needed
-    cpu_model = ""
-    try:
-        with open("/proc/cpuinfo") as f:
-            for line in f:
-                if line.startswith("model name"):
-                    cpu_model = line.split(":", 1)[-1].strip()
-                    break
-    except OSError:
-        pass
-    return {
-        "hostname":   _run_args(["hostname", "-f"]),
-        "os":         _run_args(["lsb_release", "-ds"]),
-        "kernel":     _run_args(["uname", "-r"]),
-        "cpu":        cpu_model,
-        "cpu_cores":  _run_args(["nproc"]),
-        "forgeos_ver": conf("FORGEOS_VERSION", "1.0"),
-        "uptime":     get_uptime(),
-        "boot_time":  _run_args(["uptime", "-s"]),
-    }
+# ────────────────────────────────────────────────────────────
+# SYSTEM METRICS — extracted to system_api.py (Sprint 1, commit 2)
+# Routes: /api/system/stats /api/system/info /api/services
+#         /api/network /api/config /api/settings (GET+PUT)
+# ────────────────────────────────────────────────────────────
 
 # ────────────────────────────────────────────────────────────
 # STORAGE — Pool status (grouped by pool, with SMART)
@@ -1482,92 +1388,6 @@ async def docker_install(app: str, image: str = None, ports: List[str] = None, u
 # ────────────────────────────────────────────────────────────
 
 
-@app.get("/api/services")
-async def list_services(user=Depends(verify_token)):
-    """List system services status"""
-    services = []
-    # Key services to check
-    check_services = [
-        ("docker", "Docker", "Container runtime"),
-        ("smbd", "Samba", "File sharing"),
-        ("nginx", "nginx", "Web server"),
-        ("fail2ban", "fail2ban", "Intrusion prevention"),
-        ("smartd", "smartd", "SMART monitoring"),
-        ("wg-quick@", "WireGuard", "VPN server"),
-        ("postfix", "Postfix", "Mail server"),
-        ("redis-server", "Redis", "Cache server"),
-    ]
-    for svc, name, desc in check_services:
-        # Check if service is active — no shell, use _run_args() directly
-        if svc.startswith("wg-quick"):
-            # WireGuard uses instance units like wg-quick@wg0.service
-            # List units matching the template to find active instances
-            units_out = _run_args(
-                ["systemctl", "list-units", f"{svc}*", "--no-legend"],
-                timeout=3
-            )
-            if units_out and "active" in units_out.splitlines()[0] if units_out else False:
-                status = "running"
-            else:
-                status = "stopped"
-        else:
-            out = _run_args(["systemctl", "is-active", svc], timeout=3)
-            status = "running" if out.strip() == "active" else "stopped"
-        services.append({"name": name, "desc": desc, "status": status})
-    return {"services": services}
-
-
-@app.get("/api/network")
-async def list_network(user=Depends(verify_token)):
-    """List network interfaces"""
-    ifaces = []
-    # Get interfaces with IPs — use ip -j (JSON mode) to avoid jq dependency
-    out = _run_args(["ip", "-j", "addr", "show"], timeout=5)
-    if out:
-        try:
-            raw = json.loads(out)
-            for iface in raw:
-                if not isinstance(iface, dict):
-                    continue
-                for addr_info in iface.get("addr_info", []):
-                    if isinstance(addr_info, dict) and addr_info.get("family") == "inet":
-                        ifaces.append({
-                            "name": iface.get("ifname", "?"),
-                            "ip": addr_info.get("local", "N/A"),
-                        })
-        except Exception as e:
-            logger.warning("ip -j addr JSON parse failed: %s", e)
-            ifaces = []
-    # Fallback: use ip addr
-    if not ifaces:
-        out = _run_args(["ip", "addr", "show"], timeout=5)
-        for line in out.splitlines():
-            m = re.match(r'^\d+:\s+(\S+):', line)
-            if m and m.group(1) != "lo":
-                name = m.group(1)
-                ip_out = _run_args(["ip", "addr", "show", name], timeout=3)
-                ip_match = re.search(r'inet\s+(\S+)', ip_out)
-                ip_addr = ip_match.group(1).split('/')[0] if ip_match else "N/A"
-                rx_out = _run_args(["cat", f"/sys/class/net/{name}/statistics/rx_bytes"], timeout=2)
-                tx_out = _run_args(["cat", f"/sys/class/net/{name}/statistics/tx_bytes"], timeout=2)
-                ifaces.append({
-                    "name": name,
-                    "ip": ip_addr,
-                    "rx": int(rx_out.strip() or 0),
-                    "tx": int(tx_out.strip() or 0),
-                })
-    return {"interfaces": ifaces}
-
-
-@app.get("/api/config")
-async def get_config(user=Depends(verify_token)):
-    """Get system config"""
-    return {
-        "hostname": _run_args(["hostname"]).strip() or "forgeos",
-        "domain": conf("DOMAIN", "local"),
-        "timezone": conf("TIMEZONE", "UTC"),
-    }
-
 # ────────────────────────────────────────────────────────────
 # NOTIFICATIONS
 # ────────────────────────────────────────────────────────────
@@ -1690,45 +1510,6 @@ async def firewall_status(user=Depends(verify_token)):
 # SETTINGS
 # ────────────────────────────────────────────────────────────
 
-
-@app.get("/api/settings")
-async def get_settings(user=Depends(verify_token)):
-    if user.get("role") != "admin":
-        raise HTTPException(403)
-    safe_keys = [
-        "DOMAIN", "HOSTNAME", "TIMEZONE", "ACME_EMAIL",
-        "FORGEOS_VERSION", "PRIMARY_POOL", "PRIMARY_POOL_MOUNT",
-        "PRIMARY_POOL_TYPE", "HIPAA_ENABLED", "PROXY",
-        "MARIADB_ENABLED", "REDIS_ENABLED",
-    ]
-    return {k: conf(k) for k in safe_keys}
-
-
-@app.put("/api/settings")
-async def save_settings(body: dict, user=Depends(verify_token)):
-    if user.get("role") != "admin":
-        raise HTTPException(403)
-    # Only allow safe keys
-    allowed = {"DOMAIN", "TIMEZONE", "ACME_EMAIL", "HOSTNAME"}
-    safe = {k: v for k, v in body.items() if k in allowed}
-    if not safe:
-        return {"ok": True, "message": "No allowed settings to update"}
-    # Append to config file
-    text = CONFIG_FILE.read_text() if CONFIG_FILE.exists() else ""
-    for k, v in safe.items():
-        text = re.sub(rf'^{k}=.*$', f'{k}="{v}"', text, flags=re.MULTILINE)
-        if f'{k}=' not in text:
-            text += f'\n{k}="{v}"'
-    CONFIG_FILE.write_text(text)
-    _audit(user["sub"], "settings.update", "success",
-            f"Settings changed: {', '.join(f'{k}={v}' for k, v in safe.items())}")
-    # Reload in-memory cache so settings take effect without restart
-    _conf.clear()
-    for line in CONFIG_FILE.read_text().splitlines():
-        if "=" in line and not line.startswith("#"):
-            k, _, v = line.partition("=")
-            _conf[k.strip()] = v.strip().strip('"')
-    return {"ok": True, "updated": list(safe.keys())}
 
 # ────────────────────────────────────────────────────────────
 # HEALTH
