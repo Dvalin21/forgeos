@@ -1,0 +1,255 @@
+# ForgeOS — Production Readiness Registry
+
+**Purpose:** This document is the single authoritative tracker for every known bug, design concern, and feature gap in ForgeOS. Every entry has a stable ID, severity, current status, and the commit that resolved it (when resolved).
+
+**Discipline rule:** This registry is updated in the same commit as the work it tracks. Status drift here is a project-management bug, not a documentation bug.
+
+**Last reviewed:** 2026-06-04
+**Last commit reviewed:** `79b1c72` — web: add ForgeDB page
+**Test baseline at start:** 87/87 passing
+**Repository:** github.com/Dvalin21/forgeos
+
+---
+
+## Status legend
+
+| Code | Meaning |
+|---|---|
+| 🔴 OPEN | Not started |
+| 🟡 IN-PROGRESS | Work begun but not committed |
+| 🟢 DONE | Committed and verified |
+| ⚪ DEFERRED | Acknowledged but explicitly out of current scope |
+| ⚫ WON'T FIX | Decided against, with reason |
+
+---
+
+## Severity legend
+
+| Code | Meaning |
+|---|---|
+| **CRIT** | Security correctness, data loss risk, or installation failure |
+| **HIGH** | User-facing breakage, regression, or significant usability problem |
+| **MED** | Quality / maintainability / accuracy concern |
+| **LOW** | Polish, cleanup, documentation |
+
+---
+
+## Section 1 — Bugs and concerns from the vision audit
+
+These are the seven items identified by the 2026-06-04 reading of the codebase. Each one was verified to exist in the working tree at commit `79b1c72`.
+
+| ID | Severity | Status | Title | File(s) |
+|---|---|---|---|---|
+| C-001 | CRIT | 🔴 OPEN | JWT secret bootstrap race — secret generated on first start, two parallel workers can write conflicting values | `src/forgeos_auth.py:25-46`, `install/modules/99-finalize.sh` |
+| C-002 | HIGH | 🔴 OPEN | `forgeos-api.py` is 2,410 lines in one file — splits into per-domain routers | `src/forgeos-api.py` |
+| C-003 | MED | 🔴 OPEN | OS minimums unpinned — `install.sh` does not refuse old Ubuntu/Debian versions | `install/install.sh`, `pyproject.toml`, `README.md` |
+| C-004 | MED | 🔴 OPEN | Zero test coverage for `forgeos_pages_api.py` (1,410 LOC) and `rustfs_api.py` (270 LOC) | `tests/` |
+| C-005 | LOW | 🔴 OPEN | Backup tree `backups/20260417/` lives inside `src/` causing duplicate grep hits across the codebase | `src/`, `.gitignore` |
+| C-006 | LOW | 🔴 OPEN | Installer module numbering has gaps (no 08, 19, 20, 21) — either renumber or document the gaps | `install/modules/` |
+| C-007 | LOW | 🔴 OPEN | Status documents disagree with current main — three different UI designs described across `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, current code | `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, `HARDWARE_TEST_REPORT.md` |
+
+### Detail — C-001 JWT secret bootstrap race
+
+`src/forgeos_auth.py:25-46` reads `FORGEOS_JWT_SECRET` from env, falls back to `WEBUI_JWT_SECRET` in `/etc/forgeos/forgeos.conf`, falls back to generating a new 32-byte secret and writing it. On parallel API worker start, two workers can each generate a different secret and the last writer wins. All tokens previously issued by the losing worker become invalid.
+
+**Fix:** Move secret generation to `install/modules/99-finalize.sh` as a one-shot during install. `forgeos_auth.py` refuses to start if `WEBUI_JWT_SECRET` is missing or matches a known placeholder.
+
+**Verification:** Inspect `/etc/forgeos/forgeos.conf` after install — secret present, file mode `0640` owned by `root:forgeos`. Restart API service twice and confirm token from first session still validates after second start.
+
+### Detail — C-002 forgeos-api.py refactor
+
+The user explicitly chose "do it first — clean foundation before any new features." Split `src/forgeos-api.py` into per-domain routers following the existing pattern (`docker_lxc_api.py`, `filedb_api.py`, `forgeos_pages_api.py`, `rustfs_api.py`).
+
+**Proposed router decomposition:**
+- `storage_api.py` — pools, drives, snapshots, SMART, hotswap log
+- `nginx_api.py` — vhosts, certbot, raw config
+- `samba_api.py` — shares, connections, raw config
+- `services_api.py` — systemd, network state, security/fail2ban
+- `system_api.py` — stats, info, settings, config
+- `notifications_api.py` — notifications, alerts, notify
+- `backup_api.py` — backup history (existing surface)
+- `imaging_api.py` — system imaging
+- `auth_api.py` — login, logout, change-password (separated from `forgeos_auth.py` which stays as the verification layer)
+
+`src/forgeos-api.py` becomes a thin orchestrator that creates the app, applies middleware, and `include_router()`s the above.
+
+**Risk:** 87 tests run today. If imports change, every test needs verification. Plan: do the split with a single commit that moves code but does not change behavior. Tests must pass identically.
+
+### Detail — C-003 OS minimums
+
+`pyproject.toml` requires Python 3.10+. The rest of the stack assumes systemd, apt, and packages whose names changed between Ubuntu 20.04 and 24.04 (most notably `python-is-python3`, `unattended-upgrades` defaults, AppArmor profile names).
+
+**Fix:** Declare and enforce in `install/lib/preflight.sh`:
+- Ubuntu 22.04, 24.04
+- Debian 12 (bookworm)
+
+Refuse anything else with a clear error message and a link to the README's compatibility section.
+
+### Detail — C-004 Test coverage gaps
+
+`tests/test_forgeos_pages.py` and `tests/test_rustfs.py` do not exist. The two files are 1,680 LOC combined with no test coverage.
+
+**Fix scope:** Add a minimal happy-path + auth-required test suite per file. Aim for ~50% line coverage on each as a start. Full coverage is not the goal — preventing silent regressions is.
+
+### Detail — C-005 Backup tree in source
+
+`src/backups/20260417/src/forgeos-api.py` (1,886 lines) is an April snapshot of the API file. It shows up in every `grep` over `src/`. Move to `archive/snapshots/` outside the source tree, or delete (git history preserves it).
+
+### Detail — C-006 Module numbering gaps
+
+Modules: 01, 02, 03, 03c, 04, 05, 06, 07, 09, 10, 10b, 10c, 11, 12, 13, 14, 15, 16, 17, 18, 22, 99. Missing: 08, 19, 20, 21.
+
+**Fix:** Documentation-only. Add a comment block to `install/install.sh` explaining the numbering scheme. Not renumbering — that would invalidate user docs and break anyone with custom modules.
+
+### Detail — C-007 Stale status documents
+
+Three documents describe three different UI designs. None match current main.
+
+**Fix:** Move `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, `HARDWARE_TEST_REPORT.md` to `docs/historical/`. Update `README.md` to point at `PRODUCTION_READINESS.md` (this file) as the canonical state-of-project document.
+
+---
+
+## Section 2 — Like-to-have features (LTH)
+
+These build new user-facing capability. Tier order is the user's stated priority.
+
+### Tier 1 — User's explicitly requested gaps
+
+| ID | Severity | Status | Title | Scope |
+|---|---|---|---|---|
+| LTH-001 | HIGH | 🔴 OPEN | WireGuard peer-management API + UI page | New `vpn_api.py` router, new `web/desktop/vpn.html` page, tests |
+| LTH-002 | HIGH | 🔴 OPEN | OIDC SSO integration end-to-end (build with unit tests, hardware-verify on Authentik instance) | OIDC verifier in `forgeos_auth.py`, SSO routes, login button |
+| LTH-003 | HIGH | 🔴 OPEN | lldap user-management API + UI page | New `users_api.py` router proxying lldap GraphQL admin |
+
+### Tier 2 — Fix regressions from the May 29 redesign
+
+| ID | Severity | Status | Title | Scope |
+|---|---|---|---|---|
+| LTH-004 | HIGH | 🔴 OPEN | Cloud / S3 page restoring lost UI for `rustfs_api.py` | New `web/desktop/cloud.html`, bucket browser |
+| LTH-005 | MED | 🔴 OPEN | Sensors dedicated view (lm-sensors output) | New `web/desktop/sensors.html`, new `/api/sensors` route |
+| LTH-006 | MED | 🔴 OPEN | Logs dedicated view (journalctl filter UI) | New `web/desktop/logs.html`, new `/api/logs` route with filtering |
+| LTH-007 | MED | 🔴 OPEN | Apps page: "Add custom app" via paste-compose-yaml flow (warn-only, no allowlist per user choice) | Extend `apps.html`, new `POST /api/apps/custom` route |
+| LTH-008 | LOW | 🔴 OPEN | Mail placeholder page — "Coming Soon" stub (separate mail project integration planned) | New `web/desktop/mail.html`, no API surface yet |
+
+### Tier 3 — Vision-completing additions
+
+| ID | Severity | Status | Title | Scope |
+|---|---|---|---|---|
+| LTH-009 | MED | ⚪ DEFERRED | HIPAA compliance dashboard page | Surfaces PHI volumes, auditd status, retention check |
+| LTH-010 | MED | ⚪ DEFERRED | Embedded monitoring (Grafana iframes + Alertmanager toasts) | Dashboard integration |
+| LTH-011 | MED | ⚪ DEFERRED | Snapshot browser (Time Machine-style btrfs restore) | New `web/desktop/snapshots.html` |
+| LTH-012 | MED | ⚪ DEFERRED | Backup wizard (Restic job CRUD + restore wizard) | Builds on existing `/api/backup/*` |
+| LTH-013 | LOW | ⚪ DEFERRED | Firewall UI improvement (zones, country/ASN blocking) | Enhance existing `firewall.html` |
+
+**Note on Tier 3 deferred items:** These are valuable but not in current scope. They are tracked so they are not forgotten.
+
+### Tier 4 — Quality and polish
+
+| ID | Severity | Status | Title | Scope |
+|---|---|---|---|---|
+| LTH-014 | LOW | 🔴 OPEN | README updated to reflect actual feature surface + canonical pointer to this registry | `README.md` |
+| LTH-015 | LOW | 🔴 OPEN | Modularize `web/desktop/index.html` JS (1,422 lines) into per-section initializers | `web/desktop/index.html` |
+| LTH-016 | LOW | ⚪ DEFERRED | Pin OS minimums in CI (lint on every PR) | `.github/workflows/` |
+| LTH-017 | LOW | ⚪ DEFERRED | Snapshot module 22-imaging.sh is currently 72 lines — incomplete vs README description | `install/modules/22-imaging.sh` |
+
+---
+
+## Section 3 — Out of scope, deliberate
+
+These were considered and excluded for the current effort. Documented here to prevent re-discovery.
+
+| Decision | Reason |
+|---|---|
+| Mail server admin UI | Will integrate from a separate project. Placeholder page only this round. |
+| App marketplace registry | Out of scope. User uncertain about complexity. The BYO-compose path (LTH-007) gives users the same outcome (deploy any app) without the registry maintenance burden. |
+| AD / FreeIPA support | Target user is 1-10 employee businesses. lldap + Authentik is sufficient. |
+| WireGuard mesh / Netbird integration | Installer already supports it optionally. UI surface stays single-server. |
+| Enterprise audit-vault | HIPAA module already handles 6-year retention. No enterprise SIEM integration in scope. |
+| Role-based access control beyond admin/user | Not needed for 1-10 employee target. Re-evaluate if target shifts. |
+
+---
+
+## Section 4 — Sprint plan
+
+Sprints are a unit of focus, not a unit of time. Each sprint has a clear goal and a clear done condition.
+
+### Sprint 0 — Registry setup
+**Goal:** This document exists, committed, on main.
+**Done condition:** Commit lands, this file at HEAD.
+**Status:** 🟡 IN-PROGRESS (this is that commit)
+
+### Sprint 1 — Small concerns batch
+**Goal:** Close the cheap concerns first to build momentum.
+**Scope:** C-005, C-006, C-007 (backup move, module numbering doc, status docs archive).
+**Done condition:** Three commits, registry reflects DONE for each, 87/87 tests pass.
+
+### Sprint 2 — JWT secret hardening
+**Goal:** C-001 closed.
+**Scope:** Move secret generation to installer, API refuses placeholder.
+**Done condition:** Code committed, registry DONE, 87/87 tests pass, new test coverage for the refuse-placeholder path.
+
+### Sprint 3 — OS minimums and test gaps
+**Goal:** C-003 and C-004 closed.
+**Scope:** Preflight rejects unsupported OS; tests added for `forgeos_pages_api.py` and `rustfs_api.py`.
+**Done condition:** Registry DONE, ≥90/90 tests passing (87 baseline + new tests).
+
+### Sprint 4 — The big refactor (C-002)
+**Goal:** `forgeos-api.py` split into per-domain routers.
+**Scope:** Mechanical move, no behavior change.
+**Done condition:** 87/87 tests still pass identically. Imports cleaned. Registry DONE.
+**Risk:** Highest in the plan. May span multiple turns.
+
+### Sprint 5 — LTH-001 WireGuard
+**Goal:** WireGuard peer management end-to-end.
+**Done condition:** `vpn_api.py` router, `vpn.html` page, tests, registry DONE. Hardware verification required before close.
+
+### Sprint 6 — LTH-002 OIDC
+**Goal:** OIDC integration with unit tests.
+**Done condition:** Code, unit tests, integration test instructions in `docs/oidc-integration-test.md`. Hardware verification deferred to user.
+
+### Sprint 7 — LTH-003 lldap user management
+**Goal:** Users & Groups page.
+**Done condition:** `users_api.py`, UI page, tests, registry DONE.
+
+### Sprint 8 — Lost UI surface (LTH-004 through LTH-008)
+**Goal:** Cloud, Sensors, Logs, Custom Apps, Mail-stub.
+**Done condition:** Five pages exist, three new minor API routes, mail stub serves coming-soon message.
+
+### Sprint 9 — Polish (LTH-014, LTH-015)
+**Goal:** README accurate, dashboard JS modularized where safe.
+**Done condition:** README points at this registry; index.html JS organized into named initializers.
+
+---
+
+## Section 5 — Hardware verification log
+
+Every change that touches storage, network, auth, systemd, or installer behavior needs hardware verification by the user before the registry marks it DONE. This section logs that verification.
+
+| Date | Commit | Item | Verifier | Pass/Fail | Notes |
+|---|---|---|---|---|---|
+| — | — | — | — | — | (none yet) |
+
+---
+
+## Section 6 — Test count history
+
+The 87-test baseline is the floor. Every sprint must end with at least the baseline test count passing. New work adds tests.
+
+| Sprint | Tests passing | Tests added | Tests removed | Notes |
+|---|---:|---:|---:|---|
+| Baseline (pre-Sprint-0) | 87 | — | — | At commit `79b1c72` |
+| Sprint 0 | 87 | 0 | 0 | Registry only, no code change |
+
+---
+
+## Section 7 — Maintenance
+
+This document changes whenever the work it tracks changes. The change rules:
+
+1. Every commit that closes a registry item updates that item's status from 🔴/🟡 to 🟢, in the same commit.
+2. Every commit that discovers a new bug or concern adds an entry, in the same commit. New IDs continue the C-NNN or LTH-NNN sequence.
+3. Hardware verification results are logged in Section 5 immediately, by the user reporting them.
+4. Sprint plan revisions happen between sprints, not during. Once a sprint starts, its scope is fixed; new findings become future sprints.
+5. Out-of-scope decisions go in Section 3, with reason. Re-opening requires explicit user direction.
+
+**Lesson learned from WatchROM:** WatchROM's `PRODUCTION_READINESS.md` had tables at the top showing open issues and Sprint sections at the bottom showing them closed. The code matched the Sprint sections; the tables were stale. ForgeOS will not repeat this mistake — there is one status field per item, and it is updated in the same commit as the work.
