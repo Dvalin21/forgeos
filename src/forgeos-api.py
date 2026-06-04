@@ -950,6 +950,31 @@ except ImportError as e:
 
 
 # ────────────────────────────────────────────────────────────
+# AUDIT — extracted to audit_api.py (Sprint 1, commit 9)
+# ────────────────────────────────────────────────────────────
+try:
+    from audit_api import router as audit_router, set_helpers as set_audit_helpers
+    set_audit_helpers(get_db=_get_db)
+    app.include_router(audit_router)
+    logger.info("Audit API loaded")
+except ImportError as e:
+    logger.error("Audit API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
+# IMAGING — extracted to imaging_api.py (Sprint 1, commit 9)
+# ────────────────────────────────────────────────────────────
+try:
+    from imaging_api import router as imaging_router
+    app.include_router(imaging_router)
+    logger.info("Imaging API loaded")
+except ImportError as e:
+    logger.error("Imaging API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
 # SYSTEM METRICS — extracted to system_api.py (Sprint 1, commit 2)
 # Routes: /api/system/stats /api/system/info /api/services
 #         /api/network /api/config /api/settings (GET+PUT)
@@ -1277,76 +1302,7 @@ if __name__ == "__main__":
 # (Task/job orchestration state stays in main — needed by lifespan)
 # ────────────────────────────────────────────────────────────
 # ────────────────────────────────────────────────────────────
-# AUDIT LOG
+# AUDIT — extracted to audit_api.py (Sprint 1, commit 9)
+# IMAGING — extracted to imaging_api.py (Sprint 1, commit 9)
+# (Wiring is in the router-includes block near top of file)
 # ────────────────────────────────────────────────────────────
-
-
-@app.get("/api/audit")
-async def list_audit_log(user=Depends(verify_token),
-                         limit: int = 100, offset: int = 0,
-                         action: str | None = None,
-                         who: str | None = None):
-    """Query the audit log. Newest first, with optional filters.
-
-    Query params:
-      limit   — max entries to return (default 100, max 1000)
-      offset  — skip N entries from the front (for pagination)
-      action  — filter by action name (e.g. "backup.job.create")
-      who     — filter by username
-    """
-    limit = min(limit, 1000)
-    conn = _get_db()
-    where = []
-    params = []
-    if action:
-        where.append("action = ?")
-        params.append(action)
-    if who:
-        where.append("who = ?")
-        params.append(who)
-    where_clause = (" WHERE " + " AND ".join(where)) if where else ""
-    total_row = conn.execute(
-        f"SELECT count(*) FROM audit_log{where_clause}", params
-    ).fetchone()
-    total = total_row[0] if total_row else 0
-    rows = conn.execute(
-        f"SELECT timestamp, who, action, status, detail FROM audit_log{where_clause} ORDER BY id DESC LIMIT ? OFFSET ?",
-        params + [limit, offset]
-    ).fetchall()
-    columns = ["timestamp", "who", "action", "status", "detail"]
-    return {"entries": [dict(zip(columns, r)) for r in rows], "total": total, "limit": limit, "offset": offset}
-
-
-# ────────────────────────────────────────────────────────────
-# FOG IMAGING
-# ────────────────────────────────────────────────────────────
-
-
-@app.get("/api/imaging/status")
-async def imaging_status(user=Depends(verify_token)):
-    """Get FOG imaging status"""
-    fog_installed = os.path.exists("/opt/fog")
-    images = []
-    hosts = []
-    
-    if fog_installed:
-        img_dir = "/images"
-        if os.path.exists(img_dir):
-            try:
-                images = os.listdir(img_dir)
-            except Exception as e:
-                logger.warning("imaging images list failed: %s", e)
-    
-    return {"fog_installed": fog_installed, "images": images, "hosts": hosts}
-
-
-@app.post("/api/imaging/capture")
-async def imaging_capture(hostname: str, image_name: str, user=Depends(verify_token)):
-    """Request FOG image capture — STUB: FOG integration not yet implemented"""
-    raise HTTPException(status_code=501, detail="FOG imaging capture not yet implemented")
-
-
-@app.post("/api/imaging/deploy")
-async def imaging_deploy(image_name: str, target_host: str, user=Depends(verify_token)):
-    """Deploy image to target — STUB: FOG integration not yet implemented"""
-    raise HTTPException(status_code=501, detail="FOG imaging deploy not yet implemented")
