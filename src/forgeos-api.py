@@ -896,6 +896,19 @@ except ImportError as e:
 
 
 # ────────────────────────────────────────────────────────────
+# SAMBA — extracted to samba_api.py (Sprint 1, commit 5)
+# ────────────────────────────────────────────────────────────
+try:
+    from samba_api import router as samba_router, set_helpers as set_samba_helpers
+    set_samba_helpers(run_args=_run_args, audit=_audit)
+    app.include_router(samba_router)
+    logger.info("Samba API loaded")
+except ImportError as e:
+    logger.error("Samba API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
 # SYSTEM METRICS — extracted to system_api.py (Sprint 1, commit 2)
 # Routes: /api/system/stats /api/system/info /api/services
 #         /api/network /api/config /api/settings (GET+PUT)
@@ -911,68 +924,9 @@ except ImportError as e:
 # Routes: vhosts (CRUD), raw config (GET/PUT), reload, test, certbot
 # ────────────────────────────────────────────────────────────
 # ────────────────────────────────────────────────────────────
-# SAMBA SHARE MANAGEMENT
+# SAMBA — extracted to samba_api.py (Sprint 1, commit 5)
+# Routes: shares (CRUD), raw config (GET/PUT), connections
 # ────────────────────────────────────────────────────────────
-
-
-@app.get("/api/samba/shares")
-async def samba_shares(user=Depends(verify_token)):
-    raw = _run_args(["forgeos-samba", "list"])
-    return {"raw": raw}
-
-
-@app.post("/api/samba/share")
-async def create_share(body: dict, user=Depends(verify_token)):
-    if user.get("role") != "admin":
-        raise HTTPException(403)
-    name    = re.sub(r"[^a-z0-9_-]", "", body["name"])
-    path    = body["path"]
-    type_   = body.get("type", "standard")
-    write   = "yes" if body.get("writable", True) else "no"
-    users   = body.get("users", "@users")
-    comment = body.get("comment", "")
-    result  = _run_args(["forgeos-samba", "create", name, path, type_, write, users, comment])
-    _audit(user["sub"], "samba.share.create", "success",
-            f"Share '{name}' at '{path}' ({'rw' if write == 'yes' else 'ro'})")
-    return {"ok": True, "message": result}
-
-
-@app.delete("/api/samba/share/{name}")
-async def remove_share(name: str, user=Depends(verify_token)):
-    if user.get("role") != "admin":
-        raise HTTPException(403)
-    name = re.sub(r"[^a-z0-9_-]", "", name)
-    result = _run_args(["forgeos-samba", "remove", name])
-    _audit(user["sub"], "samba.share.delete", "success", f"Share '{name}' removed")
-    return {"ok": True, "message": result}
-
-
-@app.get("/api/samba/raw")
-async def samba_raw(user=Depends(verify_token)):
-    return {"config": _run_args(["forgeos-samba", "raw-get"])}
-
-
-@app.put("/api/samba/raw")
-async def samba_save_raw(body: dict, user=Depends(verify_token)):
-    if user.get("role") != "admin":
-        raise HTTPException(403)
-    config = body.get("config", "")
-    # Pipe config via stdin to avoid shell/single-quote escaping entirely
-    result = subprocess.run(
-        ["forgeos-samba", "raw-put"],
-        input=config, capture_output=True, text=True, timeout=10
-    )
-    if result.returncode != 0:
-        raise HTTPException(400, detail=result.stderr.strip() or "samba config rejected")
-    _audit(user["sub"], "samba.config.update", "success", "Raw Samba config updated")
-    return {"ok": True, "message": result.stdout.strip()}
-
-
-@app.get("/api/samba/connections")
-async def samba_connections(user=Depends(verify_token)):
-    out = _run_args(["smbstatus"])
-    return {"output": out or "No connections"}
-
 # ────────────────────────────────────────────────────────────
 # DOCKER APP BROWSER
 # ────────────────────────────────────────────────────────────
