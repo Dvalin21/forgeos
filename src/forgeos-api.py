@@ -805,40 +805,18 @@ class MutationRateLimitMiddleware:
 app.add_middleware(MutationRateLimitMiddleware)
 
 
-@app.post("/api/auth/login")
-async def login(body: LoginRequest, request: Request):
-    _check_login_rate_limit(request.client.host)
-    users = load_users()
-    if not users:
-        raise HTTPException(status_code=503, detail="No users configured. Run forgeos-install to set up admin user.")
-    user = users.get(body.username)
-    if not user or not pwd_ctx.verify(body.password, user["hash"]):
-        logger.warning("FAILED LOGIN user=%s from=%s", body.username, request.client.host)
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_token(body.username, user["role"])
-    resp = JSONResponse({"token": token, "username": body.username, "role": user["role"]})
-    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
-    resp.set_cookie("forgeos_token", token, httponly=True, secure=secure, samesite="strict", max_age=JWT_EXPIRE * 3600)
-    return resp
+# ────────────────────────────────────────────────────────────
+# AUTH — extracted to auth_api.py (Sprint 1 of forgeos-api refactor)
+# ────────────────────────────────────────────────────────────
+try:
+    from auth_api import router as auth_router, set_helpers as set_auth_helpers
+    set_auth_helpers(audit=_audit, check_rate_limit=_check_login_rate_limit)
+    app.include_router(auth_router)
+    logger.info("Auth API loaded")
+except ImportError as e:
+    logger.error("Auth API failed to load: %s", e)
+    raise
 
-
-@app.post("/api/auth/logout")
-async def logout():
-    resp = JSONResponse({"ok": True})
-    resp.delete_cookie("forgeos_token")
-    return resp
-
-
-@app.post("/api/auth/change-password")
-async def change_password(body: dict, user=Depends(verify_token)):
-    users = load_users()
-    u = users.get(user["sub"])
-    if not u or not pwd_ctx.verify(body.get("current", ""), u["hash"]):
-        raise HTTPException(status_code=401, detail="Current password incorrect")
-    users[user["sub"]]["hash"] = pwd_ctx.hash(body["new"])
-    save_users(users)
-    _audit(user["sub"], "auth.password.change", "success", "Password changed")
-    return {"ok": True}
 
 # ────────────────────────────────────────────────────────────
 # SYSTEM METRICS
