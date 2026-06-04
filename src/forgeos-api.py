@@ -937,6 +937,19 @@ except ImportError as e:
 
 
 # ────────────────────────────────────────────────────────────
+# NOTIFICATIONS — extracted to notifications_api.py (Sprint 1, commit 7)
+# ────────────────────────────────────────────────────────────
+try:
+    from notifications_api import router as notifications_router, set_helpers as set_notifications_helpers
+    set_notifications_helpers(conf=conf)
+    app.include_router(notifications_router)
+    logger.info("Notifications API loaded")
+except ImportError as e:
+    logger.error("Notifications API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
 # SYSTEM METRICS — extracted to system_api.py (Sprint 1, commit 2)
 # Routes: /api/system/stats /api/system/info /api/services
 #         /api/network /api/config /api/settings (GET+PUT)
@@ -967,89 +980,10 @@ except ImportError as e:
 
 
 # ────────────────────────────────────────────────────────────
-# NOTIFICATIONS
+# NOTIFICATIONS — extracted to notifications_api.py (Sprint 1, commit 7)
+# Routes: notify, drive-alert, notifications, drive-alerts, alert-webhook
+# State (_notifications, _drive_alerts) moved with them.
 # ────────────────────────────────────────────────────────────
-
-# In-memory notification stores — defined before first usage below.
-# NOTE: workers=1 in production. These are NOT thread-safe.
-# If workers>1 is needed, wrap access with asyncio.Lock.
-_notifications: deque[dict] = deque(maxlen=100)
-_drive_alerts:  dict[str, dict] = {}
-
-
-@app.post("/api/notify")
-async def notify(body: dict):
-    """Internal notification endpoint — called by scripts and alertmanager"""
-    level   = body.get("level", "info")
-    title   = body.get("title", "ForgeOS")
-    message = body.get("message", "")
-
-    # Forward to Gotify
-    gotify_url = conf("GOTIFY_URL", "http://localhost:8070")
-    gotify_tok = conf("GOTIFY_TOKEN", "")
-    if gotify_tok:
-        priority = {"info": 2, "warning": 5, "warn": 5, "critical": 10, "err": 8}.get(level, 2)
-        _payload = json.dumps({"title": title, "message": message, "priority": priority})
-        subprocess.run(
-            ["curl", "-sf", "-X", "POST",
-             f"{gotify_url}/message?token={gotify_tok}",
-             "-H", "Content-Type: application/json",
-             "-d", _payload],
-            capture_output=True, timeout=10
-        )
-
-    # Forward to Apprise (if configured)
-    apprise_urls = conf("APPRISE_URLS", "")
-    if apprise_urls:
-        subprocess.run(
-            ["apprise", "-t", title, "-b", message, apprise_urls],
-            capture_output=True, timeout=10
-        )
-
-    # Store in notification queue for Web UI
-    # NOTE: workers=1 in production. _notifications is NOT thread-safe.
-    # If workers>1 is needed, wrap with asyncio.Lock.
-    _notifications.append({"level": level, "title": title, "message": message, "ts": time.time()})
-
-    return {"ok": True}
-
-
-@app.post("/api/drive-alert")
-async def drive_alert(body: dict):
-    """Drive SMART/hot-swap alerts — updates tray indicators"""
-    _drive_alerts[body.get("device", "?")] = {
-        "level": body.get("level", "warn"),
-        "message": body.get("message", ""),
-        "ts": time.time(),
-    }
-    await notify(body)
-    return {"ok": True}
-
-
-@app.get("/api/notifications")
-async def get_notifications(user=Depends(verify_token)):
-    return {"notifications": list(reversed(_notifications[-20:]))}
-
-
-@app.get("/api/drive-alerts")
-async def get_drive_alerts(user=Depends(verify_token)):
-    return {"alerts": _drive_alerts}
-
-# Alertmanager webhook bridge
-
-
-@app.post("/api/alert-webhook")
-async def alertmanager_webhook(body: dict):
-    for alert in body.get("alerts", []):
-        labels = alert.get("labels", {})
-        annotations = alert.get("annotations", {})
-        status_ = alert.get("status", "firing")
-        level = "critical" if status_ == "firing" else "info"
-        title = labels.get("alertname", "Alert")
-        message = annotations.get("description", annotations.get("summary", str(labels)))
-        await notify({"level": level, "title": title, "message": message})
-    return {"ok": True}
-
 # ────────────────────────────────────────────────────────────
 # SECURITY — extracted to security_api.py (Sprint 1, commit 6)
 # Routes: fail2ban, crowdsec, firewall status
