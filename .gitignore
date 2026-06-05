@@ -88,6 +88,9 @@ web/desktop/index5-integrated.html
 # ── Backup / temp files ───────────────────────────────────────
 *.bak
 *.backup
+# Ad-hoc snapshot directories — historical snapshots go to docs/historical/snapshots/
+/backups/
+*.backup
 *.orig
 *.tmp
 *.log
