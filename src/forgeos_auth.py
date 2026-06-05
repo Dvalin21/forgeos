@@ -21,30 +21,71 @@ from pydantic import BaseModel, Field
 CONFIG_FILE = Path("/etc/forgeos/forgeos.conf")
 USERS_FILE  = Path("/etc/forgeos/api-users.json")
 
+# Known placeholder values that are NOT acceptable as a real JWT secret.
+# These get planted by install templates or admin-by-mistake — the auth
+# layer must refuse to start with any of them.
+_JWT_PLACEHOLDERS = frozenset({
+    "",
+    "changeme",
+    "changeme-set-in-forgeos.conf",
+})
+
+
+class JwtSecretMissingError(RuntimeError):
+    """Raised at import time if no valid JWT secret is configured.
+
+    The API process exits with this when:
+      - FORGEOS_JWT_SECRET env var is unset AND
+      - /etc/forgeos/forgeos.conf is missing or has no WEBUI_JWT_SECRET line
+        (or the value matches a known placeholder)
+
+    Fix: run `bash install/modules/99-finalize.sh` to generate a secret,
+    or set WEBUI_JWT_SECRET="<48-random-bytes-base64>" in the config file.
+    """
+
 
 def _load_jwt_secret() -> str:
-    secret = os.environ.get("FORGEOS_JWT_SECRET", "")
-    if not secret:
+    """Load the JWT signing secret from env or config file.
+
+    Refuses to generate one at runtime — that path was race-prone (two
+    parallel workers could each generate a different secret, last writer
+    wins, all tokens from the loser become invalid).
+
+    The installer (`install/modules/99-finalize.sh`) is now solely
+    responsible for generating and persisting the secret. If this
+    function cannot find a valid one, the API process must not start.
+    """
+    # Priority 1: explicit env var (used by the systemd unit)
+    env_secret = os.environ.get("FORGEOS_JWT_SECRET", "").strip()
+    if env_secret and env_secret not in _JWT_PLACEHOLDERS:
+        return env_secret
+
+    # Priority 2: WEBUI_JWT_SECRET line in the config file
+    if CONFIG_FILE.exists():
         try:
             for line in CONFIG_FILE.read_text().splitlines():
                 if line.startswith("WEBUI_JWT_SECRET="):
-                    candidate = line.split("=", 1)[1].strip().strip('"')
-                    if candidate not in ("changeme-set-in-forgeos.conf", "changeme", ""):
-                        secret = candidate
-        except Exception as e:
-            logger.warning("FAILED to read %s: %s", CONFIG_FILE, e)
-    if not secret or secret in ("changeme-set-in-forgeos.conf", "changeme", ""):
-        import secrets
-        secret = secrets.token_hex(32)
-        try:
-            lines = CONFIG_FILE.read_text().splitlines() if CONFIG_FILE.exists() else []
-            lines = [l for l in lines if not l.startswith("WEBUI_JWT_SECRET=")]
-            lines.append(f'WEBUI_JWT_SECRET="{secret}"')
-            CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-            CONFIG_FILE.write_text("\n".join(lines) + "\n")
-        except Exception as e:
-            logger.warning("FAILED to persist JWT secret: %s", e)
-    return secret
+                    candidate = line.split("=", 1)[1].strip().strip('"').strip("'")
+                    if candidate and candidate not in _JWT_PLACEHOLDERS:
+                        return candidate
+        except OSError as e:
+            logger.warning("Failed to read %s: %s", CONFIG_FILE, e)
+
+    # No valid secret found — refuse to start.
+    msg = (
+        "ForgeOS API refuses to start: no valid JWT signing secret is configured.\n"
+        "\n"
+        "  Tried (in order):\n"
+        "    1. FORGEOS_JWT_SECRET environment variable — unset or placeholder\n"
+        f"    2. WEBUI_JWT_SECRET in {CONFIG_FILE} — missing or placeholder\n"
+        "\n"
+        "  Fix:  run the installer's finalize module which generates one idempotently:\n"
+        "          sudo bash install/modules/99-finalize.sh\n"
+        "        or set it manually:\n"
+        '          echo \'WEBUI_JWT_SECRET="\'"$(openssl rand -base64 48 | tr -d \'\\n/\')\'"\' \\\n'
+        f"              | sudo tee -a {CONFIG_FILE}\n"
+    )
+    raise JwtSecretMissingError(msg)
 
 
 JWT_SECRET  = _load_jwt_secret()

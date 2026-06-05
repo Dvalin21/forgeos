@@ -68,20 +68,47 @@ require_root() {
 }
 
 # ── OS check ─────────────────────────────────────────────────
+# Supported (as of 2026):
+#   Ubuntu 24.04 LTS or newer
+#   Debian 12 (bookworm) or newer
+#
+# Rationale: pyproject.toml declares requires-python = ">=3.11", which
+# rules out Ubuntu 22.04 (ships Python 3.10). Ubuntu 24.04 LTS (Apr 2024)
+# ships Python 3.12 and is supported by Canonical through 2029. Debian 12
+# (Jun 2023) ships Python 3.11.
+#
+# Reads /etc/os-release directly (always present on systemd) — lsb_release
+# is not always installed on minimal images.
 require_ubuntu_debian() {
-    if ! command -v lsb_release &>/dev/null; then
-        die "lsb_release not found — is this Ubuntu/Debian?"
+    if [[ ! -r /etc/os-release ]]; then
+        die "Cannot read /etc/os-release — this installer requires a systemd-based Linux (Ubuntu 24.04+ or Debian 12+)."
     fi
-    local id; id=$(lsb_release -is)
-    [[ "$id" == "Ubuntu" || "$id" == "Debian" ]] \
-        || die "ForgeOS requires Ubuntu or Debian. Found: $id"
-    local ver; ver=$(lsb_release -rs | cut -d. -f1)
-    if [[ "$id" == "Ubuntu" && "$ver" -lt 22 ]]; then
-        die "ForgeOS requires Ubuntu 22.04+. Found: $(lsb_release -ds)"
-    fi
-    if [[ "$id" == "Debian" && "$ver" -lt 12 ]]; then
-        die "ForgeOS requires Debian 12+. Found: $(lsb_release -ds)"
-    fi
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    local id="${ID:-unknown}"
+    # VERSION_ID is "24.04" on Ubuntu, "12" on Debian
+    local ver_major
+    ver_major="${VERSION_ID%%.*}"
+
+    case "$id" in
+        ubuntu)
+            if [[ "$ver_major" -lt 24 ]]; then
+                die "ForgeOS requires Ubuntu 24.04 LTS or newer. Found: ${PRETTY_NAME:-Ubuntu $VERSION_ID}.
+
+  Ubuntu 22.04 ships Python 3.10; ForgeOS requires Python 3.11+
+  (see pyproject.toml). Either upgrade to 24.04 or install
+  Python 3.11+ from deadsnakes PPA and re-run with PYTHON=python3.11."
+            fi
+            ;;
+        debian)
+            if [[ "$ver_major" -lt 12 ]]; then
+                die "ForgeOS requires Debian 12 (bookworm) or newer. Found: ${PRETTY_NAME:-Debian $VERSION_ID}."
+            fi
+            ;;
+        *)
+            die "ForgeOS requires Ubuntu 24.04+ or Debian 12+. Detected ID=$id (${PRETTY_NAME:-unknown})."
+            ;;
+    esac
 }
 
 # ── apt wrapper ───────────────────────────────────────────────

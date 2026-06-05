@@ -3,6 +3,13 @@
 **Open-source NAS and home server platform for Ubuntu/Debian.**
 Built natively on the OS — not a repackaged distro.
 
+> 📋 **Canonical project state:** [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md)
+> tracks every known bug, design concern, and feature gap by ID with status,
+> severity, and the commit that resolved it. Older status documents that
+> describe past project states have been moved to
+> [`docs/historical/`](docs/historical/) — read this README and the registry
+> for the current state, not those.
+
 ---
 
 ## What This Repo Contains
@@ -226,21 +233,29 @@ Dashboard widgets bind to elements with **`data-stat` attributes** (not fragile 
 
 | Component | Minimum | Recommended |
 |-----------|---------|-------------|
-| OS | Ubuntu 22.04 LTS | Ubuntu 24.04 LTS |
+| OS | Ubuntu 24.04 LTS or Debian 12 (bookworm) | Ubuntu 24.04 LTS |
+| Python | 3.11+ (default in supported OSes) | 3.12+ |
 | CPU | 2 cores, x86_64 | 4+ cores |
 | RAM | 4 GB | 8 GB+ |
 | System disk | 32 GB SSD | 64 GB SSD |
 | Data disks | 1 | 2+ for RAID |
 | Network | 1 GbE | 2.5 GbE+ |
 
-Also supported: Debian 12 (Bookworm), Ubuntu 22.04/24.04 on ARM64 (Raspberry Pi 4/5, Ampere).
+**OS support note:** Ubuntu 22.04 LTS is **not** supported — it ships Python 3.10
+and ForgeOS requires Python 3.11+. Ubuntu 24.04 LTS (April 2024, supported
+through 2029) is the current target. Debian 12 (June 2023) ships Python 3.11.
+
+ARM64 supported (Raspberry Pi 4/5, Ampere) on the same OS minimums.
+
+The installer refuses to proceed on unsupported OSes with a clear error
+explaining why and what to do.
 
 ---
 
 ## Quick Install
 
 ```bash
-# On a fresh Ubuntu 22.04/24.04 or Debian 12 system
+# On a fresh Ubuntu 24.04 or Debian 12 system
 git clone https://github.com/Dvalin21/forgeos.git
 cd forgeos
 sudo bash install/install.sh

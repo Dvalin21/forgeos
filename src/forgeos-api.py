@@ -1279,8 +1279,11 @@ else:
     async def root():
         return {"message": "ForgeOS API running. Web UI not yet installed."}
 
+
 # ────────────────────────────────────────────────────────────
-# ENTRY POINT
+# ENTRY POINT — must remain at the bottom of this file.
+# All app setup (routes, middleware, lifespan, router includes,
+# WebSocket handlers) MUST be defined above this block.
 # ────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("FORGEOS_PORT", "5080"))
@@ -1294,15 +1297,3 @@ if __name__ == "__main__":
         access_log=True,
         workers=1,
     )
-
-# ────────────────────────────────────────────────────────────
-# BACKUP — extracted to backup_api.py (Sprint 1, commit 8)
-# Routes (16): borg/restic/rclone CRUD + scheduled jobs + tasks
-# Helpers moved with: _check_tool, _require_tool
-# (Task/job orchestration state stays in main — needed by lifespan)
-# ────────────────────────────────────────────────────────────
-# ────────────────────────────────────────────────────────────
-# AUDIT — extracted to audit_api.py (Sprint 1, commit 9)
-# IMAGING — extracted to imaging_api.py (Sprint 1, commit 9)
-# (Wiring is in the router-includes block near top of file)
-# ────────────────────────────────────────────────────────────
