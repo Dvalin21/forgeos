@@ -45,7 +45,7 @@ These are the seven items identified by the 2026-06-04 reading of the codebase. 
 | C-003 | MED | 🔴 OPEN | OS minimums unpinned — `install.sh` does not refuse old Ubuntu/Debian versions | `install/install.sh`, `pyproject.toml`, `README.md` |
 | C-004 | MED | 🔴 OPEN | Zero test coverage for `forgeos_pages_api.py` (1,410 LOC) and `rustfs_api.py` (270 LOC) | `tests/` |
 | C-005 | LOW | 🔴 OPEN | Backup tree `backups/20260417/` lives inside `src/` causing duplicate grep hits across the codebase | `src/`, `.gitignore` |
-| C-006 | LOW | 🔴 OPEN | Installer module numbering has gaps (no 08, 19, 20, 21) — either renumber or document the gaps | `install/modules/` |
+| C-006 | LOW | 🟢 DONE | Installer module numbering has gaps (no 08, 19, 20, 21) — documented the gap scheme as intentional in `install/install.sh` header. Phase-based: 01-09 foundation, 10-19 services, 20-29 tools, 90-99 finalize. Variant suffixes (03/03c/03-hotswap, 10/10b/10c) explained. | `install/install.sh` |
 | C-007 | LOW | 🔴 OPEN | Status documents disagree with current main — three different UI designs described across `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, current code | `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, `HARDWARE_TEST_REPORT.md` |
 | C-008 | MED | 🔴 OPEN | `if __name__ == "__main__":` block lives at line ~1240 of forgeos-api.py with code still after it. Should be moved to the bottom of the file. **Discovered during Sprint 1.** | `src/forgeos-api.py` |
 | C-009 | MED | 🔴 OPEN | Notification routes (notify, drive-alert, notifications, drive-alerts, alert-webhook) have ZERO test coverage. **Discovered during Sprint 1.** Roll into Sprint 4 scope alongside C-004. | `tests/`, `src/notifications_api.py` |
