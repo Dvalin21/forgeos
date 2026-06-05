@@ -44,7 +44,7 @@ These are the seven items identified by the 2026-06-04 reading of the codebase. 
 | C-002 | HIGH | 🟢 DONE | `forgeos-api.py` was 2,410 lines — split into per-domain routers across 10 commits. Now 1,308 LOC orchestrator + 11 router files. **Sprint 1 complete.** | `src/forgeos-api.py` + new router files |
 | C-003 | MED | 🔴 OPEN | OS minimums unpinned — `install.sh` does not refuse old Ubuntu/Debian versions | `install/install.sh`, `pyproject.toml`, `README.md` |
 | C-004 | MED | 🔴 OPEN | Zero test coverage for `forgeos_pages_api.py` (1,410 LOC) and `rustfs_api.py` (270 LOC) | `tests/` |
-| C-005 | LOW | 🔴 OPEN | Backup tree `backups/20260417/` lives inside `src/` causing duplicate grep hits across the codebase | `src/`, `.gitignore` |
+| C-005 | LOW | 🟢 DONE | Backup tree `backups/20260417/` lived at repo root (not in `src/` as the original registry said — that was a misread). 39 tracked files, 1.1 MB. Moved to `docs/historical/snapshots/` via `git mv` (preserves history). Added `/backups/` to `.gitignore` to prevent recurrence. Note: also has a `working/` subdirectory with 6 HTML snapshots from April 19-20. | `backups/` → `docs/historical/snapshots/`, `.gitignore` |
 | C-006 | LOW | 🟢 DONE | Installer module numbering has gaps (no 08, 19, 20, 21) — documented the gap scheme as intentional in `install/install.sh` header. Phase-based: 01-09 foundation, 10-19 services, 20-29 tools, 90-99 finalize. Variant suffixes (03/03c/03-hotswap, 10/10b/10c) explained. | `install/install.sh` |
 | C-007 | LOW | 🔴 OPEN | Status documents disagree with current main — three different UI designs described across `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, current code | `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, `HARDWARE_TEST_REPORT.md` |
 | C-008 | MED | 🔴 OPEN | `if __name__ == "__main__":` block lives at line ~1240 of forgeos-api.py with code still after it. Should be moved to the bottom of the file. **Discovered during Sprint 1.** | `src/forgeos-api.py` |
@@ -93,9 +93,11 @@ Refuse anything else with a clear error message and a link to the README's compa
 
 **Fix scope:** Add a minimal happy-path + auth-required test suite per file. Aim for ~50% line coverage on each as a start. Full coverage is not the goal — preventing silent regressions is.
 
-### Detail — C-005 Backup tree in source
+### Detail — C-005 Backup tree in source (RESOLVED, original description corrected)
 
-`src/backups/20260417/src/forgeos-api.py` (1,886 lines) is an April snapshot of the API file. It shows up in every `grep` over `src/`. Move to `archive/snapshots/` outside the source tree, or delete (git history preserves it).
+The original registry entry said `src/backups/20260417/` but the actual path was `backups/20260417/` at repo root. The April snapshot of the API file (`backups/20260417/src/forgeos-api.py`, 1,886 lines) showed up in every recursive `grep` over the repo. 39 tracked files total (1.1 MB) including a full copy of `src/`, `install/`, and `web/` from April 17, plus a `working/` subdirectory with 6 HTML snapshots from April 19-20.
+
+**Action taken:** `git mv backups/ docs/historical/snapshots/` preserved all 39 files as renames (full git history retained), and added `/backups/` to `.gitignore` to prevent recurrence.
 
 ### Detail — C-006 Module numbering gaps
 
