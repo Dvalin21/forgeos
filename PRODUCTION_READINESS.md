@@ -7,6 +7,7 @@
 **Last reviewed:** 2026-06-04
 **Last commit reviewed:** `79b1c72` — web: add ForgeDB page
 **Test baseline at start:** 87/87 passing
+**Current test count:** 95/95 passing (87 baseline + 8 new from Sprint 3)
 **Repository:** github.com/Dvalin21/forgeos
 
 ---
@@ -40,15 +41,16 @@ These are the seven items identified by the 2026-06-04 reading of the codebase. 
 
 | ID | Severity | Status | Title | File(s) |
 |---|---|---|---|---|
-| C-001 | CRIT | 🔴 OPEN | JWT secret bootstrap race — secret generated on first start, two parallel workers can write conflicting values | `src/forgeos_auth.py:25-46`, `install/modules/99-finalize.sh` |
+| C-001 | CRIT | 🟢 DONE | JWT secret bootstrap race — was: generated on first start, two parallel workers can write conflicting values. **Fix:** secret generation moved to installer (`99-finalize.sh`, now idempotent — preserves existing secrets on re-run). `forgeos_auth.py` is now pure-read: env var → config file → refuse to start with `JwtSecretMissingError` and a clear fix message. 8 new tests cover the refusal paths. | `src/forgeos_auth.py`, `install/modules/99-finalize.sh`, `tests/test_auth.py` |
 | C-002 | HIGH | 🟢 DONE | `forgeos-api.py` was 2,410 lines — split into per-domain routers across 10 commits. Now 1,308 LOC orchestrator + 11 router files. **Sprint 1 complete.** | `src/forgeos-api.py` + new router files |
-| C-003 | MED | 🔴 OPEN | OS minimums unpinned — `install.sh` does not refuse old Ubuntu/Debian versions | `install/install.sh`, `pyproject.toml`, `README.md` |
+| C-003 | MED | 🟢 DONE | OS minimums hardened. `require_ubuntu_debian()` now reads `/etc/os-release` directly (was: required `lsb_release` which is optional on minimal images). Minimum raised: Ubuntu 24.04 LTS (was: 22.04, which ships Python 3.10 — incompatible with `requires-python = ">=3.11"`). Debian 12 minimum unchanged. README updated with explicit OS table + rationale. Installer refuses other OSes with clear error. Functional-tested across 7 OS cases. | `install/lib/common.sh`, `README.md` |
 | C-004 | MED | 🔴 OPEN | Zero test coverage for `forgeos_pages_api.py` (1,410 LOC) and `rustfs_api.py` (270 LOC) | `tests/` |
 | C-005 | LOW | 🟢 DONE | Backup tree `backups/20260417/` lived at repo root (not in `src/` as the original registry said — that was a misread). 39 tracked files, 1.1 MB. Moved to `docs/historical/snapshots/` via `git mv` (preserves history). Added `/backups/` to `.gitignore` to prevent recurrence. Note: also has a `working/` subdirectory with 6 HTML snapshots from April 19-20. | `backups/` → `docs/historical/snapshots/`, `.gitignore` |
 | C-006 | LOW | 🟢 DONE | Installer module numbering has gaps (no 08, 19, 20, 21) — documented the gap scheme as intentional in `install/install.sh` header. Phase-based: 01-09 foundation, 10-19 services, 20-29 tools, 90-99 finalize. Variant suffixes (03/03c/03-hotswap, 10/10b/10c) explained. | `install/install.sh` |
-| C-007 | LOW | 🔴 OPEN | Status documents disagree with current main — three different UI designs described across `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, current code | `FINAL_STATUS_REPORT.md`, `SAVE_TO_RESUME.md`, `HARDWARE_TEST_REPORT.md` |
-| C-008 | MED | 🔴 OPEN | `if __name__ == "__main__":` block lives at line ~1240 of forgeos-api.py with code still after it. Should be moved to the bottom of the file. **Discovered during Sprint 1.** | `src/forgeos-api.py` |
+| C-007 | LOW | 🟢 DONE | Stale status documents disagreed with current main. Original scope (3 docs) expanded during execution to 6 docs after discovering `FUNCTIONAL_VERIFICATION_REPORT.md` (April 25), `SECURITY_AUDIT.md` (April 20), `VERIFICATION_CHECKLIST.md` (April) were also stale snapshots from the same era. All moved to `docs/historical/`. Added `docs/historical/README.md` explaining what's there. README now points at `PRODUCTION_READINESS.md` as canonical state. | `docs/historical/*`, `README.md` |
+| C-008 | MED | 🟢 DONE | `if __name__ == "__main__":` block lived at line ~1240 of forgeos-api.py with code still after it. Sprint 1 already cleaned up most of the trailing code; only stale section-header marker comments remained. Relocated the entry block to be the actual final block of the file, and removed the orphan markers. Added a comment explaining the block must remain at the bottom. | `src/forgeos-api.py` |
 | C-009 | MED | 🔴 OPEN | Notification routes (notify, drive-alert, notifications, drive-alerts, alert-webhook) have ZERO test coverage. **Discovered during Sprint 1.** Roll into Sprint 4 scope alongside C-004. | `tests/`, `src/notifications_api.py` |
+| C-010 | HIGH | 🟢 DONE | `pyproject.toml` declared `jose>=3.3` (wrong package — abandoned, max v1.0.0) instead of `python-jose>=3.3`. Also missing `python-multipart` which FastAPI form-data requires. Blocked all clean `pip install -e .` from fresh checkout. **Discovered when applying Sprint 1 patches to user hardware.** Fixed in pyproject.toml. | `pyproject.toml` |
 
 ### Detail — C-001 JWT secret bootstrap race
 
@@ -203,13 +205,26 @@ Sprints are a unit of focus, not a unit of time. Each sprint has a clear goal an
 
 ### Sprint 2 — Small concerns batch (was originally Sprint 1)
 **Goal:** Close the cheap concerns now that the refactor is done.
-**Scope:** C-005, C-006, C-007 (backup move, module numbering doc, status docs archive).
-**Done condition:** Three commits, registry reflects DONE for each, 87/87 tests pass.
+**Scope:** C-005, C-006, C-007, C-008 (backup move, module numbering doc, status docs archive, __main__ relocation).
+**Done condition:** Four commits, registry reflects DONE for each, 87/87 tests pass.
+**Status:** 🟢 DONE
+**Commits:**
+- 1/4 `924ca08` C-006 — installer module numbering scheme documented
+- 2/4 `df5ada4` C-005 — backups/ moved to docs/historical/snapshots/ (39 file renames). Original entry was wrong about path (said "inside src/" — actually at repo root); corrected in detail section.
+- 3/4 `3906a46` C-007 — 6 stale top-level status docs archived (scope expanded from original 3 after finding 3 more from the same April-era pattern). Added README pointer at registry.
+- 4/4 `c741754` C-008 — `__main__` block cleaned up; orphan section markers removed.
 
 ### Sprint 3 — JWT secret hardening
 **Goal:** C-001 closed.
 **Scope:** Move secret generation to installer, API refuses placeholder.
 **Done condition:** Code committed, registry DONE, 87/87 tests pass, new test coverage for the refuse-placeholder path.
+**Status:** 🟢 DONE
+**Commits:**
+- 1/3 `2deed58` Installer (`99-finalize.sh`) generates JWT secret idempotently. Preserves existing non-placeholder secrets. Functional test verified in real bash (4 cases: empty, preserve, idempotent, placeholder triggers regen).
+- 2/3 `ecfee91` `forgeos_auth.py` no longer generates secrets at runtime. Raises `JwtSecretMissingError` with a clear fix message if env var or config has no valid secret. 8 new tests cover all refusal paths.
+- 3/3 This registry close-out.
+
+**Test count after Sprint 3:** 95/95 (87 baseline + 8 new from the refusal-path coverage).
 
 ### Sprint 4 — OS minimums and test gaps
 **Goal:** C-003 and C-004 closed.
@@ -266,6 +281,14 @@ The 87-test baseline is the floor. Every sprint must end with at least the basel
 | Sprint 1 commit 8/10 | 87 | 0 | 0 | backup_api.py extracted (16 routes, largest single extraction); revealed C-008 (__main__ misplacement) |
 | Sprint 1 commit 9/10 | 87 | 0 | 0 | audit_api.py + imaging_api.py extracted (single commit). Main file is now 1,308 LOC. |
 | Sprint 1 commit 10/10 | 87 | 0 | 0 | Registry update — this commit |
+| Sprint 1 dep fix (C-010) | 87 | 0 | 0 | Caught during hardware verification on Keith's box |
+| Sprint 2 commit 1/4 (C-006) | 87 | 0 | 0 | Documented installer module numbering scheme |
+| Sprint 2 commit 2/4 (C-005) | 87 | 0 | 0 | Moved backups/ → docs/historical/snapshots/ (39 file renames) |
+| Sprint 2 commit 3/4 (C-007) | 87 | 0 | 0 | Archived 6 stale top-level status docs (scope expanded from 3) |
+| Sprint 2 commit 4/4 (C-008) | 87 | 0 | 0 | Cleaned up __main__ block end-of-file. Sprint 2 done. |
+| Sprint 3 commit 1/3 (C-001 installer) | 87 | 0 | 0 | Installer idempotent JWT secret generation |
+| Sprint 3 commit 2/3 (C-001 auth) | **95** | **+8** | 0 | forgeos_auth.py refuses missing/placeholder secret. 8 new tests added. |
+| Sprint 3 commit 3/3 | 95 | 0 | 0 | Registry close-out. Sprint 3 done. |
 
 ---
 

@@ -24,6 +24,15 @@ if _src_path not in sys.path:
 # Ensure filedb_api loads in mock mode — must be set before any module import
 os.environ.setdefault("MOCK_FILEDB", "true")
 
+# Provide a JWT secret BEFORE forgeos_auth is imported anywhere.
+# forgeos_auth loads its secret at import time (module-level
+# JWT_SECRET = _load_jwt_secret()), and refuses to import without a
+# valid secret (C-001 hardening). Tests must supply one here, at
+# conftest import — which runs before any test module imports the app.
+# This is test-only; real deployments get their secret from the
+# installer (99-finalize.sh) per C-001.
+os.environ.setdefault("FORGEOS_JWT_SECRET", "test-secret-not-for-production")
+
 # Prevent tests from touching /etc/forgeos — use temp dirs instead
 @pytest.fixture(autouse=True)
 def _isolate_forgeos_config(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:

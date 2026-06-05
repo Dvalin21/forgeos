@@ -105,3 +105,126 @@ class TestUserManagement:
         loaded = load_users()
         assert "a" not in loaded
         assert loaded["b"]["role"] == "user"
+
+
+class TestJwtSecretLoading:
+    """Verify _load_jwt_secret refuses to start with missing/placeholder secrets.
+
+    These tests cover the C-001 hardening — the runtime never generates
+    a secret. If neither env nor config provides a valid one, the API
+    must refuse to start with a clear error.
+    """
+
+    def test_env_secret_takes_priority(self, tmp_path, monkeypatch):
+        from forgeos_auth import _load_jwt_secret
+        import forgeos_auth as fa
+
+        # Config file says one thing
+        cfg = tmp_path / "forgeos.conf"
+        cfg.write_text('WEBUI_JWT_SECRET="from-config"\n')
+        monkeypatch.setattr(fa, "CONFIG_FILE", cfg)
+        # Env says another — env wins
+        monkeypatch.setenv("FORGEOS_JWT_SECRET", "from-env-takes-priority")
+
+        assert _load_jwt_secret() == "from-env-takes-priority"
+
+    def test_falls_back_to_config_file(self, tmp_path, monkeypatch):
+        from forgeos_auth import _load_jwt_secret
+        import forgeos_auth as fa
+
+        cfg = tmp_path / "forgeos.conf"
+        cfg.write_text('WEBUI_JWT_SECRET="real-secret-from-config-file"\n')
+        monkeypatch.setattr(fa, "CONFIG_FILE", cfg)
+        monkeypatch.delenv("FORGEOS_JWT_SECRET", raising=False)
+
+        assert _load_jwt_secret() == "real-secret-from-config-file"
+
+    def test_refuses_missing_env_and_missing_config(self, tmp_path, monkeypatch):
+        from forgeos_auth import _load_jwt_secret, JwtSecretMissingError
+        import forgeos_auth as fa
+
+        # Point at a config file that doesn't exist
+        monkeypatch.setattr(fa, "CONFIG_FILE", tmp_path / "does-not-exist.conf")
+        monkeypatch.delenv("FORGEOS_JWT_SECRET", raising=False)
+
+        with pytest.raises(JwtSecretMissingError) as exc_info:
+            _load_jwt_secret()
+
+        # Error message must tell the user how to fix it
+        msg = str(exc_info.value)
+        assert "99-finalize.sh" in msg, "Error must mention the installer fix"
+        assert "WEBUI_JWT_SECRET" in msg, "Error must name the config key"
+
+    def test_refuses_placeholder_changeme(self, tmp_path, monkeypatch):
+        from forgeos_auth import _load_jwt_secret, JwtSecretMissingError
+        import forgeos_auth as fa
+
+        cfg = tmp_path / "forgeos.conf"
+        cfg.write_text('WEBUI_JWT_SECRET="changeme"\n')
+        monkeypatch.setattr(fa, "CONFIG_FILE", cfg)
+        monkeypatch.delenv("FORGEOS_JWT_SECRET", raising=False)
+
+        with pytest.raises(JwtSecretMissingError):
+            _load_jwt_secret()
+
+    def test_refuses_placeholder_changeme_long_form(self, tmp_path, monkeypatch):
+        from forgeos_auth import _load_jwt_secret, JwtSecretMissingError
+        import forgeos_auth as fa
+
+        cfg = tmp_path / "forgeos.conf"
+        cfg.write_text('WEBUI_JWT_SECRET="changeme-set-in-forgeos.conf"\n')
+        monkeypatch.setattr(fa, "CONFIG_FILE", cfg)
+        monkeypatch.delenv("FORGEOS_JWT_SECRET", raising=False)
+
+        with pytest.raises(JwtSecretMissingError):
+            _load_jwt_secret()
+
+    def test_refuses_empty_string_secret(self, tmp_path, monkeypatch):
+        from forgeos_auth import _load_jwt_secret, JwtSecretMissingError
+        import forgeos_auth as fa
+
+        cfg = tmp_path / "forgeos.conf"
+        cfg.write_text('WEBUI_JWT_SECRET=""\n')
+        monkeypatch.setattr(fa, "CONFIG_FILE", cfg)
+        monkeypatch.delenv("FORGEOS_JWT_SECRET", raising=False)
+
+        with pytest.raises(JwtSecretMissingError):
+            _load_jwt_secret()
+
+    def test_refuses_placeholder_in_env_var_too(self, tmp_path, monkeypatch):
+        """Env var with a placeholder must NOT be accepted (it's still a placeholder)."""
+        from forgeos_auth import _load_jwt_secret, JwtSecretMissingError
+        import forgeos_auth as fa
+
+        # No config file
+        monkeypatch.setattr(fa, "CONFIG_FILE", tmp_path / "no-config.conf")
+        monkeypatch.setenv("FORGEOS_JWT_SECRET", "changeme")
+
+        with pytest.raises(JwtSecretMissingError):
+            _load_jwt_secret()
+
+    def test_no_runtime_generation_attempted(self, tmp_path, monkeypatch):
+        """The function must NEVER create or modify the config file.
+
+        This is the C-001 fix: secret generation moved to the installer.
+        Runtime must be pure-read.
+        """
+        from forgeos_auth import _load_jwt_secret, JwtSecretMissingError
+        import forgeos_auth as fa
+
+        cfg = tmp_path / "forgeos.conf"
+        # Note: file does NOT exist before the call
+        monkeypatch.setattr(fa, "CONFIG_FILE", cfg)
+        monkeypatch.delenv("FORGEOS_JWT_SECRET", raising=False)
+
+        try:
+            _load_jwt_secret()
+        except JwtSecretMissingError:
+            pass
+
+        # The function must NOT have created the file as a side effect.
+        assert not cfg.exists(), (
+            "_load_jwt_secret created config file as a side effect — "
+            "this is the race-prone path C-001 was meant to remove."
+        )
+

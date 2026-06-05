@@ -35,8 +35,31 @@ install_api_backend() {
     cp "$(dirname "$0")/../src/forgeos-api.py" /opt/forgeos/forgeos-api.py
     chmod 700 /opt/forgeos/forgeos-api.py
 
-    # Generate JWT secret
-    local jwt_secret; jwt_secret=$(openssl rand -base64 48 | tr -d '\n/')
+    # ── JWT secret generation ────────────────────────────────
+    # OWNED BY THE INSTALLER, not the API runtime. Generating a secret
+    # at API startup is race-prone (parallel workers each generate a
+    # different secret, last writer wins, tokens get invalidated).
+    # By generating here we get exactly one secret per system, set once.
+    #
+    # Idempotent: existing non-placeholder secrets are preserved across
+    # re-runs of the installer (upgrades, fixups). Only generated if
+    # missing or set to a known placeholder.
+    local existing_secret
+    existing_secret=$(forgenas_get "WEBUI_JWT_SECRET" "")
+    local jwt_secret
+    case "$existing_secret" in
+        ""|"changeme"|"changeme-set-in-forgeos.conf")
+            jwt_secret=$(openssl rand -base64 48 | tr -d '\n/')
+            forgenas_set "WEBUI_JWT_SECRET" "$jwt_secret"
+            info "Generated new JWT secret"
+            ;;
+        *)
+            jwt_secret="$existing_secret"
+            info "Preserved existing JWT secret (re-install detected)"
+            ;;
+    esac
+    # Also export under the legacy env-var name for systems still reading it.
+    # The API canonical source is now WEBUI_JWT_SECRET in /etc/forgeos/forgeos.conf.
     forgenas_set "FORGEOS_JWT_SECRET" "$jwt_secret"
 
     # Create initial admin user
