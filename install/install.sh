@@ -7,6 +7,24 @@
 #  1. Collects configuration (interactive or from env vars)
 #  2. Runs selected modules in order
 #  3. Each module is idempotent — safe to re-run
+#
+# ─── Module numbering scheme ────────────────────────────────
+# Modules are numbered to control execution order. The numbering
+# is INTENTIONALLY NON-CONTIGUOUS — gaps exist so new modules can
+# be inserted into the correct phase without renumbering existing
+# ones (which would invalidate user docs and break custom modules).
+#
+#   01-09 : foundation (base, network, storage, drivers)
+#   10-19 : services    (fileshare, vpn, reverse-proxy, ldap, mail, backup, cloud, hipaa, apps)
+#   20-29 : tools       (imaging — only 22 today; 19,20,21 reserved)
+#   90-99 : finalize    (only 99 today)
+#
+# Variant suffixes (a/b/c) group related modules:
+#   03, 03-hotswap, 03c : storage core, hot-swap, drive-type detection
+#   10, 10b, 10c        : fileshare, samba-DB tuning, forgeos-filedb daemon
+#
+# Reserved-but-unused numbers (08, 19, 20, 21) are intentional gaps,
+# not missing modules. Do NOT renumber to fill them.
 # ============================================================
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
