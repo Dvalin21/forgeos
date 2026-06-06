@@ -7,7 +7,7 @@
 **Last reviewed:** 2026-06-04
 **Last commit reviewed:** `79b1c72` — web: add ForgeDB page
 **Test baseline at start:** 87/87 passing
-**Current test count:** 95/95 passing (87 baseline + 8 new from Sprint 3)
+**Current test count:** 143 with boto3 (or 132 + 1 skip without) — was 87 at Sprint 0
 **Repository:** github.com/Dvalin21/forgeos
 
 ---
@@ -44,12 +44,13 @@ These are the seven items identified by the 2026-06-04 reading of the codebase. 
 | C-001 | CRIT | 🟢 DONE | JWT secret bootstrap race — was: generated on first start, two parallel workers can write conflicting values. **Fix:** secret generation moved to installer (`99-finalize.sh`, now idempotent — preserves existing secrets on re-run). `forgeos_auth.py` is now pure-read: env var → config file → refuse to start with `JwtSecretMissingError` and a clear fix message. 8 new tests cover the refusal paths. | `src/forgeos_auth.py`, `install/modules/99-finalize.sh`, `tests/test_auth.py` |
 | C-002 | HIGH | 🟢 DONE | `forgeos-api.py` was 2,410 lines — split into per-domain routers across 10 commits. Now 1,308 LOC orchestrator + 11 router files. **Sprint 1 complete.** | `src/forgeos-api.py` + new router files |
 | C-003 | MED | 🟢 DONE | OS minimums hardened. `require_ubuntu_debian()` now reads `/etc/os-release` directly (was: required `lsb_release` which is optional on minimal images). Minimum raised: Ubuntu 24.04 LTS (was: 22.04, which ships Python 3.10 — incompatible with `requires-python = ">=3.11"`). Debian 12 minimum unchanged. README updated with explicit OS table + rationale. Installer refuses other OSes with clear error. Functional-tested across 7 OS cases. | `install/lib/common.sh`, `README.md` |
-| C-004 | MED | 🔴 OPEN | Zero test coverage for `forgeos_pages_api.py` (1,410 LOC) and `rustfs_api.py` (270 LOC) | `tests/` |
+| C-004 | MED | 🟢 DONE | Test coverage added for `rustfs_api.py` (11 tests, skip gracefully without boto3) and file-station routes of `forgeos_pages_api.py` (20 tests covering /api/files/roots,list,mkdir,rename,delete — including path-traversal rejection and admin-required enforcement). Scope was regression-prevention, not 100% of all 42 pages_api routes. **Found + fixed a real bug while testing: `rustfs_api.py:218` used `Request` without importing it — masked because `import boto3` failed first on systems without boto3.** | `tests/test_rustfs.py`, `tests/test_pages.py`, `src/rustfs_api.py` |
 | C-005 | LOW | 🟢 DONE | Backup tree `backups/20260417/` lived at repo root (not in `src/` as the original registry said — that was a misread). 39 tracked files, 1.1 MB. Moved to `docs/historical/snapshots/` via `git mv` (preserves history). Added `/backups/` to `.gitignore` to prevent recurrence. Note: also has a `working/` subdirectory with 6 HTML snapshots from April 19-20. | `backups/` → `docs/historical/snapshots/`, `.gitignore` |
 | C-006 | LOW | 🟢 DONE | Installer module numbering has gaps (no 08, 19, 20, 21) — documented the gap scheme as intentional in `install/install.sh` header. Phase-based: 01-09 foundation, 10-19 services, 20-29 tools, 90-99 finalize. Variant suffixes (03/03c/03-hotswap, 10/10b/10c) explained. | `install/install.sh` |
 | C-007 | LOW | 🟢 DONE | Stale status documents disagreed with current main. Original scope (3 docs) expanded during execution to 6 docs after discovering `FUNCTIONAL_VERIFICATION_REPORT.md` (April 25), `SECURITY_AUDIT.md` (April 20), `VERIFICATION_CHECKLIST.md` (April) were also stale snapshots from the same era. All moved to `docs/historical/`. Added `docs/historical/README.md` explaining what's there. README now points at `PRODUCTION_READINESS.md` as canonical state. | `docs/historical/*`, `README.md` |
 | C-008 | MED | 🟢 DONE | `if __name__ == "__main__":` block lived at line ~1240 of forgeos-api.py with code still after it. Sprint 1 already cleaned up most of the trailing code; only stale section-header marker comments remained. Relocated the entry block to be the actual final block of the file, and removed the orphan markers. Added a comment explaining the block must remain at the bottom. | `src/forgeos-api.py` |
-| C-009 | MED | 🔴 OPEN | Notification routes (notify, drive-alert, notifications, drive-alerts, alert-webhook) have ZERO test coverage. **Discovered during Sprint 1.** Roll into Sprint 4 scope alongside C-004. | `tests/`, `src/notifications_api.py` |
+| C-009 | MED | 🟢 DONE | Notification routes now covered by `tests/test_notifications.py` (17 tests): notify, drive-alert, notifications-list, drive-alerts-state, alert-webhook. Includes auth enforcement (3 routes are intentionally no-auth for internal scripts/alertmanager; 2 require auth), newest-first ordering, 20-item cap, firing-vs-resolved severity mapping. | `tests/test_notifications.py` |
+| C-011 | LOW | 🟢 DONE | `boto3` was an undeclared runtime dependency — `rustfs_api.py` imports it at module level, and the whole rustfs router silently disabled itself (logged warning, skipped routes) on any system without boto3. boto3 not in pyproject.toml. **Fix:** added `boto3` as an optional extra (`pip install -e '.[rustfs]'`) plus to the `test` extra. rustfs remains optional-by-design (graceful degradation), now documented. **Discovered during C-004 test work.** | `pyproject.toml` |
 | C-010 | HIGH | 🟢 DONE | `pyproject.toml` declared `jose>=3.3` (wrong package — abandoned, max v1.0.0) instead of `python-jose>=3.3`. Also missing `python-multipart` which FastAPI form-data requires. Blocked all clean `pip install -e .` from fresh checkout. **Discovered when applying Sprint 1 patches to user hardware.** Fixed in pyproject.toml. | `pyproject.toml` |
 
 ### Detail — C-001 JWT secret bootstrap race
@@ -230,6 +231,16 @@ Sprints are a unit of focus, not a unit of time. Each sprint has a clear goal an
 **Goal:** C-003 and C-004 closed.
 **Scope:** Preflight rejects unsupported OS; tests added for `forgeos_pages_api.py` and `rustfs_api.py`.
 **Done condition:** Registry DONE, ≥90/90 tests passing (87 baseline + new tests).
+**Status:** 🟢 DONE
+**Outcome:** C-003 done in a prior commit (`1780f1a`). C-004 + C-009 + C-011 closed here.
+  - tests/test_notifications.py: 17 tests (C-009)
+  - tests/test_rustfs.py: 11 tests, skip without boto3 (C-004)
+  - tests/test_pages.py: 20 tests, file-station routes (C-004)
+  - Fixed rustfs_api.py Request-import bug (masked by missing boto3)
+  - boto3 added as optional extra in pyproject (C-011)
+  Test count: 95 → 143 with boto3 / 132 + 1 skip without.
+
+**ALL 11 CONCERNS NOW CLOSED.** Project moves to feature work (Sprints 5+).
 
 ### Sprint 5 — LTH-001 WireGuard
 **Goal:** WireGuard peer management end-to-end.
@@ -289,6 +300,12 @@ The 87-test baseline is the floor. Every sprint must end with at least the basel
 | Sprint 3 commit 1/3 (C-001 installer) | 87 | 0 | 0 | Installer idempotent JWT secret generation |
 | Sprint 3 commit 2/3 (C-001 auth) | **95** | **+8** | 0 | forgeos_auth.py refuses missing/placeholder secret. 8 new tests added. |
 | Sprint 3 commit 3/3 | 95 | 0 | 0 | Registry close-out. Sprint 3 done. |
+| Sprint 4 (C-009) | 112 | +17 | 0 | tests/test_notifications.py — 5 routes |
+| Sprint 4 (C-004 rustfs) | 123* | +11 | 0 | tests/test_rustfs.py (skip without boto3). Fixed Request-import bug. |
+| Sprint 4 (C-004 pages) | 143* | +20 | 0 | tests/test_pages.py — file-station routes. Sprint 4 done. |
+
+*With boto3 installed. Without boto3 (default): 132 passed, 1 skipped — the
+rustfs test module skips gracefully via pytest.importorskip.
 
 ---
 
