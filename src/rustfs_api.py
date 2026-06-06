@@ -16,7 +16,7 @@ from pathlib import Path
 
 logger = logging.getLogger("forgeos-rustfs")
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Request
 from forgeos_auth import verify_token
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware

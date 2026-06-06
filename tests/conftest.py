@@ -33,6 +33,12 @@ os.environ.setdefault("MOCK_FILEDB", "true")
 # installer (99-finalize.sh) per C-001.
 os.environ.setdefault("FORGEOS_JWT_SECRET", "test-secret-not-for-production")
 
+# forgeos_pages_api resolves ALLOWED_ROOTS from FORGEOS_FILE_ROOTS at
+# import time (default /srv/nas, which doesn't exist in CI). Point it at
+# a session temp dir so file-station tests have a real, writable root.
+_FILE_ROOT = tempfile.mkdtemp(prefix="forgeos-test-root-")
+os.environ.setdefault("FORGEOS_FILE_ROOTS", _FILE_ROOT)
+
 # Prevent tests from touching /etc/forgeos — use temp dirs instead
 @pytest.fixture(autouse=True)
 def _isolate_forgeos_config(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
@@ -68,11 +74,35 @@ def _isolate_forgeos_config(monkeypatch: pytest.MonkeyPatch) -> Generator[None, 
 
 @pytest.fixture
 def auth_headers() -> dict[str, str]:
-    """Return valid JWT auth headers."""
+    """Return valid JWT auth headers (admin role)."""
     from forgeos_auth import create_token
 
     token = create_token("testadmin", "admin")
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def user_headers() -> dict[str, str]:
+    """Return valid JWT auth headers for a NON-admin user."""
+    from forgeos_auth import create_token
+
+    token = create_token("testuser", "user")
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def file_root():
+    """The session file-station root (from FORGEOS_FILE_ROOTS), cleaned per test."""
+    root = Path(os.environ["FORGEOS_FILE_ROOTS"])
+    root.mkdir(parents=True, exist_ok=True)
+    # Clean contents before each test for isolation
+    for child in root.iterdir():
+        if child.is_dir() and not child.is_symlink():
+            import shutil as _sh
+            _sh.rmtree(child)
+        else:
+            child.unlink()
+    yield root
 
 
 @pytest.fixture
