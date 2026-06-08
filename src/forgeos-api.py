@@ -909,6 +909,20 @@ except ImportError as e:
 
 
 # ────────────────────────────────────────────────────────────
+# VPN — WireGuard peer management (vpn_api.py, Sprint 5 / LTH-001)
+# Wraps the forgeos-vpn CLI installed by 11-vpn.sh.
+# ────────────────────────────────────────────────────────────
+try:
+    from vpn_api import router as vpn_router, set_helpers as set_vpn_helpers
+    set_vpn_helpers(run_args=_run_args, audit=_audit)
+    app.include_router(vpn_router)
+    logger.info("VPN API loaded")
+except ImportError as e:
+    logger.error("VPN API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
 # DOCKER — extracted to docker_api.py (Sprint 1, commit 6)
 # Note: separate from existing docker_lxc_api.py (lifecycle ops).
 # This is just the simple app-browser + install endpoints.
