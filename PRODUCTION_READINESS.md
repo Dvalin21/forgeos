@@ -7,7 +7,7 @@
 **Last reviewed:** 2026-06-04
 **Last commit reviewed:** `79b1c72` — web: add ForgeDB page
 **Test baseline at start:** 87/87 passing
-**Current test count:** 143 with boto3 (or 132 + 1 skip without) — was 87 at Sprint 0
+**Current test count:** 169 with boto3 (or 158 + 1 skip without) — was 87 at Sprint 0
 **Repository:** github.com/Dvalin21/forgeos
 
 ---
@@ -124,7 +124,7 @@ These build new user-facing capability. Tier order is the user's stated priority
 
 | ID | Severity | Status | Title | Scope |
 |---|---|---|---|---|
-| LTH-001 | HIGH | 🔴 OPEN | WireGuard peer-management API + UI page | New `vpn_api.py` router, new `web/desktop/vpn.html` page, tests |
+| LTH-001 | HIGH | 🟢 DONE | WireGuard peer-management API + UI page. `vpn_api.py` wraps the `forgeos-vpn` CLI (installed by 11-vpn.sh) — 7 routes: status, list/add/remove peers, download config, QR PNG, service control. `web/desktop/vpn.html` matches the existing ForgeOS design system + token()/api() JS contract. 26 tests. Mutations are admin-gated; peer names validated against path-traversal. **Hardware validation of the actual tunnel still pending — sandbox can't run WireGuard.** | `src/vpn_api.py`, `web/desktop/vpn.html`, `tests/test_vpn.py` |
 | LTH-002 | HIGH | 🔴 OPEN | OIDC SSO integration end-to-end (build with unit tests, hardware-verify on Authentik instance) | OIDC verifier in `forgeos_auth.py`, SSO routes, login button |
 | LTH-003 | HIGH | 🔴 OPEN | lldap user-management API + UI page | New `users_api.py` router proxying lldap GraphQL admin |
 
@@ -245,6 +245,23 @@ Sprints are a unit of focus, not a unit of time. Each sprint has a clear goal an
 ### Sprint 5 — LTH-001 WireGuard
 **Goal:** WireGuard peer management end-to-end.
 **Done condition:** `vpn_api.py` router, `vpn.html` page, tests, registry DONE. Hardware verification required before close.
+**Status:** 🟢 DONE (code) — hardware tunnel validation pending on Keith's side.
+**Outcome:**
+  - src/vpn_api.py: 7 routes wrapping the forgeos-vpn CLI. Reads cmd
+    (status/list) via injected _run_args; mutations (add/remove/control)
+    via _run_checked which fails loudly on nonzero exit. Reads structured
+    peer metadata from /etc/forgeos/vpn/peers/*/meta.json.
+  - web/desktop/vpn.html: status hero + device table + add-device modal
+    + QR modal + .conf download. Matches existing design tokens + the
+    localStorage token() / api() JS contract used by firewall.html etc.
+  - tests/test_vpn.py: 26 tests (mock subprocess + temp PEERS_DIR).
+    Covers auth, admin-gating, peer-name validation (path-traversal
+    rejection), dup-check, dns/allowed_ips injection guard, handshake
+    online/offline parsing, control action validation.
+  Test count: 143 → 169 with boto3 / 132 → 158 (+1 skip) without.
+  Security notes: peer names validated `^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$`;
+    dns/allowed_ips charset-checked before reaching the CLI; UI escapes
+    peer names in the DOM.
 
 ### Sprint 6 — LTH-002 OIDC
 **Goal:** OIDC integration with unit tests.

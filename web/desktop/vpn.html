@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>VPN · ForgeOS</title>
+<style>
+  :root {
+    --bg: #eef3f8;
+    --surface: #ffffff;
+    --surface-2: #f7faff;
+    --surface-3: #edf4ff;
+    --text: #152238;
+    --muted: #68758b;
+    --line: rgba(21,34,56,.10);
+    --primary: #2962ff;
+    --primary-2: #00a4b8;
+    --primary-soft: rgba(41,98,255,.12);
+    --success: #10a66a;
+    --success-soft: rgba(16,166,106,.12);
+    --warn: #d88a00;
+    --danger: #cf3d46;
+    --danger-soft: rgba(207,61,70,.10);
+    --shadow: 0 18px 55px rgba(19,35,58,.12);
+    --shadow-soft: 0 10px 30px rgba(19,35,58,.08);
+    --radius: 24px;
+    --radius-sm: 16px;
+    --topbar: 76px;
+    --font: Inter, Roboto, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --mono: "SFMono-Regular", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; min-height: 100vh;
+    font-family: var(--font); color: var(--text);
+    background:
+      radial-gradient(circle at 15% 8%, rgba(41,98,255,.18), transparent 28%),
+      radial-gradient(circle at 92% 12%, rgba(0,164,184,.16), transparent 30%),
+      linear-gradient(135deg, #f8fbff 0%, var(--bg) 45%, #e8f1fb 100%);
+  }
+  svg { width: 22px; height: 22px; display: block; }
+  .ico { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .main { padding: 22px 30px 60px; max-width: 1180px; margin: 0 auto; }
+
+  .topbar {
+    display: grid; grid-template-columns: 1fr auto; align-items: center;
+    gap: 16px; min-height: var(--topbar); margin-bottom: 8px;
+  }
+  .section-head h3 { margin: 0; font-size: 22px; letter-spacing: -.02em; }
+  .section-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .top-actions { display: flex; gap: 10px; align-items: center; }
+
+  .button {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 0; border-radius: 14px; padding: 11px 18px;
+    font-family: var(--font); font-size: 14px; font-weight: 700;
+    color: #fff; background: linear-gradient(135deg, var(--primary), var(--primary-2));
+    cursor: pointer; transition: .18s ease; box-shadow: 0 12px 24px rgba(41,98,255,.22);
+  }
+  .button:hover { transform: translateY(-1px); }
+  .button.ghost { background: var(--primary-soft); color: var(--primary); box-shadow: none; }
+  .button.danger { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
+  .button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+  .circle-btn {
+    width: 44px; height: 44px; border-radius: 14px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--text); cursor: pointer;
+    display: grid; place-items: center; transition: .18s ease;
+  }
+  .circle-btn:hover { background: var(--surface-3); color: var(--primary); }
+
+  .panel {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow-soft);
+  }
+  .pad { padding: 22px 24px; }
+
+  .hero { display: grid; grid-template-columns: minmax(0,1.2fr) minmax(260px,.8fr); gap: 18px; margin-bottom: 18px; }
+  @media (max-width: 880px) { .hero { grid-template-columns: 1fr; } }
+
+  .status-row { display: flex; align-items: center; gap: 18px; }
+  .status-orb {
+    width: 64px; height: 64px; border-radius: 20px; display: grid; place-items: center;
+    background: var(--surface-3); color: var(--muted); flex: 0 0 auto;
+    transition: .2s ease;
+  }
+  .status-orb svg { width: 30px; height: 30px; }
+  .status-orb.up { background: var(--success-soft); color: var(--success); }
+  .status-orb.down { background: var(--danger-soft); color: var(--danger); }
+  .status-text h3 { margin: 0; font-size: 19px; }
+  .status-text p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+
+  .stat-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+  .stat { background: var(--surface-2); border-radius: var(--radius-sm); padding: 14px 16px; }
+  .stat .n { font-size: 24px; font-weight: 800; letter-spacing: -.02em; }
+  .stat .l { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+
+  .ctl-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+
+  .section-title { margin: 26px 0 12px; font-size: 15px; font-weight: 800; letter-spacing: -.01em; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 13px 14px; font-size: 14px; border-bottom: 1px solid var(--line); }
+  th { color: #8793a6; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover { background: var(--surface-2); }
+  .peer-name { font-weight: 700; }
+  .peer-ip { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .pill.online { background: var(--success-soft); color: var(--success); }
+  .pill.offline { background: rgba(104,117,139,.12); color: var(--muted); }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .icon-btn {
+    width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--muted); cursor: pointer;
+    display: grid; place-items: center; transition: .15s ease;
+  }
+  .icon-btn:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+  .icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+
+  .empty { text-align: center; padding: 50px 20px; color: var(--muted); }
+  .empty svg { width: 46px; height: 46px; margin: 0 auto 12px; opacity: .5; }
+
+  /* modal */
+  .backdrop { position: fixed; inset: 0; background: rgba(19,35,58,.42); backdrop-filter: blur(6px); display: none; place-items: center; z-index: 30; padding: 20px; }
+  .backdrop.show { display: grid; }
+  .modal { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); width: min(520px, 100%); padding: 26px; }
+  .modal h3 { margin: 0 0 4px; font-size: 20px; }
+  .modal .sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px;
+    font-family: var(--font); font-size: 14px; background: var(--surface-2); color: var(--text);
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--primary-soft); border-color: var(--primary); }
+  .field .hint { color: var(--muted); font-size: 12px; margin-top: 5px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+
+  .qr-wrap { text-align: center; }
+  .qr-wrap img { width: 260px; height: 260px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: #fff; }
+  .qr-wrap .conf { margin-top: 14px; font-family: var(--mono); font-size: 11px; color: var(--muted);
+    background: var(--surface-2); border-radius: 12px; padding: 12px; max-height: 160px; overflow: auto; text-align: left; white-space: pre-wrap; }
+
+  /* toast */
+  .toast-wrap { position: fixed; right: 22px; bottom: 22px; display: grid; gap: 10px; z-index: 50; }
+  .toast { padding: 13px 18px; border-radius: 14px; color: #fff; font-size: 14px; font-weight: 600; box-shadow: var(--shadow);
+    background: var(--text); animation: rise .25s ease; }
+  .toast.ok { background: var(--success); }
+  .toast.err { background: var(--danger); }
+  @keyframes rise { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <main class="main">
+    <header class="topbar">
+      <div class="section-head">
+        <h3>VPN</h3>
+        <p>WireGuard remote access — manage devices that can dial into this NAS</p>
+      </div>
+      <div class="top-actions">
+        <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
+        <button class="button" id="add-peer"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add device</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <article class="panel pad">
+        <div class="status-row">
+          <div class="status-orb" id="orb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/></svg></div>
+          <div class="status-text">
+            <h3 id="status-title">Checking VPN…</h3>
+            <p id="status-desc">Reading WireGuard interface status</p>
+          </div>
+        </div>
+        <div class="ctl-row">
+          <button class="button ghost" data-action="start">Start</button>
+          <button class="button ghost" data-action="restart">Restart</button>
+          <button class="button danger" data-action="stop">Stop</button>
+        </div>
+      </article>
+      <aside class="panel pad">
+        <div class="stat-grid" style="grid-template-columns:1fr 1fr">
+          <div class="stat"><div class="n" id="stat-total">—</div><div class="l">Devices</div></div>
+          <div class="stat"><div class="n" id="stat-online">—</div><div class="l">Online</div></div>
+        </div>
+      </aside>
+    </section>
+
+    <div class="section-title">Devices</div>
+    <div class="panel">
+      <table>
+        <thead><tr><th>Name</th><th>VPN IP</th><th>Status</th><th>Last handshake</th><th></th></tr></thead>
+        <tbody id="peer-rows"></tbody>
+      </table>
+      <div class="empty" id="empty" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/></svg>
+        <div>No VPN devices yet. Add one to let a phone or laptop connect remotely.</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Add peer modal -->
+  <div class="backdrop" id="add-backdrop">
+    <div class="modal">
+      <h3>Add a VPN device</h3>
+      <p class="sub">Generates a WireGuard config + QR code for one device (phone, laptop, tablet).</p>
+      <div class="field">
+        <label for="p-name">Device name</label>
+        <input id="p-name" placeholder="e.g. work-laptop" autocomplete="off">
+        <div class="hint">Letters, digits, hyphen, underscore. Max 32 characters.</div>
+      </div>
+      <div class="field">
+        <label for="p-dns">DNS server</label>
+        <input id="p-dns" value="1.1.1.1" autocomplete="off">
+        <div class="hint">DNS the device uses while connected.</div>
+      </div>
+      <div class="field">
+        <label for="p-routes">Routed networks (AllowedIPs)</label>
+        <select id="p-routes">
+          <option value="0.0.0.0/0">Everything — full tunnel (0.0.0.0/0)</option>
+          <option value="10.10.0.0/24,192.168.0.0/16">LAN only — split tunnel</option>
+        </select>
+        <div class="hint">Full tunnel routes all traffic through the NAS. Split tunnel only routes local networks.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="button ghost" id="add-cancel">Cancel</button>
+        <button class="button" id="add-confirm">Create device</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR modal -->
+  <div class="backdrop" id="qr-backdrop">
+    <div class="modal qr-wrap">
+      <h3 id="qr-title">Scan to connect</h3>
+      <p class="sub">Open the WireGuard app on the device and scan this code.</p>
+      <img id="qr-img" alt="WireGuard QR code">
+      <div class="modal-actions" style="justify-content:space-between">
+        <button class="button ghost" id="qr-download">Download .conf</button>
+        <button class="button" id="qr-close">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-wrap" id="toasts"></div>
+
+<script>
+  function token(){ try { return localStorage.getItem('forgeos_token'); } catch(e){ return null; } }
+  async function api(p, o){
+    o = o || {};
+    var h = Object.assign({}, o.headers || {});
+    var t = token(); if (t) h.Authorization = 'Bearer ' + t;
+    if (o.body && !h['Content-Type']) h['Content-Type'] = 'application/json';
+    try {
+      var r = await fetch(p, Object.assign({}, o, { headers: h }));
+      var d = null; try { d = await r.json(); } catch(e){}
+      return { ok: r.ok, status: r.status, data: d };
+    } catch(e){ return { ok: false, status: 0, data: null }; }
+  }
+
+  function toast(msg, kind){
+    var w = document.getElementById('toasts');
+    var el = document.createElement('div');
+    el.className = 'toast ' + (kind || '');
+    el.textContent = msg;
+    w.appendChild(el);
+    setTimeout(function(){ el.remove(); }, 3200);
+  }
+
+  function fmtHandshake(epoch){
+    if (!epoch) return 'never';
+    var secs = Math.floor(Date.now()/1000) - epoch;
+    if (secs < 0) return 'just now';
+    if (secs < 60) return secs + 's ago';
+    if (secs < 3600) return Math.floor(secs/60) + 'm ago';
+    if (secs < 86400) return Math.floor(secs/3600) + 'h ago';
+    return Math.floor(secs/86400) + 'd ago';
+  }
+
+  async function loadStatus(){
+    var d = (await api('/api/vpn/status')).data;
+    var orb = document.getElementById('orb');
+    var title = document.getElementById('status-title');
+    var desc = document.getElementById('status-desc');
+    if (!d){ title.textContent = 'Could not read VPN status'; desc.textContent = 'Check that the API is reachable.'; return; }
+    if (d.running){
+      orb.className = 'status-orb up';
+      title.textContent = 'VPN is running';
+      desc.textContent = 'WireGuard interface ' + (d.interface || 'wg0') + ' is up and accepting connections.';
+    } else {
+      orb.className = 'status-orb down';
+      title.textContent = 'VPN is stopped';
+      desc.textContent = 'WireGuard is not currently running. Start it to allow remote devices.';
+    }
+  }
+
+  async function loadPeers(){
+    var d = (await api('/api/vpn/peers')).data;
+    var rows = document.getElementById('peer-rows');
+    var empty = document.getElementById('empty');
+    rows.innerHTML = '';
+    var peers = (d && d.peers) || [];
+    document.getElementById('stat-total').textContent = peers.length;
+    document.getElementById('stat-online').textContent = peers.filter(function(p){ return p.online; }).length;
+    if (!peers.length){ empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    peers.forEach(function(p){
+      var tr = document.createElement('tr');
+      var statusPill = p.online
+        ? '<span class="pill online"><span class="dot"></span>Online</span>'
+        : '<span class="pill offline"><span class="dot"></span>Offline</span>';
+      tr.innerHTML =
+        '<td class="peer-name">' + esc(p.name) + '</td>' +
+        '<td class="peer-ip">' + esc(p.ip) + '</td>' +
+        '<td>' + statusPill + '</td>' +
+        '<td style="color:var(--muted);font-size:13px">' + fmtHandshake(p.last_handshake_epoch) + '</td>' +
+        '<td><div class="row-actions">' +
+          '<button class="icon-btn" title="Show QR / config" data-qr="' + esc(p.name) + '"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M17 17v4h4v-4M21 14v.01"/></svg></button>' +
+          '<button class="icon-btn danger" title="Remove" data-del="' + esc(p.name) + '"><svg class="ico" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>' +
+        '</div></td>';
+      rows.appendChild(tr);
+    });
+  }
+
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  async function refreshAll(){ await Promise.all([loadStatus(), loadPeers()]); }
+
+  // ── Add peer modal ──
+  var addBack = document.getElementById('add-backdrop');
+  document.getElementById('add-peer').onclick = function(){
+    document.getElementById('p-name').value = '';
+    addBack.classList.add('show');
+    document.getElementById('p-name').focus();
+  };
+  document.getElementById('add-cancel').onclick = function(){ addBack.classList.remove('show'); };
+  document.getElementById('add-confirm').onclick = async function(){
+    var name = document.getElementById('p-name').value.trim();
+    var dns = document.getElementById('p-dns').value.trim();
+    var routes = document.getElementById('p-routes').value;
+    if (!name){ toast('Enter a device name', 'err'); return; }
+    var btn = this; btn.disabled = true;
+    var r = await api('/api/vpn/peers', { method: 'POST', body: JSON.stringify({ name: name, dns: dns, allowed_ips: routes }) });
+    btn.disabled = false;
+    if (!r.ok){ toast((r.data && r.data.detail) || 'Could not add device', 'err'); return; }
+    addBack.classList.remove('show');
+    toast('Device "' + name + '" added', 'ok');
+    await loadPeers();
+    showQr(name);
+  };
+
+  // ── QR modal ──
+  var qrBack = document.getElementById('qr-backdrop');
+  var qrCurrentName = null;
+  async function showQr(name){
+    qrCurrentName = name;
+    document.getElementById('qr-title').textContent = 'Scan to connect — ' + name;
+    var img = document.getElementById('qr-img');
+    // Fetch QR PNG with auth header, render as blob URL
+    var t = token();
+    var resp = await fetch('/api/vpn/peers/' + encodeURIComponent(name) + '/qr', {
+      headers: t ? { Authorization: 'Bearer ' + t } : {}
+    });
+    if (!resp.ok){ toast('Could not load QR code', 'err'); return; }
+    var blob = await resp.blob();
+    img.src = URL.createObjectURL(blob);
+    qrBack.classList.add('show');
+  }
+  document.getElementById('qr-close').onclick = function(){ qrBack.classList.remove('show'); };
+  document.getElementById('qr-download').onclick = async function(){
+    if (!qrCurrentName) return;
+    var t = token();
+    var resp = await fetch('/api/vpn/peers/' + encodeURIComponent(qrCurrentName) + '/config', {
+      headers: t ? { Authorization: 'Bearer ' + t } : {}
+    });
+    if (!resp.ok){ toast('Could not download config', 'err'); return; }
+    var text = await resp.text();
+    var blob = new Blob([text], { type: 'text/plain' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = qrCurrentName + '.conf';
+    a.click();
+  };
+
+  // ── Row actions (event delegation) ──
+  document.getElementById('peer-rows').onclick = async function(e){
+    var qrBtn = e.target.closest('[data-qr]');
+    var delBtn = e.target.closest('[data-del]');
+    if (qrBtn){ showQr(qrBtn.getAttribute('data-qr')); return; }
+    if (delBtn){
+      var name = delBtn.getAttribute('data-del');
+      if (!confirm('Remove VPN device "' + name + '"? Its config will stop working immediately.')) return;
+      var r = await api('/api/vpn/peers/' + encodeURIComponent(name), { method: 'DELETE' });
+      if (!r.ok){ toast((r.data && r.data.detail) || 'Could not remove device', 'err'); return; }
+      toast('Device "' + name + '" removed', 'ok');
+      await loadPeers();
+    }
+  };
+
+  // ── Service control ──
+  document.querySelectorAll('[data-action]').forEach(function(btn){
+    btn.onclick = async function(){
+      var action = btn.getAttribute('data-action');
+      btn.disabled = true;
+      var r = await api('/api/vpn/control/' + action, { method: 'POST' });
+      btn.disabled = false;
+      if (!r.ok){ toast((r.data && r.data.detail) || ('Could not ' + action), 'err'); return; }
+      toast('VPN ' + action + 'ed', 'ok');
+      await loadStatus();
+    };
+  });
+
+  document.getElementById('refresh').onclick = function(){
+    var ico = this.querySelector('.ico'); ico.classList.add('spin');
+    refreshAll().then(function(){ setTimeout(function(){ ico.classList.remove('spin'); }, 400); });
+  };
+
+  // close modals on backdrop click
+  [addBack, qrBack].forEach(function(b){
+    b.onclick = function(e){ if (e.target === b) b.classList.remove('show'); };
+  });
+
+  refreshAll();
+  setInterval(loadPeers, 15000);  // light auto-refresh of handshake status
+</script>
+</body>
+</html>
