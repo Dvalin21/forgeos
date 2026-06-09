@@ -31,19 +31,45 @@ CERT_DIR="/etc/forgeos/certs"
 install_nginx() {
     step "Installing nginx (mainline)"
 
-    # nginx official repo for mainline (not Ubuntu's older stable)
-    local codename
-    codename=$(lsb_release -cs)
+    # nginx.org publishes SEPARATE repos for Debian and Ubuntu. The repo
+    # path must match the OS, or the codename (e.g. Debian 'trixie') won't
+    # exist under the wrong path and apt update fails with "no Release file".
+    local codename os_id repo_os
+    codename=$(lsb_release -cs 2>/dev/null || echo "")
+    os_id=$(. /etc/os-release 2>/dev/null && echo "${ID:-}")
+
+    case "$os_id" in
+        debian) repo_os="debian" ;;
+        ubuntu) repo_os="ubuntu" ;;
+        *)
+            # Unknown derivative — fall back to the distro's own nginx
+            # package rather than risk a wrong nginx.org repo path.
+            warn "Unrecognized OS '$os_id' — using distro nginx package"
+            apt_install nginx
+            rm -f /etc/nginx/conf.d/default.conf
+            mkdir -p "$FORGEOS_VHOSTS" "$CERT_DIR"
+            info "nginx (distro package) installed"
+            return 0
+            ;;
+    esac
 
     curl -fsSL https://nginx.org/keys/nginx_signing.key \
         | gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg 2>/dev/null
 
     cat > /etc/apt/sources.list.d/nginx.list << REPO
 deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] \
-http://nginx.org/packages/mainline/ubuntu ${codename} nginx
+http://nginx.org/packages/mainline/${repo_os} ${codename} nginx
 REPO
 
-    apt_install nginx nginx-extras
+    # nginx-extras is a Debian/Ubuntu DISTRO package and is NOT in nginx.org's
+    # repo — installing it alongside the nginx.org 'nginx' package conflicts.
+    # Install only 'nginx' from the official repo.
+    if ! apt_install nginx; then
+        warn "nginx.org repo failed (${repo_os}/${codename}) — falling back to distro nginx"
+        rm -f /etc/apt/sources.list.d/nginx.list
+        apt_update
+        apt_install nginx
+    fi
 
     # Disable default site
     rm -f /etc/nginx/conf.d/default.conf
@@ -333,10 +359,10 @@ generate_vhosts() {
 
     nginx_add_vhost "grafana"      "grafana.${d}"       3000 acme none no
     nginx_add_vhost "gotify"       "push.${d}"          8070 acme none yes
-    nginx_add_vhost "minio-ui"     "s3.${d}"            9001 acme none no
-    nginx_add_vhost "minio-api"    "s3api.${d}"         9000 acme none no
+    nginx_add_vhost "rustfs-ui"    "console.s3.${d}"            9001 acme none no
+    nginx_add_vhost "rustfs-api"   "s3.${d}"         9000 acme none no
     nginx_add_vhost "filebrowser"  "files.${d}"         8085 acme none yes
-    nginx_add_vhost "authentik"    "auth.${d}"          9000 acme none yes
+    # Authentik vhost removed (Sprint 6): OIDC/SSO retired for native auth.
 
     [[ "$has_mail" == "yes" ]] && nginx_add_vhost "sogo" "mail.${d}" 20000 acme none yes
     [[ "$has_immich" == "yes" ]] && nginx_add_vhost "immich" "photos.${d}" 2283 acme none yes

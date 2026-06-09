@@ -6,7 +6,7 @@
 # Incus     — LXC/LXD successor (via Zabbly repo)
 #             Used for lightweight Linux containers (VMs without overhead)
 #
-# Docker is used by: monitoring stack, mail, Gotify, MinIO, databases
+# Docker is used by: monitoring stack, mail, Gotify, databases
 # Incus is used by: running Windows/Linux VMs, testing, isolation
 # ============================================================
 set -euo pipefail
