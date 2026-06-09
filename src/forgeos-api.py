@@ -847,6 +847,19 @@ except ImportError as e:
 
 
 # ────────────────────────────────────────────────────────────
+# USERS — native user management (users_api.py, Sprint 6)
+# ────────────────────────────────────────────────────────────
+try:
+    from users_api import router as users_router, set_helpers as set_users_helpers
+    set_users_helpers(audit=_audit)
+    app.include_router(users_router)
+    logger.info("Users API loaded")
+except ImportError as e:
+    logger.error("Users API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
 # SYSTEM — extracted to system_api.py (Sprint 1, commit 2)
 # Routes: /api/system/stats /api/system/info /api/services
 #         /api/network /api/config /api/settings (GET+PUT)
