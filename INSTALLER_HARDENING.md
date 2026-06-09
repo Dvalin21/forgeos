@@ -53,6 +53,19 @@ fragility; LOW = cosmetic.
 
 ---
 
+
+## Debian-vs-Ubuntu compat findings (from cross-distro scan)
+
+The installer was developed/tested on Ubuntu; these Ubuntu-isms break or
+no-op on Debian. IH-DEB-001 fixed in module 01; others queued for IH-009.
+
+| ID | Sev | Status | File:Line | Issue |
+|----|-----|--------|-----------|-------|
+| IH-DEB-001 | CRIT | 🟢 DONE | 01-base.sh | `ntp` (no candidate on Debian 12+, use chrony), `software-properties-common` (Ubuntu pkg), `linux-headers-$(uname -r)` (host kernel, uninstallable in LXC). Split essentials from optional; skip headers in containers. |
+| IH-DEB-002 | LOW | 🔴 OPEN | 18-apps.sh:44 | `add-apt-repository -y multiverse` is Ubuntu-only; comment claims Debian contrib path but code doesn't implement it. Guarded by `|| true` so non-fatal. |
+| IH-DEB-003 | LOW | 🔴 OPEN | 06-gpu.sh:239 | Ubuntu HWE kernel packages (`linux-*-hwe-22.04`) don't exist on Debian. Optional so non-fatal but useless. |
+| IH-DEB-004 | MED | 🔴 OPEN | 04-docker.sh:55 | Docker apt repo codename map handles Ubuntu noble→jammy but has no Debian branch; verify `trixie` (Debian 13) resolves to a real Docker repo. |
+
 ## Module audit tracker (IH-009 detail)
 
 | Module | Audited | LXC-safe | Notes |

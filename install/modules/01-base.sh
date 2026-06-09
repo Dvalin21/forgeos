@@ -27,10 +27,21 @@ install_base_packages() {
 
     apt_update
 
-    # Essential tools every module expects
+    # Essential tools every module expects. These MUST succeed — they are
+    # installed as their own apt_install call so a failure here is a real,
+    # isolated error (not masked by an optional package failing alongside).
+    #
+    # Notes on cross-distro correctness (Debian vs Ubuntu):
+    #   - 'ntp' is NOT here: it was replaced by 'ntpsec' on Debian 12+ and
+    #     has no install candidate; chrony (below) is the time daemon, and
+    #     installing both conflicts. chrony alone is correct.
+    #   - 'software-properties-common' is NOT here: it's an Ubuntu package
+    #     (provides add-apt-repository) often absent on Debian. It's only
+    #     used by one optional Ubuntu code path (18-apps multiverse), so we
+    #     install it best-effort below instead of failing the whole base.
     apt_install \
         curl wget git gnupg2 ca-certificates lsb-release \
-        apt-transport-https software-properties-common \
+        apt-transport-https \
         build-essential python3 python3-pip python3-venv \
         sudo htop iotop iftop sysstat dstat \
         ncdu tree jq bc less nano vim \
@@ -39,21 +50,64 @@ install_base_packages() {
         unzip p7zip-full tar gzip bzip2 xz-utils \
         acl attr quota \
         cron logrotate \
-        ntp chrony \
+        chrony \
         openssh-server \
         tmux screen \
         lsof strace \
-        dmidecode pciutils usbutils \
-        "linux-headers-$(uname -r)" 2>/dev/null || apt_install linux-headers-generic
+        dmidecode pciutils usbutils
 
-    # HWE kernel for newer hardware support (Intel Arc, etc.)
-    if lsb_release -rs 2>/dev/null | grep -qE '^22'; then
-        apt_install_optional linux-generic-hwe-22.04 linux-headers-generic-hwe-22.04
-    elif lsb_release -rs 2>/dev/null | grep -qE '^24'; then
-        apt_install_optional linux-generic-hwe-24.04
-    fi
+    # Ubuntu-only convenience package (provides add-apt-repository). Absent
+    # on Debian; best-effort so it never fails the base install.
+    apt_install_optional software-properties-common
+
+    # Kernel headers — needed ONLY for building out-of-tree kernel modules
+    # (ZFS DKMS, GPU drivers, etc.) on bare metal or a full VM. In a
+    # container (LXC) the kernel belongs to the HOST: `uname -r` reports the
+    # host kernel (e.g. 6.14.x-pve), whose headers aren't installable from
+    # inside, and the container can't build modules anyway. So we SKIP
+    # headers in containers, and otherwise install them as a best-effort
+    # optional step that never fails the install.
+    install_kernel_headers
 
     info "Base packages installed"
+}
+
+# Best-effort kernel-headers install. Never fatal.
+install_kernel_headers() {
+    # Skip entirely inside containers — they use the host kernel and cannot
+    # build modules. VIRT_TYPE is set by detect_virtualization() and read
+    # from the config sourced at the top of this module.
+    case "${VIRT_TYPE:-none}" in
+        lxc|lxc-libvirt|openvz|container|docker|podman)
+            info "Container detected (${VIRT_TYPE}) — skipping kernel headers (uses host kernel)"
+            return 0
+            ;;
+    esac
+
+    local running_kernel; running_kernel="$(uname -r)"
+
+    # Direct apt calls here (not apt_install_optional, which always returns
+    # 0 because it ends in `|| warn`). We need the REAL exit code to decide
+    # whether to fall back, so we check apt-get directly.
+    apt_update
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            --no-install-recommends "linux-headers-${running_kernel}" \
+            >> "$FORGENAS_LOG" 2>&1; then
+        info "Installed linux-headers-${running_kernel}"
+        return 0
+    fi
+
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            --no-install-recommends linux-headers-generic \
+            >> "$FORGENAS_LOG" 2>&1; then
+        info "Exact headers unavailable — installed linux-headers-generic"
+        return 0
+    fi
+
+    warn "Could not install kernel headers (${running_kernel}). Out-of-tree \
+modules (ZFS DKMS, some GPU drivers) may not build. Safe to ignore on a \
+container or if you don't use DKMS."
+    return 0
 }
 
 # ============================================================
