@@ -106,6 +106,42 @@ class TestUserManagement:
         assert "a" not in loaded
         assert loaded["b"]["role"] == "user"
 
+    def test_save_users_sets_0600_permissions(self):
+        """The user store holds password hashes — must never be world-readable."""
+        import stat
+        from forgeos_auth import save_users, USERS_FILE
+
+        save_users({"alice": {"hash": "$2b$12$abc", "role": "admin"}})
+        mode = stat.S_IMODE(USERS_FILE.stat().st_mode)
+        assert mode == 0o600, f"expected 0600, got {oct(mode)}"
+
+    def test_save_users_is_atomic_no_temp_left_behind(self):
+        """After a successful save, no .api-users.*.tmp litter remains."""
+        from forgeos_auth import save_users, USERS_FILE
+
+        save_users({"alice": {"hash": "x", "role": "admin"}})
+        leftovers = list(USERS_FILE.parent.glob(".api-users.*.tmp"))
+        assert leftovers == [], f"temp files left behind: {leftovers}"
+
+    def test_save_users_cleans_up_temp_on_serialization_failure(self):
+        """If json.dump raises mid-write, the temp file must be removed and
+        the existing user file left intact (not truncated)."""
+        from forgeos_auth import save_users, load_users, USERS_FILE
+
+        # Seed a known-good file first
+        save_users({"alice": {"hash": "good", "role": "admin"}})
+
+        # Something json can't serialize → json.dump raises mid-write
+        class Unserializable:
+            pass
+
+        with pytest.raises(TypeError):
+            save_users({"bob": {"obj": Unserializable()}})
+
+        # Original file must be intact, no temp litter
+        assert load_users() == {"alice": {"hash": "good", "role": "admin"}}
+        assert list(USERS_FILE.parent.glob(".api-users.*.tmp")) == []
+
 
 class TestJwtSecretLoading:
     """Verify _load_jwt_secret refuses to start with missing/placeholder secrets.

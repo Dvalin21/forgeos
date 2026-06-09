@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 
 logger = logging.getLogger("forgeos-auth")
 from datetime import datetime, timedelta, timezone
@@ -107,7 +108,42 @@ def load_users() -> dict:
 
 
 def save_users(users: dict) -> None:
-    USERS_FILE.write_text(json.dumps(users, indent=2))
+    """Persist the user store ATOMICALLY with restrictive permissions.
+
+    api-users.json holds bcrypt password hashes (and, after Sprint 6,
+    TOTP secrets + backup-code hashes) — it IS the auth system. A bare
+    write_text() is unsafe on two counts:
+
+      1. Non-atomic: a crash or concurrent write mid-stream truncates the
+         file, locking every user out (the file that says who may log in
+         is now empty/corrupt).
+      2. Permissions: write_text() inherits the umask, which can leave a
+         freshly-created file world-readable, exposing the hashes.
+
+    Fix: write to a temp file in the same directory, fsync, chmod 600,
+    then os.replace() — which is atomic on POSIX (same filesystem). A
+    reader either sees the complete old file or the complete new one,
+    never a half-written one.
+    """
+    USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=".api-users.", suffix=".tmp", dir=str(USERS_FILE.parent)
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(users, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp_path, 0o600)
+        os.replace(tmp_path, USERS_FILE)
+    except BaseException:
+        # Clean up the temp file on any failure so we don't litter
+        # .api-users.*.tmp files in /etc/forgeos.
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 def create_token(username: str, role: str) -> str:
