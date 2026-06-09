@@ -188,9 +188,77 @@ module_skip_if_done() {
 }
 
 # ── Internet check ────────────────────────────────────────────
+# A connectivity preflight that false-negatives bricks the whole install,
+# so this is deliberately forgiving:
+#   - Tries several well-known hosts; ANY one succeeding means "online".
+#   - Each probe retries once and uses a short *connect* timeout (not just
+#     a total timeout), so a single slow/dead endpoint can't burn the
+#     whole budget.
+#   - Hosts that dual-stack to IPv6 (e.g. deb.debian.org via Fastly) would
+#     otherwise stall on containers with no IPv6 route until the timeout
+#     expired. We probe an explicit mix and let curl fall back fast.
+# Override the host list with FORGEOS_NET_CHECK_HOSTS (space-separated)
+# or skip entirely (air-gapped mirrors) with FORGEOS_SKIP_NET_CHECK=1.
 check_internet() {
-    if ! curl -sf --max-time 5 https://deb.debian.org/debian/ > /dev/null 2>&1; then
-        die "No internet connection. ForgeOS installer requires internet access."
+    if [[ "${FORGEOS_SKIP_NET_CHECK:-0}" == "1" ]]; then
+        warn "Skipping internet check (FORGEOS_SKIP_NET_CHECK=1)"
+        return 0
+    fi
+
+    local hosts="${FORGEOS_NET_CHECK_HOSTS:-\
+https://deb.debian.org/debian/ \
+https://cloudflare.com/cdn-cgi/trace \
+https://www.google.com/generate_204 \
+http://archive.ubuntu.com/ubuntu/}"
+
+    local url
+    for url in $hosts; do
+        # Two attempts per host:
+        #   1. Default (honors IPv6 if the host has a working v6 route).
+        #   2. --ipv4 forced, for IPv4-only hosts whose mirror resolves to
+        #      IPv6-only records (e.g. deb.debian.org via Fastly) — without
+        #      this, the doomed v6 connect burns the timeout and the whole
+        #      preflight false-negatives. This was the original bug.
+        # --connect-timeout caps the TCP/TLS handshake (the part that stalls
+        # on a dead route); --max-time caps the whole probe.
+        if curl -sf --connect-timeout 4 --max-time 8 \
+                "$url" > /dev/null 2>&1; then
+            return 0
+        fi
+        if curl -sf --ipv4 --connect-timeout 4 --max-time 8 \
+                "$url" > /dev/null 2>&1; then
+            return 0
+        fi
+    done
+
+    die "No internet connection (tried multiple hosts). ForgeOS installer \
+requires internet access. If your network is fine but this still fails, your \
+mirror may be IPv6-only on an IPv4-only host; set \
+FORGEOS_NET_CHECK_HOSTS to a reachable URL, or FORGEOS_SKIP_NET_CHECK=1 to \
+bypass. Log: $FORGENAS_LOG"
+}
+
+# ── IPv4 preference for broken-IPv6 hosts ─────────────────────
+# Many containers (notably Proxmox LXCs) have NO working IPv6 route, yet
+# Debian/Ubuntu mirrors (Fastly) frequently resolve to IPv6-only records.
+# Result: every apt fetch first tries IPv6, stalls until timeout, then
+# falls back — turning a 2-minute install into a crawl, or failing on
+# stricter timeouts. We already work around this in check_internet for
+# the probe; this does the same for apt, but ONLY when IPv6 is actually
+# broken here, so hosts with working IPv6 are left untouched.
+ensure_ipv4_apt_if_needed() {
+    # If a quick IPv6-forced probe to a known dual-stack host succeeds,
+    # IPv6 works — leave everything alone.
+    if curl -sf --ipv6 --connect-timeout 3 --max-time 5 \
+            https://deb.debian.org/debian/ > /dev/null 2>&1; then
+        return 0
+    fi
+    # IPv6 is unavailable/broken. Tell apt to prefer IPv4 for this system
+    # so package fetches don't stall on doomed v6 connects. Idempotent.
+    local conf="/etc/apt/apt.conf.d/99forgeos-force-ipv4"
+    if [[ ! -f "$conf" ]]; then
+        echo 'Acquire::ForceIPv4 "true";' > "$conf"
+        warn "No working IPv6 detected — set apt to prefer IPv4 ($conf)"
     fi
 }
 
