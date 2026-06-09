@@ -4,7 +4,7 @@
 # Source this at the top of every module:
 #   source "$(dirname "$0")/../lib/common.sh"
 # ============================================================
-set -euo pipefail
+set -euEo pipefail   # -E (errtrace): ERR trap must fire inside functions too
 
 # ── Colors ──────────────────────────────────────────────────
 BOLD="\033[1m"
@@ -46,12 +46,41 @@ warn() {
 }
 
 die() {
+    _FORGEOS_DYING=1
     echo -e "\n  ${RED}✗ FATAL:${NC} $1"
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] FATAL: $1" >> "$FORGENAS_LOG"
     echo ""
     echo "  Log: $FORGENAS_LOG"
     exit 1
 }
+
+# ── Error trap (IH-001) ──────────────────────────────────────
+# Without this, any unguarded non-zero return under `set -euo pipefail`
+# kills the installer SILENTLY — no message, the log just stops. That
+# made a real Proxmox-LXC failure undiagnosable (died mid hardware
+# detection with no error line). This trap turns every such death into a
+# logged FATAL with the exact file, line, command, and exit code.
+#
+# Guards against recursion and against firing on an intentional `exit 1`
+# from die() (which sets _FORGEOS_DYING=1 first).
+_FORGEOS_DYING=0
+_forgeos_err_trap() {
+    local exit_code=$?
+    local line_no=${1:-?}
+    local cmd=${2:-?}
+    [[ "$_FORGEOS_DYING" == "1" ]] && return        # die() already handled it
+    [[ "$exit_code" -eq 0 ]] && return
+    echo -e "\n  ${RED}✗ FATAL:${NC} installer aborted unexpectedly" >&2
+    echo -e "    ${DIM}at ${BASH_SOURCE[1]:-?}:${line_no}, command: ${cmd}${NC}" >&2
+    echo -e "    ${DIM}exit code: ${exit_code}${NC}" >&2
+    {
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] FATAL: aborted at ${BASH_SOURCE[1]:-?}:${line_no}"
+        echo "    command: ${cmd}"
+        echo "    exit code: ${exit_code}"
+    } >> "$FORGENAS_LOG"
+}
+# Arm it. $LINENO and BASH_COMMAND are captured at trap time.
+trap '_forgeos_err_trap "$LINENO" "$BASH_COMMAND"' ERR
 
 _progress() {
     local msg="$1"

@@ -14,11 +14,12 @@ detect_all() {
 }
 
 detect_cpu() {
-    CPU_MODEL=$(grep 'model name' /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)
-    CPU_CORES=$(nproc)
-    CPU_ARCH=$(uname -m)
+    CPU_MODEL=$(grep 'model name' /proc/cpuinfo 2>/dev/null | head -1 | cut -d: -f2 | xargs || echo "unknown")
+    [[ -z "$CPU_MODEL" ]] && CPU_MODEL="unknown"
+    CPU_CORES=$(nproc 2>/dev/null || echo "1")
+    CPU_ARCH=$(uname -m 2>/dev/null || echo "unknown")
     export CPU_ARCH
-    CPU_VENDOR=$(grep -m1 'vendor_id' /proc/cpuinfo | awk '{print $3}' || echo "unknown")
+    CPU_VENDOR=$(grep -m1 'vendor_id' /proc/cpuinfo 2>/dev/null | awk '{print $3}' || echo "unknown")
     export CPU_IS_INTEL=false CPU_IS_AMD=false
     [[ "$CPU_VENDOR" == "GenuineIntel" ]] && export CPU_IS_INTEL=true
     [[ "$CPU_VENDOR" == "AuthenticAMD" ]] && export CPU_IS_AMD=true
@@ -121,9 +122,9 @@ detect_disks() {
         else
             HDD_DISKS+=("/dev/$dev")
         fi
-        (( DATA_DISK_COUNT++ ))
+        DATA_DISK_COUNT=$(( DATA_DISK_COUNT + 1 ))
 
-    done < <(lsblk -dno NAME,SIZE,MODEL,TYPE,FSTYPE,TRAN 2>/dev/null | grep " disk")
+    done < <(lsblk -dno NAME,SIZE,MODEL,TYPE,FSTYPE,TRAN 2>/dev/null | grep " disk" || true)
 
     forgenas_set "DATA_DISK_COUNT" "$DATA_DISK_COUNT"
     forgenas_set "NVME_DISK_COUNT" "${#NVME_DISKS[@]}"
@@ -146,12 +147,12 @@ detect_virtualization() {
 detect_print_summary() {
     echo -e "  ${BOLD}Hardware Summary${NC}"
     echo -e "    CPU:    ${CPU_MODEL:-unknown} (${CPU_CORES:-?} cores)"
-    echo -e "    RAM:    ${MEM_TOTAL_GB:-?}GB $( $MEM_ECC && echo '[ECC]' || true)"
+    echo -e "    RAM:    ${MEM_TOTAL_GB:-?}GB $( "${MEM_ECC:-false}" && echo '[ECC]' || true)"
     echo -e "    NIC:    ${NIC_PRIMARY:-?} @ ${NIC_SPEED:-?}"
     echo -e "    Disks:  ${DATA_DISK_COUNT:-0} data disks (${#HDD_DISKS[@]} HDD, ${#NVME_DISKS[@]} NVMe)"
-    $GPU_NVIDIA && echo -e "    GPU:    NVIDIA: ${GPU_MODEL:-?}"
-    $GPU_AMD    && echo -e "    GPU:    AMD: ${GPU_MODEL:-?}"
-    $GPU_INTEL  && echo -e "    GPU:    Intel: ${GPU_INTEL_MODEL:-?}"
-    $IS_VM      && echo -e "    Virt:   ${VIRT_TYPE} (performance may be limited)"
+    "${GPU_NVIDIA:-false}" && echo -e "    GPU:    NVIDIA: ${GPU_MODEL:-?}" || true
+    "${GPU_AMD:-false}"    && echo -e "    GPU:    AMD: ${GPU_MODEL:-?}" || true
+    "${GPU_INTEL:-false}"  && echo -e "    GPU:    Intel: ${GPU_INTEL_MODEL:-?}" || true
+    "${IS_VM:-false}"      && echo -e "    Virt:   ${VIRT_TYPE} (performance may be limited)" || true
     echo ""
 }

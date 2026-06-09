@@ -26,7 +26,7 @@
 # Reserved-but-unused numbers (08, 19, 20, 21) are intentional gaps,
 # not missing modules. Do NOT renumber to fill them.
 # ============================================================
-set -euo pipefail
+set -euEo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=/dev/null
