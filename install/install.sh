@@ -65,6 +65,7 @@ echo ""
 require_root
 require_ubuntu_debian
 check_internet
+ensure_ipv4_apt_if_needed
 
 mkdir -p /etc/forgeos /var/log/forgeos /var/lib/forgeos
 chmod 700 /etc/forgeos
