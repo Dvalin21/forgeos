@@ -573,7 +573,7 @@ generate_baa_docs() {
 ## Technical Safeguards Implemented
 
 ### Access Control (§164.312(a)(1))
-- **Unique user identification**: Each user has a unique account (Authentik/LDAP)
+- **Unique user identification**: Each user has a unique account (ForgeOS native user management)
 - **Emergency access**: Root account accessible with strong passphrase
 - **Automatic logoff**: 15-minute idle timeout on all terminal sessions
 - **Encryption/decryption**: gocryptfs AES-256-GCM available for ePHI directories

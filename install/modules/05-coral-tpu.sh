@@ -46,10 +46,6 @@
 #   The driver throttles clock speed when temp exceeds trip points.
 #   Configurable via sysfs: /sys/class/apex/apex_0/
 #   and via modprobe params: /etc/modprobe.d/apex.conf
-#
-# FRIGATE DOCKER COMPOSE:
-#   Pass /dev/apex_0 (single) or /dev/apex_0 + /dev/apex_1
-#   (dual) into the Frigate container. Auto-detected below.
 # ============================================================
 set -euo pipefail
 source "$(dirname "$0")/../lib/common.sh"
@@ -57,10 +53,8 @@ source "$(dirname "$0")/../lib/common.sh"
 source "$FORGENAS_CONFIG"
 
 CORAL_DIR="/opt/forgeos/apps/coral"
-FRIGATE_DIR="/opt/forgeos/apps/frigate"
-FRIGATE_DATA="/srv/forgeos/frigate"
 
-mkdir -p "$CORAL_DIR" "$FRIGATE_DIR" "$FRIGATE_DATA"/{config,media,db}
+mkdir -p "$CORAL_DIR"
 
 # ============================================================
 # HARDWARE DETECTION
@@ -250,7 +244,7 @@ install_edgetpu_runtime() {
     # Hold gasket-dkms to prevent Google's broken version from being installed
     apt-mark hold gasket-dkms 2>/dev/null || true
 
-    # Python bindings (for Frigate and PyCoral)
+    # Python bindings (PyCoral) for inference apps
     apt_install_optional python3-pycoral python3-tflite-runtime \
         || pip3 install pycoral tflite-runtime --quiet 2>/dev/null || true
 
@@ -360,152 +354,6 @@ verify_coral() {
 }
 
 # ============================================================
-# FRIGATE NVR DOCKER COMPOSE
-# Auto-configures device passthrough for detected TPU count
-# ============================================================
-generate_frigate_compose() {
-    step "Generating Frigate NVR Docker Compose"
-
-    # shellcheck source=/dev/null
-    source "$FORGENAS_CONFIG"
-    local coral_count="${CORAL_COUNT:-1}"
-    local domain="${DOMAIN:-nas.local}"
-
-    # Build device list for compose
-    local devices="      - /dev/dri:/dev/dri  # GPU hardware decoding"
-    for i in $(seq 0 $(( coral_count - 1 ))); do
-        devices="${devices}
-      - /dev/apex_${i}:/dev/apex_${i}  # Coral TPU ${i}"
-    done
-
-    # Calculate shm_size (64MB per camera, estimate 8 cameras default)
-    local shm_size="256mb"
-
-    cat > "${FRIGATE_DIR}/docker-compose.yml" << FRIGATE
-version: "3.8"
-# ForgeOS Frigate NVR — with Google Coral TPU
-# Coral devices: ${coral_count} detected
-# Edit config: ${FRIGATE_DATA}/config/config.yml
-# Manage: https://nvr.${domain}
-
-services:
-  frigate:
-    container_name: forgeos-frigate
-    privileged: true
-    restart: unless-stopped
-    image: ghcr.io/blakeblackshear/frigate:stable
-    shm_size: "${shm_size}"
-
-    devices:
-${devices}
-
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ${FRIGATE_DATA}/config/config.yml:/config/config.yml
-      - ${FRIGATE_DATA}/media:/media/frigate
-      - ${FRIGATE_DATA}/db:/db
-      - type: tmpfs
-        target: /tmp/cache
-        tmpfs:
-          size: 1073741824  # 1GB RAM cache for clips
-
-    ports:
-      - "127.0.0.1:5001:5000"   # Frigate Web UI
-      - "1935:1935"             # RTMP feeds
-      - "8554:8554"             # RTSP feeds
-      - "8555:8555/tcp"         # WebRTC TCP
-      - "8555:8555/udp"         # WebRTC UDP
-
-    environment:
-      - FRIGATE_RTSP_PASSWORD=${FRIGATE_RTSP_PASS:-changeme}
-
-    networks:
-      - forgeos-internal
-
-networks:
-  forgeos-internal:
-    external: true
-FRIGATE
-
-    # Generate base Frigate config
-    cat > "${FRIGATE_DATA}/config/config.yml" << FRICONFIG
-# ForgeOS Frigate NVR Configuration
-# Documentation: https://docs.frigate.video
-# Edit this file then restart: docker compose restart frigate
-
-mqtt:
-  enabled: false  # Enable if you have MQTT broker
-
-detectors:
-$(for i in $(seq 0 $(( coral_count - 1 ))); do
-    echo "  coral${i}:"
-    echo "    type: edgetpu"
-    echo "    device: pci  # Uses /dev/apex_${i}"
-done)
-
-# Example camera (replace with your actual cameras):
-# cameras:
-#   driveway:
-#     ffmpeg:
-#       inputs:
-#         - path: rtsp://admin:password@192.168.1.100:554/stream
-#           roles:
-#             - detect
-#             - record
-#     detect:
-#       width: 1280
-#       height: 720
-#       fps: 5
-#     record:
-#       enabled: true
-#       retain:
-#         days: 7
-#     snapshots:
-#       enabled: true
-
-database:
-  path: /db/frigate.db
-
-ffmpeg:
-  hwaccel_args: preset-intel-vaapi  # Change: preset-nvidia or preset-amd-vaapi
-
-logger:
-  default: info
-FRICONFIG
-
-    # nginx vhost for Frigate
-    if [[ -d /etc/nginx/forgeos.d ]]; then
-        cat > /etc/nginx/forgeos.d/frigate.conf << NGINX
-server {
-    listen 443 ssl http2;
-    server_name nvr.${domain};
-    ssl_certificate     /etc/letsencrypt/live/${domain}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
-    location / {
-        proxy_pass         http://127.0.0.1:5001;
-        proxy_set_header   Host \$host;
-        proxy_set_header   X-Real-IP \$remote_addr;
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade \$http_upgrade;
-        proxy_set_header   Connection "upgrade";
-    }
-}
-NGINX
-        nginx -t >> "$FORGENAS_LOG" 2>&1 && systemctl reload nginx 2>/dev/null || true
-    fi
-
-    local rtsp_pass; rtsp_pass=$(gen_password 16)
-    forgenas_set "FRIGATE_RTSP_PASS" "$rtsp_pass"
-    forgenas_set "FRIGATE_DIR"       "$FRIGATE_DIR"
-
-    info "Frigate compose: ${FRIGATE_DIR}/docker-compose.yml"
-    info "  Config:  ${FRIGATE_DATA}/config/config.yml  ← edit cameras here"
-    info "  Media:   ${FRIGATE_DATA}/media"
-    info "  Web UI:  https://nvr.${domain} (after: docker compose up -d)"
-    info "  Start:   forgeos-coral frigate-start"
-}
-
-# ============================================================
 # CLI
 # ============================================================
 install_coral_cli() {
@@ -513,10 +361,9 @@ install_coral_cli() {
 
     cat > /usr/local/bin/forgeos-coral << 'CORALCLI'
 #!/usr/bin/env bash
-# ForgeOS Coral TPU + Frigate Manager
+# ForgeOS Coral TPU Manager
 source /etc/forgeos/forgeos.conf 2>/dev/null || true
 CMD="${1:-help}"; shift || true
-FRIGATE_DIR="/opt/forgeos/apps/frigate"
 
 case "$CMD" in
 status)
@@ -547,10 +394,6 @@ status)
         (( found++ ))
     done
     [[ $found -eq 0 ]] && echo "    No /dev/apex_* devices found (need reboot?)"
-
-    echo ""
-    echo "  Frigate container:"
-    docker ps --format '  {{.Names}}: {{.Status}}' 2>/dev/null | grep frigate || echo "  Not running"
     ;;
 
 test)
@@ -569,26 +412,8 @@ except ImportError:
     devs = [f for f in os.listdir('/dev') if f.startswith('apex_')]
     print(f'  /dev/apex_* devices: {len(devs)}  ({devs})')
     if devs:
-        print('  PyCoral not installed but devices present — Frigate Docker will use them directly')
+        print('  PyCoral not installed but devices present — used directly by inference apps')
 " 2>/dev/null || echo "  PyCoral test failed — check: ls /dev/apex_*"
-    ;;
-
-frigate-start)
-    docker compose -f "${FRIGATE_DIR}/docker-compose.yml" pull 2>/dev/null || true
-    docker compose -f "${FRIGATE_DIR}/docker-compose.yml" up -d
-    echo "Frigate started"
-    echo "  Web UI: https://nvr.$(grep ^DOMAIN /etc/forgeos/forgeos.conf | cut -d= -f2 | tr -d '\"')"
-    echo "  Config: /srv/forgeos/frigate/config/config.yml"
-    ;;
-frigate-stop)
-    docker compose -f "${FRIGATE_DIR}/docker-compose.yml" down
-    ;;
-frigate-logs)
-    docker compose -f "${FRIGATE_DIR}/docker-compose.yml" logs --tail 50 -f
-    ;;
-frigate-config)
-    "${EDITOR:-nano}" /srv/forgeos/frigate/config/config.yml
-    docker compose -f "${FRIGATE_DIR}/docker-compose.yml" restart 2>/dev/null || true
     ;;
 
 temp)
@@ -624,16 +449,11 @@ rebuild-driver)
     ;;
 
 help|*)
-    echo "ForgeOS Coral TPU + Frigate Manager"
+    echo "ForgeOS Coral TPU Manager"
     echo ""
     echo "  status              TPU detection + module status"
     echo "  test                Run inference test"
     echo "  temp                Read TPU temperature(s)"
-    echo ""
-    echo "  frigate-start       Start Frigate NVR"
-    echo "  frigate-stop        Stop Frigate NVR"
-    echo "  frigate-logs        Tail Frigate logs"
-    echo "  frigate-config      Edit Frigate camera config"
     echo ""
     echo "  rebuild-driver      Rebuild gasket-dkms for current kernel"
     echo "  fix-aspm            Add pcie_aspm=off (if /dev/apex_* missing)"
@@ -651,7 +471,6 @@ CORALCLI
 # ============================================================
 detect_coral || {
     # No hardware detected — still install driver (user may add card later)
-    # and generate Frigate compose with default 1-TPU config
     step "Installing Coral driver (no hardware now — ready for future install)"
     forgenas_set "CORAL_COUNT" "1"
 }
@@ -661,7 +480,6 @@ install_edgetpu_runtime
 configure_apex_system
 configure_grub_for_coral
 verify_coral
-generate_frigate_compose
 install_coral_cli
 
 forgenas_set "MODULE_CORAL_DONE" "yes"
@@ -669,9 +487,6 @@ forgenas_set "FEATURE_CORAL" "yes"
 
 info "Coral TPU module complete"
 info "  Status:          forgeos-coral status"
-info "  Start Frigate:   forgeos-coral frigate-start"
-info "  Config cameras:  forgeos-coral frigate-config"
-info "  Frigate UI:      https://nvr.$(forgenas_get DOMAIN nas.local)"
 warn "  REBOOT REQUIRED for kernel modules to fully activate"
 warn "  After reboot verify: ls /dev/apex_*"
 warn "  If /dev/apex_* missing: forgeos-coral fix-aspm then reboot again"

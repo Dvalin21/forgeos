@@ -130,7 +130,7 @@ if ! $UNATTENDED; then
     FEAT_FILESHARE=true
     FEAT_VPN=false
     FEAT_PROXY=true
-    FEAT_LDAP=false
+    FEAT_LDAP=false   # DEPRECATED: native user mgmt + 2FA replaced OIDC/Authentik (Sprint 6). Forced off; not offered.
     FEAT_MAIL=false
     FEAT_BACKUP=true
     FEAT_CLOUD=false
@@ -140,16 +140,18 @@ if ! $UNATTENDED; then
     ask_yn "Install ForgeRAID storage (mdadm+btrfs+bcache)"   y && FEAT_STORAGE=true  || FEAT_STORAGE=false
     ask_yn "Install Docker CE + Incus containers"              y && FEAT_DOCKER=true   || FEAT_DOCKER=false
     ask_yn "Install GPU drivers (NVIDIA/AMD/Intel Arc)"        n && FEAT_GPU=true      || FEAT_GPU=false
-    ask_yn "Install Google Coral TPU + Frigate NVR"            n && FEAT_CORAL=true    || FEAT_CORAL=false
+    ask_yn "Install Google Coral TPU drivers"                  n && FEAT_CORAL=true    || FEAT_CORAL=false
     ask_yn "Install security (UFW, Fail2ban, CrowdSec)"        y && FEAT_SECURITY=true || FEAT_SECURITY=false
     ask_yn "Install monitoring (Grafana + Prometheus)"         y && FEAT_MONITORING=true || FEAT_MONITORING=false
     ask_yn "Install file sharing (Samba/NFS/FTPS/DAV/FileDB)"  y && FEAT_FILESHARE=true || FEAT_FILESHARE=false
     ask_yn "Install VPN (WireGuard)"                           n && FEAT_VPN=true      || FEAT_VPN=false
     ask_yn "Install nginx reverse proxy + Let's Encrypt"       y && FEAT_PROXY=true    || FEAT_PROXY=false
-    ask_yn "Install LDAP/OIDC auth (lldap + Authentik)"        n && FEAT_LDAP=true     || FEAT_LDAP=false
+    # OIDC/Authentik removed (Sprint 6): ForgeOS uses native user management +
+    # TOTP 2FA instead. No external IdP, no 4-container Authentik stack.
+    FEAT_LDAP=false
     ask_yn "Install mail server (Postfix+Dovecot+SOGo)"        n && FEAT_MAIL=true     || FEAT_MAIL=false
     ask_yn "Install backup (Restic+Rclone+Snapper)"            y && FEAT_BACKUP=true   || FEAT_BACKUP=false
-    ask_yn "Install cloud storage (MinIO S3)"                  n && FEAT_CLOUD=true    || FEAT_CLOUD=false
+    ask_yn "Install cloud storage (RustFS S3)"                  n && FEAT_CLOUD=true    || FEAT_CLOUD=false
     ask_yn "Install apps (OnlyOffice+MS Fonts+Immich)"         n && FEAT_APPS=true     || FEAT_APPS=false
     ask_yn "Enable HIPAA compliance mode"                      n && FEAT_HIPAA=true    || FEAT_HIPAA=false
 
@@ -254,7 +256,7 @@ run_module  "03"  "ForgeRAID Storage"        "03-storage.sh"           "$FEAT_ST
 run_module  "03b" "Hot-Swap & SMART"         "03-storage-hotswap.sh"   "$FEAT_STORAGE"
 run_module  "03c" "Drive Types & Cache"      "03c-drive-types.sh"      "$FEAT_STORAGE"
 run_module  "04"  "Docker + Incus"           "04-docker.sh"            "$FEAT_DOCKER"
-run_module  "05"  "Coral TPU + Frigate"      "05-coral-tpu.sh"         "$FEAT_CORAL"
+run_module  "05"  "Coral TPU"                "05-coral-tpu.sh"         "$FEAT_CORAL"
 run_module  "06"  "GPU Drivers"              "06-gpu.sh"               "$FEAT_GPU"
 run_module  "07"  "Security"                 "07-security.sh"          "$FEAT_SECURITY"
 run_module  "09"  "Monitoring"               "09-monitoring.sh"        "$FEAT_MONITORING"
@@ -263,10 +265,13 @@ run_module  "10b" "Samba + Database"         "10b-samba-db.sh"         "$FEAT_FI
 run_module  "10c" "ForgeFileDB Coordinator"  "10c-forgeos-filedb.sh"   "$FEAT_FILESHARE"
 run_module  "11"  "VPN"                      "11-vpn.sh"               "$FEAT_VPN"
 run_module  "12"  "Reverse Proxy"            "12-reverse-proxy.sh"     "$FEAT_PROXY"
-run_module  "13"  "LDAP + OIDC Auth"         "13-ldap-oidc.sh"         "$FEAT_LDAP"
+# Module 13 (LDAP/OIDC/Authentik) retired in Sprint 6 — native user
+# management + 2FA replaced it. Hardcoded false so it never runs; the
+# module file is kept on disk (dormant) for reference, not deleted.
+run_module  "13"  "LDAP + OIDC Auth"         "13-ldap-oidc.sh"         "false"
 run_module  "14"  "Mail Server"              "14-mail.sh"              "$FEAT_MAIL"
 run_module  "15"  "Backup"                   "15-backup.sh"            "$FEAT_BACKUP"
-run_module  "16"  "Cloud Storage"            "16-cloud-storage.sh"     "$FEAT_CLOUD"
+run_module  "16"  "Cloud Storage (RustFS)"            "16-cloud-storage.sh"     "$FEAT_CLOUD"
 run_module  "17"  "HIPAA Compliance"         "17-hipaa.sh"             "$FEAT_HIPAA"
 run_module  "18"  "Applications"             "18-apps.sh"              "$FEAT_APPS"
 run_module  "99"  "Finalize"                 "99-finalize.sh"          "true"
