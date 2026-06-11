@@ -247,6 +247,31 @@ class SmtpConfig(BaseModel):
 # ---------------- root ----------------
 
 
+class InstalledApp(BaseModel):
+    """An app installed from the catalog. Recorded in the config DB so its
+    port stays stable and its nginx vhost can be derived."""
+
+    id: str
+    version: str = ""
+    webui_port: int
+    enabled: bool = True
+
+    @field_validator("id")
+    @classmethod
+    def _id(cls, v: str) -> str:
+        import re
+        if not re.match(r"^[a-z0-9][a-z0-9_-]*$", v):
+            raise ValueError(f"invalid app id: {v!r}")
+        return v
+
+    @field_validator("webui_port")
+    @classmethod
+    def _port(cls, v: int) -> int:
+        if not (1 <= v <= 65535):
+            raise ValueError(f"port out of range: {v}")
+        return v
+
+
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
@@ -258,6 +283,16 @@ class ForgeOSConfig(BaseModel):
     wireguard: WireGuardConfig = Field(default_factory=WireGuardConfig)
     nfs: NfsConfig = Field(default_factory=NfsConfig)
     smtp: SmtpConfig = Field(default_factory=SmtpConfig)
+    apps: list[InstalledApp] = Field(default_factory=list)
+
+    @field_validator("apps")
+    @classmethod
+    def _unique_apps(cls, v: list[InstalledApp]) -> list[InstalledApp]:
+        ids = [a.id for a in v]
+        dupes = {i for i in ids if ids.count(i) > 1}
+        if dupes:
+            raise ValueError(f"duplicate app ids: {sorted(dupes)}")
+        return v
 
 
 def load(path: Path | None = None) -> ForgeOSConfig:
