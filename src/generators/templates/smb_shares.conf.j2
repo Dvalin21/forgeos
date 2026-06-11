@@ -1,0 +1,28 @@
+# ForgeOS Samba shares — GENERATED, do not edit by hand.
+# Source of truth: /etc/forgeos/config.json  (regenerate: forgeos-generate samba)
+{% for s in shares %}
+[{{ s.name }}]
+   comment = {{ s.comment or s.name }}
+   path = {{ s.path }}
+   browseable = yes
+{% if s.type == "public-ro" %}
+   guest ok = yes
+   read only = yes
+{% else %}
+   guest ok = no
+   read only = {{ "no" if s.writable else "yes" }}
+   valid users = {{ s.valid_users | join(" ") }}
+{% endif %}
+{% if s.type == "database" %}
+   oplocks = no
+   level2 oplocks = no
+   kernel oplocks = no
+{% endif %}
+{% if s.type == "timemachine" %}
+   vfs objects = catia fruit streams_xattr
+   fruit:time machine = yes
+   fruit:metadata = stream
+{% endif %}
+   create mask = 0660
+   directory mask = 0770
+{% endfor %}

@@ -77,6 +77,19 @@ async def notify(body: dict):
             capture_output=True, timeout=10,
         )
 
+    # Forward to SMTP (v2 config DB). Non-raising: a mail misconfig must
+    # never break the notification path. Only warnings/critical go to email
+    # by default — info-level is too noisy for inboxes.
+    if level in ("warning", "warn", "critical", "err", "error"):
+        try:
+            import forgeos_config as _fc
+            import forgeos_smtp as _smtp
+            _cfg = _fc.load()
+            if _cfg.smtp.enabled:
+                _smtp.send_safe(_cfg.smtp, title, message)
+        except Exception:
+            pass  # never let notification delivery crash the caller
+
     # Store in notification queue for Web UI
     _notifications.append({"level": level, "title": title, "message": message, "ts": time.time()})
 

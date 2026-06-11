@@ -1,0 +1,32 @@
+# ForgeOS Samba configuration — GENERATED, do not edit by hand.
+# Source of truth: /etc/forgeos/config.json  (regenerate: forgeos-generate samba)
+[global]
+   workgroup = {{ workgroup }}
+   server string = {{ server_string }}
+   server role = standalone server
+   map to guest = bad user
+   security = user
+   passdb backend = tdbsam
+
+   # Hardening
+   client min protocol = SMB2
+   server min protocol = SMB2
+   restrict anonymous = 2
+   disable netbios = no
+
+   # Performance
+   socket options = TCP_NODELAY IPTOS_LOWDELAY
+   read raw = yes
+   write raw = yes
+   use sendfile = yes
+   aio read size = 16384
+   aio write size = 16384
+
+   # Logging
+   log file = /var/log/forgeos/samba/%m.log
+   max log size = 1000
+   logging = file
+
+   # ForgeOS-managed shares are included from a separate file so the
+   # global block and the shares can be regenerated independently.
+   include = {{ shares_file }}

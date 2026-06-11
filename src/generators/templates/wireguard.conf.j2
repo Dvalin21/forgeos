@@ -1,0 +1,18 @@
+# ForgeOS WireGuard — GENERATED, do not edit by hand.
+# Source: /etc/forgeos/config.json  (regenerate: forgeos-generate wireguard)
+# The whole file is regenerated from the peer list — never appended to — so
+# it can never drift out of sync with the config DB.
+[Interface]
+Address    = {{ server_address }}/{{ prefix }}
+ListenPort = {{ listen_port }}
+PrivateKey = {{ server_private_key }}
+
+PostUp   = ufw route allow in on {{ interface }} out on {{ egress_nic }}; iptables -t nat -A POSTROUTING -s {{ subnet }} -o {{ egress_nic }} -j MASQUERADE
+PostDown = ufw route delete allow in on {{ interface }} out on {{ egress_nic }}; iptables -t nat -D POSTROUTING -s {{ subnet }} -o {{ egress_nic }} -j MASQUERADE
+{% for p in peers %}
+
+# peer: {{ p.name }}
+[Peer]
+PublicKey  = {{ p.public_key }}
+AllowedIPs = {{ p.address }}
+{% endfor %}
