@@ -272,6 +272,18 @@ class InstalledApp(BaseModel):
         return v
 
 
+class TogglesConfig(BaseModel):
+    """Base features that are install/uninstall toggles (not always-on).
+
+    Coral + GPU are also hardware-gated: enabling them only does anything if
+    the hardware is present. ForgeFileDB is a pure software toggle.
+    """
+
+    forgefiledb: bool = False
+    coral: bool = False
+    gpu: bool = False
+
+
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
@@ -284,6 +296,7 @@ class ForgeOSConfig(BaseModel):
     nfs: NfsConfig = Field(default_factory=NfsConfig)
     smtp: SmtpConfig = Field(default_factory=SmtpConfig)
     apps: list[InstalledApp] = Field(default_factory=list)
+    toggles: TogglesConfig = Field(default_factory=TogglesConfig)
 
     @field_validator("apps")
     @classmethod
