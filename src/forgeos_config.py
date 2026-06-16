@@ -284,6 +284,52 @@ class TogglesConfig(BaseModel):
     gpu: bool = False
 
 
+class OsBackupConfig(BaseModel):
+    """Bare-metal disaster recovery for ForgeOS ITSELF, via ReaR.
+
+    Produces a bootable rescue image + a full system archive so the box can
+    be rebuilt on the same or new hardware. Distinct from data-pool backups
+    (Restic/btrfs) and from client backups (UrBackup).
+    """
+
+    enabled: bool = False
+    output: Literal["ISO", "USB"] = "ISO"
+    # Where the rescue image + archive land. MUST be a separate filesystem
+    # from root — ReaR refuses otherwise. With a dedicated backup disk this
+    # is satisfied by construction.
+    backup_path: str = "/mnt/backup/osbackup"
+    schedule: str = "weekly"           # systemd OnCalendar value
+    cloud_sync: bool = False           # also push the archive via Rclone
+    cloud_remote: str = ""             # rclone remote name (if cloud_sync)
+
+    @field_validator("backup_path")
+    @classmethod
+    def _abs_not_root(cls, v: str) -> str:
+        if not v.startswith("/"):
+            raise ValueError(f"backup_path must be absolute: {v!r}")
+        # Guard the ReaR "not on root fs" rule at the schema level: refuse
+        # obvious root-fs paths. (Real separate-fs check happens at apply.)
+        bad = ("/", "/root", "/etc", "/var", "/usr", "/home", "/boot")
+        if v.rstrip("/") in bad or v.rstrip("/") == "":
+            raise ValueError(
+                f"backup_path {v!r} looks like the root filesystem; ReaR "
+                "requires a separate filesystem (use the dedicated backup disk)"
+            )
+        return v
+
+    @field_validator("schedule")
+    @classmethod
+    def _sched(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("schedule cannot be empty")
+        return v
+
+    @field_validator("cloud_remote")
+    @classmethod
+    def _remote(cls, v: str, info) -> str:
+        return v
+
+
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
@@ -297,6 +343,7 @@ class ForgeOSConfig(BaseModel):
     smtp: SmtpConfig = Field(default_factory=SmtpConfig)
     apps: list[InstalledApp] = Field(default_factory=list)
     toggles: TogglesConfig = Field(default_factory=TogglesConfig)
+    osbackup: OsBackupConfig = Field(default_factory=OsBackupConfig)
 
     @field_validator("apps")
     @classmethod

@@ -16,6 +16,7 @@ import forgeos_config as fc
 from generators import GeneratorError, ServiceGenerator
 from generators.nfs import NfsGenerator
 from generators.nginx import NginxGenerator
+from generators.rear import RearGenerator
 from generators.samba import SambaGenerator
 from generators.security import SecurityGenerator
 from generators.wireguard import WireGuardGenerator
@@ -28,6 +29,7 @@ _REGISTRY: dict[str, ServiceGenerator] = {
     "nfs": NfsGenerator(),
     "wireguard": WireGuardGenerator(),
     "nginx": NginxGenerator(),
+    "osbackup": RearGenerator(),
 }
 
 
