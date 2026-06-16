@@ -86,6 +86,22 @@ imagers and a bootable restore environment (the multi-year trap).
   installing from upstream repo on the user's box). ACTION: confirm license
   terms before we ship anything that redistributes it.
 
+### LICENSE VERDICT (verified)
+UrBackup is **AGPLv3+** (© Martin Raiber; base server + all clients free for
+personal AND commercial use, no fees). Bundling as a base service is allowed.
+The ONE rule that shapes our integration: AGPL's network-copyleft means if we
+MODIFY UrBackup and run it as a service, we'd have to publish those mods.
+  - SAFE (our plan): install STOCK UrBackup from its own package/repo, run it
+    as a SEPARATE service, ForgeOS only configures/orchestrates it (writes its
+    config, reverse-proxies it, surfaces status). Two cooperating programs is
+    NOT a derivative work — ForgeOS stays GPLv3, UrBackup stays AGPLv3, no
+    contamination. (This is how TrueNAS/QNAP package it.)
+  - DO NOT: fork+modify UrBackup's code and ship it, or link ForgeOS code into
+    the UrBackup process.
+  - Commercial add-ons exist (Infscape: Windows Change Block Tracking, the
+    UrBackup Appliance) — not needed, not bundled; the free AGPL version is
+    fully functional for our use. Track 1 is CLEARED to proceed on this basis.
+
 ---
 
 ## Track 2 — ReaR for ForgeOS bare-metal DR (option 2)
