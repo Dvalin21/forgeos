@@ -50,3 +50,53 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "daemon: marks tests that require the ForgeFileDB daemon",
 ]
+
+[tool.setuptools]
+# src/ holds the package modules. Discover the `generators` package + ship
+# its Jinja2 templates as package data (without this, an INSTALLED package
+# raises TemplateNotFound). Flat top-level modules are listed explicitly in
+# py-modules below rather than left to auto-discovery, which was
+# inconsistent (it silently dropped the CLI wrapper modules).
+package-dir = {"" = "src"}
+include-package-data = true
+py-modules = [
+    "forgeos_config",
+    "forgeos_smtp",
+    "forgeos_health",
+    "forgeos_ports",
+    "forgeos_appstore",
+    "forgeos_appinstall",
+    "forgeos_appstore_exec",
+    "forgeos_toggles",
+    "forgeos_generate_cli",
+    "forgeos_app_cli",
+    "forgeos_auth",
+    "audit_api",
+    "auth_api",
+    "backup_api",
+    "docker_api",
+    "docker_lxc_api",
+    "filedb_api",
+    "forgeos_pages_api",
+    "imaging_api",
+    "nginx_api",
+    "notifications_api",
+    "rustfs_api",
+    "samba_api",
+    "security_api",
+    "storage_api",
+    "system_api",
+    "users_api",
+    "vpn_api",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["generators*"]
+
+[tool.setuptools.package-data]
+generators = ["templates/*.j2"]
+
+[project.scripts]
+forgeos-generate = "forgeos_generate_cli:main"
+forgeos-app = "forgeos_app_cli:main"
