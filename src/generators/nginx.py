@@ -21,6 +21,7 @@ from generators import RenderedFile, ServiceGenerator
 
 _TEMPLATES = Path(__file__).parent / "templates"
 VHOST_DIR = "/etc/nginx/forgeos.d"
+CONFD_DIR = "/etc/nginx/conf.d"
 SNAKEOIL_CERT = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
 SNAKEOIL_KEY = "/etc/ssl/private/ssl-cert-snakeoil.key"
 
@@ -43,6 +44,22 @@ class NginxGenerator(ServiceGenerator):
             return []
         tpl = self._env.get_template("nginx_vhost.conf.j2")
         out: list[RenderedFile] = []
+        if not nginx.vhosts:
+            return []
+        # Stock Debian nginx includes conf.d/*.conf but NOT our forgeos.d/.
+        # Emit a one-line include into conf.d so our vhosts are actually read
+        # (without this the vhost files exist on disk but nginx never loads
+        # them, so :443 never comes up).
+        out.append(
+            RenderedFile(
+                path=f"{CONFD_DIR}/forgeos.conf",
+                content=(
+                    "# ForgeOS — GENERATED. Pulls in ForgeOS-managed vhosts.\n"
+                    f"include {VHOST_DIR}/*.conf;\n"
+                ),
+                mode=0o644,
+            )
+        )
         for v in nginx.vhosts:
             cert, key = self._cert_paths(v.domain)
             content = tpl.render(v=v, cert_path=cert, key_path=key)
