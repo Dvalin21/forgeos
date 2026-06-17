@@ -32,6 +32,7 @@ def _installer(choices=None, run=None, tmp_cfg=None):
     inst.apply_toggles = lambda cfg: []
     inst.deploy_web = lambda repo, opt: None
     inst._write_file = lambda p, c, m: None
+    inst._make_dirs = lambda dirs: None
     inst._saved = saved
     return inst
 
@@ -132,16 +133,29 @@ def test_web_phase_deploys_and_starts():
     cmds = []
     deployed = {}
     writes = []
+    made_dirs = []
     inst = _installer(run=lambda cmd: cmds.append(cmd) or OK())
     inst.deploy_web = lambda repo, opt: deployed.update(repo=repo, opt=opt)
     inst._write_file = lambda p, c, m: writes.append(p)
+    inst._make_dirs = lambda dirs: made_dirs.extend(dirs)
     res = inst.phase_web()
     assert res.ok
     assert deployed["opt"] == fi.FORGEOS_OPT
     assert "/etc/forgeos/api.env" in writes
     assert "/etc/systemd/system/forgeos-api.service" in writes
+    # the runtime dirs the systemd hardening needs must be created
+    assert "/var/log/forgeos" in made_dirs
+    assert "/var/lib/forgeos" in made_dirs
     joined = [" ".join(c) for c in cmds]
     assert any("enable --now forgeos-api" in j for j in joined)
+
+
+def test_runtime_dirs_match_readwritepaths():
+    # regression: every RUNTIME_DIR must be created so ProtectSystem=strict +
+    # ReadWritePaths can bind-mount it (missing dir -> 226/NAMESPACE crash).
+    for d in ("/var/log/forgeos", "/var/lib/forgeos", "/etc/forgeos"):
+        assert d in fi.RUNTIME_DIRS
+        assert d in fi._API_SERVICE_UNIT
 
 
 def test_web_phase_reports_start_failure():

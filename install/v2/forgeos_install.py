@@ -45,6 +45,14 @@ BASE_PACKAGES: list[str] = [
 WEBUI_BACKEND_PORT = 5080
 # Where the API code + web assets are deployed on the installed system.
 FORGEOS_OPT = "/opt/forgeos"
+# Runtime dirs the service needs to exist (created in phase_web before start).
+# These are exactly the writable paths the systemd unit's ReadWritePaths
+# references, so ProtectSystem=strict can bind-mount them.
+RUNTIME_DIRS = [
+    "/etc/forgeos",
+    "/var/log/forgeos",
+    "/var/lib/forgeos",
+]
 
 _API_SERVICE_UNIT = """# ForgeOS Web UI API — GENERATED
 [Unit]
@@ -66,7 +74,7 @@ SyslogIdentifier=forgeos-api
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-ReadWritePaths=/etc/forgeos /var/log/forgeos {opt} /srv /var/lib/forgeos
+ReadWritePaths=/etc/forgeos /var/log/forgeos /var/lib/forgeos {opt} /srv
 
 [Install]
 WantedBy=multi-user.target
@@ -138,6 +146,11 @@ class Installer:
         try:
             # 1. deploy code + web assets to /opt/forgeos
             self.deploy_web(self.repo_root, FORGEOS_OPT)
+
+            # 1b. create the runtime dirs the service's systemd hardening
+            # (ProtectSystem=strict + ReadWritePaths) needs to exist BEFORE
+            # start — otherwise the namespace bind-mount fails with 226.
+            self._make_dirs(RUNTIME_DIRS)
 
             # 2. JWT secret (persist in the forgeos env file)
             jwt_secret = secrets.token_hex(32)
@@ -289,6 +302,12 @@ class Installer:
             except OSError:
                 pass
             raise
+
+    @staticmethod
+    def _make_dirs(dirs):
+        from pathlib import Path
+        for d in dirs:
+            Path(d).mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _default_deploy_web(repo_root, opt_dir):
