@@ -30,6 +30,8 @@ def _installer(choices=None, run=None, tmp_cfg=None):
     inst.save_cfg = lambda cfg, path=None: saved.__setitem__("cfg", cfg)
     inst.generate = lambda: []
     inst.apply_toggles = lambda cfg: []
+    inst.deploy_web = lambda repo, opt: None
+    inst._write_file = lambda p, c, m: None
     inst._saved = saved
     return inst
 
@@ -116,12 +118,46 @@ def test_run_all_stops_on_failure():
     assert not results[0].ok
 
 
+def test_build_config_seeds_ui_vhost():
+    inst = _installer(fi.InstallChoices(domain="home.lan"))
+    cfg = inst.build_config()
+    ui = [v for v in cfg.nginx.vhosts if v.name == "forgeos-ui"]
+    assert len(ui) == 1
+    assert ui[0].domain == "home.lan"
+    assert ui[0].upstream_port == fi.WEBUI_BACKEND_PORT
+    assert ui[0].websocket is True
+
+
+def test_web_phase_deploys_and_starts():
+    cmds = []
+    deployed = {}
+    writes = []
+    inst = _installer(run=lambda cmd: cmds.append(cmd) or OK())
+    inst.deploy_web = lambda repo, opt: deployed.update(repo=repo, opt=opt)
+    inst._write_file = lambda p, c, m: writes.append(p)
+    res = inst.phase_web()
+    assert res.ok
+    assert deployed["opt"] == fi.FORGEOS_OPT
+    assert "/etc/forgeos/api.env" in writes
+    assert "/etc/systemd/system/forgeos-api.service" in writes
+    joined = [" ".join(c) for c in cmds]
+    assert any("enable --now forgeos-api" in j for j in joined)
+
+
+def test_web_phase_reports_start_failure():
+    inst = _installer(run=lambda cmd: FAIL() if "enable" in cmd else OK())
+    inst.deploy_web = lambda repo, opt: None
+    inst._write_file = lambda p, c, m: None
+    res = inst.phase_web()
+    assert not res.ok
+
+
 def test_run_all_full_success():
     inst = _installer()
     results = inst.run_all()
     phases = [r.phase for r in results]
     assert phases == ["base_packages", "seed_config", "keystores",
-                      "generate", "toggles"]
+                      "web", "generate", "toggles"]
     assert all(r.ok for r in results)
 
 

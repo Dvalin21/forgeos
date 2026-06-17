@@ -41,6 +41,37 @@ BASE_PACKAGES: list[str] = [
     "curl", "ca-certificates", "jq",
 ]
 
+# The web UI backend (forgeos-api) listens here on localhost; nginx fronts it.
+WEBUI_BACKEND_PORT = 5080
+# Where the API code + web assets are deployed on the installed system.
+FORGEOS_OPT = "/opt/forgeos"
+
+_API_SERVICE_UNIT = """# ForgeOS Web UI API — GENERATED
+[Unit]
+Description=ForgeOS Web UI API Backend
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={opt}
+EnvironmentFile={env}
+ExecStart=/usr/bin/python3 {opt}/forgeos-api.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=forgeos-api
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/forgeos /var/log/forgeos {opt} /srv /var/lib/forgeos
+
+[Install]
+WantedBy=multi-user.target
+"""
+
 
 @dataclass
 class InstallChoices:
@@ -67,10 +98,12 @@ class PhaseResult:
 @dataclass
 class Installer:
     choices: InstallChoices
+    repo_root: str = "/root/forgeos"   # where the cloned repo lives
     run = None                    # callable(list[str]) -> CompletedProcess
     save_cfg = staticmethod(fc.save)
     generate = None               # callable() -> list (registry.apply_all result)
     apply_toggles = None          # callable(cfg) -> list
+    deploy_web = None             # callable(repo_root, opt_dir) -> None
     results: list = field(default_factory=list)
 
     def __post_init__(self):
@@ -84,8 +117,51 @@ class Installer:
             self.generate = self._default_generate
         if self.apply_toggles is None:
             self.apply_toggles = self._default_toggles
+        if self.deploy_web is None:
+            self.deploy_web = self._default_deploy_web
 
     # ---- phases ----
+
+    def phase_web(self) -> PhaseResult:
+        """Deploy the web API + UI, create its service, start it.
+
+        Without this nginx proxies to a dead backend and https://<domain>
+        shows nothing. Runs BEFORE generate so the nginx vhost has a live
+        :5080 to point at.
+        """
+        import secrets
+
+        try:
+            # 1. deploy code + web assets to /opt/forgeos
+            self.deploy_web(self.repo_root, FORGEOS_OPT)
+
+            # 2. JWT secret (persist in the forgeos env file)
+            jwt_secret = secrets.token_hex(32)
+            env_path = "/etc/forgeos/api.env"
+            self._write_file(
+                env_path,
+                f"FORGEOS_JWT_SECRET={jwt_secret}\n"
+                f"FORGEOS_WEB_ROOT={FORGEOS_OPT}/web/desktop\n"
+                f"FORGEOS_PORT={WEBUI_BACKEND_PORT}\n",
+                0o600,
+            )
+
+            # 3. systemd service
+            self._write_file(
+                "/etc/systemd/system/forgeos-api.service",
+                _API_SERVICE_UNIT.format(opt=FORGEOS_OPT, env=env_path),
+                0o644,
+            )
+
+            # 4. enable + start
+            self.run(["systemctl", "daemon-reload"])
+            r = self.run(["systemctl", "enable", "--now", "forgeos-api"])
+            if getattr(r, "returncode", 1) != 0:
+                return PhaseResult("web", False,
+                                  getattr(r, "stderr", "").strip() or "service start failed")
+            return PhaseResult("web", True)
+        except Exception as e:  # noqa: BLE001
+            return PhaseResult("web", False, str(e))
 
     def phase_base_packages(self) -> PhaseResult:
         r = self.run(["apt-get", "install", "-y", *BASE_PACKAGES])
@@ -107,6 +183,17 @@ class Installer:
         cfg.toggles.forgefiledb = c.enable_forgefiledb
         cfg.toggles.coral = c.enable_coral
         cfg.toggles.gpu = c.enable_gpu
+        # The web UI vhost: nginx fronts the forgeos-api backend on :5080.
+        # Without this the nginx generator renders zero vhosts and
+        # https://<domain> has nothing to serve.
+        cfg.nginx.vhosts.append(
+            fc.NginxVhost(
+                name="forgeos-ui",
+                domain=c.domain,
+                upstream_port=WEBUI_BACKEND_PORT,
+                websocket=True,   # the dashboard uses websockets for live data
+            )
+        )
         return cfg
 
     def phase_seed_config(self) -> PhaseResult:
@@ -155,6 +242,7 @@ class Installer:
             self.phase_base_packages,
             self.phase_seed_config,
             self.phase_keystores,
+            self.phase_web,
             self.phase_generate,
             self.phase_toggles,
         ]
@@ -177,3 +265,44 @@ class Installer:
     def _default_toggles(cfg):
         from forgeos_toggles import ToggleManager
         return ToggleManager().plan(cfg)
+
+    @staticmethod
+    def _write_file(path, content, mode):
+        import os
+        import tempfile
+        from pathlib import Path
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".forgeos-", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(content)
+            os.chmod(tmp, mode)
+            os.replace(tmp, p)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+
+    @staticmethod
+    def _default_deploy_web(repo_root, opt_dir):
+        """Copy the API modules + web assets from the repo to /opt/forgeos."""
+        import shutil
+        from pathlib import Path
+
+        src = Path(repo_root) / "src"
+        opt = Path(opt_dir)
+        opt.mkdir(parents=True, exist_ok=True)
+        # copy every python module + the generators package
+        for item in src.iterdir():
+            dest = opt / item.name
+            if item.is_dir():
+                shutil.copytree(item, dest, dirs_exist_ok=True)
+            else:
+                shutil.copy2(item, dest)
+        # web assets
+        web_src = Path(repo_root) / "web"
+        if web_src.exists():
+            shutil.copytree(web_src, opt / "web", dirs_exist_ok=True)
