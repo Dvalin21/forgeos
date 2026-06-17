@@ -196,6 +196,19 @@ jobs:
           done
           [ $MISSING -eq 0 ] || exit 1
 
+      - name: No inline <script> in web UI (CSP script-src 'self')
+        run: |
+          # The API sends a strict CSP (script-src 'self') which BLOCKS inline
+          # <script>. A plain inline <script> block makes the whole page's JS
+          # silently fail in the browser (login included). All JS must be
+          # external (<script src=...>). This guard stops a regression.
+          if grep -rnE '<script>' web/desktop/*.html; then
+            echo "ERROR: inline <script> found above — CSP will block it."
+            echo "Move the code to web/desktop/js/<page>.js + <script src=...>."
+            exit 1
+          fi
+          echo "OK: no inline <script> in web/desktop"
+
       - name: Check module numbering sequence
         run: |
           echo "Modules present:"
