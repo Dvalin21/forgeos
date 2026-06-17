@@ -170,3 +170,18 @@ def test_base_package_list_has_core_services():
     assert "nfs-kernel-server" in pkgs
     assert "fail2ban" in pkgs
     assert "restic" in pkgs
+
+
+def test_repo_root_auto_derived_not_hardcoded_root():
+    # regression: repo_root must derive from the module location, never a
+    # hardcoded /root/forgeos (broke installs cloned to /home/<user>).
+    inst = fi.Installer(choices=fi.InstallChoices())
+    assert inst.repo_root != "/root/forgeos"
+    import os
+    # it derives to wherever the code actually lives, and src/ is there
+    assert os.path.isdir(os.path.join(inst.repo_root, "src"))
+
+
+def test_explicit_repo_root_respected():
+    inst = fi.Installer(choices=fi.InstallChoices(), repo_root="/custom/path")
+    assert inst.repo_root == "/custom/path"

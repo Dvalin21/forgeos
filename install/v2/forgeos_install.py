@@ -98,7 +98,7 @@ class PhaseResult:
 @dataclass
 class Installer:
     choices: InstallChoices
-    repo_root: str = "/root/forgeos"   # where the cloned repo lives
+    repo_root: str = ""           # where the cloned repo lives (auto-derived if empty)
     run = None                    # callable(list[str]) -> CompletedProcess
     save_cfg = staticmethod(fc.save)
     generate = None               # callable() -> list (registry.apply_all result)
@@ -108,7 +108,11 @@ class Installer:
 
     def __post_init__(self):
         import subprocess
+        from pathlib import Path
 
+        if not self.repo_root:
+            # this file is at <repo>/install/v2/forgeos_install.py
+            self.repo_root = str(Path(__file__).resolve().parent.parent.parent)
         if self.run is None:
             self.run = lambda cmd: subprocess.run(
                 cmd, check=False, capture_output=True, text=True

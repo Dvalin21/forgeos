@@ -80,7 +80,7 @@ def main(argv=None) -> int:
     else:
         choices = collect_choices_interactive()
 
-    installer = fi.Installer(choices=choices)
+    installer = fi.Installer(choices=choices, repo_root=str(_here.parent.parent))
     print("\n==> Running installation\n")
     results = installer.run_all()
 
