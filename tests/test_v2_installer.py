@@ -180,6 +180,7 @@ def test_base_package_list_has_core_services():
     pkgs = set(fi.BASE_PACKAGES)
     assert "samba" in pkgs
     assert "nginx" in pkgs
+    assert "ssl-cert" in pkgs   # snakeoil cert -> nginx can open :443 pre-LE
     assert "wireguard" in pkgs
     assert "nfs-kernel-server" in pkgs
     assert "fail2ban" in pkgs

@@ -29,7 +29,11 @@ BASE_PACKAGES: list[str] = [
     # file sharing
     "samba", "samba-common-bin", "nfs-kernel-server", "nfs-common",
     # reverse proxy + certs
-    "nginx", "certbot", "python3-certbot-nginx",
+    # reverse proxy + certs (ssl-cert provides the snakeoil cert so nginx can
+    # bring up :443 before Let's Encrypt issues a real one — without it the
+    # generated vhost references a cert that doesn't exist and nginx silently
+    # runs :80 only).
+    "nginx", "certbot", "python3-certbot-nginx", "ssl-cert",
     # vpn
     "wireguard", "wireguard-tools",
     # security tier tools (all of them; tiers enable/disable at runtime)
