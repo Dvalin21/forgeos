@@ -2,9 +2,9 @@ name: ForgeOS CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, v2-rearchitect ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, v2-rearchitect ]
 
 jobs:
 
@@ -79,6 +79,88 @@ jobs:
         run: |
           flake8 src/ --max-line-length=120 --extend-ignore=E501,W503 \
             --statistics 2>&1 || true
+
+  # ── v2 test suite (GATING — these MUST pass) ──────────────────
+  # Unlike the warn-only python-lint job above, this job FAILS the build if
+  # the v2 test suite fails. The v2 engine (config-DB, generators, app-store,
+  # toggles, installer) is gated here so a regression can't merge green.
+  v2-tests:
+    name: v2 Test Suite (gating)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ForgeOS from declared deps (pyproject)
+        run: |
+          # Deps-file rule: install exactly what the project declares, never
+          # hand-picked packages. This also proves a clean install works.
+          pip install -e ".[test]"
+
+      - name: Run the full test suite (gating)
+        run: |
+          python3 -m pytest tests/ -q --tb=short
+          # NO '|| true' — a failing test fails the build, by design.
+
+  # ── Clean-container install dry-run (GATING) ──────────────────
+  # Catches the class of bug that shipped to hardware this cycle: missing
+  # package data (templates), CLIs that aren't real commands, modules that
+  # don't import from an INSTALLED package. Installs into a clean container
+  # and exercises the installed entry points — no sandbox assumptions.
+  install-dryrun:
+    name: Clean Install Dry-Run (gating)
+    runs-on: ubuntu-22.04
+    container: debian:13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Python + pip (as bootstrap.sh would)
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq python3 python3-pip python3-venv git
+
+      - name: Install the package from pyproject (clean venv)
+        run: |
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install --quiet ".[rustfs]"
+
+      - name: Templates shipped + generators render from INSTALLED package
+        run: |
+          /tmp/venv/bin/python - <<'PY'
+          from generators.samba import SambaGenerator
+          from generators.nginx import NginxGenerator
+          import forgeos_config as fc
+          cfg = fc.ForgeOSConfig()
+          cfg.samba.shares = [fc.SambaShare(name="data", path="/srv/nas/data")]
+          cfg.nginx.vhosts = [fc.NginxVhost(name="ui", domain="nas.local", upstream_port=5080)]
+          assert SambaGenerator().render(cfg), "samba render empty"
+          assert NginxGenerator().render(cfg), "nginx render empty"
+          print("OK: templates shipped, generators render")
+          PY
+
+      - name: CLI entry points are real installed commands
+        run: |
+          /tmp/venv/bin/forgeos-generate --list
+          /tmp/venv/bin/forgeos-app --help >/dev/null
+          echo "OK: forgeos-generate + forgeos-app are real commands"
+
+      - name: Installer module imports + builds config (no root needed)
+        run: |
+          /tmp/venv/bin/pip install --quiet pydantic jinja2 pyyaml
+          PYTHONPATH=src:install/v2 /tmp/venv/bin/python - <<'PY'
+          import sys; sys.path[:0] = ["src", "install/v2"]
+          import forgeos_install as fi
+          inst = fi.Installer(choices=fi.InstallChoices(domain="ci.local"))
+          cfg = inst.build_config()
+          assert any(v.name == "forgeos-ui" for v in cfg.nginx.vhosts), "no UI vhost seeded"
+          print("OK: installer builds config with UI vhost")
+          PY
 
   # ── Repository structure validation ───────────────────────────
   structure:

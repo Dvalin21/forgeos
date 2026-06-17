@@ -4,11 +4,12 @@
 
 **Discipline rule:** This registry is updated in the same commit as the work it tracks. Status drift here is a project-management bug, not a documentation bug.
 
-**Last reviewed:** 2026-06-04
-**Last commit reviewed:** `79b1c72` — web: add ForgeDB page
-**Test baseline at start:** 87/87 passing
-**Current test count:** 169 with boto3 (or 158 + 1 skip without) — was 87 at Sprint 0
+**Last reviewed:** 2026-06-17
+**Last commit reviewed:** `e3cb316` — fix(v2): nginx generator emits conf.d include
+**Test baseline at start:** 87/87 passing (Sprint 0)
+**Current test count:** 383 (full suite, `pip install -e '.[test]'`)
 **Repository:** github.com/Dvalin21/forgeos
+**Active branch:** `v2-rearchitect` (v2 re-architecture; `main` holds v1)
 
 ---
 
@@ -337,3 +338,70 @@ This document changes whenever the work it tracks changes. The change rules:
 5. Out-of-scope decisions go in Section 3, with reason. Re-opening requires explicit user direction.
 
 **Lesson learned from WatchROM:** WatchROM's `PRODUCTION_READINESS.md` had tables at the top showing open issues and Sprint sections at the bottom showing them closed. The code matched the Sprint sections; the tables were stale. ForgeOS will not repeat this mistake — there is one status field per item, and it is updated in the same commit as the work.
+
+---
+
+## Section 6 — v2 re-architecture (branch `v2-rearchitect`)
+
+**Added 2026-06-17.** The v2 work (config-DB + generators + app-store +
+toggles + Python installer + ReaR DR) was built across multiple sessions
+WITHOUT being tracked here — a direct violation of the discipline rule above,
+and the same stale-tracker failure called out in the WatchROM lesson. This
+section reconciles that. Every v2 item now has an ID.
+
+### 6a — v2 subsystems DELIVERED (on origin, test-backed)
+
+| ID | Status | Title |
+|---|---|---|
+| V2-D01 | 🟢 DONE | Config-DB: `src/forgeos_config.py`, pydantic models, atomic 0600 write |
+| V2-D02 | 🟢 DONE | Generator framework: pure render() / atomic apply() / reload(); base class + registry |
+| V2-D03 | 🟢 DONE | 6 generators: samba, nginx, security (Low/Med/High), wireguard, nfs, osbackup (ReaR) |
+| V2-D04 | 🟢 DONE | `forgeos-generate` CLI (real console_scripts entry point) |
+| V2-D05 | 🟢 DONE | App-store: manifest parser, port allocator, install/uninstall, executor, `forgeos-app` CLI |
+| V2-D06 | 🟢 DONE | Base-feature toggles: ForgeFileDB / Coral / GPU (hardware-gated) |
+| V2-D07 | 🟢 DONE | SMTP notifications + health watcher, wired into notify fan-out |
+| V2-D08 | 🟢 DONE | Minimal Python installer `install/v2/` (5-phase) + bootstrap.sh |
+| V2-D09 | 🟢 DONE | ReaR bare-metal DR generator + runtime (timer, run, notify, cloud sync) |
+| V2-D10 | 🟢 DONE | Packaging: templates shipped, CLIs as console_scripts (caught in clean-venv test) |
+
+383 tests cover the above. NONE of it was tracked here until this section.
+
+### 6b — v2 CRITICAL gaps (block "installed and usable")
+
+| ID | Sev | Status | Title | Evidence |
+|---|---|---|---|---|
+| V-001 | CRIT | 🔴 OPEN | **v2 installer creates no admin user.** `load_users()` returns `{}` → login impossible on clean install. | `install/v2/forgeos_install.py` (no user creation); `forgeos_auth.py:104` |
+| V-002 | CRIT | 🔴 OPEN | **v2 install path never validated end-to-end before being called done.** 5 env bugs found on hardware one-at-a-time (repo path, runtime dirs, asyncio import, ssl-cert, nginx include). | session history |
+| V-003 | CRIT | 🟢 DONE | **Registry blind to v2.** Closed by this Section 6 + header fix (`e3cb316`/383). | this commit |
+| V-004 | HIGH | 🔴 OPEN | No first-boot credential surfacing (depends on V-001). Password must be shown once, never logged. | — |
+
+### 6c — v2 HIGH (production-blocking)
+
+| ID | Sev | Status | Title |
+|---|---|---|---|
+| V-010 | HIGH | 🔴 OPEN | No real HTTPS cert path in v2 installer (snakeoil only; LE never runs) |
+| V-011 | HIGH | 🔴 OPEN | No domain resolution story (seeds a domain; nothing makes it resolve) |
+| V-012 | HIGH | 🔴 OPEN | No config schema migration runner (config.json version:1, no upgrade path) |
+| V-013 | HIGH | 🔴 OPEN | Secret-file perms not proven on a real box (JWT env, api-users.json, wg keys, smtp) |
+| V-014 | HIGH | 🔴 OPEN | No systemctl smoke test (we test render(), not that configs start services) |
+
+### 6d — v2 MED / process
+
+| ID | Sev | Status | Title |
+|---|---|---|---|
+| V-020 | MED | 🟢 DONE | CI didn't run on v2-rearchitect. **Fix:** added branch to push/PR triggers (`ci.yml`). |
+| V-021 | MED | 🟢 DONE | CI lacked clean-container install dry-run + gating test job. **Fix:** added `v2-tests` (gating pytest) + `install-dryrun` (clean Debian 13 container, installed-package checks). |
+| V-022 | MED | 🔴 OPEN | Two installers coexist (v1 bash, v2 python); no canonical/deprecation decision |
+| V-023 | MED | 🔴 OPEN | Web UI talks to v1 routes only; v2 generators/app-store/toggles are CLI-only |
+| V-024 | LOW | 🟢 DONE | Registry header stale (169/`79b1c72`). **Fix:** corrected to 383/`e3cb316`, this commit. |
+
+### Phased release process (mandated, followed in order)
+PHASE 0 reconcile registry + CI (this commit: V-003, V-020, V-021, V-024) →
+PHASE 1 usable clean install (V-001, V-002, V-004) →
+PHASE 2 secrets/cert/resolution (V-010, V-011, V-013) →
+PHASE 3 upgrade + tested DR restore (V-012) →
+PHASE 4 wire UI to v2 engine (V-023) →
+PHASE 5 converge installers + CI matrix (V-022, V-014) →
+PHASE 6 tagged RC, install-tested from artifact.
+
+No phase starts until the previous gate is green ON A REAL DEBIAN 13 BOX.
