@@ -370,10 +370,10 @@ section reconciles that. Every v2 item now has an ID.
 
 | ID | Sev | Status | Title | Evidence |
 |---|---|---|---|---|
-| V-001 | CRIT | 🔴 OPEN | **v2 installer creates no admin user.** `load_users()` returns `{}` → login impossible on clean install. | `install/v2/forgeos_install.py` (no user creation); `forgeos_auth.py:104` |
+| V-001 | CRIT | 🟡 CODE DONE | **v2 installer creates an admin user.** `phase_web` → `_create_admin_user`: random pw, bcrypt hash, writes `api-users.json` 0600; idempotent (won't clobber existing). Awaiting VM verification (Phase 1 gate). | `install/v2/forgeos_install.py` `_create_admin_user` |
 | V-002 | CRIT | 🔴 OPEN | **v2 install path never validated end-to-end before being called done.** 5 env bugs found on hardware one-at-a-time (repo path, runtime dirs, asyncio import, ssl-cert, nginx include). | session history |
 | V-003 | CRIT | 🟢 DONE | **Registry blind to v2.** Closed by this Section 6 + header fix (`e3cb316`/383). | this commit |
-| V-004 | HIGH | 🔴 OPEN | No first-boot credential surfacing (depends on V-001). Password must be shown once, never logged. | — |
+| V-004 | HIGH | 🟡 CODE DONE | CLI surfaces admin password ONCE on success (boxed, 'shown only once'); plaintext never written to disk/log. Awaiting VM verification. | `install/v2/forgeos-install-cli.py` |
 
 ### 6c — v2 HIGH (production-blocking)
 

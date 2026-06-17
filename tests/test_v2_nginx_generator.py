@@ -18,8 +18,9 @@ def _cfg(*vhosts):
 
 
 def _vhost_files(files):
-    """Just the per-site vhost files (exclude the conf.d include)."""
-    return [f for f in files if f.path.startswith(VHOST_DIR)]
+    """Just the per-site vhost files (exclude conf.d include + default-deny)."""
+    return [f for f in files
+            if f.path.startswith(VHOST_DIR) and not f.path.endswith("00-default-deny.conf")]
 
 
 def _first_vhost(cfg):
@@ -103,5 +104,17 @@ def test_apply_creates_vhost_dir(tmp_path, monkeypatch):
     written = ng.NginxGenerator().apply(cfg, do_reload=False)
     assert (tmp_path / "etc" / "nginx" / "forgeos.d" / "ui.conf").exists()
     assert (tmp_path / "etc" / "nginx" / "conf.d" / "forgeos.conf").exists()
-    # include file + one vhost
-    assert len(written) == 2
+    assert (tmp_path / "etc" / "nginx" / "forgeos.d" / "00-default-deny.conf").exists()
+    # include + default-deny + one vhost
+    assert len(written) == 3
+
+
+def test_emits_default_deny():
+    cfg = _cfg(fc.NginxVhost(name="ui", domain="nas.local", upstream_port=5080))
+    files = NginxGenerator().render(cfg)
+    deny = [f for f in files if f.path.endswith("00-default-deny.conf")]
+    assert len(deny) == 1
+    c = deny[0].content
+    assert "default_server" in c
+    assert "return 444;" in c
+    assert "server_name _;" in c

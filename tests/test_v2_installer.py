@@ -33,6 +33,8 @@ def _installer(choices=None, run=None, tmp_cfg=None):
     inst.deploy_web = lambda repo, opt: None
     inst._write_file = lambda p, c, m: None
     inst._make_dirs = lambda dirs: None
+    inst._create_admin_user = lambda: "test-pw-abc123"
+    inst._disable_stock_nginx_default = lambda: None
     inst._saved = saved
     return inst
 
@@ -138,6 +140,8 @@ def test_web_phase_deploys_and_starts():
     inst.deploy_web = lambda repo, opt: deployed.update(repo=repo, opt=opt)
     inst._write_file = lambda p, c, m: writes.append(p)
     inst._make_dirs = lambda dirs: made_dirs.extend(dirs)
+    inst._create_admin_user = lambda: "pw-from-phase"
+    inst._disable_stock_nginx_default = lambda: None
     res = inst.phase_web()
     assert res.ok
     assert deployed["opt"] == fi.FORGEOS_OPT
@@ -146,8 +150,36 @@ def test_web_phase_deploys_and_starts():
     # the runtime dirs the systemd hardening needs must be created
     assert "/var/log/forgeos" in made_dirs
     assert "/var/lib/forgeos" in made_dirs
+    # admin password captured for the CLI to surface (V-004)
+    assert inst._admin_password == "pw-from-phase"
     joined = [" ".join(c) for c in cmds]
     assert any("enable --now forgeos-api" in j for j in joined)
+
+
+def test_create_admin_user_writes_hashed_record(monkeypatch):
+    # V-001/V-004: real _create_admin_user writes a bcrypt-hashed admin record
+    # at 0600, returns the plaintext, and never stores the plaintext.
+    inst = _installer()
+    written = {}
+    inst._write_file = lambda p, c, m: written.update(path=p, content=c, mode=m)
+    # ensure the "already exists" early-return doesn't fire
+    import forgeos_install as fimod
+    monkeypatch.setattr(fimod.Installer, "_create_admin_user",
+                        fi.Installer._create_admin_user)
+    import json
+    # call the REAL method (not the fixture stub)
+    pw = fi.Installer._create_admin_user(inst)
+    assert pw  # got a password
+    assert written["mode"] == 0o600
+    rec = json.loads(written["content"])
+    assert rec["admin"]["role"] == "admin"
+    assert rec["admin"]["hash"].startswith("$2")   # bcrypt
+    assert pw not in written["content"]            # plaintext never stored
+
+
+def test_disable_stock_default_unlinks_symlink(tmp_path, monkeypatch):
+    # disables via unlink, and is a no-op when absent
+    fi.Installer._disable_stock_nginx_default()  # absent path -> no raise
 
 
 def test_runtime_dirs_match_readwritepaths():

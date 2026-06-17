@@ -99,6 +99,15 @@ def main(argv=None) -> int:
         print(f"\nInstallation incomplete ({failures} phase(s) failed).")
         return 1
     print("\n✓ ForgeOS v2 base installed. Config DB: /etc/forgeos/config.json")
+    if installer._admin_password:
+        print("\n  ┌──────────────────────────────────────────────────────┐")
+        print("  │  Web UI admin login — SAVE THIS, shown only once       │")
+        print("  │    username: admin                                     │")
+        print(f"  │    password: {installer._admin_password:<41} │")
+        print("  └──────────────────────────────────────────────────────┘")
+    else:
+        print("  Web UI admin: existing api-users.json kept (password unchanged)")
+    print(f"\n  Web UI:  https://{choices.domain}/   (or https://<this-host-ip>/)")
     print("  Manage services: forgeos-generate all")
     print("  Install apps:    forgeos-app sync && forgeos-app install <id>")
     return 0

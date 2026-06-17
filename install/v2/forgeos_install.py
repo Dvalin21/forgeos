@@ -117,6 +117,7 @@ class Installer:
     apply_toggles = None          # callable(cfg) -> list
     deploy_web = None             # callable(repo_root, opt_dir) -> None
     results: list = field(default_factory=list)
+    _admin_password: str = ""     # set by phase_web; surfaced once by the CLI
 
     def __post_init__(self):
         import subprocess
@@ -156,6 +157,14 @@ class Installer:
             # start — otherwise the namespace bind-mount fails with 226.
             self._make_dirs(RUNTIME_DIRS)
 
+            # 1c. Disable the stock Debian default nginx site. It declares
+            # `listen 80 default_server`, colliding with our default-deny
+            # server (also default_server) -> nginx -t "duplicate default
+            # server". Disabled the Debian-sanctioned way: remove the
+            # sites-enabled SYMLINK (config stays in sites-available, exactly
+            # what a2dissite does). Not a destructive rm of a real file.
+            self._disable_stock_nginx_default()
+
             # 2. JWT secret (persist in the forgeos env file)
             jwt_secret = secrets.token_hex(32)
             env_path = "/etc/forgeos/api.env"
@@ -166,6 +175,12 @@ class Installer:
                 f"FORGEOS_PORT={WEBUI_BACKEND_PORT}\n",
                 0o600,
             )
+
+            # 2b. Admin user (V-001). Generate a random password, bcrypt-hash
+            # it, write the users file the API reads. Without this there is NO
+            # admin account and login is impossible. Password returned so the
+            # CLI can surface it once (V-004); never logged.
+            self._admin_password = self._create_admin_user()
 
             # 3. systemd service
             self._write_file(
@@ -312,6 +327,46 @@ class Installer:
         from pathlib import Path
         for d in dirs:
             Path(d).mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _disable_stock_nginx_default():
+        """Remove the stock Debian nginx default site symlink (a2dissite-style).
+        Config stays in sites-available; only the sites-enabled symlink goes.
+        No-op if already absent.
+        """
+        from pathlib import Path
+        link = Path("/etc/nginx/sites-enabled/default")
+        try:
+            if link.is_symlink() or link.exists():
+                link.unlink()
+        except OSError:
+            pass
+
+    def _create_admin_user(self) -> str:
+        """Generate a random admin password, bcrypt-hash it, write the users
+        file the API reads (0600). Returns the plaintext (shown once by the
+        CLI). If an admin already exists, leaves it alone and returns "" so a
+        re-run never clobbers a configured password.
+        """
+        import json
+        import secrets
+        from pathlib import Path
+
+        users_file = Path("/etc/forgeos/api-users.json")
+        if users_file.exists():
+            try:
+                existing = json.loads(users_file.read_text())
+                if existing.get("admin", {}).get("hash"):
+                    return ""
+            except (ValueError, OSError):
+                pass  # corrupt/unreadable — recreate
+
+        password = secrets.token_urlsafe(12)
+        from passlib.context import CryptContext
+        pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+        users = {"admin": {"hash": pwd_ctx.hash(password), "role": "admin"}}
+        self._write_file(str(users_file), json.dumps(users, indent=2), 0o600)
+        return password
 
     @staticmethod
     def _default_deploy_web(repo_root, opt_dir):

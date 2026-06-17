@@ -22,6 +22,26 @@ from generators import RenderedFile, ServiceGenerator
 _TEMPLATES = Path(__file__).parent / "templates"
 VHOST_DIR = "/etc/nginx/forgeos.d"
 CONFD_DIR = "/etc/nginx/conf.d"
+
+# Default-deny catch-all. Named 00-* so it sorts first; default_server makes
+# it the fallback for any unmatched Host on :80 and :443. 444 closes the
+# connection with no response (nginx-specific). Real vhosts sort after and
+# match by their own server_name.
+_DEFAULT_DENY = """# ForgeOS default-deny — GENERATED, do not edit by hand.
+# Drops any request whose Host header matches no known ForgeOS vhost.
+server {{
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    listen 443 ssl default_server;
+    listen [::]:443 ssl default_server;
+    server_name _;
+
+    ssl_certificate     {cert};
+    ssl_certificate_key {key};
+
+    return 444;
+}}
+"""
 SNAKEOIL_CERT = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
 SNAKEOIL_KEY = "/etc/ssl/private/ssl-cert-snakeoil.key"
 
@@ -57,6 +77,19 @@ class NginxGenerator(ServiceGenerator):
                     "# ForgeOS — GENERATED. Pulls in ForgeOS-managed vhosts.\n"
                     f"include {VHOST_DIR}/*.conf;\n"
                 ),
+                mode=0o644,
+            )
+        )
+        # Default-deny catch-all (Option B). Any request whose Host matches no
+        # known vhost is dropped with 444 (close, no response). This is the
+        # principled replacement for deleting the stock sites-enabled/default:
+        # we OWN the catch-all explicitly rather than relying on a distro
+        # file's absence. Sorts first (00-) and claims default_server.
+        cert, key = self._cert_paths(cfg.nginx.vhosts[0].domain)
+        out.append(
+            RenderedFile(
+                path=f"{VHOST_DIR}/00-default-deny.conf",
+                content=_DEFAULT_DENY.format(cert=cert, key=key),
                 mode=0o644,
             )
         )
