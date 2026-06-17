@@ -34,6 +34,12 @@ def _store(tmp_path, cfg_holder, cmds):
     (catalog / "apps" / "grafana" / "docker-compose.yml").write_text(VALID_COMPOSE)
     (catalog / ".git").mkdir()
 
+    # Redirect APPS_ROOT into tmp so install() never touches the real
+    # /srv/forgeos (which a non-root CI runner can't create — and which a
+    # test must never write to anyway).
+    import forgeos_appinstall as _ai
+    _ai.APPS_ROOT = str(tmp_path / "srv-apps")
+
     class R:
         returncode = 0
         stdout = ""

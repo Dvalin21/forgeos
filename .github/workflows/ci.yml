@@ -186,7 +186,7 @@ jobs:
             src/filedb_api.py \
             test-forgeos.sh \
             web/desktop/index.html \
-            web/desktop/filedb.html; do
+            web/desktop/forgedb.html; do
             if [ ! -f "$f" ]; then
               echo "MISSING: $f"
               MISSING=$((MISSING+1))

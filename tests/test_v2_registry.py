@@ -36,6 +36,7 @@ def test_apply_all_runs_every_service(tmp_path, monkeypatch):
     monkeypatch.setattr(sg, "SMB_CONF", str(tmp_path / "samba" / "smb.conf"))
     monkeypatch.setattr(sg, "SHARES_FILE", str(tmp_path / "samba" / "shares.conf"))
     monkeypatch.setattr(ng, "VHOST_DIR", str(tmp_path / "nginx"))
+    monkeypatch.setattr(ng, "CONFD_DIR", str(tmp_path / "confd"))
     monkeypatch.setattr(secg, "_have", lambda c: False)
 
     cfg = fc.ForgeOSConfig()

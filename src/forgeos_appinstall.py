@@ -49,13 +49,16 @@ def plan_install(
     cfg: fc.ForgeOSConfig,
     *,
     allocate=fp.allocate_port,
-    apps_root: str = APPS_ROOT,
+    apps_root: str | None = None,
 ) -> InstallPlan:
     """Pure-ish: decide port, paths, vhost for installing `manifest`.
 
     `allocate` is injectable so tests don't probe real sockets. Does NOT
-    write anything.
+    write anything. `apps_root` defaults to the module global READ AT CALL
+    TIME (not bound at import) so it stays patchable/configurable.
     """
+    if apps_root is None:
+        apps_root = APPS_ROOT
     app_id = manifest.app_id
     if any(a.id == app_id for a in cfg.apps):
         raise InstallError(f"app {app_id!r} is already installed")
