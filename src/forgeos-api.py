@@ -18,6 +18,7 @@ Security:
 """
 
 from typing import List
+import asyncio
 import json
 import sqlite3
 import os
@@ -309,8 +310,9 @@ def _load_tasks() -> None:
     try:
         conn = _get_db()
         now = time.time()
-        rows = conn.execute("SELECT * FROM tasks").fetchall()
-        columns = [desc[0] for desc in conn.description]
+        cur = conn.execute("SELECT * FROM tasks")
+        rows = cur.fetchall()
+        columns = [desc[0] for desc in cur.description]
         with _task_lock:
             for row in rows:
                 t = dict(zip(columns, row))
@@ -456,8 +458,9 @@ def _load_jobs() -> None:
     """Load backup job configs from SQLite into memory."""
     try:
         conn = _get_db()
-        rows = conn.execute("SELECT * FROM backup_jobs").fetchall()
-        columns = [desc[0] for desc in conn.description]
+        cur = conn.execute("SELECT * FROM backup_jobs")
+        rows = cur.fetchall()
+        columns = [desc[0] for desc in cur.description]
         with _jobs_lock:
             _backup_jobs.clear()
             for row in rows:
@@ -609,6 +612,7 @@ async def lifespan(_app: FastAPI):
     try:
         yield
     finally:
+        global _shutting_down
         scheduler_task.cancel()
         # Re-entry guard: if shutdown is already running, skip.
         with _shutdown_lock:
