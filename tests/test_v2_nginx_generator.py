@@ -60,8 +60,28 @@ def test_vhost_has_upstream_and_servername():
     cfg = _cfg(fc.NginxVhost(name="ui", domain="nas.local", upstream_port=5080))
     c = _first_vhost(cfg)
     assert "server 127.0.0.1:5080;" in c
-    assert "server_name nas.local;" in c
+    assert "server_name nas.local" in c   # may also carry _ when default
     assert "proxy_pass http://forgeos_ui;" in c
+
+
+def test_single_vhost_is_default_server():
+    # A lone vhost must be default_server so the box answers on its IP and
+    # localhost, not only its domain (the bug that 444'd real access).
+    cfg = _cfg(fc.NginxVhost(name="ui", domain="nas.local", upstream_port=5080))
+    c = _first_vhost(cfg)
+    assert "default_server" in c
+    assert "server_name nas.local _;" in c
+
+
+def test_forgeos_ui_is_default_not_app_vhosts():
+    # forgeos-ui owns the catch-all; app vhosts match only their server_name.
+    cfg = _cfg(
+        fc.NginxVhost(name="grafana", domain="grafana.nas.local", upstream_port=3000),
+        fc.NginxVhost(name="forgeos-ui", domain="nas.local", upstream_port=5080),
+    )
+    files = {f.path.split("/")[-1]: f.content for f in NginxGenerator().render(cfg)}
+    assert "default_server" in files["forgeos-ui.conf"]
+    assert "default_server" not in files["grafana.conf"]
 
 
 def test_websocket_emits_upgrade_headers():
@@ -104,17 +124,6 @@ def test_apply_creates_vhost_dir(tmp_path, monkeypatch):
     written = ng.NginxGenerator().apply(cfg, do_reload=False)
     assert (tmp_path / "etc" / "nginx" / "forgeos.d" / "ui.conf").exists()
     assert (tmp_path / "etc" / "nginx" / "conf.d" / "forgeos.conf").exists()
-    assert (tmp_path / "etc" / "nginx" / "forgeos.d" / "00-default-deny.conf").exists()
-    # include + default-deny + one vhost
-    assert len(written) == 3
-
-
-def test_emits_default_deny():
-    cfg = _cfg(fc.NginxVhost(name="ui", domain="nas.local", upstream_port=5080))
-    files = NginxGenerator().render(cfg)
-    deny = [f for f in files if f.path.endswith("00-default-deny.conf")]
-    assert len(deny) == 1
-    c = deny[0].content
-    assert "default_server" in c
-    assert "return 444;" in c
-    assert "server_name _;" in c
+    # include + one vhost (no separate default-deny anymore — the UI vhost is
+    # itself the default_server)
+    assert len(written) == 2

@@ -7,17 +7,17 @@ upstream forgeos_{{ v.name }} {
 
 # HTTP -> HTTPS redirect
 server {
-    listen 80;
-    listen [::]:80;
-    server_name {{ v.domain }};
+    listen 80{% if is_default %} default_server{% endif %};
+    listen [::]:80{% if is_default %} default_server{% endif %};
+    server_name {{ v.domain }}{% if is_default %} _{% endif %};
     return 301 https://$host$request_uri;
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
+    listen 443 ssl{% if is_default %} default_server{% endif %};
+    listen [::]:443 ssl{% if is_default %} default_server{% endif %};
     http2 on;
-    server_name {{ v.domain }};
+    server_name {{ v.domain }}{% if is_default %} _{% endif %};
 
     ssl_certificate     {{ cert_path }};
     ssl_certificate_key {{ key_path }};
