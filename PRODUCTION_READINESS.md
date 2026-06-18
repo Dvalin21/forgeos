@@ -379,7 +379,7 @@ section reconciles that. Every v2 item now has an ID.
 
 | ID | Sev | Status | Title |
 |---|---|---|---|
-| V-010 | HIGH | 🔴 OPEN | No real HTTPS cert path in v2 installer (snakeoil only; LE never runs) |
+| V-010 | HIGH | 🟢 RESOLVED (by design) | **Local control-plane cert is intentionally self-signed.** A home NAS on a private .lan/IP cannot use public Let's Encrypt (no public DNS/port). Decision: the control-plane UI uses the snakeoil cert; user trusts it once on the LAN. REAL/LE certs are a property of the **reverse-proxy manager** (public-facing proxied hosts), tracked as V-030, not the installer. Documented in SECURITY.md + install output. |
 | V-011 | HIGH | 🔴 OPEN | No domain resolution story (seeds a domain; nothing makes it resolve) |
 | V-012 | HIGH | 🔴 OPEN | No config schema migration runner (config.json version:1, no upgrade path) |
 | V-013 | HIGH | 🔴 OPEN | Secret-file perms not proven on a real box (JWT env, api-users.json, wg keys, smtp) |
@@ -395,13 +395,20 @@ section reconciles that. Every v2 item now has an ID.
 | V-023 | MED | 🔴 OPEN | Web UI talks to v1 routes only; v2 generators/app-store/toggles are CLI-only |
 | V-024 | LOW | 🟢 DONE | Registry header stale (169/`79b1c72`). **Fix:** corrected to 383/`e3cb316`, this commit. |
 
+### 6e — major features (post-usability)
+
+| ID | Sev | Status | Title |
+|---|---|---|---|
+| V-030 | FEATURE | 🔵 PLANNED | **Reverse-proxy manager** (NPM-class, easier). Add proxied hosts via WebUI; per-host + global toggles for outcome-level hardening (block AI scrapers, common-exploit blocking, websockets, caching, HSTS, etc.); real certs via **Let's Encrypt DNS-01** supporting MULTIPLE domains across one or more registrars; self-signed remains the local control-plane default. Design: `REVERSE_PROXY_DESIGN.md`. Built on the existing config-DB + nginx generator. |
+
 ### Phased release process (mandated, followed in order)
-PHASE 0 reconcile registry + CI (this commit: V-003, V-020, V-021, V-024) →
-PHASE 1 usable clean install (V-001, V-002, V-004) →
-PHASE 2 secrets/cert/resolution (V-010, V-011, V-013) →
+PHASE 0 reconcile registry + CI (V-003, V-020, V-021, V-024) →
+PHASE 1 usable clean install (V-001, V-002, V-004) → ✅ DONE
+PHASE 2 hardening: resolution + secret-perms (V-011, V-013); V-010 resolved-by-design →
 PHASE 3 upgrade + tested DR restore (V-012) →
 PHASE 4 wire UI to v2 engine (V-023) →
-PHASE 5 converge installers + CI matrix (V-022, V-014) →
-PHASE 6 tagged RC, install-tested from artifact.
+PHASE 5 reverse-proxy manager (V-030) — headline feature, own design doc →
+PHASE 6 converge installers + CI matrix (V-022, V-014) →
+PHASE 7 tagged RC, install-tested from artifact.
 
 No phase starts until the previous gate is green ON A REAL DEBIAN 13 BOX.
