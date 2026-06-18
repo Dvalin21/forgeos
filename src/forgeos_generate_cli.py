@@ -50,7 +50,11 @@ def main(argv=None) -> int:
     failures = 0
     for r in results:
         if r.ok:
-            print(f"\u2713 {r.service}: applied ({len(r.written)} file(s))")
+            if not r.written:
+                print(f"\u2713 {r.service}: nothing to apply "
+                      f"(service disabled in config — enable it, then re-run)")
+            else:
+                print(f"\u2713 {r.service}: applied ({len(r.written)} file(s))")
         else:
             failures += 1
             print(f"\u2717 {r.service}: {r.error}", file=sys.stderr)

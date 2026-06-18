@@ -41,6 +41,8 @@ BASE_PACKAGES: list[str] = [
     "auditd", "aide", "rkhunter",
     # backup
     "restic", "rclone",
+    # bare-metal disaster recovery (ReaR builds the rescue ISO + system archive)
+    "rear", "genisoimage", "syslinux",
     # mDNS: makes <hostname>.local resolve on the LAN with zero client config
     # (the default domain is .local, which IS mDNS — without avahi it resolves
     # nowhere). V-011.

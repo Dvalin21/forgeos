@@ -68,6 +68,8 @@ py-modules = [
     "forgeos_appinstall",
     "forgeos_appstore_exec",
     "forgeos_toggles",
+    "forgeos_osbackup",
+    "forgeos_osbackup_cli",
     "forgeos_generate_cli",
     "forgeos_app_cli",
     "forgeos_auth",
@@ -100,3 +102,4 @@ generators = ["templates/*.j2"]
 [project.scripts]
 forgeos-generate = "forgeos_generate_cli:main"
 forgeos-app = "forgeos_app_cli:main"
+forgeos-osbackup = "forgeos_osbackup_cli:main"

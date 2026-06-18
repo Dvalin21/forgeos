@@ -405,7 +405,7 @@ section reconciles that. Every v2 item now has an ID.
 PHASE 0 reconcile registry + CI (V-003, V-020, V-021, V-024) →
 PHASE 1 usable clean install (V-001, V-002, V-004) → ✅ DONE
 PHASE 2 hardening: resolution + secret-perms (V-011, V-013); V-010 resolved-by-design →
-PHASE 3 upgrade + tested DR restore (V-012) →
+PHASE 3 upgrade (V-012 ✅) + DR usability (rear in base pkgs, forgeos-osbackup CLI, clearer generate output ✅) + TESTED restore (operator VM exercise, still OPEN) →
 PHASE 4 wire UI to v2 engine (V-023) →
 PHASE 5 reverse-proxy manager (V-030) — headline feature, own design doc →
 PHASE 6 converge installers + CI matrix (V-022, V-014) →
