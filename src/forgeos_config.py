@@ -381,13 +381,82 @@ class ForgeOSConfig(BaseModel):
         return v
 
 
+SCHEMA_VERSION = 2
+
+
+def _migrate_v1_to_v2(data: dict) -> dict:
+    """v1 had a single `domain` and no `naming` block. Populate the three-names
+    model from it: lan_name = the old domain, system_hostname derived from the
+    domain's first label (best effort — real hostname reconciled at next
+    install/apply), public_fqdn empty. Idempotent.
+    """
+    domain = data.get("domain", "") or "nas.local"
+    naming = data.get("naming") or {}
+    if not naming.get("lan_name"):
+        naming["lan_name"] = domain
+    if not naming.get("system_hostname"):
+        # the label before the first dot is the best guess at the hostname
+        naming["system_hostname"] = domain.split(".")[0]
+    naming.setdefault("public_fqdn", "")
+    data["naming"] = naming
+    data["version"] = 2
+    return data
+
+
+# version N -> N+1 migrators, applied in order until data reaches SCHEMA_VERSION
+_MIGRATIONS = {
+    1: _migrate_v1_to_v2,
+}
+
+
+def migrate(data: dict) -> dict:
+    """Bring a raw config dict up to the current schema version by applying
+    each version migrator in sequence. A dict with no version is treated as
+    v1 (the first schema that shipped without an explicit bump)."""
+    v = int(data.get("version", 1))
+    if v > SCHEMA_VERSION:
+        raise ValueError(
+            f"config schema v{v} is newer than this ForgeOS (v{SCHEMA_VERSION}); "
+            "downgrade is not supported — upgrade ForgeOS instead"
+        )
+    while v < SCHEMA_VERSION:
+        migrator = _MIGRATIONS.get(v)
+        if migrator is None:
+            raise ValueError(f"no migration from schema version {v}")
+        data = migrator(data)
+        new_v = int(data.get("version", v))
+        if new_v <= v:
+            raise ValueError(f"migration from v{v} did not advance version")
+        v = new_v
+    return data
+
+
 def load(path: Path | None = None) -> ForgeOSConfig:
-    """Load + validate the config DB. Returns defaults if it doesn't exist."""
+    """Load + validate the config DB. Returns defaults if it doesn't exist.
+    Older-schema configs are migrated up before validation (V-012)."""
     p = path or CONFIG_PATH
     if not p.exists():
         return ForgeOSConfig()
     data = json.loads(p.read_text())
+    data = migrate(data)   # no-op if already current; raises if newer-than-code
     return ForgeOSConfig.model_validate(data)
+
+
+def load_and_upgrade(path: Path | None = None) -> ForgeOSConfig:
+    """Like load(), but if the on-disk config was an older schema, PERSIST the
+    migrated version back to disk (once). Use this on the installer/apply path
+    so an upgraded box's config.json is physically at the current schema.
+    Returns defaults (and writes nothing) if no config exists yet.
+    """
+    p = path or CONFIG_PATH
+    if not p.exists():
+        return ForgeOSConfig()
+    raw = json.loads(p.read_text())
+    needed = int(raw.get("version", 1)) < SCHEMA_VERSION
+    cfg = load(p)
+    if needed:
+        save(cfg, p)   # write the upgraded config back, atomically, 0600
+    return cfg
 
 
 def save(cfg: ForgeOSConfig, path: Path | None = None) -> None:

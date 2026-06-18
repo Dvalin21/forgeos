@@ -29,7 +29,10 @@ def main(argv=None) -> int:
     if not args.service:
         ap.error("specify a service name or 'all' (or --list)")
 
-    cfg = fc.load()
+    # load_and_upgrade: if this box has an older-schema config.json, migrate it
+    # up and persist the upgrade once (V-012). forgeos-generate runs on every
+    # apply, so this is the natural place an existing box gets upgraded.
+    cfg = fc.load_and_upgrade()
 
     if args.dry:
         return _dry_run(args.service, cfg)
