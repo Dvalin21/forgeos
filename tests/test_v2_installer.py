@@ -36,6 +36,7 @@ def _installer(choices=None, run=None, tmp_cfg=None):
     inst._create_admin_user = lambda: "test-pw-abc123"
     inst._disable_stock_nginx_default = lambda: None
     inst.http_post = lambda url, body: (200, '{"access_token":"t"}')
+    inst.stat_file = lambda path: (0o100600, 0)   # 0600, root — clean
     inst._saved = saved
     return inst
 
@@ -204,7 +205,7 @@ def test_run_all_full_success():
     results = inst.run_all()
     phases = [r.phase for r in results]
     assert phases == ["base_packages", "seed_config", "keystores",
-                      "web", "generate", "toggles", "verify"]
+                      "web", "generate", "toggles", "verify", "secaudit"]
     assert all(r.ok for r in results)
 
 
@@ -276,3 +277,41 @@ def test_verify_fails_when_service_unreachable():
         inst, attempts=2, delay=0, **k)
     r = inst.phase_verify()
     assert not r.ok
+
+
+def test_secaudit_passes_when_all_0600_root():
+    inst = _installer()
+    inst.stat_file = lambda path: (0o100600, 0)   # 0600 root
+    r = inst.phase_secaudit()
+    assert r.ok
+
+
+def test_secaudit_fails_on_world_readable_secret():
+    inst = _installer()
+    # api-users.json is 0644 (group/other readable) -> must fail
+    def stat(path):
+        return (0o100644, 0) if path.endswith("api-users.json") else (0o100600, 0)
+    inst.stat_file = stat
+    r = inst.phase_secaudit()
+    assert not r.ok
+    assert "api-users.json" in r.detail
+
+
+def test_secaudit_fails_on_non_root_owner():
+    inst = _installer()
+    def stat(path):
+        return (0o100600, 1000) if path.endswith("api.env") else (0o100600, 0)
+    inst.stat_file = stat
+    r = inst.phase_secaudit()
+    assert not r.ok
+    assert "api.env" in r.detail
+
+
+def test_secaudit_skips_absent_optional_files():
+    inst = _installer()
+    # wg key absent (VPN off) -> None -> skipped, not failed
+    def stat(path):
+        return None if "wireguard" in path else (0o100600, 0)
+    inst.stat_file = stat
+    r = inst.phase_secaudit()
+    assert r.ok

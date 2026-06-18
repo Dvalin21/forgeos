@@ -41,6 +41,10 @@ BASE_PACKAGES: list[str] = [
     "auditd", "aide", "rkhunter",
     # backup
     "restic", "rclone",
+    # mDNS: makes <hostname>.local resolve on the LAN with zero client config
+    # (the default domain is .local, which IS mDNS — without avahi it resolves
+    # nowhere). V-011.
+    "avahi-daemon", "libnss-mdns",
     # base utilities
     "curl", "ca-certificates", "jq",
 ]
@@ -49,6 +53,17 @@ BASE_PACKAGES: list[str] = [
 WEBUI_BACKEND_PORT = 5080
 # Where the API code + web assets are deployed on the installed system.
 FORGEOS_OPT = "/opt/forgeos"
+
+# Secret files that MUST be mode 0600 (or stricter) and owned by root.
+# phase_secaudit (V-013) proves this on the real box after install rather
+# than trusting that each writer set it. A world-readable JWT secret, password
+# hash file, or WireGuard private key is game-over.
+SECRET_FILES = [
+    "/etc/forgeos/api.env",            # JWT secret
+    "/etc/forgeos/api-users.json",     # bcrypt password hashes
+    "/etc/forgeos/config.json",        # may hold smtp/other secrets
+    "/etc/forgeos/wireguard/server.key",  # WG private key (if VPN enabled)
+]
 # Runtime dirs the service needs to exist (created in phase_web before start).
 # These are exactly the writable paths the systemd unit's ReadWritePaths
 # references, so ProtectSystem=strict can bind-mount them.
@@ -117,6 +132,7 @@ class Installer:
     apply_toggles = None          # callable(cfg) -> list
     deploy_web = None             # callable(repo_root, opt_dir) -> None
     http_post = None              # callable(url, body) -> (status, text)
+    stat_file = None              # callable(path) -> (mode, uid) | None
     results: list = field(default_factory=list)
     _admin_password: str = ""     # set by phase_web; surfaced once by the CLI
 
@@ -139,6 +155,8 @@ class Installer:
             self.deploy_web = self._default_deploy_web
         if self.http_post is None:
             self.http_post = self._default_http_post
+        if self.stat_file is None:
+            self.stat_file = self._default_stat_file
 
     # ---- phases ----
 
@@ -221,6 +239,30 @@ class Installer:
             return PhaseResult("verify", ok, detail)
         except Exception as e:  # noqa: BLE001
             return PhaseResult("verify", False, str(e))
+
+    def phase_secaudit(self) -> PhaseResult:
+        """Prove every secret file is 0600-or-stricter and root-owned (V-013).
+        Intent isn't proof — this checks the real files after install and fails
+        the install if any secret is loosely permissioned. Files that don't
+        exist (e.g. wg key when VPN disabled) are skipped, not failed.
+        """
+        try:
+            bad = []
+            for path in SECRET_FILES:
+                info = self.stat_file(path)
+                if info is None:
+                    continue  # not present (optional feature) — fine
+                mode, uid = info
+                perm = mode & 0o777
+                if perm & 0o077:  # any group/other bits set
+                    bad.append(f"{path} mode={oct(perm)} (must be 0600 or stricter)")
+                elif uid != 0:
+                    bad.append(f"{path} uid={uid} (must be root)")
+            if bad:
+                return PhaseResult("secaudit", False, "; ".join(bad))
+            return PhaseResult("secaudit", True, "all secret files 0600/root")
+        except Exception as e:  # noqa: BLE001
+            return PhaseResult("secaudit", False, str(e))
 
     def phase_base_packages(self) -> PhaseResult:
         r = self.run(["apt-get", "install", "-y", *BASE_PACKAGES])
@@ -305,6 +347,7 @@ class Installer:
             self.phase_generate,
             self.phase_toggles,
             self.phase_verify,
+            self.phase_secaudit,
         ]
         self.results = []
         for ph in phases:
@@ -402,6 +445,15 @@ class Installer:
                 last = f"expected 401 for bogus creds, got {status}"
             time.sleep(delay)
         return False, f"login healthcheck failed: {last}"
+
+    @staticmethod
+    def _default_stat_file(path):
+        import os
+        try:
+            st = os.stat(path)
+            return (st.st_mode, st.st_uid)
+        except FileNotFoundError:
+            return None
 
     @staticmethod
     def _default_http_post(url, body):

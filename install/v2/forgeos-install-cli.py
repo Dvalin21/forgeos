@@ -108,6 +108,15 @@ def main(argv=None) -> int:
     else:
         print("  Web UI admin: existing api-users.json kept (password unchanged)")
     print(f"\n  Web UI:  https://{choices.domain}/   (or https://<this-host-ip>/)")
+    if choices.domain.endswith(".local"):
+        print("  Name resolution: .local works via mDNS/avahi on most clients")
+        print("  (Mac/Linux/Win10+/iOS/Android) with no setup. If it doesn't")
+        print("  resolve, the box's hostname may differ — use the IP, or set the")
+        print(f"  hostname to match '{choices.domain.split('.')[0]}'.")
+    else:
+        print(f"  Name resolution: '{choices.domain}' is NOT mDNS — point it at")
+        print("  this box via your router/DNS or a client hosts-file entry, or")
+        print("  just use the IP above.")
     print("  Manage services: forgeos-generate all")
     print("  Install apps:    forgeos-app sync && forgeos-app install <id>")
     return 0

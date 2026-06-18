@@ -380,9 +380,9 @@ section reconciles that. Every v2 item now has an ID.
 | ID | Sev | Status | Title |
 |---|---|---|---|
 | V-010 | HIGH | 🟢 RESOLVED (by design) | **Local control-plane cert is intentionally self-signed.** A home NAS on a private .lan/IP cannot use public Let's Encrypt (no public DNS/port). Decision: the control-plane UI uses the snakeoil cert; user trusts it once on the LAN. REAL/LE certs are a property of the **reverse-proxy manager** (public-facing proxied hosts), tracked as V-030, not the installer. Documented in SECURITY.md + install output. |
-| V-011 | HIGH | 🔴 OPEN | No domain resolution story (seeds a domain; nothing makes it resolve) |
+| V-011 | HIGH | 🟢 DONE | mDNS resolution: avahi-daemon + libnss-mdns in base packages, so a `.local` domain (the default) resolves on the LAN with zero client config. Installer output states honestly whether the chosen domain is mDNS (.local) or needs DNS/hosts. CODE DONE; VM-verify on next install. |
 | V-012 | HIGH | 🔴 OPEN | No config schema migration runner (config.json version:1, no upgrade path) |
-| V-013 | HIGH | 🔴 OPEN | Secret-file perms not proven on a real box (JWT env, api-users.json, wg keys, smtp) |
+| V-013 | HIGH | 🟢 DONE | `phase_secaudit`: after install, PROVES every secret file (api.env, api-users.json, config.json, wireguard/server.key) is 0600-or-stricter AND root-owned, failing the install otherwise. Absent optional files skipped. 4 tests. CODE DONE; runs on every real install. |
 | V-014 | HIGH | 🔴 OPEN | No systemctl smoke test (we test render(), not that configs start services) |
 
 ### 6d — v2 MED / process
