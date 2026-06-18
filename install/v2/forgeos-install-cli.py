@@ -38,7 +38,7 @@ def _prompt_bool(text: str, default: bool) -> bool:
 
 def collect_choices_interactive() -> fi.InstallChoices:
     print("\nForgeOS v2 — configuration\n")
-    domain = _prompt("Domain", "nas.local")
+    domain = _prompt("LAN name (blank = <hostname>.local)", "")
     lan_cidr = _prompt("LAN CIDR", "10.0.0.0/24")
     profile = _prompt("Security profile (low/medium/high)", "medium")
     while profile not in ("low", "medium", "high"):
@@ -59,7 +59,10 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="forgeos-install")
     ap.add_argument("--unattended", action="store_true",
                     help="use defaults / flags, no prompts")
-    ap.add_argument("--domain", default="nas.local")
+    ap.add_argument("--domain", default="",
+                    help="LAN name (default: derive <hostname>.local). A "
+                         "custom .local name is published as an mDNS alias; a "
+                         "non-.local name needs your own DNS.")
     ap.add_argument("--lan-cidr", default="10.0.0.0/24")
     ap.add_argument("--profile", default="medium", choices=["low", "medium", "high"])
     ap.add_argument("--wireguard", action="store_true")
@@ -107,14 +110,13 @@ def main(argv=None) -> int:
         print("  └──────────────────────────────────────────────────────┘")
     else:
         print("  Web UI admin: existing api-users.json kept (password unchanged)")
-    print(f"\n  Web UI:  https://{choices.domain}/   (or https://<this-host-ip>/)")
-    if choices.domain.endswith(".local"):
-        print("  Name resolution: .local works via mDNS/avahi on most clients")
-        print("  (Mac/Linux/Win10+/iOS/Android) with no setup. If it doesn't")
-        print("  resolve, the box's hostname may differ — use the IP, or set the")
-        print(f"  hostname to match '{choices.domain.split('.')[0]}'.")
+    resolved = installer.build_config().naming.lan_name
+    print(f"\n  Web UI:  https://{resolved}/   (or https://<this-host-ip>/)")
+    if resolved.endswith(".local"):
+        print("  Name resolution: resolves on the LAN via mDNS/avahi")
+        print("  (Mac/Linux/Win10+/iOS/Android) with no client setup.")
     else:
-        print(f"  Name resolution: '{choices.domain}' is NOT mDNS — point it at")
+        print(f"  Name resolution: '{resolved}' is NOT mDNS — point it at")
         print("  this box via your router/DNS or a client hosts-file entry, or")
         print("  just use the IP above.")
     print("  Manage services: forgeos-generate all")

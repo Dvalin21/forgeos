@@ -104,7 +104,7 @@ WantedBy=multi-user.target
 class InstallChoices:
     """What the operator selected at install time."""
 
-    domain: str = "nas.local"
+    domain: str = ""              # "" = derive <hostname>.local (Option 3)
     lan_cidr: str = "10.0.0.0/24"
     security_profile: str = "medium"
     enable_wireguard: bool = False
@@ -133,6 +133,7 @@ class Installer:
     deploy_web = None             # callable(repo_root, opt_dir) -> None
     http_post = None              # callable(url, body) -> (status, text)
     stat_file = None              # callable(path) -> (mode, uid) | None
+    get_hostname = None           # callable() -> str (system hostname)
     results: list = field(default_factory=list)
     _admin_password: str = ""     # set by phase_web; surfaced once by the CLI
 
@@ -157,6 +158,8 @@ class Installer:
             self.http_post = self._default_http_post
         if self.stat_file is None:
             self.stat_file = self._default_stat_file
+        if self.get_hostname is None:
+            self.get_hostname = self._default_get_hostname
 
     # ---- phases ----
 
@@ -240,6 +243,52 @@ class Installer:
         except Exception as e:  # noqa: BLE001
             return PhaseResult("verify", False, str(e))
 
+    def phase_resolution(self) -> PhaseResult:
+        """mDNS resolution (V-011, Option 3). avahi already advertises
+        '<hostname>.local' out of the box. If the operator chose a CUSTOM
+        .local lan_name that differs from the hostname, publish it as an mDNS
+        alias so it resolves without renaming the box. Non-.local names can't
+        use mDNS — that's stated in the install output, nothing to do here.
+        """
+        try:
+            hostname = self.get_hostname()
+            lan_name = self.choices.domain or f"{hostname}.local"
+
+            if not lan_name.endswith(".local"):
+                return PhaseResult("resolution", True,
+                                  f"{lan_name} is not mDNS — DNS/hosts handled by operator")
+
+            default_name = f"{hostname}.local"
+            if lan_name == default_name:
+                self.run(["systemctl", "enable", "--now", "avahi-daemon"])
+                return PhaseResult("resolution", True,
+                                  f"mDNS: {lan_name} (hostname default)")
+
+            self._publish_mdns_alias(lan_name)
+            self.run(["systemctl", "enable", "--now", "avahi-daemon"])
+            return PhaseResult("resolution", True,
+                              f"mDNS: {lan_name} (alias) + {default_name}")
+        except Exception as e:  # noqa: BLE001
+            return PhaseResult("resolution", False, str(e))
+
+    def _publish_mdns_alias(self, name):
+        """Publish an mDNS alias for `name` -> this host via an avahi-publish
+        service, so it survives reboots WITHOUT renaming the box. Idempotent.
+        """
+        unit = (
+            "[Unit]\n"
+            f"Description=ForgeOS mDNS alias {name}\n"
+            "After=avahi-daemon.service\nRequires=avahi-daemon.service\n\n"
+            "[Service]\nType=simple\n"
+            f"ExecStart=/bin/sh -c '/usr/bin/avahi-publish -a -R {name} "
+            "$(hostname -I | awk \"{print \\$1}\")'\n"
+            "Restart=always\nRestartSec=5\n\n"
+            "[Install]\nWantedBy=multi-user.target\n"
+        )
+        self._write_file("/etc/systemd/system/forgeos-mdns-alias.service", unit, 0o644)
+        self.run(["systemctl", "daemon-reload"])
+        self.run(["systemctl", "enable", "--now", "forgeos-mdns-alias"])
+
     def phase_secaudit(self) -> PhaseResult:
         """Prove every secret file is 0600-or-stricter and root-owned (V-013).
         Intent isn't proof — this checks the real files after install and fails
@@ -271,9 +320,26 @@ class Installer:
                           "" if ok else getattr(r, "stderr", "").strip())
 
     def build_config(self) -> fc.ForgeOSConfig:
-        """Pure: turn install choices into the initial config DB."""
+        """Pure-ish: turn install choices into the initial config DB.
+
+        Naming (Option 3): if no domain was given, derive '<hostname>.local'
+        from the REAL system hostname — never rename the box. A custom name is
+        recorded as lan_name (and published as an mDNS alias in phase_resolution
+        if it's .local). public_fqdn stays empty until a real domain exists
+        (reverse-proxy / future mail server).
+        """
         c = self.choices
-        cfg = fc.ForgeOSConfig(domain=c.domain)
+        hostname = self.get_hostname()
+        if c.domain:
+            lan_name = c.domain
+        else:
+            lan_name = f"{hostname}.local"
+
+        cfg = fc.ForgeOSConfig(domain=lan_name)
+        cfg.naming.system_hostname = hostname
+        cfg.naming.lan_name = lan_name
+        # public_fqdn intentionally left empty — set later by reverse-proxy
+        # manager or a future mail server, never auto-guessed.
         cfg.security.profile = c.security_profile
         cfg.security.lan_cidr = c.lan_cidr
         cfg.samba.enabled = True
@@ -284,15 +350,12 @@ class Installer:
         cfg.toggles.forgefiledb = c.enable_forgefiledb
         cfg.toggles.coral = c.enable_coral
         cfg.toggles.gpu = c.enable_gpu
-        # The web UI vhost: nginx fronts the forgeos-api backend on :5080.
-        # Without this the nginx generator renders zero vhosts and
-        # https://<domain> has nothing to serve.
         cfg.nginx.vhosts.append(
             fc.NginxVhost(
                 name="forgeos-ui",
-                domain=c.domain,
+                domain=lan_name,
                 upstream_port=WEBUI_BACKEND_PORT,
-                websocket=True,   # the dashboard uses websockets for live data
+                websocket=True,
             )
         )
         return cfg
@@ -346,6 +409,7 @@ class Installer:
             self.phase_web,
             self.phase_generate,
             self.phase_toggles,
+            self.phase_resolution,
             self.phase_verify,
             self.phase_secaudit,
         ]
@@ -454,6 +518,12 @@ class Installer:
             return (st.st_mode, st.st_uid)
         except FileNotFoundError:
             return None
+
+    @staticmethod
+    def _default_get_hostname():
+        import socket
+        # short hostname only (the label), not any existing domain part
+        return socket.gethostname().split(".")[0]
 
     @staticmethod
     def _default_http_post(url, body):

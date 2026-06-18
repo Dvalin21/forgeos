@@ -37,6 +37,7 @@ def _installer(choices=None, run=None, tmp_cfg=None):
     inst._disable_stock_nginx_default = lambda: None
     inst.http_post = lambda url, body: (200, '{"access_token":"t"}')
     inst.stat_file = lambda path: (0o100600, 0)   # 0600, root — clean
+    inst.get_hostname = lambda: "testbox"          # deterministic for naming
     inst._saved = saved
     return inst
 
@@ -74,7 +75,7 @@ def test_seed_config_saves():
     res = inst.phase_seed_config()
     assert res.ok
     assert "cfg" in inst._saved
-    assert inst._saved["cfg"].domain == "nas.local"
+    assert inst._saved["cfg"].domain == "testbox.local"
 
 
 def test_keystores_skipped_when_no_wireguard():
@@ -205,7 +206,8 @@ def test_run_all_full_success():
     results = inst.run_all()
     phases = [r.phase for r in results]
     assert phases == ["base_packages", "seed_config", "keystores",
-                      "web", "generate", "toggles", "verify", "secaudit"]
+                      "web", "generate", "toggles", "resolution",
+                      "verify", "secaudit"]
     assert all(r.ok for r in results)
 
 
@@ -315,3 +317,51 @@ def test_secaudit_skips_absent_optional_files():
     inst.stat_file = stat
     r = inst.phase_secaudit()
     assert r.ok
+
+
+def test_naming_derives_lan_name_from_hostname():
+    # Option 3: no domain given -> lan_name = <hostname>.local, hostname untouched
+    inst = _installer(fi.InstallChoices(domain=""))
+    inst.get_hostname = lambda: "KeithTechCo"
+    cfg = inst.build_config()
+    assert cfg.naming.system_hostname == "KeithTechCo"
+    assert cfg.naming.lan_name == "KeithTechCo.local"
+    assert cfg.domain == "KeithTechCo.local"
+    assert cfg.naming.public_fqdn == ""        # empty until mail/proxy sets it
+
+
+def test_naming_custom_domain_kept():
+    inst = _installer(fi.InstallChoices(domain="nas.local"))
+    inst.get_hostname = lambda: "KeithTechCo"
+    cfg = inst.build_config()
+    assert cfg.naming.lan_name == "nas.local"
+    assert cfg.naming.system_hostname == "KeithTechCo"   # NOT renamed
+
+
+def test_resolution_hostname_default_is_noop_alias():
+    inst = _installer(fi.InstallChoices(domain=""))
+    inst.get_hostname = lambda: "testbox"
+    writes = []
+    inst._write_file = lambda p, c, m: writes.append(p)
+    r = inst.phase_resolution()
+    assert r.ok
+    # default name needs no alias unit
+    assert not any("mdns-alias" in w for w in writes)
+
+
+def test_resolution_custom_local_publishes_alias():
+    inst = _installer(fi.InstallChoices(domain="nas.local"))
+    inst.get_hostname = lambda: "testbox"
+    writes = []
+    inst._write_file = lambda p, c, m: writes.append(p)
+    r = inst.phase_resolution()
+    assert r.ok
+    assert any("mdns-alias" in w for w in writes)
+
+
+def test_resolution_non_local_is_noop():
+    inst = _installer(fi.InstallChoices(domain="home.lan"))
+    inst.get_hostname = lambda: "testbox"
+    r = inst.phase_resolution()
+    assert r.ok
+    assert "not mDNS" in r.detail

@@ -330,11 +330,37 @@ class OsBackupConfig(BaseModel):
         return v
 
 
+class NamingConfig(BaseModel):
+    """The three distinct names a ForgeOS box has. Conflating them is a trap:
+    they coincide on a simple LAN box but DIVERGE the moment you add a mail
+    server or public reverse-proxy host.
+
+    - system_hostname: what the OS calls itself (hostnamectl). Local identity;
+      Samba NetBIOS, logs, SSH key it. ForgeOS NEVER silently changes this.
+    - lan_name: how you REACH the box on the LAN — the mDNS/.local discovery
+      name. Defaults to '<system_hostname>.local' so avahi advertises it with
+      zero config. This is what the local web UI uses.
+    - public_fqdn: a globally-resolvable, DNS-backed name. EMPTY until you own
+      a real domain. Required for real TLS (reverse-proxy manager) and for a
+      future mail server's MX/PTR/HELO. NEVER a .local name — mail and public
+      certs cannot use mDNS. Set this without touching hostname or lan_name.
+    """
+    system_hostname: str = ""      # "" = use the OS's current hostname as-is
+    lan_name: str = ""             # "" = derive '<hostname>.local'
+    public_fqdn: str = ""          # "" = none yet (reverse-proxy / mail set it)
+
+
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
-    version: int = 1
+    version: int = 2
+    # `domain` is the legacy single-name field, kept for compatibility with
+    # existing call sites (installer, nginx generator, CLI). The authoritative
+    # model is `naming` (three-names). `domain` mirrors naming.lan_name for the
+    # LAN-facing case. Migration runner (V-012, Phase 3) will fold call sites
+    # onto `naming` and retire this.
     domain: str = "nas.local"
+    naming: NamingConfig = Field(default_factory=NamingConfig)
     samba: SambaConfig = Field(default_factory=SambaConfig)
     nginx: NginxConfig = Field(default_factory=NginxConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)

@@ -380,8 +380,8 @@ section reconciles that. Every v2 item now has an ID.
 | ID | Sev | Status | Title |
 |---|---|---|---|
 | V-010 | HIGH | 🟢 RESOLVED (by design) | **Local control-plane cert is intentionally self-signed.** A home NAS on a private .lan/IP cannot use public Let's Encrypt (no public DNS/port). Decision: the control-plane UI uses the snakeoil cert; user trusts it once on the LAN. REAL/LE certs are a property of the **reverse-proxy manager** (public-facing proxied hosts), tracked as V-030, not the installer. Documented in SECURITY.md + install output. |
-| V-011 | HIGH | 🟢 DONE | mDNS resolution: avahi-daemon + libnss-mdns in base packages, so a `.local` domain (the default) resolves on the LAN with zero client config. Installer output states honestly whether the chosen domain is mDNS (.local) or needs DNS/hosts. CODE DONE; VM-verify on next install. |
-| V-012 | HIGH | 🔴 OPEN | No config schema migration runner (config.json version:1, no upgrade path) |
+| V-011 | HIGH | 🟢 DONE | mDNS resolution (Option 3 + three-names model). Default LAN name = `<hostname>.local` (derived from the REAL hostname — box never renamed), avahi advertises it with zero client config. Custom `.local` name published as an mDNS alias (`phase_resolution`). Three-names model in config (`NamingConfig`: system_hostname / lan_name / public_fqdn) so a future mail server / reverse-proxy reads `public_fqdn` without touching hostname or LAN name. Schema -> version 2. CODE DONE; VM-verify next install. |
+| V-012 | HIGH | 🔴 OPEN | No config schema migration runner. **Now urgent:** schema bumped to version 2 (added `naming`); existing version-1 configs on installed boxes need a migration runner to upgrade cleanly. Phase 3. |
 | V-013 | HIGH | 🟢 DONE | `phase_secaudit`: after install, PROVES every secret file (api.env, api-users.json, config.json, wireguard/server.key) is 0600-or-stricter AND root-owned, failing the install otherwise. Absent optional files skipped. 4 tests. CODE DONE; runs on every real install. |
 | V-014 | HIGH | 🔴 OPEN | No systemctl smoke test (we test render(), not that configs start services) |
 
