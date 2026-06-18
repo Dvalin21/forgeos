@@ -116,6 +116,7 @@ class Installer:
     generate = None               # callable() -> list (registry.apply_all result)
     apply_toggles = None          # callable(cfg) -> list
     deploy_web = None             # callable(repo_root, opt_dir) -> None
+    http_post = None              # callable(url, body) -> (status, text)
     results: list = field(default_factory=list)
     _admin_password: str = ""     # set by phase_web; surfaced once by the CLI
 
@@ -136,6 +137,8 @@ class Installer:
             self.apply_toggles = self._default_toggles
         if self.deploy_web is None:
             self.deploy_web = self._default_deploy_web
+        if self.http_post is None:
+            self.http_post = self._default_http_post
 
     # ---- phases ----
 
@@ -198,6 +201,26 @@ class Installer:
             return PhaseResult("web", True)
         except Exception as e:  # noqa: BLE001
             return PhaseResult("web", False, str(e))
+
+    def phase_verify(self) -> PhaseResult:
+        """Post-install healthcheck (V-002): prove login actually works before
+        the installer claims success. This is the whole point of the gate —
+        'install finished' must mean 'you can log in', not just 'no errors'.
+
+        - If we created the admin password this run, do a REAL login against
+          the local API and require a token back.
+        - If an admin already existed (re-run), we don't know the password, so
+          we only assert the endpoint is up and correctly REJECTS a bogus
+          login (401) — i.e. auth is wired, just not testable with a known pw.
+        """
+        try:
+            ok, detail = self._verify_login(
+                port=WEBUI_BACKEND_PORT,
+                password=self._admin_password,
+            )
+            return PhaseResult("verify", ok, detail)
+        except Exception as e:  # noqa: BLE001
+            return PhaseResult("verify", False, str(e))
 
     def phase_base_packages(self) -> PhaseResult:
         r = self.run(["apt-get", "install", "-y", *BASE_PACKAGES])
@@ -281,6 +304,7 @@ class Installer:
             self.phase_web,
             self.phase_generate,
             self.phase_toggles,
+            self.phase_verify,
         ]
         self.results = []
         for ph in phases:
@@ -341,6 +365,55 @@ class Installer:
                 link.unlink()
         except OSError:
             pass
+
+    def _verify_login(self, *, port, password, attempts=10, delay=1.0):
+        """Poll the local login endpoint until the service answers, then:
+        - if `password` is set: require 200 + a token (real login works);
+        - if not (admin pre-existed): require the endpoint to reject a bogus
+          login with 401 (auth wired, just not testable here).
+        Returns (ok: bool, detail: str). Injectable via self.http_post.
+        """
+        import json
+        import time
+
+        url = f"http://127.0.0.1:{port}/api/auth/login"
+        test_pw = password or "definitely-not-the-real-password"
+        body = json.dumps({"username": "admin", "password": test_pw}).encode()
+
+        last = "no response"
+        for _ in range(attempts):
+            try:
+                status, text = self.http_post(url, body)
+            except Exception as e:  # noqa: BLE001 — service may not be up yet
+                last = f"connect error: {e}"
+                time.sleep(delay)
+                continue
+
+            if password:
+                if status == 200 and ("token" in text or "access_token" in text):
+                    return True, "login verified (200 + token)"
+                if status == 401:
+                    last = "login rejected the generated password (401)"
+                else:
+                    last = f"unexpected status {status}"
+            else:
+                if status == 401:
+                    return True, "auth endpoint up; rejects bad creds (401) as expected"
+                last = f"expected 401 for bogus creds, got {status}"
+            time.sleep(delay)
+        return False, f"login healthcheck failed: {last}"
+
+    @staticmethod
+    def _default_http_post(url, body):
+        import urllib.request
+        req = urllib.request.Request(
+            url, data=body, headers={"Content-Type": "application/json"}, method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=5) as r:
+                return r.status, r.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode("utf-8", "replace")
 
     def _create_admin_user(self) -> str:
         """Generate a random admin password, bcrypt-hash it, write the users

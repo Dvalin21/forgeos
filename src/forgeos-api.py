@@ -1318,10 +1318,15 @@ else:
 # ────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     port = int(os.environ.get("FORGEOS_PORT", "5080"))
-    logger.info("Starting ForgeOS API on port %s", port)
+    # Bind to localhost by default: nginx is the sole front door (it proxies
+    # to 127.0.0.1:PORT over TLS). Binding 0.0.0.0 would expose the API in
+    # PLAIN HTTP to the whole LAN, bypassing TLS — a real exposure. Override
+    # with FORGEOS_HOST only if you know you need it.
+    host = os.environ.get("FORGEOS_HOST", "127.0.0.1")
+    logger.info("Starting ForgeOS API on %s:%s", host, port)
     uvicorn.run(
         "forgeos-api:app" if __package__ is None else app,
-        host="0.0.0.0",
+        host=host,
         port=port,
         reload=False,
         log_level="info",

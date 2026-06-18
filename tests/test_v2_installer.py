@@ -35,6 +35,7 @@ def _installer(choices=None, run=None, tmp_cfg=None):
     inst._make_dirs = lambda dirs: None
     inst._create_admin_user = lambda: "test-pw-abc123"
     inst._disable_stock_nginx_default = lambda: None
+    inst.http_post = lambda url, body: (200, '{"access_token":"t"}')
     inst._saved = saved
     return inst
 
@@ -203,7 +204,7 @@ def test_run_all_full_success():
     results = inst.run_all()
     phases = [r.phase for r in results]
     assert phases == ["base_packages", "seed_config", "keystores",
-                      "web", "generate", "toggles"]
+                      "web", "generate", "toggles", "verify"]
     assert all(r.ok for r in results)
 
 
@@ -232,3 +233,46 @@ def test_repo_root_auto_derived_not_hardcoded_root():
 def test_explicit_repo_root_respected():
     inst = fi.Installer(choices=fi.InstallChoices(), repo_root="/custom/path")
     assert inst.repo_root == "/custom/path"
+
+
+def test_verify_login_success_requires_token():
+    # V-002 healthcheck: real login must return 200 + a token
+    inst = _installer()
+    inst._admin_password = "generated-pw"
+    inst.http_post = lambda url, body: (200, '{"access_token":"xyz"}')
+    r = inst.phase_verify()
+    assert r.ok
+
+
+def test_verify_login_fails_when_password_rejected():
+    # if the generated password is rejected, the install must NOT pass
+    inst = _installer()
+    inst._admin_password = "generated-pw"
+    inst.http_post = lambda url, body: (401, '{"detail":"Invalid credentials"}')
+    # one quick attempt, no real sleeping
+    inst._verify_login = lambda **k: fi.Installer._verify_login(
+        inst, attempts=1, delay=0, **k)
+    r = inst.phase_verify()
+    assert not r.ok
+    assert "401" in r.detail
+
+
+def test_verify_idempotent_accepts_401_when_no_password():
+    # admin pre-existed (no known pw): endpoint must be up and reject bad creds
+    inst = _installer()
+    inst._admin_password = ""
+    inst.http_post = lambda url, body: (401, "nope")
+    r = inst.phase_verify()
+    assert r.ok
+
+
+def test_verify_fails_when_service_unreachable():
+    inst = _installer()
+    inst._admin_password = "pw"
+    def boom(url, body):
+        raise OSError("connection refused")
+    inst.http_post = boom
+    inst._verify_login = lambda **k: fi.Installer._verify_login(
+        inst, attempts=2, delay=0, **k)
+    r = inst.phase_verify()
+    assert not r.ok
