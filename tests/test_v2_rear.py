@@ -117,3 +117,21 @@ def test_rear_config_uses_zstd_program_not_gz_suffix():
     assert 'BACKUP_PROG_COMPRESS_PROGRAM="zstd"' in blob
     assert "( --zstd )" not in blob          # the buggy form is gone
     assert 'BACKUP_PROG_SUFFIX=".tar.zst"' in blob
+
+
+def test_rear_config_forces_vga_console_for_vm_recovery():
+    # regression: rescue image hung at serial-getty@ttyS0 in Proxmox VMs
+    # because ReaR baked a serial-console expectation. The generated config
+    # must force console=tty0, disable serial-console dependence, and exclude
+    # the serial getty so the rescue system boots to the VGA/noVNC console.
+    import sys
+    sys.path.insert(0, "src")
+    import forgeos_config as fc
+    from generators.rear import RearGenerator
+    cfg = fc.ForgeOSConfig()
+    cfg.osbackup.enabled = True
+    cfg.osbackup.backup_path = "/mnt/backup/osbackup"
+    blob = "\n".join(f.content for f in RearGenerator().render(cfg))
+    assert 'USE_SERIAL_CONSOLE="n"' in blob
+    assert 'KERNEL_CMDLINE+=" console=tty0"' in blob
+    assert "serial-getty@ttyS0.service" in blob
