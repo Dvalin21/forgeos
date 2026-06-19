@@ -85,9 +85,57 @@ def test_run_backup_cloud_sync_called():
     runner = ob.OsBackupRunner()
     runner.run = lambda cmd: cmds.append(cmd) or R(0)
     runner.notify = lambda lvl, t, m: notes.append((lvl, t))
+    runner.find_artifacts = lambda p: (200 * 1024 * 1024, 1024 * 1024 * 1024)  # valid
     ok = runner.run_backup(cloud_sync=True, cloud_remote="b2", backup_path="/mnt/backup/osbackup")
     assert ok is True
     assert any("rclone" in " ".join(c) and "sync" in " ".join(c) for c in cmds)
+
+
+def test_run_backup_rejects_missing_iso():
+    # rear exits 0 but no real ISO landed -> must NOT report success
+    notes = []
+    runner = ob.OsBackupRunner()
+    runner.run = lambda cmd: R(0)
+    runner.notify = lambda lvl, t, m: notes.append((lvl, t))
+    runner.find_artifacts = lambda p: (4096, 1024 * 1024 * 1024)  # ISO too small
+    ok = runner.run_backup(backup_path="/mnt/backup/osbackup")
+    assert ok is False
+    assert any(lvl == "critical" and "INCOMPLETE" in t for lvl, t in notes)
+
+
+def test_run_backup_rejects_missing_archive():
+    notes = []
+    runner = ob.OsBackupRunner()
+    runner.run = lambda cmd: R(0)
+    runner.notify = lambda lvl, t, m: notes.append((lvl, t))
+    runner.find_artifacts = lambda p: (200 * 1024 * 1024, 4096)  # archive too small
+    ok = runner.run_backup(backup_path="/mnt/backup/osbackup")
+    assert ok is False
+    assert any(lvl == "critical" and "INCOMPLETE" in t for lvl, t in notes)
+
+
+def test_run_backup_accepts_valid_artifacts():
+    notes = []
+    runner = ob.OsBackupRunner()
+    runner.run = lambda cmd: R(0)
+    runner.notify = lambda lvl, t, m: notes.append((lvl, t))
+    runner.find_artifacts = lambda p: (171 * 1024 * 1024, 1100 * 1024 * 1024)  # real sizes
+    ok = runner.run_backup(backup_path="/mnt/backup/osbackup")
+    assert ok is True
+    assert any(lvl == "info" and "complete" in t for lvl, t in notes)
+
+
+def test_find_artifacts_skips_old_rotation(tmp_path):
+    # the .old copy must NOT count — we verify the CURRENT backup
+    cur = tmp_path / "forgeos"
+    old = tmp_path / "forgeos.old"
+    cur.mkdir(); old.mkdir()
+    (cur / "rear-forgeos.iso").write_bytes(b"x" * (30 * 1024 * 1024))
+    (cur / "backup.tar.zst").write_bytes(b"x" * (60 * 1024 * 1024))
+    (old / "rear-forgeos.iso").write_bytes(b"x" * (999 * 1024 * 1024))
+    iso, arch = ob.OsBackupRunner._default_find_artifacts(str(tmp_path))
+    assert iso == 30 * 1024 * 1024      # current, not the 999M old one
+    assert arch == 60 * 1024 * 1024
 
 
 def test_run_backup_cloud_sync_failure_still_local_ok():
@@ -100,6 +148,7 @@ def test_run_backup_cloud_sync_failure_still_local_ok():
         return R(0)
     runner.run = run
     runner.notify = lambda lvl, t, m: notes.append((lvl, t))
+    runner.find_artifacts = lambda p: (200 * 1024 * 1024, 1024 * 1024 * 1024)
     ok = runner.run_backup(cloud_sync=True, cloud_remote="b2", backup_path="/mnt/backup/osbackup")
     assert ok is True   # local backup succeeded
     assert any(lvl == "warning" for lvl, t in notes)

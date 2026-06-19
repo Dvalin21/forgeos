@@ -44,8 +44,12 @@ class RearGenerator(ServiceGenerator):
             "BACKUP=NETFS",
             f"BACKUP_URL={backup_url}",
             "",
-            "# Use tar for the archive; compress with zstd if available.",
-            'BACKUP_PROG_COMPRESS_OPTIONS=( --zstd )',
+            "# Compress the tar archive with zstd. Set the COMPRESS PROGRAM (not\n"
+            "# just options) so ReaR doesn't fall back to gzip and append .gz —\n"
+            "# otherwise the file is misnamed backup.tar.zst.gz.",
+            'BACKUP_PROG_COMPRESS_PROGRAM="zstd"',
+            'BACKUP_PROG_COMPRESS_OPTIONS=( "-3" )',
+            'BACKUP_PROG_COMPRESS_SUFFIX=".zst"',
             'BACKUP_PROG_SUFFIX=".tar.zst"',
             "",
             "# Keep the last few recovery points.",

@@ -101,3 +101,19 @@ def test_apply_writes_0600(tmp_path, monkeypatch):
 def test_registered_in_registry():
     from generators import registry
     assert "osbackup" in registry.names()
+
+
+def test_rear_config_uses_zstd_program_not_gz_suffix():
+    # regression: bare BACKUP_PROG_COMPRESS_OPTIONS=( --zstd ) made ReaR append
+    # .gz, producing backup.tar.zst.gz. The fix sets COMPRESS_PROGRAM=zstd.
+    import sys
+    sys.path.insert(0, "src")
+    import forgeos_config as fc
+    from generators.rear import RearGenerator
+    cfg = fc.ForgeOSConfig()
+    cfg.osbackup.enabled = True
+    cfg.osbackup.backup_path = "/mnt/backup/osbackup"
+    blob = " ".join(f.content for f in RearGenerator().render(cfg))
+    assert 'BACKUP_PROG_COMPRESS_PROGRAM="zstd"' in blob
+    assert "( --zstd )" not in blob          # the buggy form is gone
+    assert 'BACKUP_PROG_SUFFIX=".tar.zst"' in blob
