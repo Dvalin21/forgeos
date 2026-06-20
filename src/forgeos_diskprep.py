@@ -186,3 +186,118 @@ def find_disk(disks: list[DiskInfo], ident: str) -> DiskInfo:
         if d.name == ident_norm or d.path == ident or d.by_id == ident:
             return d
     raise DiskGuardError(f"no such disk: {ident!r}")
+
+
+# ---------------------------------------------------------------------------
+# ACTIONS — the ONLY place that writes to disks. Every destructive step is
+# preceded by a fresh guard check. A plan is a list of (description, argv);
+# dry-run returns the plan without running it.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class PoolPlan:
+    name: str
+    raid_level: str
+    devices: list[str]              # stable paths, in request order
+    mountpoint: str
+    steps: list[tuple[str, list[str]]] = field(default_factory=list)
+
+    def describe(self) -> list[str]:
+        return [f"{desc}: {' '.join(argv)}" for desc, argv in self.steps]
+
+
+# btrfs raid profile names mkfs.btrfs understands
+_BTRFS_PROFILE = {
+    "single": "single", 0: "raid0", "raid0": "raid0",
+    1: "raid1", "raid1": "raid1",
+    10: "raid10", "raid10": "raid10",
+    5: "raid5", "raid5": "raid5",
+    6: "raid6", "raid6": "raid6",
+}
+
+
+def plan_pool(name: str, raid_level, disks: list[DiskInfo],
+              *, mountpoint: str = "", force: bool = False) -> PoolPlan:
+    """Validate the WHOLE request (guards), then build the ordered destructive
+    plan WITHOUT running anything. Raises DiskGuardError if unsafe."""
+    guard_pool_request(name, raid_level, disks, force=force)
+    profile = _BTRFS_PROFILE.get(raid_level)
+    if profile is None:
+        raise DiskGuardError(f"unsupported btrfs profile: {raid_level!r}")
+    mp = mountpoint or f"/srv/nas/{name}"
+    devs = [d.stable_path for d in disks]
+
+    plan = PoolPlan(name=name, raid_level=str(raid_level), devices=devs, mountpoint=mp)
+    # mkfs.btrfs handles multi-device + raid in one shot; data AND metadata
+    # profiles set so a single-disk-loss is survivable per the chosen level.
+    plan.steps.append((
+        "create btrfs filesystem",
+        ["mkfs.btrfs", "-f", "-L", name,
+         "-d", profile, "-m", profile, *devs],
+    ))
+    plan.steps.append(("create mountpoint", ["mkdir", "-p", mp]))
+    # NOTE: the real mount is added by execute_pool once the FS UUID is known
+    # (we mount by UUID, never /dev/sdX). Placeholder recorded for the plan.
+    plan.steps.append(("mount by UUID (resolved after mkfs)",
+                       ["mount", "UUID=<resolved>", mp]))
+    return plan
+
+
+def execute_pool(plan: PoolPlan, disks: list[DiskInfo], *, force: bool = False,
+                 runner: Optional[Callable[[list[str]], "subprocess.CompletedProcess"]] = None,
+                 blkid: Optional[Callable[[str], str]] = None) -> dict:
+    """Execute a PoolPlan. RE-CHECKS the guards immediately before writing (in
+    case disk state changed since planning), then runs mkfs.btrfs, makes the
+    mountpoint, resolves the btrfs UUID, mounts by UUID, and appends an fstab
+    entry. Returns {uuid, mountpoint, devices}. Runner/blkid injectable.
+    """
+    run = runner or _run_checked
+    get_uuid = blkid or _btrfs_uuid
+
+    # Fresh guard re-check — never trust a stale plan against current disks.
+    guard_pool_request(plan.name, plan.raid_level, disks, force=force)
+
+    # 1. mkfs.btrfs across all devices
+    profile = _BTRFS_PROFILE.get(plan.raid_level) or plan.raid_level
+    run(["mkfs.btrfs", "-f", "-L", plan.name,
+         "-d", profile, "-m", profile, *plan.devices])
+
+    # 2. mountpoint
+    run(["mkdir", "-p", plan.mountpoint])
+
+    # 3. resolve the btrfs FS UUID and mount BY UUID (never /dev/sdX)
+    uuid = get_uuid(plan.devices[0])
+    if not uuid:
+        raise DiskGuardError("could not resolve btrfs UUID after mkfs")
+    run(["mount", "-U", uuid, plan.mountpoint])
+
+    # 4. persist to fstab by UUID so it survives reboots / device reorder
+    _append_fstab(uuid, plan.mountpoint)
+
+    return {"uuid": uuid, "mountpoint": plan.mountpoint, "devices": plan.devices}
+
+
+def _run_checked(cmd: list[str]) -> "subprocess.CompletedProcess":
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if r.returncode != 0:
+        raise DiskGuardError(f"{cmd[0]} failed: {r.stderr.strip() or r.stdout.strip()}")
+    return r
+
+
+def _btrfs_uuid(device: str) -> str:
+    r = subprocess.run(["blkid", "-s", "UUID", "-o", "value", device],
+                       capture_output=True, text=True, timeout=10)
+    return r.stdout.strip()
+
+
+def _append_fstab(uuid: str, mountpoint: str, fstab: str = "/etc/fstab") -> None:
+    """Idempotently add a UUID-based btrfs mount to fstab."""
+    line = f"UUID={uuid}  {mountpoint}  btrfs  defaults,compress=zstd  0  2\n"
+    try:
+        with open(fstab, "r") as f:
+            if uuid in f.read():
+                return  # already present
+    except FileNotFoundError:
+        pass
+    with open(fstab, "a") as f:
+        f.write(line)

@@ -140,3 +140,69 @@ def test_find_disk_resolves_or_raises():
     assert dp.find_disk(disks, "/dev/sdc").name == "sdc"
     with pytest.raises(dp.DiskGuardError, match="no such disk"):
         dp.find_disk(disks, "sdz")
+
+
+# ---- ACTIONS: plan + execute, all guarded ----
+
+def test_plan_pool_refuses_system_disk():
+    disks = [_disk("sda"), _disk("sdb", is_system=True)]
+    with pytest.raises(dp.DiskGuardError, match="system"):
+        dp.plan_pool("tank", "raid1", disks)
+
+
+def test_plan_pool_builds_steps_without_running():
+    disks = [_disk("sda"), _disk("sdc")]
+    plan = dp.plan_pool("tank", "raid1", disks)
+    assert plan.name == "tank"
+    assert plan.mountpoint == "/srv/nas/tank"
+    # mkfs.btrfs is the first destructive step, across both devices
+    desc = plan.describe()
+    assert any("mkfs.btrfs" in s and "/dev/sda" in s and "/dev/sdc" in s for s in desc)
+    assert any("raid1" in s for s in desc)
+
+
+def test_execute_pool_rechecks_guards():
+    # plan made when disk was blank; disk becomes system before execute → refuse
+    disks_ok = [_disk("sda"), _disk("sdc")]
+    plan = dp.plan_pool("tank", "raid1", disks_ok)
+    disks_changed = [_disk("sda", is_system=True), _disk("sdc")]
+    with pytest.raises(dp.DiskGuardError, match="system"):
+        dp.execute_pool(plan, disks_changed,
+                        runner=lambda c: None, blkid=lambda d: "U")
+
+
+def test_execute_pool_mounts_by_uuid():
+    disks = [_disk("sda"), _disk("sdc")]
+    plan = dp.plan_pool("tank", "raid1", disks)
+    cmds = []
+    import tempfile, os
+    fstab = tempfile.mktemp()
+    # patch fstab target
+    orig = dp._append_fstab
+    dp._append_fstab = lambda uuid, mp, fstab=fstab: orig(uuid, mp, fstab)
+    try:
+        res = dp.execute_pool(plan, disks,
+                              runner=lambda c: cmds.append(c),
+                              blkid=lambda d: "ABCD-1234")
+    finally:
+        dp._append_fstab = orig
+    assert res["uuid"] == "ABCD-1234"
+    # mount used -U <uuid>, never a /dev/sdX path
+    mount_cmd = [c for c in cmds if c and c[0] == "mount"][0]
+    assert "-U" in mount_cmd and "ABCD-1234" in mount_cmd
+    assert not any(x.startswith("/dev/sd") for x in mount_cmd)
+    # fstab got a UUID line
+    assert "ABCD-1234" in open(fstab).read()
+    os.unlink(fstab)
+
+
+def test_execute_pool_runs_mkfs_across_all_devices():
+    disks = [_disk("sda"), _disk("sdc"), _disk("sdd")]
+    plan = dp.plan_pool("tank", "raid5", disks)
+    cmds = []
+    dp.execute_pool(plan, disks, runner=lambda c: cmds.append(c),
+                    blkid=lambda d: "U-1")
+    mkfs = [c for c in cmds if c and c[0] == "mkfs.btrfs"][0]
+    for dev in ("/dev/sda", "/dev/sdc", "/dev/sdd"):
+        assert dev in mkfs
+    assert "raid5" in mkfs
