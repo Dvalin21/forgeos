@@ -392,7 +392,7 @@ section reconciles that. Every v2 item now has an ID.
 | V-020 | MED | 🟢 DONE | CI didn't run on v2-rearchitect. **Fix:** added branch to push/PR triggers (`ci.yml`). |
 | V-021 | MED | 🟢 DONE | CI lacked clean-container install dry-run + gating test job. **Fix:** added `v2-tests` (gating pytest) + `install-dryrun` (clean Debian 13 container, installed-package checks). |
 | V-022 | MED | 🔴 OPEN | Two installers coexist (v1 bash, v2 python); no canonical/deprecation decision |
-| V-023 | MED | 🟡 IN PROGRESS | Wiring UI APIs to the v2 engine (config-DB + generators), one service per slice. SLICE 1 DONE: samba_api now reads/writes the config-DB and applies via the samba generator (removed the dead forgeos-samba CLI dependency + the fragile smb.conf regex parser in the UI). Remaining slices: storage, docker, nginx, vpn, security, firewall, filedb, backup, system. |
+| V-023 | MED | 🟡 IN PROGRESS | Wiring UI APIs to the v2 engine (config-DB + generators), one service per slice. SLICE 1 (samba) + SLICE 2 (storage) DONE. Storage: pools read from config-DB (one entry per pool — fixed UI double-display), create routes through GUARDED diskprep (btrfs, system-disk untouchable) replacing the unguarded mdadm shell-out. forgeos-storage CLI + disk-prep safety layer. Remaining: docker, nginx, vpn, security, firewall, filedb, backup, system. |
 | V-024 | LOW | 🟢 DONE | Registry header stale (169/`79b1c72`). **Fix:** corrected to 383/`e3cb316`, this commit. |
 
 ### 6e — major features (post-usability)

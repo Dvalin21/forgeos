@@ -33,11 +33,12 @@
       POOLS.forEach(function(x){if((ord[x.health]||0)>(ord[worst]||0))worst=x.health});
       $('#array-chip').textContent=POOLS.length+' array'+(POOLS.length>1?'s':'')+' · '+(worst==='ok'?'Healthy':worst);
       box.innerHTML=POOLS.map(function(x){
-        var lvl=(x.level||'').toUpperCase().replace('RAID','RAID ');
+        var lvl=(x.raid_level||'').toUpperCase().replace('RAID','RAID ');
         var rb=x.rebuild_pct!=null?'<div class="rebuild-bar"><i style="width:'+x.rebuild_pct+'%"></i></div><p style="margin:6px 0 0;color:var(--muted);font-size:12px">Rebuilding · '+x.rebuild_pct+'%</p>':'';
         var hc=x.health==='ok'?'ok':x.health==='err'?'err':'warn';
+        var state=x.mounted?'mounted':'not mounted';
         return '<div class="volume"><div class="volume-head"><div><h4>'+esc(x.name)+' <span class="chip" style="font-size:10px">'+lvl+'</span></h4>'+
-          '<p>'+(x.drives||[]).length+' drives · state '+esc(x.state)+'</p></div>'+
+          '<p>'+(x.devices||[]).length+' drives · '+esc(state)+'</p></div>'+
           '<strong class="status '+hc+'">'+(x.health==='ok'?'Online':esc(x.health))+'</strong></div>'+rb+
           '<div class="pill-row"><button class="btn-ghost" data-rebuild="'+esc(x.name)+'" style="height:36px">Run consistency check</button>'+
           '<button class="btn-ghost" data-addd="'+esc(x.name)+'" style="height:36px">Add drive</button></div></div>'}).join('');

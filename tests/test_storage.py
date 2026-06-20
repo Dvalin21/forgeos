@@ -43,24 +43,27 @@ class TestStoragePools:
         r = test_client.get("/api/storage/pools")
         assert r.status_code == 401
 
-    def test_returns_pools(self, test_client, auth_headers, monkeypatch):
-        mock_pool_json = json.dumps({
-            "pools": [{"name": "main", "level": "raid5",
-                       "size_bytes": 4e12, "used_bytes": 1e12,
-                       "status": "clean", "drives": 3}],
-            "unassigned": [],
-        })
-        # _run_args calls subprocess.check_output — patch it directly
-        monkeypatch.setattr(
-            "subprocess.check_output",
-            lambda *a, **kw: mock_pool_json.encode(),
-        )
+    def test_returns_pools_from_config_db(self, test_client, auth_headers, tmp_path, monkeypatch):
+        # Pools come from the config-DB now — ONE entry per pool (the old path
+        # listed a raid pool once per device, causing the double-display bug).
+        import forgeos_config as fc
+        cfgfile = tmp_path / "config.json"
+        monkeypatch.setenv("FORGEOS_CONFIG_JSON", str(cfgfile))
+        monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(
+            name="tank", raid_level="raid1",
+            devices=["/dev/sdb", "/dev/sdd"], mountpoint="/srv/nas/tank",
+            uuid="abc-123"))
+        fc.save(cfg, cfgfile)
+
         r = test_client.get("/api/storage/pools", headers=auth_headers)
         assert r.status_code == 200
         data = r.json()
-        assert "pools" in data
+        # raid1 across 2 devices, but EXACTLY ONE pool entry (no doubling)
         assert len(data["pools"]) == 1
-        assert data["pools"][0]["name"] == "main"
+        assert data["pools"][0]["name"] == "tank"
+        assert data["pools"][0]["devices"] == ["/dev/sdb", "/dev/sdd"]
 
 
 # ──────────────────────────────────────────────────────────
@@ -112,67 +115,53 @@ class TestStorageDrives:
 
 
 class TestCreatePool:
-    VALID = {"name": "testpool", "level": 5,
-             "drives": ["/dev/sda", "dev/sdb", "/dev/sdc"]}
+    VALID = {"name": "testpool", "level": "raid1", "drives": ["sda", "sdc"]}
 
     def test_auth_required(self, test_client):
         r = test_client.post("/api/storage/pool", json=self.VALID)
         assert r.status_code == 401
 
-    def test_rejects_short_name(self, test_client, auth_headers):
-        r = test_client.post(
-            "/api/storage/pool",
-            json={"name": "x", "level": 5, "drives": ["/dev/sda", "/dev/sdb"]},
-            headers=auth_headers,
-        )
-        assert r.status_code == 400
-
-    def test_rejects_invalid_raid_level(self, test_client, auth_headers):
-        r = test_client.post(
-            "/api/storage/pool",
-            json={"name": "pool", "level": 99, "drives": ["/dev/sda", "/dev/sdb"]},
-            headers=auth_headers,
-        )
-        assert r.status_code == 400
-
-    def test_rejects_single_drive(self, test_client, auth_headers):
-        r = test_client.post(
-            "/api/storage/pool",
-            json={"name": "pool", "level": 1, "drives": ["/dev/sda"]},
-            headers=auth_headers,
-        )
-        assert r.status_code == 400
-
-    def test_sanitizes_drive_paths(self, test_client, auth_headers, monkeypatch):
-        seen_cmds = []
-
-        def mock_run(cmd, **kw):
-            seen_cmds.append(" ".join(cmd))
-            return _mock_subprocess_run(returncode=0)
-
-        monkeypatch.setattr("subprocess.run", mock_run)
-        r = test_client.post(
-            "/api/storage/pool",
-            json={"name": "pool1", "level": 5,
-                  "drives": ["/dev/sda", "/dev/sdb;rm -rf /"]},
-            headers=auth_headers,
-        )
-        assert r.status_code == 200
-        # Verify shell metacharacters are stripped; "rm" as substring is fine
-        cmd_str = seen_cmds[-1] if seen_cmds else ""
-        assert ";" not in cmd_str
-        assert "|" not in cmd_str
-        assert "`" not in cmd_str
-        assert "$" not in cmd_str
-
-    def test_rejects_non_admin(self, test_client, monkeypatch):
+    def test_rejects_non_admin(self, test_client):
         from forgeos_auth import create_token
         token = create_token("regular", "user")
-        r = test_client.post(
-            "/api/storage/pool", json=self.VALID,
-            headers={"Authorization": f"Bearer {token}"},
-        )
+        r = test_client.post("/api/storage/pool", json=self.VALID,
+                             headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 403
+
+    def _fake_disks(self, monkeypatch, system="sdc"):
+        import storage_api
+        import forgeos_diskprep as dp
+
+        def make(name):
+            return dp.DiskInfo(name=name, path=f"/dev/{name}",
+                               is_system=(name == system))
+        disks = [make("sda"), make("sdc"), make("sdd")]
+        monkeypatch.setattr(storage_api.dp, "inspect_disks", lambda *a, **k: disks)
+        monkeypatch.setattr(storage_api.dp, "_require_tools", lambda *a: None)
+        return disks
+
+    def test_refuses_system_disk(self, test_client, auth_headers, monkeypatch):
+        # the GUARD: trying to pool the system disk (sdc) must be refused 400
+        self._fake_disks(monkeypatch, system="sdc")
+        r = test_client.post("/api/storage/pool",
+                             json={"name": "tank", "level": "raid1", "drives": ["sda", "sdc"]},
+                             headers=auth_headers)
+        assert r.status_code == 400
+        assert "system" in r.json()["detail"].lower()
+
+    def test_rejects_short_name(self, test_client, auth_headers, monkeypatch):
+        self._fake_disks(monkeypatch)
+        r = test_client.post("/api/storage/pool",
+                             json={"name": "x", "level": "raid1", "drives": ["sda", "sdd"]},
+                             headers=auth_headers)
+        assert r.status_code == 400
+
+    def test_rejects_too_few_drives(self, test_client, auth_headers, monkeypatch):
+        self._fake_disks(monkeypatch)
+        r = test_client.post("/api/storage/pool",
+                             json={"name": "tank", "level": "raid10", "drives": ["sda", "sdd"]},
+                             headers=auth_headers)
+        assert r.status_code == 400  # raid10 needs 4
 
 
 # ──────────────────────────────────────────────────────────

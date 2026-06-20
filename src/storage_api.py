@@ -30,6 +30,8 @@ from typing import Any, Callable, Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from forgeos_auth import verify_token
+import forgeos_config as fc
+import forgeos_diskprep as dp
 
 logger = logging.getLogger("forgeos-api")
 
@@ -51,12 +53,24 @@ def set_helpers(
 
 @router.get("/api/storage/pools")
 async def storage_pools(user=Depends(verify_token)):
-    out = _run_args(["forgeos-pool-status"], timeout=15)
-    try:
-        return json.loads(out)
-    except Exception as e:
-        logger.warning("pool-status JSON parse failed: %s", e)
-        return {"pools": [], "unassigned": [], "error": "pool-status failed"}
+    # V2 engine: pools are read from the config-DB — the single source of
+    # truth, ONE entry per pool. (The old forgeos-pool-status scanned the
+    # system live and listed a raid pool once PER DEVICE, so a 2-disk raid1
+    # showed up twice.) Mount state is checked live per pool.
+    cfg = fc.load()
+    pools = []
+    for p in cfg.storage.pools:
+        mp = p.resolved_mountpoint()
+        pools.append({
+            "name": p.name,
+            "raid_level": p.raid_level,
+            "mountpoint": mp,
+            "devices": p.devices,
+            "uuid": p.uuid,
+            "mounted": Path(mp).is_mount(),
+            "health": "ok" if Path(mp).is_mount() else "unmounted",
+        })
+    return {"pools": pools, "unassigned": []}
 
 
 @router.get("/api/storage/drives")
@@ -135,42 +149,39 @@ async def storage_drives(user=Depends(verify_token)):
 
 @router.post("/api/storage/pool")
 async def create_pool(body: dict, user=Depends(verify_token)):
-    """Create a RAID pool using mdadm — wraps mdadm --create."""
+    """Create a btrfs pool through the GUARDED disk-prep path. Every disk is
+    checked (system disk untouchable, mounted/in-array/has-data refused) before
+    anything is written, and mounted by UUID. Replaces the old unguarded
+    mdadm --create which had no safety checks at all."""
     if user.get("role") != "admin":
         raise HTTPException(403, "Admin required")
-    name   = re.sub(r"[^a-zA-Z0-9_-]", "", body.get("name", ""))
-    level  = body.get("level", 5)
+    name = body.get("name", "")
+    level = body.get("level", "raid1")
     drives = body.get("drives", [])
-    if not name or len(name) < 2:
-        raise HTTPException(400, "Pool name must be at least 2 characters")
-    if level not in (0, 1, 5, 6, 10):
-        raise HTTPException(400, "Invalid RAID level — must be 0, 1, 5, 6, or 10")
-    if len(drives) < 2:
-        raise HTTPException(400, "At least 2 drives required")
-    # Sanitize drive paths
-    clean = []
-    for d in drives:
-        dev = re.sub(r"[^a-zA-Z0-9_/]", "", str(d))
-        if not dev.startswith("/dev/"):
-            dev = "/dev/" + dev
-        clean.append(dev)
+    force = bool(body.get("force", False))
+
     try:
-        r = subprocess.run(
-            ["mdadm", "--create", f"/dev/md/{name}",
-             "--level", str(level),
-             "--raid-devices", str(len(clean)),
-             "--run"] + clean,
-            capture_output=True, text=True, timeout=120
-        )
-        if r.returncode != 0:
-            raise HTTPException(500, detail=r.stderr.strip() or "mdadm failed")
-    except FileNotFoundError:
-        raise HTTPException(500, detail="mdadm not installed on this system")
-    except subprocess.TimeoutExpired:
-        raise HTTPException(500, detail="Pool creation timed out")
+        all_disks = dp.inspect_disks()
+        targets = [dp.find_disk(all_disks, d) for d in drives]
+        plan = dp.plan_pool(name, level, targets, force=force)
+        # re-inspect right before executing (guards re-check inside execute)
+        result = dp.execute_pool(plan, dp.inspect_disks(), force=force)
+    except dp.DiskGuardError as e:
+        # guard refusals + missing-tool + validation are user-facing 400s
+        raise HTTPException(400, detail=str(e))
+
+    # record in the config-DB by UUID (single source of truth)
+    cfg = fc.load()
+    cfg.storage.pools.append(fc.StoragePool(
+        name=plan.name, raid_level=plan.raid_level,
+        devices=plan.devices, mountpoint=result["mountpoint"],
+        uuid=result["uuid"]))
+    fc.save(cfg)
     _audit(user["sub"], "storage.pool.create", "success",
-            f"RAID {level} pool '{name}' created ({len(clean)} drives)")
-    return {"ok": True, "message": f"RAID {level} pool '{name}' created ({len(clean)} drives)"}
+           f"btrfs {level} pool '{name}' at {result['mountpoint']} "
+           f"({len(plan.devices)} drives)")
+    return {"ok": True, "pool": {"name": name, "mountpoint": result["mountpoint"],
+                                 "uuid": result["uuid"]}}
 
 
 @router.post("/api/storage/drive")
