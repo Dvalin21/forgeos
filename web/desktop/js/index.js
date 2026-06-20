@@ -186,14 +186,21 @@
     if (pools && pools.pools) {
       var arr = pools.pools, ndrives = 0, worst = "ok";
       var order = { ok: 0, predict: 1, warn: 2, rebuilding: 2, err: 3 };
-      arr.forEach(function (p) { ndrives += (p.drives || []).length; if ((order[p.health] || 0) > (order[worst] || 0)) worst = p.health; });
-      var lvlName = arr.length ? (arr[0].level || "raid").toUpperCase().replace("RAID", "RAID ") : "—";
+      arr.forEach(function (p) { ndrives += (p.devices || []).length; if ((order[p.health] || 0) > (order[worst] || 0)) worst = p.health; });
+      var lvlName = arr.length ? (arr[0].raid_level || "raid").toUpperCase().replace("RAID", "RAID ") : "—";
       setLive("st-chip", arr.length ? (lvlName + " · " + (worst === "ok" ? "Online" : worst)) : "No array");
-      setLive("hc-pool", arr.length ? (lvlName + " · " + ndrives + " disks") : "No mdadm array");
+      setLive("hc-pool", arr.length ? (lvlName + " · " + ndrives + " disks") : "No pool configured");
       setLive("hc-pool-b", worst === "ok" ? "OK" : (worst === "err" ? "ERR" : worst.toUpperCase()));
       var hb = $$('[data-live="hc-pool-b"]')[0]; if (hb) hb.closest(".mini-card").classList.toggle("warning", worst !== "ok" && worst !== "err");
       window._poolHealth = worst;
-    } else { setLive("st-chip", "—"); setLive("hc-pool", "Pool status unavailable"); setLive("hc-pool-b", "?"); }
+      if (!arr.length) {
+        // API responded but no pool is configured yet — say so plainly,
+        // don't show a bare "?" or a misleading "OK".
+        setLive("hc-pool-b", "—");
+        setLive("hc-pool", "No pool configured");
+        window._poolHealth = "ok";  // no pool isn't a fault
+      }
+    } else { setLive("st-chip", "—"); setLive("hc-pool", "Pool status unavailable"); setLive("hc-pool-b", "—"); }
   }
 
   async function loadShares() {

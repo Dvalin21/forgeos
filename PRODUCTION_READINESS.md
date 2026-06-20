@@ -412,3 +412,8 @@ PHASE 6 converge installers + CI matrix (V-022, V-014) →
 PHASE 7 tagged RC, install-tested from artifact.
 
 No phase starts until the previous gate is green ON A REAL DEBIAN 13 BOX.
+
+
+### 6f — UI features to build at their phase (noted, not yet built)
+- **File Station**: a real DSM-style file browser/manager (navigate, upload/download, move/copy/rename/delete, permissions, share links) — NOT just a shares list. The current shares list belongs on the dashboard.
+- **Storage pool HEALTH monitoring**: real btrfs health (degraded/missing-device detection, `btrfs device stats` error counts, scrub status, SMART rollup) — current API reports only mounted/unmounted. The dashboard health card should reflect true pool state.
