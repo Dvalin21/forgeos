@@ -258,11 +258,18 @@ def plan_pool(name: str, raid_level, disks: list[DiskInfo],
 
 def execute_pool(plan: PoolPlan, disks: list[DiskInfo], *, force: bool = False,
                  runner: Optional[Callable[[list[str]], "subprocess.CompletedProcess"]] = None,
-                 blkid: Optional[Callable[[str], str]] = None) -> dict:
-    """Execute a PoolPlan. RE-CHECKS the guards immediately before writing (in
-    case disk state changed since planning), then runs mkfs.btrfs, makes the
-    mountpoint, resolves the btrfs UUID, mounts by UUID, and appends an fstab
-    entry. Returns {uuid, mountpoint, devices}. Runner/blkid injectable.
+                 blkid: Optional[Callable[[str], str]] = None,
+                 fstab_path: str = "/etc/fstab",
+                 record: Optional[Callable[[dict], None]] = None) -> dict:
+    """Execute a PoolPlan as ONE operation. RE-CHECKS the guards immediately
+    before writing, runs mkfs.btrfs, mounts by UUID, writes fstab, then records
+    the pool in the config-DB via `record` and VERIFIES it persisted. If the
+    record step fails after the filesystem exists, raise loudly — a real pool
+    with no config entry is a silent partial failure (Ponytail: atomicity is
+    sacred, fail loud), which is exactly the bug that left a mounted pool
+    invisible to the Storage Manager.
+
+    runner/blkid/record injectable for tests; fstab_path overridable.
     """
     run = runner or _run_checked
     get_uuid = blkid or _btrfs_uuid
@@ -286,9 +293,24 @@ def execute_pool(plan: PoolPlan, disks: list[DiskInfo], *, force: bool = False,
     run(["mount", "-U", uuid, plan.mountpoint])
 
     # 4. persist to fstab by UUID so it survives reboots / device reorder
-    _append_fstab(uuid, plan.mountpoint)
+    _append_fstab(uuid, plan.mountpoint, fstab_path)
 
-    return {"uuid": uuid, "mountpoint": plan.mountpoint, "devices": plan.devices}
+    result = {"uuid": uuid, "mountpoint": plan.mountpoint, "devices": plan.devices}
+
+    # 5. record in the config-DB AS PART OF THIS OPERATION, and verify it stuck.
+    # The filesystem now physically exists; if we can't record it, that's a
+    # loud failure, not a silent success.
+    if record is not None:
+        try:
+            record(result)
+        except Exception as e:  # noqa: BLE001
+            raise DiskGuardError(
+                f"pool '{plan.name}' filesystem was created and mounted at "
+                f"{plan.mountpoint}, but recording it in the config-DB FAILED: "
+                f"{e}. The pool exists on disk (uuid={uuid}) but is not tracked "
+                "— resolve the config before creating more pools.")
+
+    return result
 
 
 def _run_checked(cmd: list[str]) -> "subprocess.CompletedProcess":
@@ -305,7 +327,8 @@ def _btrfs_uuid(device: str) -> str:
 
 
 def _append_fstab(uuid: str, mountpoint: str, fstab: str = "/etc/fstab") -> None:
-    """Idempotently add a UUID-based btrfs mount to fstab."""
+    """Idempotently add a UUID-based btrfs mount to fstab. `fstab` overridable
+    so tests never touch the real /etc/fstab (root sandbox would let them)."""
     line = f"UUID={uuid}  {mountpoint}  btrfs  defaults,compress=zstd  0  2\n"
     try:
         with open(fstab, "r") as f:

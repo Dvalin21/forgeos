@@ -164,19 +164,24 @@ async def create_pool(body: dict, user=Depends(verify_token)):
         all_disks = dp.inspect_disks()
         targets = [dp.find_disk(all_disks, d) for d in drives]
         plan = dp.plan_pool(name, level, targets, force=force)
-        # re-inspect right before executing (guards re-check inside execute)
-        result = dp.execute_pool(plan, dp.inspect_disks(), force=force)
+
+        def _record(result):
+            cfg = fc.load()
+            cfg.storage.pools.append(fc.StoragePool(
+                name=plan.name, raid_level=plan.raid_level,
+                devices=plan.devices, mountpoint=result["mountpoint"],
+                uuid=result["uuid"]))
+            fc.save(cfg)
+            reloaded = fc.load()
+            if not any(p.uuid == result["uuid"] for p in reloaded.storage.pools):
+                raise RuntimeError("config-DB save did not persist the pool")
+
+        # re-inspect right before executing (guards re-check inside execute);
+        # the record step makes persistence part of the atomic operation.
+        result = dp.execute_pool(plan, dp.inspect_disks(), force=force, record=_record)
     except dp.DiskGuardError as e:
-        # guard refusals + missing-tool + validation are user-facing 400s
         raise HTTPException(400, detail=str(e))
 
-    # record in the config-DB by UUID (single source of truth)
-    cfg = fc.load()
-    cfg.storage.pools.append(fc.StoragePool(
-        name=plan.name, raid_level=plan.raid_level,
-        devices=plan.devices, mountpoint=result["mountpoint"],
-        uuid=result["uuid"]))
-    fc.save(cfg)
     _audit(user["sub"], "storage.pool.create", "success",
            f"btrfs {level} pool '{name}' at {result['mountpoint']} "
            f"({len(plan.devices)} drives)")

@@ -178,21 +178,15 @@ def test_execute_pool_rechecks_guards(stub_tools):
                         runner=lambda c: None, blkid=lambda d: "U")
 
 
-def test_execute_pool_mounts_by_uuid(stub_tools):
+def test_execute_pool_mounts_by_uuid(stub_tools, tmp_path):
     disks = [_disk("sda"), _disk("sdc")]
     plan = dp.plan_pool("tank", "raid1", disks)
     cmds = []
-    import tempfile, os
-    fstab = tempfile.mktemp()
-    # patch fstab target
-    orig = dp._append_fstab
-    dp._append_fstab = lambda uuid, mp, fstab=fstab: orig(uuid, mp, fstab)
-    try:
-        res = dp.execute_pool(plan, disks,
-                              runner=lambda c: cmds.append(c),
-                              blkid=lambda d: "ABCD-1234")
-    finally:
-        dp._append_fstab = orig
+    fstab = str(tmp_path / "fstab")
+    res = dp.execute_pool(plan, disks,
+                          runner=lambda c: cmds.append(c),
+                          blkid=lambda d: "ABCD-1234",
+                          fstab_path=fstab)
     assert res["uuid"] == "ABCD-1234"
     # mount used -U <uuid>, never a /dev/sdX path
     mount_cmd = [c for c in cmds if c and c[0] == "mount"][0]
@@ -200,19 +194,45 @@ def test_execute_pool_mounts_by_uuid(stub_tools):
     assert not any(x.startswith("/dev/sd") for x in mount_cmd)
     # fstab got a UUID line
     assert "ABCD-1234" in open(fstab).read()
-    os.unlink(fstab)
 
 
-def test_execute_pool_runs_mkfs_across_all_devices(stub_tools):
+def test_execute_pool_runs_mkfs_across_all_devices(stub_tools, tmp_path):
     disks = [_disk("sda"), _disk("sdc"), _disk("sdd")]
     plan = dp.plan_pool("tank", "raid5", disks)
     cmds = []
     dp.execute_pool(plan, disks, runner=lambda c: cmds.append(c),
-                    blkid=lambda d: "U-1")
+                    blkid=lambda d: "U-1", fstab_path=str(tmp_path / "fstab"))
     mkfs = [c for c in cmds if c and c[0] == "mkfs.btrfs"][0]
     for dev in ("/dev/sda", "/dev/sdc", "/dev/sdd"):
         assert dev in mkfs
     assert "raid5" in mkfs
+
+
+def test_execute_pool_fails_loud_if_record_fails(stub_tools, tmp_path):
+    # Atomicity (Ponytail): if the FS is created but the config-DB record
+    # fails, execute_pool must raise — NOT return success. This is the exact
+    # bug that left a mounted pool invisible to the Storage Manager.
+    disks = [_disk("sda"), _disk("sdc")]
+    plan = dp.plan_pool("tank", "raid1", disks)
+
+    def bad_record(result):
+        raise RuntimeError("config-DB save did not persist the pool")
+
+    with pytest.raises(dp.DiskGuardError, match="recording it in the config-DB FAILED"):
+        dp.execute_pool(plan, disks, runner=lambda c: None,
+                        blkid=lambda d: "U-2", fstab_path=str(tmp_path / "fstab"),
+                        record=bad_record)
+
+
+def test_execute_pool_calls_record_with_result(stub_tools, tmp_path):
+    disks = [_disk("sda"), _disk("sdc")]
+    plan = dp.plan_pool("tank", "raid1", disks)
+    recorded = {}
+    dp.execute_pool(plan, disks, runner=lambda c: None, blkid=lambda d: "U-3",
+                    fstab_path=str(tmp_path / "fstab"),
+                    record=lambda r: recorded.update(r))
+    assert recorded["uuid"] == "U-3"
+    assert recorded["mountpoint"] == "/srv/nas/tank"
 
 
 def test_missing_btrfs_tool_reported_cleanly(monkeypatch):

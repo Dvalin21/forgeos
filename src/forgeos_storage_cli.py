@@ -86,20 +86,28 @@ def main(argv=None) -> int:
         return 0
 
     # create — re-inspect right before executing (guards re-check inside)
+    def _record(result):
+        # Save the pool into the config-DB and VERIFY it persisted by reloading.
+        cfg = fc.load()
+        cfg.storage.pools.append(fc.StoragePool(
+            name=plan.name, raid_level=plan.raid_level,
+            devices=plan.devices, mountpoint=result["mountpoint"],
+            uuid=result["uuid"]))
+        fc.save(cfg)
+        # verify-after-write: reload and confirm the pool is actually there
+        reloaded = fc.load()
+        if not any(p.uuid == result["uuid"] for p in reloaded.storage.pools):
+            raise RuntimeError(
+                "config-DB save did not persist the pool (check that "
+                "/opt/forgeos/forgeos_config.py is current and writable)")
+
     try:
         disks_now, _ = _resolve(args.disks)
-        result = dp.execute_pool(plan, disks_now, force=args.force)
+        result = dp.execute_pool(plan, disks_now, force=args.force, record=_record)
     except dp.DiskGuardError as e:
         print(f"REFUSED: {e}", file=sys.stderr)
         return 2
 
-    # record in config-DB by UUID
-    cfg = fc.load()
-    cfg.storage.pools.append(fc.StoragePool(
-        name=plan.name, raid_level=plan.raid_level,
-        devices=plan.devices, mountpoint=result["mountpoint"],
-        uuid=result["uuid"]))
-    fc.save(cfg)
     print(f"pool '{plan.name}' created and mounted at {result['mountpoint']} "
           f"(uuid={result['uuid']})")
     return 0
