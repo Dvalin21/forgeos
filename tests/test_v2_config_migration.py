@@ -90,3 +90,23 @@ def test_load_and_upgrade_missing_file_returns_defaults(tmp_path):
     cfg = fc.load_and_upgrade(p)
     assert cfg.version == fc.SCHEMA_VERSION
     assert not p.exists()   # wrote nothing
+
+
+def test_storage_field_backward_compatible_no_bump():
+    # adding storage must NOT break existing v2 configs that lack the key
+    old = {"version": 2, "domain": "nas.local",
+           "naming": {"system_hostname": "nas", "lan_name": "nas.local", "public_fqdn": ""}}
+    cfg = fc.ForgeOSConfig.model_validate(fc.migrate(dict(old)))
+    assert cfg.storage.pools == []
+    assert cfg.version == 2
+
+
+def test_storage_pool_validation_and_mountpoint():
+    p = fc.StoragePool(name="tank", raid_level="raid1",
+                       devices=["/dev/disk/by-id/a", "/dev/disk/by-id/b"])
+    assert p.resolved_mountpoint() == "/srv/nas/tank"
+    import pytest
+    with pytest.raises(Exception):
+        fc.StoragePool(name="x")  # too short
+    with pytest.raises(Exception):
+        fc.StorageConfig(pools=[p, p])  # duplicate names

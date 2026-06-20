@@ -41,6 +41,8 @@ BASE_PACKAGES: list[str] = [
     "auditd", "aide", "rkhunter",
     # backup
     "restic", "rclone",
+    # storage: btrfs pools + disk inspection/partitioning (disk-prep safety)
+    "btrfs-progs", "util-linux", "parted", "gdisk", "smartmontools",
     # bare-metal disaster recovery (ReaR builds the rescue ISO + system archive)
     "rear", "genisoimage", "syslinux",
     # mDNS: makes <hostname>.local resolve on the LAN with zero client config

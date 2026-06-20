@@ -330,6 +330,44 @@ class OsBackupConfig(BaseModel):
         return v
 
 
+class StoragePool(BaseModel):
+    """A btrfs data pool. Declarative record of an existing pool — pool
+    CREATION is a guarded, one-time destructive action (forgeos_diskprep),
+    NOT something regenerated idempotently. This just records what exists so
+    shares/exports can reference the mountpoint and fstab can mount it.
+    btrfs native raid for now; swappable for LHSR later.
+    """
+    name: str
+    raid_level: str = "single"          # single|raid0|raid1|raid10|raid5|raid6
+    devices: list[str] = Field(default_factory=list)  # stable /dev/disk/by-id/*
+    mountpoint: str = ""                # default /srv/nas/<name> if empty
+    uuid: str = ""                      # btrfs FS UUID — mount by THIS, not /dev
+
+    @field_validator("name")
+    @classmethod
+    def _valid_pool_name(cls, v: str) -> str:
+        import re as _re
+        if not _re.fullmatch(r"[A-Za-z0-9_-]{2,}", v or ""):
+            raise ValueError(f"invalid pool name: {v!r}")
+        return v
+
+    def resolved_mountpoint(self) -> str:
+        return self.mountpoint or f"/srv/nas/{self.name}"
+
+
+class StorageConfig(BaseModel):
+    pools: list[StoragePool] = Field(default_factory=list)
+
+    @field_validator("pools")
+    @classmethod
+    def _unique_pool_names(cls, v: list["StoragePool"]) -> list["StoragePool"]:
+        names = [p.name.lower() for p in v]
+        dupes = {n for n in names if names.count(n) > 1}
+        if dupes:
+            raise ValueError(f"duplicate pool names: {sorted(dupes)}")
+        return v
+
+
 class NamingConfig(BaseModel):
     """The three distinct names a ForgeOS box has. Conflating them is a trap:
     they coincide on a simple LAN box but DIVERGE the moment you add a mail
@@ -361,6 +399,7 @@ class ForgeOSConfig(BaseModel):
     # onto `naming` and retire this.
     domain: str = "nas.local"
     naming: NamingConfig = Field(default_factory=NamingConfig)
+    storage: StorageConfig = Field(default_factory=StorageConfig)
     samba: SambaConfig = Field(default_factory=SambaConfig)
     nginx: NginxConfig = Field(default_factory=NginxConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
