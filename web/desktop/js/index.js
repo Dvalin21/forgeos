@@ -197,30 +197,17 @@
   }
 
   async function loadShares() {
-    var raw = (await api("/api/samba/shares")).data;
+    var data = (await api("/api/samba/shares")).data;
     var rows = $("#share-rows");
-    var shares = parseShares(raw && raw.raw);
+    var shares = (data && data.shares) || [];
     if (shares.length) {
       rows.innerHTML = shares.map(function (s) {
+        var access = s.writable ? "Read/Write" : "Read-only";
         return "<tr><td><div class='file-cell'><span class='icon-badge'><svg viewBox='0 0 24 24'><path d='M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z'/></svg></span>" +
-          esc(s.name) + "</div></td><td>" + esc(s.path || "—") + "</td><td>" + esc(s.access || "—") + "</td><td>" + esc(s.type || "standard") +
+          esc(s.name) + "</div></td><td>" + esc(s.path || "—") + "</td><td>" + esc(access) + "</td><td>" + esc(s.type || "standard") +
           "</td><td class='status ok'>Active</td></tr>";
       }).join("");
     } else { rows.innerHTML = "<tr><td colspan='5' class='vol-empty'>No Samba shares configured.</td></tr>"; }
-  }
-  function parseShares(raw) {
-    if (!raw) return [];
-    // forgeos-samba list output is freeform; pull [name] sections + path = ...
-    var out = [], cur = null;
-    raw.split("\n").forEach(function (line) {
-      var m = line.match(/^\s*\[([^\]]+)\]\s*$/);
-      if (m && m[1].toLowerCase() !== "global") { cur = { name: m[1] }; out.push(cur); return; }
-      if (!cur) return;
-      var p = line.match(/^\s*path\s*=\s*(.+)$/i); if (p) cur.path = p[1].trim();
-      var w = line.match(/^\s*(read only|writable|writeable)\s*=\s*(.+)$/i);
-      if (w) cur.access = (/no/i.test(w[2]) === (/read only/i.test(w[1]))) ? "Read/Write" : "Read-only";
-    });
-    return out;
   }
 
   async function loadServices() {

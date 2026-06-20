@@ -392,7 +392,7 @@ section reconciles that. Every v2 item now has an ID.
 | V-020 | MED | 🟢 DONE | CI didn't run on v2-rearchitect. **Fix:** added branch to push/PR triggers (`ci.yml`). |
 | V-021 | MED | 🟢 DONE | CI lacked clean-container install dry-run + gating test job. **Fix:** added `v2-tests` (gating pytest) + `install-dryrun` (clean Debian 13 container, installed-package checks). |
 | V-022 | MED | 🔴 OPEN | Two installers coexist (v1 bash, v2 python); no canonical/deprecation decision |
-| V-023 | MED | 🔴 OPEN | Web UI talks to v1 routes only; v2 generators/app-store/toggles are CLI-only |
+| V-023 | MED | 🟡 IN PROGRESS | Wiring UI APIs to the v2 engine (config-DB + generators), one service per slice. SLICE 1 DONE: samba_api now reads/writes the config-DB and applies via the samba generator (removed the dead forgeos-samba CLI dependency + the fragile smb.conf regex parser in the UI). Remaining slices: storage, docker, nginx, vpn, security, firewall, filedb, backup, system. |
 | V-024 | LOW | 🟢 DONE | Registry header stale (169/`79b1c72`). **Fix:** corrected to 383/`e3cb316`, this commit. |
 
 ### 6e — major features (post-usability)
@@ -405,7 +405,7 @@ section reconciles that. Every v2 item now has an ID.
 PHASE 0 reconcile registry + CI (V-003, V-020, V-021, V-024) →
 PHASE 1 usable clean install (V-001, V-002, V-004) → ✅ DONE
 PHASE 2 hardening: resolution + secret-perms (V-011, V-013); V-010 resolved-by-design →
-PHASE 3 upgrade (V-012 ✅) + DR usability (rear in base pkgs, forgeos-osbackup CLI, clearer generate output ✅) + TESTED restore (operator VM exercise, still OPEN) →
+PHASE 3 ✅ CODE-COMPLETE: V-012 migration runner, DR usability (rear pkg + forgeos-osbackup CLI + artifact verify + zstd naming + rescue console fix for VM boot). Backup creation VM-VERIFIED. TESTED RESTORE = OPEN, blocked on a 2nd machine (not code) — tracked, not closed. Proceeding to Phase 4 by decision. →
 PHASE 4 wire UI to v2 engine (V-023) →
 PHASE 5 reverse-proxy manager (V-030) — headline feature, own design doc →
 PHASE 6 converge installers + CI matrix (V-022, V-014) →

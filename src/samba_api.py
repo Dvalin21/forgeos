@@ -10,16 +10,15 @@ Routes (/api/samba/*): shares (CRUD), raw config (GET/PUT), connections
 """
 from __future__ import annotations
 
-import re
-import subprocess
 import logging
-from pathlib import Path
 from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
 from forgeos_auth import verify_token
+import forgeos_config as fc
+from generators import registry
 
 logger = logging.getLogger("forgeos-api")
 
@@ -39,57 +38,76 @@ def set_helpers(
     _audit = audit
 
 
+# Save the config-DB then regenerate + reload Samba via the v2 generator.
+# Overridable in tests so they don't write /etc or touch systemctl.
+_apply = None
+
+
+def _apply_samba(cfg) -> None:
+    if _apply is not None:
+        _apply(cfg)
+        return
+    fc.save(cfg)
+    registry.apply_one("samba", cfg=cfg)
+
+
+def set_apply(fn) -> None:
+    """Test seam: inject a fake apply (save+generate+reload)."""
+    global _apply
+    _apply = fn
+
+
 @router.get("/api/samba/shares")
 async def samba_shares(user=Depends(verify_token)):
-    raw = _run_args(["forgeos-samba", "list"])
-    return {"raw": raw}
+    # V2 engine: read shares from the config-DB, not a shelled-out CLI.
+    cfg = fc.load()
+    shares = [s.model_dump() for s in cfg.samba.shares]
+    return {"shares": shares,
+            "workgroup": cfg.samba.workgroup,
+            "server_string": cfg.samba.server_string}
 
 
 @router.post("/api/samba/share")
 async def create_share(body: dict, user=Depends(verify_token)):
     if user.get("role") != "admin":
         raise HTTPException(403)
-    name    = re.sub(r"[^a-z0-9_-]", "", body["name"])
-    path    = body["path"]
-    type_   = body.get("type", "standard")
-    write   = "yes" if body.get("writable", True) else "no"
-    users   = body.get("users", "@users")
-    comment = body.get("comment", "")
-    result  = _run_args(["forgeos-samba", "create", name, path, type_, write, users, comment])
+    cfg = fc.load()
+    try:
+        share = fc.SambaShare(
+            name=body["name"],
+            path=body["path"],
+            type=body.get("type", "standard"),
+            writable=bool(body.get("writable", True)),
+            valid_users=body.get("valid_users") or ["@users"],
+            comment=body.get("comment", ""),
+        )
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, detail=f"invalid share: {e}")
+
+    # reject duplicate name (config validator also guards, but fail clearly)
+    if any(s.name.lower() == share.name.lower() for s in cfg.samba.shares):
+        raise HTTPException(409, detail=f"share '{share.name}' already exists")
+
+    cfg.samba.shares.append(share)
+    _apply_samba(cfg)
     _audit(user["sub"], "samba.share.create", "success",
-            f"Share '{name}' at '{path}' ({'rw' if write == 'yes' else 'ro'})")
-    return {"ok": True, "message": result}
+           f"Share '{share.name}' at '{share.path}' "
+           f"({'rw' if share.writable else 'ro'})")
+    return {"ok": True, "share": share.model_dump()}
 
 
 @router.delete("/api/samba/share/{name}")
 async def remove_share(name: str, user=Depends(verify_token)):
     if user.get("role") != "admin":
         raise HTTPException(403)
-    name = re.sub(r"[^a-z0-9_-]", "", name)
-    result = _run_args(["forgeos-samba", "remove", name])
+    cfg = fc.load()
+    before = len(cfg.samba.shares)
+    cfg.samba.shares = [s for s in cfg.samba.shares if s.name.lower() != name.lower()]
+    if len(cfg.samba.shares) == before:
+        raise HTTPException(404, detail=f"share '{name}' not found")
+    _apply_samba(cfg)
     _audit(user["sub"], "samba.share.delete", "success", f"Share '{name}' removed")
-    return {"ok": True, "message": result}
-
-
-@router.get("/api/samba/raw")
-async def samba_raw(user=Depends(verify_token)):
-    return {"config": _run_args(["forgeos-samba", "raw-get"])}
-
-
-@router.put("/api/samba/raw")
-async def samba_save_raw(body: dict, user=Depends(verify_token)):
-    if user.get("role") != "admin":
-        raise HTTPException(403)
-    config = body.get("config", "")
-    # Pipe config via stdin to avoid shell/single-quote escaping entirely
-    result = subprocess.run(
-        ["forgeos-samba", "raw-put"],
-        input=config, capture_output=True, text=True, timeout=10
-    )
-    if result.returncode != 0:
-        raise HTTPException(400, detail=result.stderr.strip() or "samba config rejected")
-    _audit(user["sub"], "samba.config.update", "success", "Raw Samba config updated")
-    return {"ok": True, "message": result.stdout.strip()}
+    return {"ok": True}
 
 
 @router.get("/api/samba/connections")
