@@ -127,3 +127,32 @@ def test_apply_creates_vhost_dir(tmp_path, monkeypatch):
     # include + one vhost (no separate default-deny anymore — the UI vhost is
     # itself the default_server)
     assert len(written) == 2
+
+
+def test_apply_removes_stale_vhosts(tmp_path, monkeypatch):
+    # Regression: a stale 00-default-deny.conf (return 444, default_server)
+    # left on disk after we stopped generating it kept dropping ALL traffic
+    # (ERR_EMPTY_RESPONSE). apply() must reconcile forgeos.d/ — remove any
+    # ForgeOS .conf it no longer produces.
+    import sys
+    sys.path.insert(0, "src")
+    import generators.nginx as ng
+    import forgeos_config as fc
+
+    monkeypatch.setattr(ng, "VHOST_DIR", str(tmp_path))
+    monkeypatch.setattr(ng, "CONFD_DIR", str(tmp_path))
+    (tmp_path / "00-default-deny.conf").write_text("server { return 444; }")
+    (tmp_path / "old-app.conf").write_text("server {}")
+
+    cfg = fc.ForgeOSConfig()
+    cfg.nginx.vhosts.append(
+        fc.NginxVhost(name="forgeos-ui", domain="nas.local",
+                      upstream_port=5080, websocket=True))
+    gen = ng.NginxGenerator()
+    gen.reload = lambda: None
+    gen.apply(cfg, do_reload=False)
+
+    names = {p.name for p in tmp_path.glob("*.conf")}
+    assert "00-default-deny.conf" not in names   # stale dropper removed
+    assert "old-app.conf" not in names           # stale app vhost removed
+    assert "forgeos-ui.conf" in names            # current vhost kept

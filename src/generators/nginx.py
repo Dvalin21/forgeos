@@ -84,6 +84,38 @@ class NginxGenerator(ServiceGenerator):
             )
         return out
 
+    def apply(self, cfg, *, do_reload: bool = True) -> list[str]:
+        """Render + write vhosts, THEN reconcile: remove any ForgeOS-managed
+        .conf in forgeos.d/ that we no longer generate. Generators that only
+        ever add/overwrite leave orphans — and an orphan vhost here is
+        dangerous: e.g. a stale 'default-deny' (return 444) keeps default_server
+        and silently drops ALL traffic (ERR_EMPTY_RESPONSE) even after the code
+        that produced it was removed. forgeos.d/ is a glob-include we OWN, so on
+        each apply it must reflect EXACTLY the current config, nothing stale.
+        """
+        files = self.render(cfg)
+        self.validate(files)
+        written: list[str] = []
+        for rf in files:
+            self._atomic_write(rf)
+            written.append(rf.path)
+
+        # Reconcile forgeos.d/: delete *.conf we own but didn't just write.
+        vhost_dir = Path(VHOST_DIR)
+        if vhost_dir.is_dir():
+            keep = {Path(p).name for p in written if Path(p).parent == vhost_dir}
+            for existing in vhost_dir.glob("*.conf"):
+                if existing.name not in keep:
+                    try:
+                        existing.unlink()
+                        written.append(f"-{existing}")  # '-' marks a removal
+                    except OSError:
+                        pass
+
+        if do_reload:
+            self.reload()
+        return written
+
     @staticmethod
     def _cert_paths(domain: str) -> tuple[str, str]:
         le_dir = Path(f"/etc/letsencrypt/live/{domain}")
