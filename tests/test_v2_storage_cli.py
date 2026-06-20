@@ -30,7 +30,8 @@ def test_disks_lists_system_and_blank(fake_disks, capsys):
     assert "sda" in out and "BLANK" in out
 
 
-def test_plan_blank_disks_ok(fake_disks, capsys):
+def test_plan_blank_disks_ok(fake_disks, monkeypatch, capsys):
+    monkeypatch.setattr(dp, "_require_tools", lambda *a: None)
     assert cli.main(["plan", "tank", "raid1", "sda", "sdc"]) == 0
     out = capsys.readouterr().out
     assert "mkfs.btrfs" in out and "raid1" in out

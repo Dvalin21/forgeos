@@ -17,6 +17,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import forgeos_diskprep as dp  # noqa: E402
 
 
+@pytest.fixture
+def stub_tools(monkeypatch):
+    # sandbox has no mkfs.btrfs; bypass the tool-presence check for logic tests
+    monkeypatch.setattr(dp, "_require_tools", lambda *a: None)
+
+
+
 def _disk(name, **kw):
     return dp.DiskInfo(name=name, path=f"/dev/{name}", **kw)
 
@@ -150,7 +157,7 @@ def test_plan_pool_refuses_system_disk():
         dp.plan_pool("tank", "raid1", disks)
 
 
-def test_plan_pool_builds_steps_without_running():
+def test_plan_pool_builds_steps_without_running(stub_tools):
     disks = [_disk("sda"), _disk("sdc")]
     plan = dp.plan_pool("tank", "raid1", disks)
     assert plan.name == "tank"
@@ -161,7 +168,7 @@ def test_plan_pool_builds_steps_without_running():
     assert any("raid1" in s for s in desc)
 
 
-def test_execute_pool_rechecks_guards():
+def test_execute_pool_rechecks_guards(stub_tools):
     # plan made when disk was blank; disk becomes system before execute → refuse
     disks_ok = [_disk("sda"), _disk("sdc")]
     plan = dp.plan_pool("tank", "raid1", disks_ok)
@@ -171,7 +178,7 @@ def test_execute_pool_rechecks_guards():
                         runner=lambda c: None, blkid=lambda d: "U")
 
 
-def test_execute_pool_mounts_by_uuid():
+def test_execute_pool_mounts_by_uuid(stub_tools):
     disks = [_disk("sda"), _disk("sdc")]
     plan = dp.plan_pool("tank", "raid1", disks)
     cmds = []
@@ -196,7 +203,7 @@ def test_execute_pool_mounts_by_uuid():
     os.unlink(fstab)
 
 
-def test_execute_pool_runs_mkfs_across_all_devices():
+def test_execute_pool_runs_mkfs_across_all_devices(stub_tools):
     disks = [_disk("sda"), _disk("sdc"), _disk("sdd")]
     plan = dp.plan_pool("tank", "raid5", disks)
     cmds = []
@@ -206,3 +213,10 @@ def test_execute_pool_runs_mkfs_across_all_devices():
     for dev in ("/dev/sda", "/dev/sdc", "/dev/sdd"):
         assert dev in mkfs
     assert "raid5" in mkfs
+
+
+def test_missing_btrfs_tool_reported_cleanly(monkeypatch):
+    import shutil
+    monkeypatch.setattr(shutil, "which", lambda t: None)
+    with pytest.raises(dp.DiskGuardError, match="btrfs-progs"):
+        dp._require_tools("mkfs.btrfs")

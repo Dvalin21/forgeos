@@ -216,11 +216,24 @@ _BTRFS_PROFILE = {
 }
 
 
+def _require_tools(*tools: str) -> None:
+    """Raise DiskGuardError with a clear message if a required command is
+    missing — better than a raw FileNotFoundError traceback mid-operation."""
+    import shutil
+    missing = [t for t in tools if shutil.which(t) is None]
+    if missing:
+        raise DiskGuardError(
+            f"required tool(s) not installed: {', '.join(missing)}. "
+            "Install the 'btrfs-progs' / 'util-linux' packages (they are in "
+            "the ForgeOS base set; `sudo apt-get install -y btrfs-progs`).")
+
+
 def plan_pool(name: str, raid_level, disks: list[DiskInfo],
               *, mountpoint: str = "", force: bool = False) -> PoolPlan:
     """Validate the WHOLE request (guards), then build the ordered destructive
     plan WITHOUT running anything. Raises DiskGuardError if unsafe."""
     guard_pool_request(name, raid_level, disks, force=force)
+    _require_tools("mkfs.btrfs", "mount", "blkid")
     profile = _BTRFS_PROFILE.get(raid_level)
     if profile is None:
         raise DiskGuardError(f"unsupported btrfs profile: {raid_level!r}")
@@ -256,6 +269,7 @@ def execute_pool(plan: PoolPlan, disks: list[DiskInfo], *, force: bool = False,
 
     # Fresh guard re-check — never trust a stale plan against current disks.
     guard_pool_request(plan.name, plan.raid_level, disks, force=force)
+    _require_tools("mkfs.btrfs", "mount", "blkid")
 
     # 1. mkfs.btrfs across all devices
     profile = _BTRFS_PROFILE.get(plan.raid_level) or plan.raid_level
