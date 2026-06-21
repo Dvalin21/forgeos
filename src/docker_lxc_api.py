@@ -18,9 +18,28 @@ from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from forgeos_auth import verify_token
 
+import re
+
 # ── Router ──
-router = APIRouter(prefix="/api/docker", tags=["Docker & LXC Management"],
+router = APIRouter(prefix="/api/docker", tags=["Docker Management"],
                    dependencies=[Depends(verify_token)])
+
+# ── Trust boundary: validate names before they reach the docker CLI ──
+# Argument injection is real even without shell=True — a name like "-foo" could
+# be read as a flag. Docker names/images allow [a-zA-Z0-9][a-zA-Z0-9_.-/:@] but
+# must not start with '-'. Keep it strict.
+_DOCKER_NAME_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._/:@-]{0,127}\Z")
+
+
+def _valid_ref(ref: str, what: str = "name") -> str:
+    if not _DOCKER_NAME_RE.match(ref or ""):
+        raise HTTPException(400, detail=f"invalid {what}: {ref!r}")
+    return ref
+
+
+def _require_admin(user: dict) -> None:
+    if user.get("role") != "admin":
+        raise HTTPException(403, detail="admin required")
 
 # ── Configuration ──
 COMPOSE_PROJECT_NAME = os.environ.get("FORGEOS_COMPOSE_PROJECT", "forgeos")
@@ -77,25 +96,6 @@ def _run_compose(args: list, timeout: int = 60) -> dict:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-def _run_lxc(args: list, timeout: int = 30) -> dict:
-    """Run lxc command safely."""
-    try:
-        result = subprocess.run(
-            ["lxc"] + args,
-            capture_output=True,
-            text=True,
-            timeout=timeout
-        )
-        return {
-            "success": result.returncode == 0,
-            "stdout": result.stdout.strip(),
-            "stderr": result.stderr.strip(),
-            "returncode": result.returncode
-        }
-    except subprocess.TimeoutExpired:
-        return {"success": False, "error": "Command timed out"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
 
 # ═══════════════════════════════════════════════════════
 # DOCKER CONTAINERS
@@ -123,7 +123,8 @@ async def list_containers(all: bool = Query(default=False)):
         return {"containers": [], "raw": lines}
 
 @router.post("/containers/{container}/start")
-async def start_container(container: str):
+async def start_container(container: str, user=Depends(verify_token)):
+    _valid_ref(container, "container")
     """Start a container."""
     result = _run_docker(["start", container])
     if not result["success"]:
@@ -131,7 +132,8 @@ async def start_container(container: str):
     return {"ok": True, "container": container, "action": "started"}
 
 @router.post("/containers/{container}/stop")
-async def stop_container(container: str):
+async def stop_container(container: str, user=Depends(verify_token)):
+    _valid_ref(container, "container")
     """Stop a container."""
     result = _run_docker(["stop", container])
     if not result["success"]:
@@ -139,7 +141,8 @@ async def stop_container(container: str):
     return {"ok": True, "container": container, "action": "stopped"}
 
 @router.post("/containers/{container}/restart")
-async def restart_container(container: str):
+async def restart_container(container: str, user=Depends(verify_token)):
+    _valid_ref(container, "container")
     """Restart a container."""
     result = _run_docker(["restart", container])
     if not result["success"]:
@@ -147,7 +150,9 @@ async def restart_container(container: str):
     return {"ok": True, "container": container, "action": "restarted"}
 
 @router.delete("/containers/{container}")
-async def remove_container(container: str, force: bool = Query(default=False)):
+async def remove_container(container: str, force: bool = Query(default=False), user=Depends(verify_token)):
+    _require_admin(user)
+    _valid_ref(container, "container")
     """Remove a container."""
     args = ["rm", container]
     if force:
@@ -158,7 +163,8 @@ async def remove_container(container: str, force: bool = Query(default=False)):
     return {"ok": True, "container": container, "action": "removed"}
 
 @router.get("/containers/{container}/logs")
-async def get_container_logs(container: str, tail: int = Query(default=100)):
+async def get_container_logs(container: str, tail: int = Query(default=100), user=Depends(verify_token)):
+    _valid_ref(container, "container")
     """Get container logs."""
     result = _run_docker(["logs", f"--tail={tail}", container])
     if not result["success"]:
@@ -166,7 +172,9 @@ async def get_container_logs(container: str, tail: int = Query(default=100)):
     return {"container": container, "logs": result["stdout"]}
 
 @router.post("/containers/{container}/exec")
-async def exec_in_container(container: str, body: dict):
+async def exec_in_container(container: str, body: dict, user=Depends(verify_token)):
+    _require_admin(user)
+    _valid_ref(container, "container")
     """Execute command in container."""
     cmd = body.get("command", "")
     if not cmd:
@@ -201,7 +209,9 @@ async def list_images():
         return {"images": [], "raw": result["stdout"]}
 
 @router.delete("/images/{image}")
-async def remove_image(image: str, force: bool = Query(default=False)):
+async def remove_image(image: str, force: bool = Query(default=False), user=Depends(verify_token)):
+    _require_admin(user)
+    _valid_ref(image, "image")
     """Remove a Docker image."""
     args = ["rmi"]
     if force:
@@ -218,7 +228,8 @@ async def remove_image(image: str, force: bool = Query(default=False)):
 # ═══════════════════════════════════════════════════════
 
 @router.post("/prune/system")
-async def prune_system():
+async def prune_system(user=Depends(verify_token)):
+    _require_admin(user)
     """Prune all unused Docker objects (containers, networks, images, volumes)."""
     result = _run_docker(["system", "prune", "-f"])
     if not result["success"]:
@@ -226,7 +237,8 @@ async def prune_system():
     return {"ok": True, "output": result["stdout"]}
 
 @router.post("/prune/volumes")
-async def prune_volumes():
+async def prune_volumes(user=Depends(verify_token)):
+    _require_admin(user)
     """Remove unused local volumes."""
     result = _run_docker(["volume", "prune", "-f"])
     if not result["success"]:
@@ -234,7 +246,8 @@ async def prune_volumes():
     return {"ok": True, "output": result["stdout"]}
 
 @router.post("/prune/images")
-async def prune_images():
+async def prune_images(user=Depends(verify_token)):
+    _require_admin(user)
     """Remove unused images."""
     result = _run_docker(["image", "prune", "-f"])
     if not result["success"]:
@@ -242,7 +255,8 @@ async def prune_images():
     return {"ok": True, "output": result["stdout"]}
 
 @router.post("/prune/networks")
-async def prune_networks():
+async def prune_networks(user=Depends(verify_token)):
+    _require_admin(user)
     """Remove unused networks."""
     result = _run_docker(["network", "prune", "-f"])
     if not result["success"]:
@@ -343,99 +357,6 @@ async def compose_build():
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Compose build failed"))
     return {"ok": True, "action": "build"}
-
-# ═══════════════════════════════════════════════════════
-# LXC CONTAINERS
-# ═══════════════════════════════════════════════════════
-
-@router.get("/lxc/containers")
-async def list_lxc_containers():
-    """List LXC containers."""
-    result = _run_lxc(["list", "--format=json"])
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result.get("error", "Failed to list LXC containers"))
-    
-    try:
-        containers = json.loads(result["stdout"]) if result["stdout"] else []
-        return {"containers": containers}
-    except json.JSONDecodeError:
-        # Parse tabular output
-        lines = result["stdout"].splitlines()[1:]  # Skip header
-        containers = []
-        for line in lines:
-            parts = line.split()
-            if len(parts) >= 4:
-                containers.append({
-                    "name": parts[0],
-                    "state": parts[1],
-                    "ipv4": parts[2],
-                    "ipv6": parts[3]
-                })
-        return {"containers": containers}
-
-@router.post("/lxc/containers/{name}/start")
-async def start_lxc_container(name: str):
-    """Start an LXC container."""
-    result = _run_lxc(["start", name])
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
-    return {"ok": True, "container": name, "action": "started"}
-
-@router.post("/lxc/containers/{name}/stop")
-async def stop_lxc_container(name: str):
-    """Stop an LXC container."""
-    result = _run_lxc(["stop", name])
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
-    return {"ok": True, "container": name, "action": "stopped"}
-
-@router.post("/lxc/containers/{name}/restart")
-async def restart_lxc_container(name: str):
-    """Restart an LXC container."""
-    result = _run_lxc(["restart", name])
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
-    return {"ok": True, "container": name, "action": "restarted"}
-
-@router.post("/lxc/containers/{name}/destroy")
-async def destroy_lxc_container(name: str):
-    """Destroy an LXC container."""
-    result = _run_lxc(["destroy", name, "--force"])
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
-    return {"ok": True, "container": name, "action": "destroyed"}
-
-@router.post("/lxc/containers/{name}/snapshot")
-async def snapshot_lxc_container(name: str, snapshot_name: str = Query(...)):
-    """Create a snapshot of an LXC container."""
-    result = _run_lxc(["snapshot", name, snapshot_name])
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
-    return {"ok": True, "container": name, "snapshot": snapshot_name}
-
-@router.post("/lxc/containers/{name}/exec")
-async def exec_in_lxc_container(name: str, body: dict):
-    """Execute command in LXC container."""
-    cmd = body.get("command", "")
-    if not cmd:
-        raise HTTPException(status_code=400, detail="No command provided")
-    
-    result = _run_lxc(["exec", name, "--", "sh", "-c", cmd])
-    return {
-        "container": name,
-        "command": cmd,
-        "stdout": result["stdout"],
-        "stderr": result["stderr"],
-        "success": result["success"]
-    }
-
-@router.get("/lxc/containers/{name}/info")
-async def get_lxc_container_info(name: str):
-    """Get detailed info about an LXC container."""
-    result = _run_lxc(["info", name])
-    if not result["success"]:
-        raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
-    return {"container": name, "info": result["stdout"]}
 
 # ═══════════════════════════════════════════════════════
 # DOCKER COMPOSE UI INTEGRATION

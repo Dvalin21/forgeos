@@ -80,6 +80,7 @@ py-modules = [
     "backup_api",
     "docker_api",
     "docker_lxc_api",
+    "lxc_api",
     "filedb_api",
     "forgeos_pages_api",
     "imaging_api",

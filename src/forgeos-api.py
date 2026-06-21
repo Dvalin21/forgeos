@@ -668,9 +668,17 @@ except ImportError as e:
 try:
     from docker_lxc_api import router as docker_lxc_router
     app.include_router(docker_lxc_router)
-    logger.info("Docker & LXC Management API loaded")
+    logger.info("Docker Management API loaded")
 except ImportError as e:
-    logger.warning("Docker/LXC API not available: %s", e)
+    logger.warning("Docker API not available: %s", e)
+
+try:
+    from lxc_api import router as lxc_router, set_helpers as set_lxc_helpers
+    set_lxc_helpers(audit=_audit)
+    app.include_router(lxc_router)
+    logger.info("LXC / Incus Management API loaded")
+except ImportError as e:
+    logger.warning("LXC API not available: %s", e)
 
 try:
     from forgeos_pages_api import router as pages_router, set_audit
