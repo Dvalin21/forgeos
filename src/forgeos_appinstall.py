@@ -153,3 +153,54 @@ def _image_version(manifest: AppManifest) -> str:
     # tag is after the last ':' that isn't part of a registry:port
     last = img.rsplit("/", 1)[-1]
     return last.split(":", 1)[1] if ":" in last else ""
+
+
+# ── convergence (reconcile actual Docker state to the config DB) ──────────
+#
+# The config DB's `apps` list is the single source of truth. install/uninstall
+# mutate that list at one app at a time; converge() brings ALL of actual Docker
+# in line with it (boot, post-restore, or after manual drift). The decision is
+# pure and lives here; the effects (probe + up/stop) live in the EXECUTE layer.
+
+
+def decide_app_action(*, enabled: bool, running: bool, compose_exists: bool) -> str:
+    """Pure: desired-vs-actual for ONE app -> the single action to take.
+
+    Returns one of: "up" | "stop" | "noop" | "error".
+
+    The whole 2x2x2 truth table collapses to three guards (good taste: the
+    edge cases are the normal path, not a pile of if/else):
+      - no compose on disk: an ENABLED app can't be brought up -> "error";
+        a DISABLED app is simply already down -> "noop".
+      - enabled: up if not already running, else noop.
+      - disabled: stop if running, else noop.
+    """
+    if not compose_exists:
+        return "error" if enabled else "noop"
+    if enabled:
+        return "noop" if running else "up"
+    return "stop" if running else "noop"
+
+
+@dataclass(frozen=True)
+class AppState:
+    """Per-app outcome of a converge pass. Inspectable, no side effects."""
+
+    app_id: str
+    desired: str            # "up" | "stopped"
+    actual: str             # "up" | "stopped" | "absent" | "unknown"
+    action: str             # "up" | "stop" | "noop" | "error"
+    detail: str = ""        # error reason when action == "error"
+
+
+@dataclass
+class ConvergeResult:
+    """Aggregate outcome of a converge pass."""
+
+    states: list = field(default_factory=list)    # list[AppState], one per app
+    changed: list = field(default_factory=list)   # app_ids actually acted on
+    errors: list = field(default_factory=list)    # app_ids whose action failed
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors

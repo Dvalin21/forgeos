@@ -35,6 +35,44 @@ def _run(cmd: list[str], *, cwd: str | None = None) -> subprocess.CompletedProce
     return subprocess.run(cmd, cwd=cwd, check=False, capture_output=True, text=True)
 
 
+def _any_running(ps_stdout: str):
+    """Parse `docker compose ps --format json` -> is any service running?
+
+    Returns True/False, or None when the output is non-empty but unparseable
+    (caller must treat None as "state unknown" and NOT guess). Empty output is
+    a real answer: nothing is up. Handles both NDJSON (one object per line) and
+    a JSON array — compose versions differ on which they emit.
+    """
+    import json
+
+    text = ps_stdout.strip()
+    if not text:
+        return False
+    if text[0] == "[":
+        try:
+            rows = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+    else:
+        rows = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                return None
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if "running" in str(row.get("State", "")).lower():
+            return True
+        if str(row.get("Status", "")).lower().startswith("up"):
+            return True
+    return False
+
+
 @dataclass
 class AppStore:
     """Orchestrates catalog + install/uninstall. Injectable deps for tests."""
@@ -103,6 +141,99 @@ class AppStore:
         cfg = ai.apply_uninstall_to_config(app_id, cfg)
         self.save_cfg(cfg)
         self.render_nginx(cfg)
+
+    # ---- converge (reconcile actual Docker -> config DB) ----
+
+    def converge(self, cfg=None, *, apps_root: str | None = None) -> ai.ConvergeResult:
+        """Reconcile actual Docker state to the config DB's app list.
+
+        For each app in cfg.apps:
+          enabled  -> its compose project must be UP
+          disabled -> its compose project must be STOPPED (kept, not removed)
+
+        Idempotent: probes actual state and issues `up`/`stop` ONLY on a delta,
+        so boot, post-restore, and a second back-to-back run all heal rather
+        than double-act (`compose up -d` / `stop` are themselves no-ops when
+        already in the target state, and we don't even call them unless the
+        state differs).
+
+        Scoped by construction to app-store projects: every command is
+        `docker compose -p <id> -f <apps_root>/<id>/docker-compose.yml ...`.
+        converge NEVER issues a bare `docker rm/stop`, so a container started
+        via /api/docker/run (the advanced path, not recorded in cfg.apps) is
+        untouchable here. It also never saves config or renders nginx — it only
+        moves Docker run-state.
+
+        ponytail: forward-only — does NOT sweep ORPHANS (a compose project that
+        is up but absent from cfg.apps). Safe orphan removal needs global
+        project enumeration gated on a forgeos-managed label; deferred to the
+        boot/restore wiring commit. Normal uninstall already downs its project,
+        so orphans don't accumulate through the supported path.
+        """
+        if cfg is None:
+            cfg = self.load_cfg()
+        root = apps_root if apps_root is not None else ai.APPS_ROOT
+
+        result = ai.ConvergeResult()
+        for app in cfg.apps:
+            st = self._converge_one(app, root)
+            result.states.append(st)
+            if st.action == "error":
+                result.errors.append(app.id)
+            elif st.action in ("up", "stop"):
+                result.changed.append(app.id)
+        return result
+
+    def _converge_one(self, app, root: str) -> ai.AppState:
+        desired = "up" if app.enabled else "stopped"
+        compose_path = f"{root}/{app.id}/docker-compose.yml"
+
+        if not Path(compose_path).exists():
+            action = ai.decide_app_action(
+                enabled=app.enabled, running=False, compose_exists=False
+            )
+            detail = "" if action == "noop" else f"no compose file at {compose_path}"
+            return ai.AppState(app.id, desired, "absent", action, detail)
+
+        running = self._probe_running(app.id, compose_path)
+        if running is None:
+            return ai.AppState(
+                app.id, desired, "unknown", "error",
+                f"could not determine state of {app.id!r} (docker unreachable "
+                f"or unparseable compose ps output)",
+            )
+
+        actual = "up" if running else "stopped"
+        action = ai.decide_app_action(
+            enabled=app.enabled, running=running, compose_exists=True
+        )
+        if action in ("up", "stop"):
+            err = self._compose_action(action, app.id, compose_path)
+            if err:
+                return ai.AppState(app.id, desired, actual, "error", err)
+        return ai.AppState(app.id, desired, actual, action)
+
+    def _probe_running(self, app_id: str, compose_path: str):
+        """Actual run-state of one app's project. Returns True/False, or None
+        when state could not be determined (caller must not guess)."""
+        r = self.run(
+            ["docker", "compose", "-p", app_id, "-f", compose_path,
+             "ps", "--format", "json"]
+        )
+        if r.returncode != 0:
+            return None
+        return _any_running(r.stdout)
+
+    def _compose_action(self, action: str, app_id: str, compose_path: str) -> str:
+        """Apply `up -d` or `stop` to one app's project. '' on success, else
+        the error text (fail loud — never swallow a compose failure)."""
+        tail = ["up", "-d"] if action == "up" else ["stop"]
+        r = self.run(
+            ["docker", "compose", "-p", app_id, "-f", compose_path] + tail
+        )
+        if r.returncode != 0:
+            return f"compose {action} failed: {r.stderr.strip()[:200]}"
+        return ""
 
     # ---- side effects (each guarded/injectable) ----
 
