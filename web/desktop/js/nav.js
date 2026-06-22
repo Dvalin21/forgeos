@@ -90,6 +90,8 @@
         '<div><h1>ForgeNAS</h1><p>Control Center</p></div>' +
       '</div>';
 
+    // scrollable middle: brand stays pinned on top, footer pinned at bottom
+    html += '<div class="nav-scroll">';
     GROUPS.forEach(function (g) {
       if (g.title) html += '<div class="nav-title">' + g.title + "</div>";
       html += '<nav class="nav">';
@@ -107,6 +109,7 @@
       });
       html += "</nav>";
     });
+    html += "</div>"; // close .nav-scroll
 
     html += '' +
       '<div class="sidebar-footer">' +
@@ -135,7 +138,17 @@
       ".nav .nav-soon .soon-pill{font-size:9.5px;font-weight:800;letter-spacing:.08em;" +
         "text-transform:uppercase;padding:3px 7px;border-radius:999px;" +
         "background:var(--primary-soft,rgba(41,98,255,.12));color:var(--primary,#2962ff);" +
-        "opacity:.9;}";
+        "opacity:.9;}" +
+      // Sidebar as a flex column so the footer can never overlap the nav,
+      // whatever the nav's height or the viewport's: brand pinned on top,
+      // the nav scrolls in the middle, footer pinned at the bottom. Replaces
+      // the old `position:absolute; bottom:22px` footer that collided once the
+      // shared nav grew past the dashboard's short menu.
+      ".sidebar{display:flex;flex-direction:column;height:100vh;overflow:hidden;}" +
+      ".sidebar .brand{flex:0 0 auto;}" +
+      ".sidebar .nav-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;}" +
+      ".sidebar .sidebar-footer{position:static;left:auto;right:auto;bottom:auto;" +
+        "flex:0 0 auto;margin-top:14px;}";
     document.head.appendChild(s);
   }
 
