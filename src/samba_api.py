@@ -80,6 +80,14 @@ async def create_share(body: dict, user=Depends(verify_token)):
             writable=bool(body.get("writable", True)),
             valid_users=body.get("valid_users") or ["@users"],
             comment=body.get("comment", ""),
+            browseable=bool(body.get("browseable", False)),
+            guest_ok=bool(body.get("guest_ok", False)),
+            hide_dot_files=bool(body.get("hide_dot_files", True)),
+            recycle_bin=bool(body.get("recycle_bin", False)),
+            force_user=body.get("force_user", ""),
+            force_group=body.get("force_group", ""),
+            permissions=body.get("permissions", "group"),
+            write_list=body.get("write_list") or [],
         )
     except (KeyError, ValueError) as e:
         raise HTTPException(400, detail=f"invalid share: {e}")

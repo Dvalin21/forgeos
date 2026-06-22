@@ -174,3 +174,75 @@ def test_apply_is_idempotent(tmp_path, monkeypatch):
     gen.apply(cfg, do_reload=False)
     second = smb.read_text(), shares.read_text()
     assert first == second
+
+
+# ── S1: advanced per-share options ───────────────────────────────────────────
+
+def _render_share(**kw):
+    """Render one share and return its forgeos-shares.conf text."""
+    cfg = fc.ForgeOSConfig()
+    cfg.samba.shares.append(fc.SambaShare(**kw))
+    files = {f.path: f.content for f in SambaGenerator().render(cfg)}
+    return files[SHARES_FILE]
+
+
+def test_share_advanced_defaults():
+    s = fc.SambaShare(name="x", path="/srv/nas/x")
+    assert s.browseable is False          # NEVER default visible
+    assert s.guest_ok is False
+    assert s.hide_dot_files is True
+    assert s.recycle_bin is False
+    assert s.permissions == "group"
+    assert s.force_user == "" and s.force_group == ""
+    assert s.write_list == []
+
+
+def test_default_share_is_not_browseable():
+    conf = _render_share(name="media", path="/srv/nas/media")
+    assert "browseable = no" in conf
+    assert "browseable = yes" not in conf
+
+
+def test_browseable_opt_in_emits_yes():
+    conf = _render_share(name="media", path="/srv/nas/media", browseable=True)
+    assert "browseable = yes" in conf
+
+
+def test_guest_and_permissions_directives():
+    conf = _render_share(name="pub", path="/srv/nas/pub", guest_ok=True,
+                         permissions="public")
+    assert "guest ok = yes" in conf
+    assert "create mask = 0664" in conf
+    assert "directory mask = 0775" in conf
+
+
+def test_private_permissions_preset():
+    conf = _render_share(name="priv", path="/srv/nas/priv", permissions="private")
+    assert "create mask = 0600" in conf
+    assert "directory mask = 0700" in conf
+
+
+def test_recycle_force_and_writelist():
+    conf = _render_share(name="data", path="/srv/nas/data", recycle_bin=True,
+                         force_user="keith", force_group="staff",
+                         writable=False, write_list=["keith"])
+    assert "vfs objects = recycle" in conf
+    assert "recycle:repository = .recycle/%U" in conf
+    assert "force user = keith" in conf
+    assert "force group = staff" in conf
+    assert "read only = yes" in conf
+    assert "write list = keith" in conf
+
+
+def test_recycle_plus_timemachine_single_vfs_line():
+    # both features must share ONE `vfs objects` line or testparm rejects it
+    conf = _render_share(name="tm", path="/srv/nas/tm", type="timemachine",
+                         recycle_bin=True)
+    assert "vfs objects = recycle catia fruit streams_xattr" in conf
+    assert conf.count("vfs objects =") == 1
+    assert "fruit:time machine = yes" in conf
+
+
+def test_force_principal_rejects_bad_chars():
+    with pytest.raises(ValueError):
+        fc.SambaShare(name="x", path="/srv/nas/x", force_user="bad user")

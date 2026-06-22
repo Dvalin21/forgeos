@@ -1,28 +1,61 @@
-# ForgeOS Samba shares — GENERATED, do not edit by hand.
-# Source of truth: /etc/forgeos/config.json  (regenerate: forgeos-generate samba)
+# ForgeOS Samba shares — GENERATED from /etc/forgeos/config.json. Do not edit
+# by hand. For custom directives that survive regeneration, use the raw editor
+# (writes a separate include the generator never overwrites).
 {% for s in shares %}
 [{{ s.name }}]
    comment = {{ s.comment or s.name }}
    path = {{ s.path }}
-   browseable = yes
+   browseable = {{ "yes" if s.browseable else "no" }}
+   hide dot files = {{ "yes" if s.hide_dot_files else "no" }}
 {% if s.type == "public-ro" %}
    guest ok = yes
    read only = yes
 {% else %}
-   guest ok = no
+   guest ok = {{ "yes" if s.guest_ok else "no" }}
    read only = {{ "no" if s.writable else "yes" }}
+{% if s.valid_users %}
    valid users = {{ s.valid_users | join(" ") }}
+{% endif %}
+{% if s.write_list %}
+   write list = {{ s.write_list | join(" ") }}
+{% endif %}
+{% endif %}
+{% if s.force_user %}
+   force user = {{ s.force_user }}
+{% endif %}
+{% if s.force_group %}
+   force group = {{ s.force_group }}
+{% endif %}
+{% if s.recycle_bin and s.type == "timemachine" %}
+   vfs objects = recycle catia fruit streams_xattr
+{% elif s.recycle_bin %}
+   vfs objects = recycle
+{% elif s.type == "timemachine" %}
+   vfs objects = catia fruit streams_xattr
+{% endif %}
+{% if s.recycle_bin %}
+   recycle:repository = .recycle/%U
+   recycle:keeptree = yes
+   recycle:versions = yes
+   recycle:exclude = *.tmp *.temp ~$*
+{% endif %}
+{% if s.type == "timemachine" %}
+   fruit:time machine = yes
+   fruit:metadata = stream
 {% endif %}
 {% if s.type == "database" %}
    oplocks = no
    level2 oplocks = no
    kernel oplocks = no
 {% endif %}
-{% if s.type == "timemachine" %}
-   vfs objects = catia fruit streams_xattr
-   fruit:time machine = yes
-   fruit:metadata = stream
-{% endif %}
+{% if s.permissions == "private" %}
+   create mask = 0600
+   directory mask = 0700
+{% elif s.permissions == "public" %}
+   create mask = 0664
+   directory mask = 0775
+{% else %}
    create mask = 0660
    directory mask = 0770
+{% endif %}
 {% endfor %}

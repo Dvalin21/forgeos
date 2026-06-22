@@ -25,6 +25,7 @@ CONFIG_PATH = Path(os.environ.get("FORGEOS_CONFIG_JSON", "/etc/forgeos/config.js
 # ---------------- Samba ----------------
 
 ShareType = Literal["standard", "timemachine", "public-ro", "database"]
+SharePerms = Literal["private", "group", "public"]
 
 
 class SambaShare(BaseModel):
@@ -34,6 +35,24 @@ class SambaShare(BaseModel):
     writable: bool = True
     valid_users: list[str] = Field(default_factory=lambda: ["@users"])
     comment: str = ""
+    # --- advanced options (each surfaced as a plain checkbox/dropdown in the
+    #     UI; complexity hidden, nothing behind an "advanced" toggle) ---------
+    browseable: bool = False          # NEVER auto-visible — user must opt in
+    guest_ok: bool = False            # allow access with no login
+    hide_dot_files: bool = True       # hide dotfiles (Samba's own default)
+    recycle_bin: bool = False         # deletes recoverable from a .recycle dir
+    force_user: str = ""              # all files owned by this user ("" = off)
+    force_group: str = ""             # all files owned by this group ("" = off)
+    permissions: SharePerms = "group"  # create/dir mask preset
+    write_list: list[str] = Field(default_factory=list)  # rw users on a ro share
+
+    @field_validator("force_user", "force_group")
+    @classmethod
+    def _valid_principal(cls, v: str) -> str:
+        v = v.strip()
+        if v and any(c in v for c in ' \t\n\r"\\[]/'):
+            raise ValueError(f"invalid user/group name: {v!r}")
+        return v
 
     @field_validator("name")
     @classmethod
