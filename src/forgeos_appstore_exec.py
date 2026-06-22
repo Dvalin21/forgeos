@@ -120,11 +120,26 @@ class AppStore:
         if write_files:
             compose_text = ai.render_compose(manifest, plan)
             self._write_compose(plan.compose_path, compose_text)
-            self._compose_up(plan)
 
-        # record in config DB + add nginx vhost (pure), persist, render nginx
+        # record in config DB + add nginx vhost (pure), persist
         cfg = ai.apply_install_to_config(plan, cfg)
         self.save_cfg(cfg)
+
+        # Bring it up by converging actual Docker to the now-current config: the
+        # delta is this one app, so converge starts exactly it — and it's the
+        # SAME bring-up path as boot/restore (one mechanism, not three),
+        # idempotent. cfg is desired state, so on failure we leave the record
+        # and raise; a re-converge retries rather than silently un-installing.
+        if write_files:
+            result = self.converge(cfg)
+            if plan.app_id in result.errors:
+                detail = next((s.detail for s in result.states
+                               if s.app_id == plan.app_id), "")
+                raise AppStoreError(
+                    f"install of {plan.app_id!r} recorded but failed to start: "
+                    f"{detail} (re-run converge to retry)"
+                )
+
         self.render_nginx(cfg)
         return plan
 
@@ -134,7 +149,7 @@ class AppStore:
 
         if write_files:
             compose_path = f"{ai.APPS_ROOT}/{app_id}/docker-compose.yml"
-            self._compose_down(compose_path)
+            self._compose_down(app_id, compose_path)
             if remove_data:
                 self._remove_data_dir(f"{ai.APPS_ROOT}/{app_id}")
 
@@ -242,14 +257,12 @@ class AppStore:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text)
 
-    def _compose_up(self, plan: ai.InstallPlan) -> None:
-        r = self.run(["docker", "compose", "-f", plan.compose_path, "up", "-d"])
-        if r.returncode != 0:
-            raise AppStoreError(f"docker compose up failed: {r.stderr.strip()}")
-
-    def _compose_down(self, compose_path: str) -> None:
+    def _compose_down(self, app_id: str, compose_path: str) -> None:
+        # -p <id> so we down the SAME project install/converge bring up. Compose
+        # otherwise derives the project name from the dir (same value today) —
+        # make the identity explicit, not coincidental.
         if Path(compose_path).exists():
-            self.run(["docker", "compose", "-f", compose_path, "down"])
+            self.run(["docker", "compose", "-p", app_id, "-f", compose_path, "down"])
 
     def _remove_data_dir(self, data_dir: str) -> None:
         import shutil

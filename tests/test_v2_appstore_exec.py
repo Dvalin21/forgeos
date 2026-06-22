@@ -186,3 +186,67 @@ def test_install_compose_up_failure_raises(tmp_path):
     store.render_nginx = lambda c: None
     with pytest.raises(ex.AppStoreError, match="compose up failed"):
         store.install("grafana")
+
+
+# ── 2a: install/uninstall route Docker through converge, explicit project id ──
+
+
+def test_install_brings_up_via_converge_with_project_id(tmp_path):
+    """Install no longer does a bare `compose up`; it converges, which issues
+    `docker compose -p <id> ... up -d` (explicit project identity)."""
+    holder = {"cfg": fc.ForgeOSConfig(domain="nas.local")}
+    cmds = []
+    store = _store(tmp_path, holder, cmds)  # fake run: rc=0, stdout="" (ps -> down)
+
+    store.install("grafana")
+
+    up = [c for c in cmds if "up" in c]
+    assert up, "no up command issued"
+    assert up[0][:4] == ["docker", "compose", "-p", "grafana"]
+    assert up[0][-2:] == ["up", "-d"]
+
+
+def test_install_bringup_failure_leaves_record_and_raises(tmp_path):
+    """Option B semantics: cfg is desired state. If bring-up fails, the app
+    stays recorded (retryable via re-converge) and the error is surfaced —
+    NOT silently un-installed."""
+    holder = {"cfg": fc.ForgeOSConfig(domain="nas.local")}
+    cmds = []
+    store = _store(tmp_path, holder, cmds)
+
+    class R:
+        def __init__(self, rc, out="", err=""):
+            self.returncode, self.stdout, self.stderr = rc, out, err
+
+    def run(cmd, cwd=None):
+        cmds.append(cmd)
+        return R(1, err="boom") if "up" in cmd else R(0)  # ps ok->down, up fails
+
+    store.run = run
+    with pytest.raises(ex.AppStoreError, match="failed to start"):
+        store.install("grafana")
+
+    assert any(a.id == "grafana" for a in holder["cfg"].apps), \
+        "failed bring-up must leave the record for retry"
+
+
+def test_uninstall_down_uses_project_id(tmp_path):
+    """Uninstall downs the SAME project id (so it matches what was brought up)."""
+    import forgeos_appinstall as _ai
+
+    cfg = fc.ForgeOSConfig(domain="nas.local")
+    cfg.apps.append(fc.InstalledApp(id="grafana", webui_port=20000))
+    holder = {"cfg": cfg}
+    cmds = []
+    store = _store(tmp_path, holder, cmds)
+
+    # the deployed compose must exist for _compose_down to fire
+    comp = Path(_ai.APPS_ROOT) / "grafana" / "docker-compose.yml"
+    comp.parent.mkdir(parents=True, exist_ok=True)
+    comp.write_text("name: grafana\nservices: {}\n")
+
+    store.uninstall("grafana")
+
+    down = [c for c in cmds if "down" in c]
+    assert down, "no down command issued"
+    assert down[0][:4] == ["docker", "compose", "-p", "grafana"]
