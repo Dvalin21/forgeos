@@ -279,3 +279,70 @@ class TestSnapshots:
         )
         assert r.status_code == 200
         assert r.json()["ok"] is True
+
+
+class TestStorageDf:
+    """Capacity/volumes endpoint: ONE row per mountpoint, regardless of how
+    many times the same filesystem is reflected in the service's mount table.
+    """
+
+    DF_TABLE = (
+        "Filesystem 1B-blocks Used Available Use% Mounted on\n"
+        "/dev/sdb 34359738368 5914624 33276559360 1% /srv/nas/tank\n"
+    )
+
+    def test_auth_required(self, test_client):
+        assert test_client.get("/api/storage/df").status_code == 401
+
+    def test_dedupes_namespace_double_mount(self, test_client, auth_headers, monkeypatch):
+        # Regression: ProtectSystem=strict + ReadWritePaths=/srv reflects the
+        # btrfs submount twice in the service namespace, so findmnt returns two
+        # identical lines for ONE filesystem. The endpoint must collapse to one.
+        def mock_check_output(args, **kwargs):
+            if "findmnt" in args:
+                return "/srv/nas/tank /dev/sdb\n/srv/nas/tank /dev/sdb\n"
+            if "df" in args:
+                return self.DF_TABLE
+            return ""
+
+        monkeypatch.setattr("subprocess.check_output", mock_check_output)
+        r = test_client.get("/api/storage/df", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        assert len(data) == 1                      # not 2
+        assert data[0]["mount"] == "/srv/nas/tank"
+        assert data[0]["total"] == 34359738368
+        assert data[0]["used"] == 5914624
+
+    def test_keeps_distinct_mountpoints(self, test_client, auth_headers, monkeypatch):
+        # Dedup must not over-collapse: two real, different mounts stay two rows.
+        def mock_check_output(args, **kwargs):
+            if "findmnt" in args:
+                return "/srv/nas/tank /dev/sdb\n/srv/nas/media /dev/sdc\n"
+            if "df" in args:
+                mp = args[-1]
+                dev = "/dev/sdb" if "tank" in mp else "/dev/sdc"
+                return (
+                    "Filesystem 1B-blocks Used Available Use% Mounted on\n"
+                    f"{dev} 100 10 90 10% {mp}\n"
+                )
+            return ""
+
+        monkeypatch.setattr("subprocess.check_output", mock_check_output)
+        r = test_client.get("/api/storage/df", headers=auth_headers)
+        assert r.status_code == 200
+        assert sorted(x["mount"] for x in r.json()) == ["/srv/nas/media", "/srv/nas/tank"]
+
+    def test_single_mount_unchanged(self, test_client, auth_headers, monkeypatch):
+        # The common case (one findmnt line) still returns exactly one row.
+        def mock_check_output(args, **kwargs):
+            if "findmnt" in args:
+                return "/srv/nas/tank /dev/sdb\n"
+            if "df" in args:
+                return self.DF_TABLE
+            return ""
+
+        monkeypatch.setattr("subprocess.check_output", mock_check_output)
+        r = test_client.get("/api/storage/df", headers=auth_headers)
+        assert r.status_code == 200
+        assert len(r.json()) == 1

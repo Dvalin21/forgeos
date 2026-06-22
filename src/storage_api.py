@@ -220,14 +220,26 @@ async def add_drive(body: dict, user=Depends(verify_token)):
 
 @router.get("/api/storage/df")
 async def storage_df(user=Depends(verify_token)):
-    """Disk usage per btrfs mount"""
+    """Disk usage per btrfs mount — ONE row per mountpoint.
+
+    findmnt reads the calling process's mount table verbatim, and the same
+    filesystem legitimately appears there more than once: bind mounts,
+    subvolume mounts, or — as this service hits — a systemd
+    ProtectSystem=strict + ReadWritePaths=/srv namespace that reflects the
+    /srv/nas/<pool> submount a second time when it binds /srv back read-write.
+    So one findmnt line != one filesystem; dedup by mountpoint.
+    """
     results = []
+    seen: set[str] = set()
     mounts = _run_args(["findmnt", "-t", "btrfs", "-o", "TARGET,SOURCE", "-n"]).splitlines()
     for line in mounts:
         parts = line.split()
         if len(parts) < 2:
             continue
         mp, src = parts[0], parts[1]
+        if mp in seen:          # same fs reflected by a bind/subvol/namespace mount
+            continue
+        seen.add(mp)
         out = _run_args(["df", "-B1", mp])
         rows = out.splitlines()
         if len(rows) >= 2:
