@@ -193,3 +193,57 @@ class TestRawCustomConfig:
         r = test_client.put("/api/samba/config", json={"config": "garbage"}, headers=auth_headers)
         assert r.status_code == 400
         assert not f.exists()                                        # never persisted
+
+
+class TestUpdateShare:
+    """S1c: PUT updates a share in place (and supports rename)."""
+
+    def _seed(self, samba_cfg, **kw):
+        import forgeos_config as fc
+        cfg = fc.load(samba_cfg["file"])
+        cfg.samba.shares.append(fc.SambaShare(name=kw.pop("name", "media"),
+                                              path=kw.pop("path", "/srv/nas/media"), **kw))
+        fc.save(cfg, samba_cfg["file"])
+
+    def test_auth_required(self, test_client):
+        assert test_client.put("/api/samba/share/x", json={"path": "/srv/nas/x"}).status_code == 401
+
+    def test_forbids_non_admin(self, test_client):
+        from forgeos_auth import create_token
+        h = {"Authorization": f"Bearer {create_token('reg', 'user')}"}
+        r = test_client.put("/api/samba/share/x", json={"path": "/srv/nas/x"}, headers=h)
+        assert r.status_code == 403
+
+    def test_missing_404(self, test_client, auth_headers, samba_cfg):
+        r = test_client.put("/api/samba/share/ghost", json={"path": "/srv/nas/g"}, headers=auth_headers)
+        assert r.status_code == 404
+
+    def test_updates_in_place(self, test_client, auth_headers, samba_cfg):
+        import forgeos_config as fc
+        self._seed(samba_cfg, name="media", path="/srv/nas/media", writable=True, browseable=False)
+        body = {"name": "media", "path": "/srv/nas/media", "writable": False,
+                "browseable": True, "recycle_bin": True, "comment": "updated",
+                "permissions": "private"}
+        r = test_client.put("/api/samba/share/media", json=body, headers=auth_headers)
+        assert r.status_code == 200, r.text
+        s = [x for x in fc.load(samba_cfg["file"]).samba.shares if x.name == "media"][0]
+        assert s.writable is False and s.browseable is True
+        assert s.recycle_bin is True and s.permissions == "private"
+        assert s.comment == "updated"
+        assert len(samba_cfg["applied"]) == 1
+
+    def test_rename(self, test_client, auth_headers, samba_cfg):
+        import forgeos_config as fc
+        self._seed(samba_cfg, name="old", path="/srv/nas/old")
+        r = test_client.put("/api/samba/share/old",
+                            json={"name": "new", "path": "/srv/nas/old"}, headers=auth_headers)
+        assert r.status_code == 200
+        names = [s.name for s in fc.load(samba_cfg["file"]).samba.shares]
+        assert "new" in names and "old" not in names
+
+    def test_rename_collision_409(self, test_client, auth_headers, samba_cfg):
+        self._seed(samba_cfg, name="a", path="/srv/nas/a")
+        self._seed(samba_cfg, name="b", path="/srv/nas/b")
+        r = test_client.put("/api/samba/share/a",
+                            json={"name": "b", "path": "/srv/nas/a"}, headers=auth_headers)
+        assert r.status_code == 409

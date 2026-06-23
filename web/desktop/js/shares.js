@@ -1,8 +1,8 @@
 /* ForgeOS — Shares (SMB) page.
  *
  * Mirrors firewall.js: same $ / api / esc / toast helpers and the same
- * modal-back "wizard" pattern. Talks to /api/samba/* (shares CRUD +
- * smbstatus). Every advanced per-share option is a plain control here — no
+ * modal-back "wizard" pattern. Talks to /api/samba/* (shares CRUD + smbstatus +
+ * raw custom config). Every advanced per-share option is a plain control — no
  * "advanced" toggle — and `browseable` is OFF by default (opt-in).
  */
 (function () {
@@ -31,20 +31,23 @@
   function typeLabel(t) { var x = TYPES.filter(function (y) { return y.id === t; })[0]; return x ? x.label : t; }
 
   var FOLDER_SVG = '<svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/><path d="M3.8 8.5V5.7c0-1.1.9-2 2-2h4.1l1.7 1.8h5.2c1.1 0 2 .9 2 2v1"/></svg>';
-  var REFRESH_SVG = '<svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg>';
+  var EDIT_SVG = '<svg class="ico" viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M13.5 6.5l3 3"/></svg>';
+  var DEL_SVG = '<svg class="ico" viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>';
+
+  var _shares = [];   // last-loaded shares, for the edit lookup
 
   // ── share list ──
   async function loadShares() {
     var d = (await api('/api/samba/shares')).data;
     var box = $('#shares');
     if (!d) { box.innerHTML = '<p style="color:var(--muted)">Could not read shares.</p>'; $('#share-chip').textContent = '—'; return; }
-    var shares = d.shares || [];
-    $('#share-chip').textContent = shares.length + ' share' + (shares.length !== 1 ? 's' : '');
-    if (!shares.length) {
+    _shares = d.shares || [];
+    $('#share-chip').textContent = _shares.length + ' share' + (_shares.length !== 1 ? 's' : '');
+    if (!_shares.length) {
       box.innerHTML = '<p style="color:var(--muted)">No shares yet. Tap <b>New Share</b> to share a folder over the network.</p>';
       return;
     }
-    box.innerHTML = shares.map(function (s) {
+    box.innerHTML = _shares.map(function (s) {
       var rw = s.type === 'public-ro' ? false : !!s.writable;
       var vis = !!s.browseable;
       var tags = '<span class="tag type">' + esc(typeLabel(s.type)) + '</span>' +
@@ -56,9 +59,16 @@
         '<div class="share-ico">' + FOLDER_SVG + '</div>' +
         '<div><div class="share-name">' + esc(s.name) + '</div><div class="share-path">' + esc(s.path) + '</div></div>' +
         '<div class="share-tags">' + tags + '</div>' +
-        '<button class="share-del" data-del="' + esc(s.name) + '" title="Stop sharing"><svg class="ico" viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg></button>' +
+        '<button class="share-edit" data-edit="' + esc(s.name) + '" title="Edit share">' + EDIT_SVG + '</button>' +
+        '<button class="share-del" data-del="' + esc(s.name) + '" title="Stop sharing">' + DEL_SVG + '</button>' +
         '</div>';
     }).join('');
+    $$('[data-edit]').forEach(function (b) {
+      b.onclick = function () {
+        var s = _shares.filter(function (x) { return x.name === b.getAttribute('data-edit'); })[0];
+        if (s) shareModal(s);
+      };
+    });
     $$('[data-del]').forEach(function (b) { b.onclick = function () { delShare(b.getAttribute('data-del')); }; });
   }
 
@@ -74,17 +84,18 @@
     if (r.ok) { loadShares(); loadConnections(); }
   }
 
-  // ── New Share modal ──
+  // ── New / Edit share modal ──
   function optRow(k, title, desc) {
     return '<div class="opt-row"><div class="opt-text"><h5>' + title + '</h5><p>' + desc + '</p></div>' +
       '<div class="switch" data-sw="' + k + '"><i></i></div></div>';
   }
 
-  function shareModal() {
+  function shareModal(existing) {
+    var ed = existing || null;
     var st = { type: 'standard', writable: true, browseable: false, guest_ok: false, recycle_bin: false, hide_dot_files: true, permissions: 'group' };
     var back = document.createElement('div'); back.className = 'modal-back';
-    back.innerHTML = '<div class="modal share-modal"><h3>New share</h3>' +
-      '<p class="sub">Share a folder over the network. Pick a type, choose who can reach it, fine-tune below — everything has a safe default.</p>' +
+    back.innerHTML = '<div class="modal share-modal"><h3>' + (ed ? 'Edit share' : 'New share') + '</h3>' +
+      '<p class="sub">' + (ed ? 'Change this share&rsquo;s settings. Saving regenerates and reloads SMB.' : 'Share a folder over the network. Pick a type, choose who can reach it, fine-tune below — everything has a safe default.') + '</p>' +
       '<div class="fld"><label>Folder type</label><div class="svc-grid" id="ty">' +
         TYPES.map(function (t) { return '<div class="svc-opt" data-type="' + t.id + '"><h5>' + esc(t.label) + '</h5><p>' + esc(t.desc) + '</p></div>'; }).join('') +
       '</div></div>' +
@@ -104,7 +115,7 @@
       '<div class="fld"><label>Force owner (optional)</label><div class="wz-from"><input class="wz-input" id="s-fuser" placeholder="force user"><input class="wz-input" id="s-fgroup" placeholder="force group"></div><div class="hint">All files appear owned by this user / group. Leave blank to keep real ownership.</div></div>' +
       '<div class="fld"><label>Comment (optional)</label><input class="wz-input" id="s-comment" placeholder="Family media library"></div>' +
       '<div class="summary" id="s-sum">Fill in a name and path to begin.</div>' +
-      '<div class="row" style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="btn-ghost" data-x>Cancel</button><button class="btn-pri" data-go disabled style="opacity:.5">Create share</button></div>' +
+      '<div class="row" style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="btn-ghost" data-x>Cancel</button><button class="btn-pri" data-go disabled style="opacity:.5">' + (ed ? 'Save changes' : 'Create share') + '</button></div>' +
       '</div>';
     document.body.appendChild(back);
     var go = $('[data-go]', back), sum = $('#s-sum', back);
@@ -132,6 +143,24 @@
     selType('standard'); selPerm('group');
     setSw('browseable', false); setSw('writable', true); setSw('guest_ok', false);
     setSw('recycle_bin', false); setSw('hide_dot_files', true);
+
+    // edit mode: prefill from the existing share (after defaults so these win)
+    if (ed) {
+      $('#s-name', back).value = ed.name || '';
+      $('#s-path', back).value = ed.path || '';
+      $('#s-users', back).value = (ed.valid_users || []).join(' ');
+      $('#s-comment', back).value = ed.comment || '';
+      $('#s-fuser', back).value = ed.force_user || '';
+      $('#s-fgroup', back).value = ed.force_group || '';
+      selType(ed.type || 'standard');
+      selPerm(ed.permissions || 'group');
+      setSw('browseable', !!ed.browseable);
+      setSw('writable', !!ed.writable);
+      setSw('guest_ok', !!ed.guest_ok);
+      setSw('recycle_bin', !!ed.recycle_bin);
+      setSw('hide_dot_files', ed.hide_dot_files !== false);
+      update();
+    }
 
     function update() {
       var name = $('#s-name', back).value.trim(), path = $('#s-path', back).value.trim();
@@ -166,17 +195,47 @@
       };
       if (users) body.valid_users = users.split(/\s+/);
       go.disabled = true; go.style.opacity = .5;
-      var r = await api('/api/samba/share', { method: 'POST', body: JSON.stringify(body) });
-      toast(r.ok ? 'Share created' : (r.data && r.data.detail) || 'Could not create share', r.ok ? 'ok' : 'err');
+      var url = ed ? '/api/samba/share/' + encodeURIComponent(ed.name) : '/api/samba/share';
+      var r = await api(url, { method: ed ? 'PUT' : 'POST', body: JSON.stringify(body) });
+      toast(r.ok ? (ed ? 'Share updated' : 'Share created')
+                 : (r.data && r.data.detail) || ('Could not ' + (ed ? 'update' : 'create') + ' share'),
+            r.ok ? 'ok' : 'err');
       if (r.ok) { close(); loadShares(); loadConnections(); }
       else { go.disabled = false; go.style.opacity = 1; }
     };
   }
 
+  // ── raw custom .conf editor ──
+  async function loadRawConfig() {
+    var ta = $('#raw-conf'); if (!ta) return;
+    var d = (await api('/api/samba/config')).data;
+    ta.value = (d && d.config) || '';
+    $('#raw-err').className = 'raw-err hidden';
+    $('#raw-state').textContent = ta.value.trim() ? 'custom directives' : 'empty';
+  }
+  async function saveRawConfig() {
+    var ta = $('#raw-conf'), err = $('#raw-err'), btn = $('#raw-save');
+    btn.disabled = true;
+    var r = await api('/api/samba/config', { method: 'PUT', body: JSON.stringify({ config: ta.value }) });
+    btn.disabled = false;
+    if (r.ok) {
+      err.className = 'raw-err hidden';
+      $('#raw-state').textContent = ta.value.trim() ? 'custom directives' : 'empty';
+      toast('Configuration saved & applied', 'ok');
+    } else {
+      var detail = r.data && r.data.detail;
+      var msg = (detail && detail.output) || (detail && detail.error) || (typeof detail === 'string' ? detail : 'Save failed');
+      err.textContent = msg; err.className = 'raw-err';
+      toast('Config rejected — see details below', 'err');
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
-    var add = $('#add-share'); if (add) add.onclick = shareModal;
+    var add = $('#add-share'); if (add) add.onclick = function () { shareModal(null); };
     var rf = $('#refresh'); if (rf) rf.onclick = function () { loadShares(); loadConnections(); toast('Refreshed', 'info'); };
     var rc = $('#refresh-conn'); if (rc) rc.onclick = function () { loadConnections(); toast('Connections refreshed', 'info'); };
-    loadShares(); loadConnections();
+    var rr = $('#raw-reload'); if (rr) rr.onclick = function () { loadRawConfig(); toast('Reloaded', 'info'); };
+    var rs = $('#raw-save'); if (rs) rs.onclick = saveRawConfig;
+    loadShares(); loadConnections(); loadRawConfig();
   });
 })();

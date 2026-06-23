@@ -106,6 +106,47 @@ async def create_share(body: dict, user=Depends(verify_token)):
     return {"ok": True, "share": share.model_dump()}
 
 
+@router.put("/api/samba/share/{name}")
+async def update_share(name: str, body: dict, user=Depends(verify_token)):
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    cfg = fc.load()
+    if not any(s.name.lower() == name.lower() for s in cfg.samba.shares):
+        raise HTTPException(404, detail=f"share '{name}' not found")
+    try:
+        updated = fc.SambaShare(
+            name=body.get("name", name),
+            path=body["path"],
+            type=body.get("type", "standard"),
+            writable=bool(body.get("writable", True)),
+            valid_users=body.get("valid_users") or ["@users"],
+            comment=body.get("comment", ""),
+            browseable=bool(body.get("browseable", False)),
+            guest_ok=bool(body.get("guest_ok", False)),
+            hide_dot_files=bool(body.get("hide_dot_files", True)),
+            recycle_bin=bool(body.get("recycle_bin", False)),
+            force_user=body.get("force_user", ""),
+            force_group=body.get("force_group", ""),
+            permissions=body.get("permissions", "group"),
+            write_list=body.get("write_list") or [],
+        )
+    except (KeyError, ValueError) as e:
+        raise HTTPException(400, detail=f"invalid share: {e}")
+    # a rename must not collide with a different existing share
+    if updated.name.lower() != name.lower() and any(
+        s.name.lower() == updated.name.lower() for s in cfg.samba.shares
+    ):
+        raise HTTPException(409, detail=f"share '{updated.name}' already exists")
+    cfg.samba.shares = [
+        updated if s.name.lower() == name.lower() else s for s in cfg.samba.shares
+    ]
+    _apply_samba(cfg)
+    renamed = updated.name.lower() != name.lower()
+    _audit(user["sub"], "samba.share.update", "success",
+           f"Share '{name}' updated" + (f" (renamed to '{updated.name}')" if renamed else ""))
+    return {"ok": True, "share": updated.model_dump()}
+
+
 @router.delete("/api/samba/share/{name}")
 async def remove_share(name: str, user=Depends(verify_token)):
     if user.get("role") != "admin":

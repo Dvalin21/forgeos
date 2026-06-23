@@ -718,7 +718,7 @@
     .policy-seg .seg{flex:1}
 
     /* ── shares page ── */
-    .share-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:15px;background:var(--surface-2);margin-bottom:8px}
+    .share-row{display:grid;grid-template-columns:auto 1fr auto auto auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:15px;background:var(--surface-2);margin-bottom:8px}
     .share-ico{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--surface-3);color:var(--primary);flex:none}
     .share-ico svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
     .share-name{font-weight:800;font-size:14.5px}
@@ -733,6 +733,8 @@
     .tag.gst{background:rgba(216,138,0,.14);color:var(--warn)}
     .share-del{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:#8793a6;transition:.15s;flex:none}
     .share-del:hover{border-color:var(--danger);color:var(--danger)}
+    .share-edit{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:#8793a6;transition:.15s;flex:none}
+    .share-edit:hover{border-color:var(--primary);color:var(--primary)}
     .conn-pre{margin:0;padding:16px;border-radius:14px;background:#0f1726;color:#cdd6e6;font:600 12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:auto;max-height:340px;white-space:pre-wrap;word-break:break-word}
     /* New Share modal */
     .share-modal{width:min(640px,95vw);max-height:90vh;overflow:auto}
@@ -744,6 +746,9 @@
     .fld{margin-bottom:14px}
     .fld>label{display:block;font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
     .fld .hint{margin-top:6px;font-size:11px;color:var(--muted);font-weight:600;line-height:1.45}
+    .raw-conf{width:100%;min-height:240px;resize:vertical;padding:14px 16px;border:1.5px solid var(--line);border-radius:14px;background:#0f1726;color:#cdd6e6;font:600 12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;outline:0;tab-size:4}
+    .raw-conf:focus{border-color:var(--primary)}
+    .raw-err{margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--danger);background:rgba(207,61,70,.08);color:#a02732;font:600 12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
 </style>
 </head>
 
@@ -766,6 +771,19 @@
     <section class="panel pad">
       <div class="section-head"><div><h3>Active connections</h3><p>Clients currently connected to this NAS (live <code>smbstatus</code>).</p></div><button class="circle-btn" id="refresh-conn" title="Refresh connections"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button></div>
       <pre id="connections" class="conn-pre">Loading&hellip;</pre>
+    </section>
+
+    <section class="panel pad">
+      <div class="section-head"><div><h3>Raw configuration</h3><p>Advanced &mdash; extra <code>smb.conf</code> directives kept in a file the system includes but never overwrites. Managed shares above stay generated; this is checked with <code>testparm</code> before it saves.</p></div><span class="chip" id="raw-state">&mdash;</span></div>
+      <textarea id="raw-conf" class="raw-conf" spellcheck="false" placeholder="# Custom smb.conf directives, e.g.
+[scratch]
+   path = /srv/nas/scratch
+   browseable = no"></textarea>
+      <div id="raw-err" class="raw-err hidden"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">
+        <button class="btn-ghost" id="raw-reload">Reload</button>
+        <button class="btn-pri" id="raw-save">Save &amp; apply</button>
+      </div>
     </section>
 
   </main></div>
