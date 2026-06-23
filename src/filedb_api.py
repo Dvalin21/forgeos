@@ -168,7 +168,12 @@ async def filedb_status():
     """Daemon status and lock registry summary."""
     if MOCK_MODE:
         return _MOCK_STATUS
-    return await _proxy_get("/api/status")
+    status = await _proxy_get("/api/status")
+    # Reaching the daemon proves it is up. The daemon's own /api/status payload
+    # omits this flag (only the mock carries it) and the UI keys running/stopped
+    # off it — so the proxy, which is authoritative on reachability, sets it.
+    status["daemon_running"] = True
+    return status
 
 
 @router.get("/clients")
@@ -203,7 +208,9 @@ async def filedb_locks():
             }
         }
         return status
-    return await _proxy_get("/api/status")
+    status = await _proxy_get("/api/status")
+    status["daemon_running"] = True
+    return status
 
 
 @router.get("/snapshots")

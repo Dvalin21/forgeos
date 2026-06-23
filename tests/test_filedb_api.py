@@ -156,3 +156,41 @@ class TestFiledbProductionMode:
         r = test_client.get("/api/filedb/status", headers=auth_headers)
         assert r.status_code == 503
         assert "daemon" in r.json()["detail"].lower()
+
+
+class TestFiledbProductionStatus:
+    """Production path: the real daemon's /api/status omits daemon_running, so
+    the proxy must inject it (reaching the daemon proves it is up). Regression
+    for the 'daemon running but UI shows stopped' bug."""
+
+    @pytest.fixture(autouse=True)
+    def _disable_mock(self, monkeypatch):
+        monkeypatch.setenv("MOCK_FILEDB", "false")
+
+    def _patch_daemon(self, monkeypatch, payload):
+        import filedb_api
+
+        async def fake_proxy(path):
+            return dict(payload)
+
+        monkeypatch.setattr(filedb_api, "_proxy_get", fake_proxy)
+
+    def test_status_injects_daemon_running(self, test_client, auth_headers, monkeypatch):
+        # exact shape the real daemon returns — note: NO daemon_running key
+        self._patch_daemon(monkeypatch, {
+            "connected_clients": 0, "open_databases": 2, "snapshots_today": 0,
+            "total_snapshots": 5, "total_opens": 0, "total_conflicts": 0,
+            "clients": [], "lock_details": {},
+        })
+        r = test_client.get("/api/filedb/status", headers=auth_headers)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["daemon_running"] is True      # injected by the proxy
+        assert data["open_databases"] == 2          # passthrough preserved
+
+    def test_locks_injects_daemon_running(self, test_client, auth_headers, monkeypatch):
+        self._patch_daemon(monkeypatch, {"connected_clients": 1,
+                                         "lock_details": {"files": {}}})
+        r = test_client.get("/api/filedb/locks", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["daemon_running"] is True
