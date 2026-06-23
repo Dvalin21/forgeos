@@ -32,6 +32,7 @@ from typing import Callable, Optional
 from fastapi import APIRouter, Depends, HTTPException
 
 from forgeos_auth import load_users, save_users, pwd_ctx, verify_token
+import forgeos_auth as fa
 
 logger = logging.getLogger("forgeos-api")
 
@@ -74,6 +75,7 @@ def _public_view(username: str, rec: dict) -> dict:
         "username": username,
         "role": rec.get("role", "user"),
         "totp_enabled": bool(rec.get("totp_enabled", False)),
+        "backup_codes_remaining": len(rec.get("backup_codes", [])),
     }
 
 
@@ -179,4 +181,143 @@ async def admin_reset_password(username: str, body: dict, user=Depends(verify_to
     save_users(users)
     assert _audit is not None
     _audit(user["sub"], "users.password.reset", "success", f"Password reset for '{username}'")
+    return {"ok": True}
+
+
+# ── 2FA / TOTP ────────────────────────────────────────────────────────────────
+# Self-service enroll/verify/disable operate on the CALLER's own account
+# (user["sub"]) — never an arbitrary username — so there is no IDOR surface.
+# Admin reset (DELETE /api/users/{username}/totp) is the lost-device recovery
+# path on a single-admin box. Login enforcement (mfa_pending challenge) is U2.
+
+def _totp_secret_fields():
+    return ("totp_secret", "totp_enabled", "totp_pending_secret",
+            "backup_codes", "totp_last_timecode")
+
+
+@router.post("/api/users/me/totp/enroll")
+async def totp_enroll(user=Depends(verify_token)):
+    """Begin 2FA enrollment: generate a PENDING secret (not yet active) and
+    return the otpauth:// URI + secret. Verify-before-enable: nothing is
+    enforced until POST /verify confirms the user's authenticator works."""
+    me = user["sub"]
+    users = load_users()
+    rec = users.get(me)
+    if rec is None:
+        raise HTTPException(404, "User not found")
+    if rec.get("totp_enabled"):
+        raise HTTPException(409, "2FA is already enabled")
+    secret = fa.generate_totp_secret()
+    rec["totp_pending_secret"] = secret
+    users[me] = rec
+    save_users(users)
+    return {"secret": secret, "uri": fa.totp_uri(secret, me), "issuer": fa.TOTP_ISSUER}
+
+
+@router.post("/api/users/me/totp/verify")
+async def totp_verify(body: dict, user=Depends(verify_token)):
+    """Confirm enrollment: verify a code against the pending secret, then
+    activate 2FA and return single-use backup codes (shown ONCE — they are
+    bcrypt-hashed at rest and cannot be retrieved again)."""
+    me = user["sub"]
+    users = load_users()
+    rec = users.get(me)
+    if rec is None:
+        raise HTTPException(404, "User not found")
+    pending = rec.get("totp_pending_secret")
+    if not pending:
+        raise HTTPException(400, "No enrollment in progress — call enroll first")
+    ok, tc = fa.verify_totp(pending, str(body.get("code", "")))
+    if not ok:
+        raise HTTPException(400, "Invalid code")
+    display, hashed = fa.generate_backup_codes()
+    rec["totp_secret"] = pending
+    rec["totp_enabled"] = True
+    rec["totp_last_timecode"] = tc
+    rec["backup_codes"] = hashed
+    rec.pop("totp_pending_secret", None)
+    users[me] = rec
+    save_users(users)
+    assert _audit is not None
+    _audit(me, "users.totp.enable", "success", "2FA enabled")
+    return {"ok": True, "backup_codes": display}
+
+
+@router.post("/api/users/me/totp/disable")
+async def totp_disable(body: dict, user=Depends(verify_token)):
+    """Disable own 2FA. Requires RE-AUTH with a current code OR password —
+    OWASP: changing an MFA factor must re-verify identity, not trust the
+    session (which could be hijacked)."""
+    me = user["sub"]
+    users = load_users()
+    rec = users.get(me)
+    if rec is None:
+        raise HTTPException(404, "User not found")
+    if not rec.get("totp_enabled"):
+        raise HTTPException(400, "2FA is not enabled")
+    reauthed = False
+    code = str(body.get("code", ""))
+    if code:
+        reauthed, _ = fa.verify_totp(
+            rec.get("totp_secret", ""), code, rec.get("totp_last_timecode", 0))
+    if not reauthed:
+        password = str(body.get("password", ""))
+        if password:
+            try:
+                reauthed = pwd_ctx.verify(password, rec.get("hash", ""))
+            except Exception:
+                reauthed = False
+    if not reauthed:
+        raise HTTPException(401, "Re-authentication failed: current code or password required")
+    for k in _totp_secret_fields():
+        rec.pop(k, None)
+    users[me] = rec
+    save_users(users)
+    assert _audit is not None
+    _audit(me, "users.totp.disable", "success", "2FA disabled")
+    return {"ok": True}
+
+
+@router.post("/api/users/me/totp/backup-codes")
+async def totp_regenerate_backup_codes(body: dict, user=Depends(verify_token)):
+    """Regenerate backup codes (invalidates all old ones). Requires a current
+    code as re-auth. Returns the new codes ONCE."""
+    me = user["sub"]
+    users = load_users()
+    rec = users.get(me)
+    if rec is None or not rec.get("totp_enabled"):
+        raise HTTPException(400, "2FA is not enabled")
+    ok, tc = fa.verify_totp(
+        rec.get("totp_secret", ""), str(body.get("code", "")),
+        rec.get("totp_last_timecode", 0))
+    if not ok:
+        raise HTTPException(400, "Invalid code")
+    display, hashed = fa.generate_backup_codes()
+    rec["backup_codes"] = hashed
+    rec["totp_last_timecode"] = tc
+    users[me] = rec
+    save_users(users)
+    assert _audit is not None
+    _audit(me, "users.totp.backup_codes", "success", "Backup codes regenerated")
+    return {"ok": True, "backup_codes": display}
+
+
+@router.delete("/api/users/{username}/totp")
+async def admin_reset_totp(username: str, user=Depends(verify_token)):
+    """Admin recovery: clear a user's 2FA so they can re-enroll (e.g. lost
+    device). Admin-only, audited. Does NOT touch the password."""
+    _require_admin(user)
+    username = _validate_username(username)
+    users = load_users()
+    if username not in users:
+        raise HTTPException(404, f"User '{username}' not found")
+    rec = users[username]
+    had = bool(rec.get("totp_enabled"))
+    for k in _totp_secret_fields():
+        rec.pop(k, None)
+    users[username] = rec
+    save_users(users)
+    assert _audit is not None
+    _audit(user["sub"], "users.totp.admin_reset", "success",
+           f"2FA reset for '{username}' (was {'enabled' if had else 'disabled'})")
     return {"ok": True}

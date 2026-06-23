@@ -45,7 +45,9 @@ class TestListUsers:
         for u in data["users"]:
             assert "hash" not in u
             assert "totp_secret" not in u
-            assert set(u.keys()) == {"username", "role", "totp_enabled"}
+            assert "backup_codes" not in u
+            assert set(u.keys()) == {"username", "role", "totp_enabled",
+                                     "backup_codes_remaining"}
 
 
 class TestCreateUser:

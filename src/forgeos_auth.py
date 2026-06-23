@@ -6,8 +6,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
 import sys
 import tempfile
+import time
 
 logger = logging.getLogger("forgeos-auth")
 from datetime import datetime, timedelta, timezone
@@ -17,6 +19,7 @@ from fastapi import HTTPException, Request, WebSocket
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel, Field
+import pyotp
 
 # ── Config ──
 CONFIG_FILE = Path("/etc/forgeos/forgeos.conf")
@@ -181,3 +184,85 @@ def verify_ws_token(ws: WebSocket) -> dict | None:
         return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except JWTError:
         return None
+
+
+# ── TOTP / 2FA (shared by users_api enroll/verify and auth_api login) ─────────
+#
+# Design follows OWASP MFA guidance + PyPI warehouse/utils/otp.py:
+#   • secret: pyotp.random_base32() (160-bit), stored in the 0600 user store.
+#   • verify: ±1 time-step window (clock skew; VMs drift) AND anti-replay —
+#     a code's time-step must be strictly greater than the last accepted one,
+#     so a code cannot be reused inside its ~90s validity window.
+#   • backup codes: random, single-use, bcrypt-hashed at rest, shown once.
+
+TOTP_ISSUER = "ForgeOS"
+TOTP_PERIOD = 30
+TOTP_WINDOW = 1                       # ± steps tolerated (±30s)
+BACKUP_CODE_COUNT = 10
+# unambiguous alphabet (no 0/O/1/l/I) for backup codes
+_BACKUP_ALPHABET = "23456789abcdefghjkmnpqrstuvwxyz"
+
+
+def generate_totp_secret() -> str:
+    """A fresh base32 TOTP secret (Google Authenticator / Authy compatible)."""
+    return pyotp.random_base32()
+
+
+def totp_uri(secret: str, username: str, issuer: str = TOTP_ISSUER) -> str:
+    """otpauth:// provisioning URI for QR / manual entry. Built fresh each call
+    (PyOTP issue #115: provisioning_uri can misbehave after verify())."""
+    return pyotp.TOTP(secret).provisioning_uri(name=username, issuer_name=issuer)
+
+
+def verify_totp(secret: str, code: str, last_timecode: int = 0,
+                window: int = TOTP_WINDOW) -> tuple[bool, int | None]:
+    """Verify a 6-digit TOTP code with ±window clock-skew tolerance and replay
+    protection.
+
+    Returns (ok, timecode). On success, persist `timecode` as the user's
+    totp_last_timecode; a later code whose step is <= that is rejected as a
+    replay (covers reuse within the ±window validity span).
+    """
+    code = (code or "").strip()
+    if not (code.isdigit() and len(code) == 6) or not secret:
+        return False, None
+    totp = pyotp.TOTP(secret)
+    now = int(time.time())
+    for offset in range(-window, window + 1):
+        tc = now // TOTP_PERIOD + offset
+        if pyotp.utils.strings_equal(code, totp.generate_otp(tc)):
+            if tc <= last_timecode:
+                return False, None        # replay within the window
+            return True, tc
+    return False, None
+
+
+def generate_backup_codes(n: int = BACKUP_CODE_COUNT) -> tuple[list[str], list[str]]:
+    """Return (display_codes, hashed_codes). Display codes are shown to the user
+    ONCE (format ``xxxxx-xxxxx``); hashed codes (bcrypt of the normalized
+    10-char form) are what gets stored. Single-use is enforced on consume."""
+    display, hashed = [], []
+    for _ in range(n):
+        raw = "".join(secrets.choice(_BACKUP_ALPHABET) for _ in range(10))
+        display.append(f"{raw[:5]}-{raw[5:]}")
+        hashed.append(pwd_ctx.hash(raw))
+    return display, hashed
+
+
+def _normalize_backup_code(code: str) -> str:
+    return "".join(ch for ch in (code or "").lower() if ch.isalnum())
+
+
+def consume_backup_code(code: str, hashed: list[str]) -> tuple[bool, list[str]]:
+    """If `code` matches an unused hashed backup code, return (True, remaining)
+    with that code removed (single-use). Otherwise (False, unchanged)."""
+    norm = _normalize_backup_code(code)
+    if len(norm) != 10:
+        return False, hashed
+    for i, h in enumerate(hashed):
+        try:
+            if pwd_ctx.verify(norm, h):
+                return True, hashed[:i] + hashed[i + 1:]
+        except Exception:
+            continue
+    return False, hashed
