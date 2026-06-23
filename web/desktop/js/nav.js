@@ -43,7 +43,7 @@
       { id: "storage",  label: "Storage",       icon: "storage", page: "storage.html" },
       { id: "forgedb",  label: "ForgeFileDB",   icon: "filedb",  page: "forgedb.html" },
       { id: "files",    label: "File Manager",  icon: "files",   page: "files.html" },
-      { id: "shares",   label: "Shares (SMB)",  icon: "shares",  page: null }
+      { id: "shares",   label: "Shares (SMB)",  icon: "shares",  page: "shares.html" }
     ]},
     { title: "Apps & Containers", items: [
       { id: "apps",     label: "Apps & Containers", icon: "apps", page: "apps.html" }
