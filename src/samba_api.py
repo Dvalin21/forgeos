@@ -18,7 +18,9 @@ from fastapi.responses import JSONResponse
 
 from forgeos_auth import verify_token
 import forgeos_config as fc
-from generators import registry
+from pathlib import Path
+from generators import GeneratorError, registry
+from generators.samba import CUSTOM_FILE, SambaGenerator
 
 logger = logging.getLogger("forgeos-api")
 
@@ -122,4 +124,38 @@ async def remove_share(name: str, user=Depends(verify_token)):
 async def samba_connections(user=Depends(verify_token)):
     out = _run_args(["smbstatus"])
     return {"output": out or "No connections"}
+
+
+@router.get("/api/samba/config")
+async def samba_get_custom(user=Depends(verify_token)):
+    """Raw user-managed custom SMB directives (the include the generator never
+    overwrites). Empty string until the user writes something."""
+    p = Path(CUSTOM_FILE)
+    return {"config": p.read_text() if p.exists() else "", "path": str(CUSTOM_FILE)}
+
+
+@router.put("/api/samba/config")
+async def samba_save_custom(body: dict, user=Depends(verify_token)):
+    """testparm the managed config + proposed custom directives, then write the
+    custom include and reload smbd. Invalid config is refused (never persisted)."""
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    text = body.get("config", "")
+    if not isinstance(text, str):
+        raise HTTPException(400, detail="config must be a string")
+    cfg = fc.load()
+    try:
+        SambaGenerator().validate_custom(cfg, text)
+    except GeneratorError as e:
+        raise HTTPException(400, detail={"error": "Config test failed", "output": str(e)})
+    p = Path(CUSTOM_FILE)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text)
+    # Regenerate the managed config too: this guarantees smb.conf carries the
+    # `include = <custom>` line (so the directives actually take effect, even on
+    # a fresh box where no share has been created yet) and reloads smbd.
+    _apply_samba(cfg)
+    _audit(user["sub"], "samba.config.update", "success",
+           f"Raw custom SMB config updated ({len(text)} bytes) & reloaded")
+    return {"ok": True}
 

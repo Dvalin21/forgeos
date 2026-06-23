@@ -30,3 +30,8 @@
    # ForgeOS-managed shares are included from a separate file so the
    # global block and the shares can be regenerated independently.
    include = {{ shares_file }}
+
+   # User-managed raw directives (edited via the Shares page raw editor).
+   # The generator includes this file but NEVER overwrites it — hand-written
+   # directives persist across regeneration. Missing file is ignored by Samba.
+   include = {{ custom_file }}

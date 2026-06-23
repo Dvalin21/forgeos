@@ -148,3 +148,48 @@ class TestCreateShareAdvanced:
                                    "force_user": "bad user"},
                              headers=auth_headers)
         assert r.status_code == 400
+class TestRawCustomConfig:
+    """S1b: raw .conf editing via a custom include the generator never overwrites."""
+
+    def test_get_auth_required(self, test_client):
+        assert test_client.get("/api/samba/config").status_code == 401
+
+    def test_get_empty_when_missing(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import samba_api
+        monkeypatch.setattr(samba_api, "CUSTOM_FILE", str(tmp_path / "nope.conf"))
+        r = test_client.get("/api/samba/config", headers=auth_headers)
+        assert r.status_code == 200 and r.json()["config"] == ""
+
+    def test_get_returns_content(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import samba_api
+        f = tmp_path / "custom.conf"; f.write_text("[scratch]\n   path = /srv/nas/scratch\n")
+        monkeypatch.setattr(samba_api, "CUSTOM_FILE", str(f))
+        assert "[scratch]" in test_client.get("/api/samba/config", headers=auth_headers).json()["config"]
+
+    def test_put_forbids_non_admin(self, test_client):
+        from forgeos_auth import create_token
+        h = {"Authorization": f"Bearer {create_token('reg', 'user')}"}
+        assert test_client.put("/api/samba/config", json={"config": "x"}, headers=h).status_code == 403
+
+    def test_put_writes_and_reloads(self, test_client, auth_headers, tmp_path, monkeypatch, samba_cfg):
+        import samba_api
+        f = tmp_path / "custom.conf"
+        monkeypatch.setattr(samba_api, "CUSTOM_FILE", str(f))
+        monkeypatch.setattr(samba_api, "_audit", lambda *a, **k: None)
+        body = {"config": "[scratch]\n   path = /srv/nas/scratch\n   browseable = no\n"}
+        r = test_client.put("/api/samba/config", json=body, headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert f.read_text() == body["config"]            # written verbatim
+        assert len(samba_cfg["applied"]) == 1             # regenerated smb.conf + reloaded
+
+    def test_put_rejects_invalid_config(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import samba_api
+        from generators import GeneratorError
+        f = tmp_path / "custom.conf"
+        monkeypatch.setattr(samba_api, "CUSTOM_FILE", str(f))
+        monkeypatch.setattr(samba_api, "_audit", lambda *a, **k: None)
+        def boom(self, cfg, text): raise GeneratorError("testparm: bad line 2")
+        monkeypatch.setattr(samba_api.SambaGenerator, "validate_custom", boom)
+        r = test_client.put("/api/samba/config", json={"config": "garbage"}, headers=auth_headers)
+        assert r.status_code == 400
+        assert not f.exists()                                        # never persisted

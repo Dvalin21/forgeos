@@ -246,3 +246,25 @@ def test_recycle_plus_timemachine_single_vfs_line():
 def test_force_principal_rejects_bad_chars():
     with pytest.raises(ValueError):
         fc.SambaShare(name="x", path="/srv/nas/x", force_user="bad user")
+
+
+# ── S1b: raw custom-include editing ──────────────────────────────────────────
+
+def test_global_includes_custom_file():
+    cfg = fc.ForgeOSConfig()
+    g = {f.path: f.content for f in SambaGenerator().render(cfg)}[SMB_CONF]
+    assert "include = /etc/forgeos/samba/forgeos-shares-custom.conf" in g
+    # both includes present, custom AFTER managed
+    assert g.index("forgeos-shares.conf") < g.index("forgeos-shares-custom.conf")
+
+
+def test_validate_custom_noop_without_testparm():
+    # testparm isn't installed here -> validate_custom must pass for any text
+    SambaGenerator().validate_custom(fc.ForgeOSConfig(), "[scratch]\n   path = /x\n")
+
+
+def test_managed_validate_still_ok_with_custom_include():
+    # the new second include must not break normal managed validation
+    cfg = fc.ForgeOSConfig()
+    cfg.samba.shares.append(fc.SambaShare(name="m", path="/srv/nas/m"))
+    SambaGenerator().validate(SambaGenerator().render(cfg))
