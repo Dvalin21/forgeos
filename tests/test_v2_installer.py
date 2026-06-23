@@ -365,3 +365,14 @@ def test_resolution_non_local_is_noop():
     r = inst.phase_resolution()
     assert r.ok
     assert "not mDNS" in r.detail
+
+
+def test_service_config_dirs_in_readwritepaths():
+    # Regression: generators write /etc/samba/smb.conf, /etc/nginx/*, and
+    # /etc/fail2ban/* while the API runs under ProtectSystem=strict — so those
+    # dirs MUST be in ReadWritePaths or the writes are silently denied (this is
+    # exactly the bug where smb.conf never regenerated). '-' prefix = writable
+    # if present, ignored if missing (no 226/NAMESPACE crash on minimal boxes).
+    unit = fi._API_SERVICE_UNIT
+    for d in ("/etc/samba", "/etc/nginx", "/etc/fail2ban"):
+        assert ("-" + d) in unit or (" " + d) in unit, f"{d} missing from ReadWritePaths"
