@@ -101,3 +101,50 @@ class TestDeleteShare:
 
     def test_delete_missing_404(self, test_client, auth_headers, samba_cfg):
         assert test_client.delete("/api/samba/share/nope", headers=auth_headers).status_code == 404
+
+
+class TestCreateShareAdvanced:
+    """The Shares page POSTs every advanced option — verify they persist through
+    the create endpoint into the config-DB rather than being silently dropped."""
+
+    def test_advanced_fields_persist(self, test_client, auth_headers, samba_cfg):
+        import forgeos_config as fc
+        body = {
+            "name": "vault", "path": "/srv/nas/vault", "type": "standard",
+            "writable": False, "valid_users": ["keith", "lorri"],
+            "comment": "Family vault",
+            "browseable": True, "guest_ok": True, "hide_dot_files": False,
+            "recycle_bin": True, "force_user": "keith", "force_group": "family",
+            "permissions": "private", "write_list": ["keith"],
+        }
+        r = test_client.post("/api/samba/share", json=body, headers=auth_headers)
+        assert r.status_code == 200, r.text
+        cfg = fc.load(samba_cfg["file"])
+        s = [x for x in cfg.samba.shares if x.name == "vault"][0]
+        assert s.browseable is True
+        assert s.guest_ok is True
+        assert s.hide_dot_files is False
+        assert s.recycle_bin is True
+        assert s.force_user == "keith" and s.force_group == "family"
+        assert s.permissions == "private"
+        assert s.write_list == ["keith"]
+        assert s.writable is False
+        assert s.valid_users == ["keith", "lorri"]
+
+    def test_browseable_defaults_off_when_omitted(self, test_client, auth_headers, samba_cfg):
+        import forgeos_config as fc
+        r = test_client.post("/api/samba/share",
+                             json={"name": "hid", "path": "/srv/nas/hid"},
+                             headers=auth_headers)
+        assert r.status_code == 200
+        cfg = fc.load(samba_cfg["file"])
+        s = [x for x in cfg.samba.shares if x.name == "hid"][0]
+        assert s.browseable is False          # never auto-visible
+        assert s.permissions == "group"       # safe default preserved
+
+    def test_bad_force_user_rejected(self, test_client, auth_headers, samba_cfg):
+        r = test_client.post("/api/samba/share",
+                             json={"name": "x", "path": "/srv/nas/x",
+                                   "force_user": "bad user"},
+                             headers=auth_headers)
+        assert r.status_code == 400
