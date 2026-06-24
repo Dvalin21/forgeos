@@ -21,16 +21,20 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from forgeos_auth import (
     JWT_EXPIRE,
     LoginRequest,
+    create_mfa_token,
     create_token,
+    decode_mfa_token,
     load_users,
     pwd_ctx,
     save_users,
     verify_token,
 )
+import forgeos_auth as fa
 
 logger = logging.getLogger("forgeos-api")
 
@@ -71,6 +75,15 @@ async def login(body: LoginRequest, request: Request):
     if not user or not pwd_ctx.verify(body.password, user["hash"]):
         logger.warning("FAILED LOGIN user=%s from=%s", body.username, request.client.host)
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    # Step-2 gate: with 2FA enabled, the password alone earns only a short-lived
+    # mfa_pending token — never a session token. The caller must complete
+    # POST /api/auth/login/totp to get the real cookie.
+    if user.get("totp_enabled"):
+        if _audit is not None:
+            _audit(body.username, "auth.login.mfa_challenge", "pending",
+                   "Password accepted; awaiting 2FA code")
+        return JSONResponse({"mfa_required": True,
+                             "mfa_token": create_mfa_token(body.username)})
     token = create_token(body.username, user["role"])
     resp = JSONResponse({"token": token, "username": body.username, "role": user["role"]})
     secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
@@ -82,6 +95,59 @@ async def login(body: LoginRequest, request: Request):
         samesite="strict",
         max_age=JWT_EXPIRE * 3600,
     )
+    return resp
+
+
+class TotpLoginRequest(BaseModel):
+    mfa_token: str = Field(..., min_length=1)
+    code: str = Field(..., min_length=1, max_length=32)
+
+
+@router.post("/api/auth/login/totp")
+async def login_totp(body: TotpLoginRequest, request: Request):
+    """Step 2 of 2FA login: exchange a valid mfa_pending token + a TOTP code
+    (or a single-use backup code) for a real session token + cookie."""
+    if _check_login_rate_limit is None:
+        raise HTTPException(status_code=500, detail="Auth helpers not initialized")
+    _check_login_rate_limit(request.client.host)
+    username = decode_mfa_token(body.mfa_token)
+    if not username:
+        raise HTTPException(status_code=401, detail="Invalid or expired 2FA session")
+    users = load_users()
+    user = users.get(username)
+    if not user or not user.get("totp_enabled"):
+        # 2FA was disabled/removed between step 1 and step 2.
+        raise HTTPException(status_code=401, detail="Invalid or expired 2FA session")
+
+    code = (body.code or "").strip()
+    accepted = False
+    # 1) TOTP code, enforcing the anti-replay watermark.
+    ok, tc = fa.verify_totp(user.get("totp_secret", ""), code,
+                            user.get("totp_last_timecode", 0))
+    if ok:
+        user["totp_last_timecode"] = tc
+        accepted = True
+    else:
+        # 2) single-use backup code (a 6-digit TOTP can't collide — lengths differ).
+        used, remaining = fa.consume_backup_code(code, user.get("backup_codes", []))
+        if used:
+            user["backup_codes"] = remaining
+            accepted = True
+    if not accepted:
+        logger.warning("FAILED 2FA user=%s from=%s", username, request.client.host)
+        raise HTTPException(status_code=401, detail="Invalid code")
+
+    users[username] = user
+    save_users(users)
+    token = create_token(username, user["role"])
+    resp = JSONResponse({"token": token, "username": username, "role": user["role"]})
+    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    resp.set_cookie(
+        "forgeos_token", token, httponly=True, secure=secure,
+        samesite="strict", max_age=JWT_EXPIRE * 3600,
+    )
+    if _audit is not None:
+        _audit(username, "auth.login.totp", "success", "2FA login")
     return resp
 
 

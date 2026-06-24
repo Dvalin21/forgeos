@@ -96,6 +96,13 @@ JWT_SECRET  = _load_jwt_secret()
 JWT_ALGO    = "HS256"
 JWT_EXPIRE  = 12  # hours
 
+# A login that passes the password step but still owes a TOTP code gets a
+# SHORT-LIVED token scoped MFA_PENDING_SCOPE. It is NOT a session token:
+# verify_token / verify_ws_token refuse it everywhere except /login/totp.
+# This is what closes the OWASP "force-browse past step 2" MFA bypass.
+MFA_PENDING_SCOPE   = "mfa_pending"
+JWT_EXPIRE_MFA_MIN  = 5   # minutes
+
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -158,6 +165,37 @@ def create_token(username: str, role: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
 
 
+def create_mfa_token(username: str) -> str:
+    """Short-lived token proving the password step passed, pending TOTP.
+
+    Scoped MFA_PENDING_SCOPE so it is accepted ONLY by /api/auth/login/totp;
+    every other endpoint rejects it (see verify_token). Carries no role, so
+    even if the scope check were bypassed it grants nothing.
+    """
+    payload = {
+        "sub": username,
+        "scope": MFA_PENDING_SCOPE,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_MFA_MIN),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+
+def decode_mfa_token(token: str) -> str | None:
+    """Return the username from a valid mfa_pending token, else None.
+
+    None on: empty, malformed, expired, or wrong scope (e.g. a full session
+    token may not be replayed here as a second factor)."""
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except JWTError:
+        return None
+    if payload.get("scope") != MFA_PENDING_SCOPE:
+        return None
+    return payload.get("sub")
+
+
 def verify_token(request: Request) -> dict:
     """FastAPI dependency — extracts + validates JWT from header or cookie."""
     token = request.headers.get("Authorization", "").removeprefix("Bearer ")
@@ -166,9 +204,13 @@ def verify_token(request: Request) -> dict:
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if payload.get("scope") == MFA_PENDING_SCOPE:
+        # A password-only (pre-2FA) token must never reach a real endpoint.
+        raise HTTPException(status_code=401, detail="Two-factor authentication required")
+    return payload
 
 
 def verify_ws_token(ws: WebSocket) -> dict | None:
@@ -181,9 +223,12 @@ def verify_ws_token(ws: WebSocket) -> dict | None:
     if not token:
         return None
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except JWTError:
         return None
+    if payload.get("scope") == MFA_PENDING_SCOPE:
+        return None
+    return payload
 
 
 # ── TOTP / 2FA (shared by users_api enroll/verify and auth_api login) ─────────
