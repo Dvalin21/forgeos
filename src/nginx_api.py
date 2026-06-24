@@ -38,6 +38,36 @@ def set_helpers(
     _audit = audit
 
 
+# certbot-dns-multi credential store. A 0600 ini the API owns; certbot reads it
+# for DNS-01 challenges. Module-level so tests can isolate it.
+DNS_CREDS_FILE = Path("/etc/letsencrypt/dns-multi.ini")
+_DNS_PROVIDER_RE = re.compile(r"^[a-z0-9_]+$")          # lego provider codes
+_DNS_CRED_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")     # env-var names
+
+
+def _atomic_write_0600(path: Path, content: str) -> None:
+    """Atomically write `content` with 0600 perms (the file holds DNS API
+    tokens). Temp-file + fsync + chmod + os.replace, same as the user store."""
+    import os
+    import tempfile
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".dns-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(content)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 @router.get("/api/nginx/vhosts")
 async def nginx_vhosts(user=Depends(verify_token)):
     """List all vhosts from forgeos.d/*.conf"""
@@ -171,3 +201,99 @@ async def request_cert(body: dict, user=Depends(verify_token)):
     _audit(user["sub"], "nginx.certbot", "success", f"Cert requested for {domain}")
     return {"ok": True, "output": result}
 
+
+
+# ── DNS-01 (certbot-dns-multi) ────────────────────────────────────────────────
+# DNS-01 issues certs (incl. wildcards, and without exposing port 80) by proving
+# control via a DNS TXT record. certbot-dns-multi bridges certbot to lego's 117+
+# providers via a single 0600 credentials file. Certs land in the standard
+# /etc/letsencrypt/live/<domain>/ path, so the nginx generator picks them up with
+# no changes — same as HTTP-01.
+
+@router.get("/api/nginx/acme/dns")
+async def get_dns_provider(user=Depends(verify_token)):
+    """Return the configured DNS provider. NEVER returns the credentials —
+    they are write-only."""
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    if not DNS_CREDS_FILE.exists():
+        return {"configured": False, "provider": None}
+    provider = None
+    for line in DNS_CREDS_FILE.read_text().splitlines():
+        if line.strip().startswith("dns_multi_provider"):
+            provider = line.split("=", 1)[1].strip()
+            break
+    return {"configured": provider is not None, "provider": provider}
+
+
+@router.put("/api/nginx/acme/dns")
+async def set_dns_provider(body: dict, user=Depends(verify_token)):
+    """Configure the DNS-01 provider + credentials. Writes
+    /etc/letsencrypt/dns-multi.ini at 0600. Credentials never leave the box via
+    the API. Provider/key/value are validated to keep the .ini uninjectable."""
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    provider = str(body.get("provider", "")).strip().lower()
+    if not _DNS_PROVIDER_RE.match(provider):
+        raise HTTPException(400, "Invalid provider code (lowercase letters, digits, underscore)")
+    creds = body.get("credentials")
+    if not isinstance(creds, dict) or not creds:
+        raise HTTPException(400, "At least one credential is required")
+    lines = [f"dns_multi_provider = {provider}"]
+    for k, v in creds.items():
+        k = str(k).strip()
+        v = str(v)
+        if not _DNS_CRED_KEY_RE.match(k):
+            raise HTTPException(400, f"Invalid credential key: {k!r} (expected ENV_VAR style)")
+        if any(c in v for c in "\n\r\x00"):
+            raise HTTPException(400, f"Invalid value for {k} (control characters not allowed)")
+        lines.append(f"{k} = {v}")
+    _atomic_write_0600(DNS_CREDS_FILE, "\n".join(lines) + "\n")
+    assert _audit is not None
+    _audit(user["sub"], "nginx.acme.dns.config", "success", f"DNS provider set to {provider}")
+    return {"ok": True, "provider": provider}
+
+
+@router.delete("/api/nginx/acme/dns")
+async def delete_dns_provider(user=Depends(verify_token)):
+    """Remove the DNS provider credentials."""
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    existed = DNS_CREDS_FILE.exists()
+    if existed:
+        DNS_CREDS_FILE.unlink()
+    assert _audit is not None
+    _audit(user["sub"], "nginx.acme.dns.delete", "success", "DNS provider removed")
+    return {"ok": True, "removed": existed}
+
+
+@router.post("/api/nginx/cert/dns")
+async def request_cert_dns(body: dict, user=Depends(verify_token)):
+    """Issue a cert via DNS-01 (certbot-dns-multi). Supports wildcard. The cert
+    lands in /etc/letsencrypt/live/<domain>/ for the generator to pick up."""
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    if not DNS_CREDS_FILE.exists():
+        raise HTTPException(400, "No DNS provider configured — set one first")
+    domain = str(body.get("domain", "")).strip()
+    email = str(body.get("email", "")).strip()
+    wildcard = bool(body.get("wildcard", False))
+    # Same strict validation as the HTTP-01 path — no shell metacharacters.
+    if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9.\-]{0,253}[a-zA-Z0-9]$", domain):
+        raise HTTPException(400, "Invalid domain name")
+    if email and not re.match(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$", email):
+        raise HTTPException(400, "Invalid email address")
+    # arg-list (no shell). The wildcard label is CONSTRUCTED from the validated
+    # domain, never taken raw from input.
+    cmd = ["certbot", "certonly", "-a", "dns-multi",
+           "--dns-multi-credentials", str(DNS_CREDS_FILE),
+           "--non-interactive", "--agree-tos",
+           "--email", email or f"admin@{domain}", "-d", domain]
+    if wildcard:
+        cmd += ["-d", f"*.{domain}"]
+    assert _run_args is not None
+    result = _run_args(cmd, timeout=180)
+    assert _audit is not None
+    _audit(user["sub"], "nginx.cert.dns", "success",
+           f"DNS-01 cert requested for {domain}{' (+wildcard)' if wildcard else ''}")
+    return {"ok": True, "output": result}
