@@ -123,6 +123,16 @@ class NginxVhost(BaseModel):
             raise ValueError(f"invalid vhost name: {v!r}")
         return v
 
+    @field_validator("domain")
+    @classmethod
+    def _valid_domain(cls, v: str) -> str:
+        # Rendered into `server_name` — reject anything that could break out of
+        # the directive or inject nginx config. Wildcards (*) are allowed.
+        v = v.strip()
+        if not v or any(c in v for c in ' \t\n\r;{}#"\\'):
+            raise ValueError(f"invalid domain: {v!r}")
+        return v
+
     @field_validator("upstream_port")
     @classmethod
     def _valid_port(cls, v: int) -> int:

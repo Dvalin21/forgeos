@@ -17,7 +17,10 @@ from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
+import forgeos_config as fc
+from generators import registry
 from forgeos_auth import verify_token
 
 logger = logging.getLogger("forgeos-api")
@@ -68,67 +71,94 @@ def _atomic_write_0600(path: Path, content: str) -> None:
         raise
 
 
+# Save the config-DB then regenerate + reload nginx via the v2 generator.
+# Overridable in tests so they don't write /etc or touch systemctl. Mirrors the
+# Samba API pattern — config-DB is the single source of truth; the generator
+# renders forgeos.d/<name>.conf and reconciles away orphans.
+_apply = None
+
+
+def _apply_nginx(cfg) -> None:
+    if _apply is not None:
+        _apply(cfg)
+        return
+    fc.save(cfg)
+    registry.apply_one("nginx", cfg=cfg)
+
+
+def set_apply(fn) -> None:
+    """Test seam: inject a fake apply (save+generate+reload)."""
+    global _apply
+    _apply = fn
+
+
 @router.get("/api/nginx/vhosts")
 async def nginx_vhosts(user=Depends(verify_token)):
-    """List all vhosts from forgeos.d/*.conf"""
-    vhosts = []
-    conf_dir = Path("/etc/nginx/forgeos.d")
-    if not conf_dir.exists():
-        return {"vhosts": []}
-    for f in sorted(conf_dir.glob("*.conf")):
-        text = f.read_text()
-        domain = re.search(r"server_name\s+(\S+);", text)
-        upstream = re.search(r"proxy_pass\s+http://\S+:(\d+)", text)
-        has_ssl = "ssl_certificate" in text
-        name = f.stem
-        vhosts.append({
-            "name": name,
-            "domain": domain.group(1) if domain else name,
-            "upstream_port": upstream.group(1) if upstream else "?",
-            "ssl": has_ssl,
-            "enabled": True,
-            "raw": text,
-        })
-    return {"vhosts": vhosts}
+    # V2 engine: read vhosts from the config-DB, not by scraping forgeos.d/*.conf.
+    cfg = fc.load()
+    return {"vhosts": [v.model_dump() for v in cfg.nginx.vhosts]}
 
 
 @router.post("/api/nginx/vhost")
 async def add_vhost(body: dict, user=Depends(verify_token)):
-    """Add a new vhost via forgeos-nginx CLI"""
+    """Create a vhost in the config-DB and regenerate. Exposes every NginxVhost
+    option (the N1 advanced fields), validated by the model at the boundary."""
     if user.get("role") != "admin":
         raise HTTPException(403, "Admin required")
-    name   = re.sub(r"[^a-z0-9-]", "", body["name"].lower())
-    domain = body["domain"]
-    port   = int(body["port"])
-    tls    = body.get("tls", "acme")
-    ws     = body.get("websocket", False)
-    auth   = body.get("auth", "none")
-
-    if not 1 <= port <= 65535:
-        raise HTTPException(400, "Invalid port")
-
-    # Sanitize all user inputs before passing to shell
-    name   = re.sub(r"[^a-z0-9-]", "", name.lower())[:64]
-    domain = re.sub(r"[^a-zA-Z0-9.\-]", "", domain)[:253]
-    tls    = tls   if tls  in ("acme", "selfsigned", "none") else "acme"
-    auth   = auth  if auth in ("none", "basic", "oidc")      else "none"
-    result = _run_args([
-        "forgeos-nginx", "add-vhost", name, domain, str(port),
-        tls, auth, "yes" if ws else "no"
-    ])
+    try:
+        vhost = fc.NginxVhost(**body)
+    except (ValidationError, KeyError, ValueError, TypeError) as e:
+        raise HTTPException(400, detail=f"invalid vhost: {e}")
+    cfg = fc.load()
+    if any(v.name.lower() == vhost.name.lower() for v in cfg.nginx.vhosts):
+        raise HTTPException(409, detail=f"vhost '{vhost.name}' already exists")
+    cfg.nginx.vhosts.append(vhost)
+    _apply_nginx(cfg)
+    assert _audit is not None
     _audit(user["sub"], "nginx.vhost.create", "success",
-            f"Vhost '{name}' for {domain} (port {port}, tls={tls})")
-    return {"ok": True, "message": result}
+           f"Vhost '{vhost.name}' for {vhost.domain} -> "
+           f"{vhost.upstream_host}:{vhost.upstream_port}")
+    return {"ok": True, "vhost": vhost.model_dump()}
+
+
+@router.put("/api/nginx/vhost/{name}")
+async def update_vhost(name: str, body: dict, user=Depends(verify_token)):
+    """Edit an existing vhost. The URL name is the key; rename = delete+create."""
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    cfg = fc.load()
+    idx = next((i for i, v in enumerate(cfg.nginx.vhosts) if v.name == name), None)
+    if idx is None:
+        raise HTTPException(404, detail=f"vhost '{name}' not found")
+    try:
+        vhost = fc.NginxVhost(**{**body, "name": name})
+    except (ValidationError, KeyError, ValueError, TypeError) as e:
+        raise HTTPException(400, detail=f"invalid vhost: {e}")
+    cfg.nginx.vhosts[idx] = vhost
+    _apply_nginx(cfg)
+    assert _audit is not None
+    _audit(user["sub"], "nginx.vhost.update", "success",
+           f"Vhost '{name}' updated -> {vhost.domain}:{vhost.upstream_port}")
+    return {"ok": True, "vhost": vhost.model_dump()}
 
 
 @router.delete("/api/nginx/vhost/{name}")
 async def remove_vhost(name: str, user=Depends(verify_token)):
     if user.get("role") != "admin":
         raise HTTPException(403)
-    name = re.sub(r"[^a-z0-9-]", "", name)
-    result = _run_args(["forgeos-nginx", "remove-vhost", name])
+    # The UI's own front door — deleting it drops the :443 default_server and
+    # locks the operator out. Never removable through the API.
+    if name == "forgeos-ui":
+        raise HTTPException(403, detail="cannot delete the ForgeOS UI vhost")
+    cfg = fc.load()
+    before = len(cfg.nginx.vhosts)
+    cfg.nginx.vhosts = [v for v in cfg.nginx.vhosts if v.name != name]
+    if len(cfg.nginx.vhosts) == before:
+        raise HTTPException(404, detail=f"vhost '{name}' not found")
+    _apply_nginx(cfg)
+    assert _audit is not None
     _audit(user["sub"], "nginx.vhost.delete", "success", f"Vhost '{name}' removed")
-    return {"ok": True, "message": result}
+    return {"ok": True}
 
 
 @router.get("/api/nginx/raw")

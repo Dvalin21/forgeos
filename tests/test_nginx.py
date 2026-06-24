@@ -24,78 +24,133 @@ def _mock_subprocess_run(returncode=0, stdout="", stderr=""):
     return m
 
 
+@pytest.fixture
+def nginx_apply(monkeypatch):
+    """Inject a fake apply so tests persist to the isolated config-DB without
+    writing /etc/nginx or touching systemctl. Records each applied config."""
+    import nginx_api
+    import forgeos_config as fc
+    applied = []
+    nginx_api.set_apply(lambda cfg: applied.append(cfg) or fc.save(cfg))
+    yield applied
+    nginx_api.set_apply(None)
+
+
 # ──────────────────────────────────────────────────────────
-# GET /api/nginx/vhosts
+# GET /api/nginx/vhosts  (config-DB backed)
 # ──────────────────────────────────────────────────────────
 
 
 class TestNginxVhosts:
 
     def test_auth_required(self, test_client):
-        r = test_client.get("/api/nginx/vhosts")
-        assert r.status_code == 401
+        assert test_client.get("/api/nginx/vhosts").status_code == 401
 
     def test_returns_empty_when_no_vhosts(self, test_client, auth_headers):
-        """When /etc/nginx/forgeos.d doesn't exist, returns empty list."""
         r = test_client.get("/api/nginx/vhosts", headers=auth_headers)
-        data = r.json()
         assert r.status_code == 200
-        assert "vhosts" in data
-        # Should either be empty or gracefully handle missing dir
-        assert isinstance(data["vhosts"], list)
+        assert isinstance(r.json()["vhosts"], list)
+
+    def test_lists_config_db_vhosts(self, test_client, auth_headers, nginx_apply):
+        test_client.post("/api/nginx/vhost",
+                         json={"name": "app", "domain": "app.lan", "upstream_port": 8080},
+                         headers=auth_headers)
+        names = [v["name"] for v in
+                 test_client.get("/api/nginx/vhosts", headers=auth_headers).json()["vhosts"]]
+        assert "app" in names
 
 
 # ──────────────────────────────────────────────────────────
-# POST /api/nginx/vhost
+# POST /api/nginx/vhost  (config-DB + generator)
 # ──────────────────────────────────────────────────────────
 
 
 class TestAddVhost:
 
     def test_auth_required(self, test_client):
-        r = test_client.post("/api/nginx/vhost", json={"name": "test", "domain": "test.com", "port": 80})
+        r = test_client.post("/api/nginx/vhost",
+                             json={"name": "t", "domain": "t.com", "upstream_port": 80})
         assert r.status_code == 401
 
-    def test_forbids_non_admin(self, test_client):
-        """Non-admin role should get 403."""
-        from forgeos_auth import create_token
-        user_token = create_token("regular", "user")
-        headers = {"Authorization": f"Bearer {user_token}"}
+    def test_forbids_non_admin(self, test_client, user_headers):
         r = test_client.post("/api/nginx/vhost",
-                             json={"name": "test", "domain": "test.com", "port": 80},
-                             headers=headers)
-        # The role is embedded in the JWT — a non-admin token
-        # with role "user" should be rejected by admin checks
-        assert r.status_code == 403 or r.status_code == 401
+                             json={"name": "t", "domain": "t.com", "upstream_port": 80},
+                             headers=user_headers)
+        assert r.status_code == 403
 
-    def test_rejects_invalid_port(self, test_client, auth_headers):
+    def test_creates_with_advanced_fields(self, test_client, auth_headers, nginx_apply):
         r = test_client.post("/api/nginx/vhost",
-                             json={"name": "test", "domain": "test.com", "port": 99999},
+                             json={"name": "app", "domain": "app.lan", "upstream_port": 8080,
+                                   "websocket": True, "hsts": False, "gzip": True,
+                                   "client_max_body_size": "50m",
+                                   "block_common_exploits": True,
+                                   "allow_ips": ["10.0.0.0/24"]},
+                             headers=auth_headers)
+        assert r.status_code == 200, r.text
+        v = r.json()["vhost"]
+        assert v["websocket"] is True and v["gzip"] is True and v["hsts"] is False
+        assert v["client_max_body_size"] == "50m"
+        assert v["allow_ips"] == ["10.0.0.0/24"]
+        assert len(nginx_apply) == 1          # generator apply invoked once
+
+    def test_rejects_invalid_port(self, test_client, auth_headers, nginx_apply):
+        r = test_client.post("/api/nginx/vhost",
+                             json={"name": "t", "domain": "t.com", "upstream_port": 99999},
                              headers=auth_headers)
         assert r.status_code == 400
 
-    def test_sanitizes_name(self, test_client, auth_headers, monkeypatch):
-        monkeypatch.setattr("subprocess.run",
-                            lambda *a, **kw: _mock_subprocess_run(stdout="ok"))
-        # Name with special chars should be cleaned
+    def test_rejects_bad_name(self, test_client, auth_headers, nginx_apply):
         r = test_client.post("/api/nginx/vhost",
-                             json={"name": "Test Site!!!", "domain": "example.com", "port": 443},
+                             json={"name": "bad name!", "domain": "t.com", "upstream_port": 80},
                              headers=auth_headers)
-        assert r.status_code == 200
+        assert r.status_code == 400
 
-    def test_dispatches_forgeos_nginx_cli(self, test_client, auth_headers, monkeypatch):
-        calls = []
-        monkeypatch.setattr("subprocess.run",
-                            lambda *a, **kw: (
-                                calls.append(a[0]),
-                                _mock_subprocess_run(stdout="ok")
-                            )[1])
+    def test_rejects_domain_injection(self, test_client, auth_headers, nginx_apply):
+        # a domain that could break out of server_name must be rejected
         r = test_client.post("/api/nginx/vhost",
-                             json={"name": "myapp", "domain": "myapp.example.com", "port": 3000},
+                             json={"name": "evil",
+                                   "domain": "x; } location / { deny all; }",
+                                   "upstream_port": 80},
                              headers=auth_headers)
-        assert r.status_code == 200
-        # Verify forgeos-nginx was called
-        assert any("forgeos-nginx" in str(c) for c in calls), f"forgeos-nginx not called: {calls}"
+        assert r.status_code == 400
+
+    def test_rejects_duplicate(self, test_client, auth_headers, nginx_apply):
+        body = {"name": "dup", "domain": "dup.lan", "upstream_port": 80}
+        assert test_client.post("/api/nginx/vhost", json=body,
+                                headers=auth_headers).status_code == 200
+        assert test_client.post("/api/nginx/vhost", json=body,
+                                headers=auth_headers).status_code == 409
+
+
+# ──────────────────────────────────────────────────────────
+# PUT /api/nginx/vhost/{name}
+# ──────────────────────────────────────────────────────────
+
+
+class TestUpdateVhost:
+
+    def test_forbids_non_admin(self, test_client, user_headers):
+        r = test_client.put("/api/nginx/vhost/app",
+                            json={"domain": "app.lan", "upstream_port": 80},
+                            headers=user_headers)
+        assert r.status_code == 403
+
+    def test_updates_existing(self, test_client, auth_headers, nginx_apply):
+        test_client.post("/api/nginx/vhost",
+                         json={"name": "app", "domain": "app.lan", "upstream_port": 8080},
+                         headers=auth_headers)
+        r = test_client.put("/api/nginx/vhost/app",
+                            json={"domain": "app.lan", "upstream_port": 9090, "gzip": True},
+                            headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert r.json()["vhost"]["upstream_port"] == 9090
+        assert r.json()["vhost"]["gzip"] is True
+
+    def test_missing_is_404(self, test_client, auth_headers, nginx_apply):
+        r = test_client.put("/api/nginx/vhost/nope",
+                            json={"domain": "n.lan", "upstream_port": 80},
+                            headers=auth_headers)
+        assert r.status_code == 404
 
 
 # ──────────────────────────────────────────────────────────
@@ -106,16 +161,26 @@ class TestAddVhost:
 class TestRemoveVhost:
 
     def test_auth_required(self, test_client):
-        r = test_client.delete("/api/nginx/vhost/test")
-        assert r.status_code == 401
+        assert test_client.delete("/api/nginx/vhost/test").status_code == 401
 
-    def test_removes_vhost(self, test_client, auth_headers, monkeypatch):
-        monkeypatch.setattr("subprocess.run",
-                            lambda *a, **kw: _mock_subprocess_run(stdout="removed"))
-        r = test_client.delete("/api/nginx/vhost/myapp", headers=auth_headers)
-        assert r.status_code == 200
-        data = r.json()
-        assert data.get("ok") is True
+    def test_refuses_to_delete_ui_vhost(self, test_client, auth_headers):
+        # lockout protection — the UI's own front door is never deletable
+        r = test_client.delete("/api/nginx/vhost/forgeos-ui", headers=auth_headers)
+        assert r.status_code == 403
+
+    def test_removes_existing(self, test_client, auth_headers, nginx_apply):
+        test_client.post("/api/nginx/vhost",
+                         json={"name": "gone", "domain": "gone.lan", "upstream_port": 80},
+                         headers=auth_headers)
+        r = test_client.delete("/api/nginx/vhost/gone", headers=auth_headers)
+        assert r.status_code == 200 and r.json()["ok"] is True
+        names = [v["name"] for v in
+                 test_client.get("/api/nginx/vhosts", headers=auth_headers).json()["vhosts"]]
+        assert "gone" not in names
+
+    def test_missing_is_404(self, test_client, auth_headers, nginx_apply):
+        r = test_client.delete("/api/nginx/vhost/nope", headers=auth_headers)
+        assert r.status_code == 404
 
 
 # ──────────────────────────────────────────────────────────
