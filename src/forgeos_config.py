@@ -407,10 +407,18 @@ class NamingConfig(BaseModel):
     public_fqdn: str = ""          # "" = none yet (reverse-proxy / mail set it)
 
 
+class AuthConfig(BaseModel):
+    """Authentication policy. Currently just the new-account 2FA mandate:
+    when on, every user created afterward is flagged totp_required, and login
+    signals enrollment_required until they enroll (enforced in the UI)."""
+
+    require_totp_new_users: bool = False
+
+
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
-    version: int = 2
+    version: int = 3
     # `domain` is the legacy single-name field, kept for compatibility with
     # existing call sites (installer, nginx generator, CLI). The authoritative
     # model is `naming` (three-names). `domain` mirrors naming.lan_name for the
@@ -428,6 +436,7 @@ class ForgeOSConfig(BaseModel):
     apps: list[InstalledApp] = Field(default_factory=list)
     toggles: TogglesConfig = Field(default_factory=TogglesConfig)
     osbackup: OsBackupConfig = Field(default_factory=OsBackupConfig)
+    auth: AuthConfig = Field(default_factory=AuthConfig)
 
     @field_validator("apps")
     @classmethod
@@ -439,7 +448,7 @@ class ForgeOSConfig(BaseModel):
         return v
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _migrate_v1_to_v2(data: dict) -> dict:
@@ -461,9 +470,20 @@ def _migrate_v1_to_v2(data: dict) -> dict:
     return data
 
 
+def _migrate_v2_to_v3(data: dict) -> dict:
+    """v3 adds the `auth` policy block (require_totp_new_users). No existing
+    data needs transforming — pydantic fills the default — but bump the
+    version so the schema marker stays accurate and load_and_upgrade persists
+    it. Idempotent: an already-present auth block is preserved."""
+    data.setdefault("auth", {})
+    data["version"] = 3
+    return data
+
+
 # version N -> N+1 migrators, applied in order until data reaches SCHEMA_VERSION
 _MIGRATIONS = {
     1: _migrate_v1_to_v2,
+    2: _migrate_v2_to_v3,
 }
 
 

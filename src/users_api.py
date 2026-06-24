@@ -33,6 +33,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from forgeos_auth import load_users, save_users, pwd_ctx, verify_token
 import forgeos_auth as fa
+import forgeos_config as fcfg
 
 logger = logging.getLogger("forgeos-api")
 
@@ -75,6 +76,7 @@ def _public_view(username: str, rec: dict) -> dict:
         "username": username,
         "role": rec.get("role", "user"),
         "totp_enabled": bool(rec.get("totp_enabled", False)),
+        "totp_required": bool(rec.get("totp_required", False)),
         "backup_codes_remaining": len(rec.get("backup_codes", [])),
     }
 
@@ -105,7 +107,12 @@ async def create_user(body: dict, user=Depends(verify_token)):
     if username in users:
         raise HTTPException(409, f"User '{username}' already exists")
 
-    users[username] = {"hash": pwd_ctx.hash(password), "role": role}
+    rec = {"hash": pwd_ctx.hash(password), "role": role}
+    # New-account 2FA mandate: when the admin has enabled it, mark the user so
+    # login forces enrollment (see auth_api login + the U3 UI).
+    if fcfg.load().auth.require_totp_new_users:
+        rec["totp_required"] = True
+    users[username] = rec
     save_users(users)
     assert _audit is not None
     _audit(user["sub"], "users.create", "success", f"User '{username}' ({role})")
@@ -321,3 +328,31 @@ async def admin_reset_totp(username: str, user=Depends(verify_token)):
     _audit(user["sub"], "users.totp.admin_reset", "success",
            f"2FA reset for '{username}' (was {'enabled' if had else 'disabled'})")
     return {"ok": True}
+
+
+# ── Auth policy (admin) ───────────────────────────────────────────────────────
+# Persisted in the config-DB (forgeos_config). Currently a single switch:
+# require new accounts to set up 2FA.
+
+@router.get("/api/auth/policy")
+async def get_auth_policy(user=Depends(verify_token)):
+    """Read the auth policy. Admin-only (it governs account security)."""
+    _require_admin(user)
+    cfg = fcfg.load()
+    return {"require_totp_new_users": cfg.auth.require_totp_new_users}
+
+
+@router.put("/api/auth/policy")
+async def set_auth_policy(body: dict, user=Depends(verify_token)):
+    """Update the auth policy (admin). Only affects accounts created AFTER the
+    change — existing users are untouched."""
+    _require_admin(user)
+    if "require_totp_new_users" not in body:
+        raise HTTPException(400, "require_totp_new_users (bool) is required")
+    cfg = fcfg.load()
+    cfg.auth.require_totp_new_users = bool(body.get("require_totp_new_users"))
+    fcfg.save(cfg)
+    assert _audit is not None
+    _audit(user["sub"], "auth.policy.update", "success",
+           f"require_totp_new_users={cfg.auth.require_totp_new_users}")
+    return {"ok": True, "require_totp_new_users": cfg.auth.require_totp_new_users}

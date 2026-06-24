@@ -59,6 +59,27 @@ def set_helpers(
     _check_login_rate_limit = check_rate_limit
 
 
+def _issue_session(request: Request, username: str, role: str,
+                   extra: dict | None = None) -> JSONResponse:
+    """Build the session-token JSON response + set the forgeos_token cookie.
+
+    Shared by password login, the post-2FA step, and the enrollment-required
+    path so the cookie attributes (httponly/secure/samesite/max-age) can never
+    drift between them. `extra` merges extra top-level keys into the body.
+    """
+    token = create_token(username, role)
+    body = {"token": token, "username": username, "role": role}
+    if extra:
+        body.update(extra)
+    resp = JSONResponse(body)
+    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
+    resp.set_cookie(
+        "forgeos_token", token, httponly=True, secure=secure,
+        samesite="strict", max_age=JWT_EXPIRE * 3600,
+    )
+    return resp
+
+
 @router.post("/api/auth/login")
 async def login(body: LoginRequest, request: Request):
     if _check_login_rate_limit is None:
@@ -84,18 +105,14 @@ async def login(body: LoginRequest, request: Request):
                    "Password accepted; awaiting 2FA code")
         return JSONResponse({"mfa_required": True,
                              "mfa_token": create_mfa_token(body.username)})
-    token = create_token(body.username, user["role"])
-    resp = JSONResponse({"token": token, "username": body.username, "role": user["role"]})
-    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
-    resp.set_cookie(
-        "forgeos_token",
-        token,
-        httponly=True,
-        secure=secure,
-        samesite="strict",
-        max_age=JWT_EXPIRE * 3600,
-    )
-    return resp
+    # New-account 2FA mandate: password is correct but the user hasn't enrolled
+    # yet. Issue a session AND signal that enrollment is mandatory — the UI
+    # routes them straight into setup. (Enforcement is UI-gated, not token-gated;
+    # acceptable for an admin-set policy on a self-hosted box.)
+    if user.get("totp_required"):
+        return _issue_session(request, body.username, user["role"],
+                              {"enrollment_required": True})
+    return _issue_session(request, body.username, user["role"])
 
 
 class TotpLoginRequest(BaseModel):
@@ -139,16 +156,9 @@ async def login_totp(body: TotpLoginRequest, request: Request):
 
     users[username] = user
     save_users(users)
-    token = create_token(username, user["role"])
-    resp = JSONResponse({"token": token, "username": username, "role": user["role"]})
-    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
-    resp.set_cookie(
-        "forgeos_token", token, httponly=True, secure=secure,
-        samesite="strict", max_age=JWT_EXPIRE * 3600,
-    )
     if _audit is not None:
         _audit(username, "auth.login.totp", "success", "2FA login")
-    return resp
+    return _issue_session(request, username, user["role"])
 
 
 @router.post("/api/auth/logout")

@@ -47,7 +47,7 @@ class TestListUsers:
             assert "totp_secret" not in u
             assert "backup_codes" not in u
             assert set(u.keys()) == {"username", "role", "totp_enabled",
-                                     "backup_codes_remaining"}
+                                     "totp_required", "backup_codes_remaining"}
 
 
 class TestCreateUser:

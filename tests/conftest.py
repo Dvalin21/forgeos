@@ -69,6 +69,11 @@ def _isolate_forgeos_config(monkeypatch: pytest.MonkeyPatch) -> Generator[None, 
         monkeypatch.setattr(forgeos_auth, "CONFIG_FILE", etc / "forgeos.conf")
         monkeypatch.setattr(forgeos_auth, "USERS_FILE", etc / "api-users.json")
 
+        # Isolate the config-DB too (auth policy, storage, etc. live here) so
+        # tests that read/write it never touch /etc/forgeos/config.json.
+        import forgeos_config
+        monkeypatch.setattr(forgeos_config, "CONFIG_PATH", etc / "config.json")
+
         yield
 
 
