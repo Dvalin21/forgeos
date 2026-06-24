@@ -156,3 +156,96 @@ def test_apply_removes_stale_vhosts(tmp_path, monkeypatch):
     assert "00-default-deny.conf" not in names   # stale dropper removed
     assert "old-app.conf" not in names           # stale app vhost removed
     assert "forgeos-ui.conf" in names            # current vhost kept
+
+
+# --- N1: advanced proxy options ---
+
+def test_defaults_preserve_legacy_behaviour():
+    # a vhost defined the old way (name/domain/port) must still emit the same
+    # hardcoded-era directives: 301 redirect, http2 on, HSTS, localhost http upstream
+    c = _first_vhost(_cfg(fc.NginxVhost(name="ui", domain="nas.local", upstream_port=5080)))
+    assert "return 301 https://$host$request_uri;" in c
+    assert "http2 on;" in c
+    assert "Strict-Transport-Security" in c
+    assert "server 127.0.0.1:5080;" in c
+    assert "proxy_pass http://forgeos_ui;" in c
+
+
+def test_custom_upstream_host_and_scheme():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=9000,
+                                        upstream_host="10.0.0.50", upstream_scheme="https")))
+    assert "server 10.0.0.50:9000;" in c
+    assert "proxy_pass https://forgeos_a;" in c
+
+
+def test_http2_can_be_disabled():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=80, http2=False)))
+    assert "http2 on;" not in c
+
+
+def test_hsts_can_be_disabled():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=80, hsts=False)))
+    assert "Strict-Transport-Security" not in c
+
+
+def test_force_ssl_off_serves_http_instead_of_redirecting():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=80, force_ssl=False)))
+    assert "return 301" not in c
+    # the :80 server now proxies (the location appears twice: :80 and :443)
+    assert c.count("proxy_pass http://forgeos_a;") == 2
+
+
+def test_client_max_body_size_and_timeout():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=80,
+                                        client_max_body_size="200m", proxy_read_timeout=300)))
+    assert "client_max_body_size 200m;" in c
+    assert "proxy_read_timeout 300s;" in c
+
+
+def test_gzip_toggle():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=80, gzip=True)))
+    assert "gzip on;" in c
+    plain = _first_vhost(_cfg(fc.NginxVhost(name="b", domain="b.lan", upstream_port=80)))
+    assert "gzip on;" not in plain
+
+
+def test_block_common_exploits():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=80,
+                                        block_common_exploits=True)))
+    assert "return 403;" in c
+
+
+def test_ip_allowlist_emits_allow_then_deny_all():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=80,
+                                        allow_ips=["10.0.0.0/24", "192.168.1.5"])))
+    assert "allow 10.0.0.0/24;" in c
+    assert "allow 192.168.1.5;" in c
+    assert "deny all;" in c
+
+
+def test_ip_blocklist_emits_deny():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=80,
+                                        deny_ips=["1.2.3.4"])))
+    assert "deny 1.2.3.4;" in c
+
+
+def test_custom_snippet_is_injected():
+    c = _first_vhost(_cfg(fc.NginxVhost(name="a", domain="a.lan", upstream_port=80,
+                                        custom_snippet='add_header X-Test "1";')))
+    assert 'add_header X-Test "1";' in c
+
+
+def test_invalid_ip_rejected():
+    with pytest.raises(ValueError):
+        fc.NginxVhost(name="a", domain="a.lan", upstream_port=80, allow_ips=["999.1.1.1"])
+
+
+def test_invalid_body_size_rejected():
+    with pytest.raises(ValueError):
+        fc.NginxVhost(name="a", domain="a.lan", upstream_port=80, client_max_body_size="big")
+
+
+def test_upstream_host_rejects_injection():
+    with pytest.raises(ValueError):
+        fc.NginxVhost(name="a", domain="a.lan", upstream_port=80,
+                      upstream_host="127.0.0.1; }")

@@ -15,6 +15,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+import ipaddress
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -95,7 +97,22 @@ class NginxVhost(BaseModel):
     name: str
     domain: str
     upstream_port: int
+    # --- advanced proxy options (N1) ---
+    # Every default reproduces the prior hardcoded behaviour, so a config
+    # written before these existed renders byte-for-byte the same vhost.
+    upstream_host: str = "127.0.0.1"
+    upstream_scheme: Literal["http", "https"] = "http"
     websocket: bool = False
+    http2: bool = True                       # was hardcoded `http2 on`
+    force_ssl: bool = True                    # :80 redirects to :443 (else also serves :80)
+    hsts: bool = True                         # was hardcoded HSTS header
+    block_common_exploits: bool = False
+    gzip: bool = False
+    client_max_body_size: str = "1m"          # nginx default
+    proxy_read_timeout: int = 60              # seconds (nginx default)
+    allow_ips: list[str] = Field(default_factory=list)   # allowlist (else deny all)
+    deny_ips: list[str] = Field(default_factory=list)    # blocklist (ignored if allow_ips set)
+    custom_snippet: str = ""                  # raw nginx, inside server{} (admin escape hatch)
     auth: bool = False
 
     @field_validator("name")
@@ -112,6 +129,48 @@ class NginxVhost(BaseModel):
         if not (1 <= v <= 65535):
             raise ValueError(f"port out of range: {v}")
         return v
+
+    @field_validator("upstream_host")
+    @classmethod
+    def _valid_host(cls, v: str) -> str:
+        v = v.strip()
+        # Hostname or IP. Reject anything that could break out of the upstream
+        # directive (whitespace, nginx block/terminator chars).
+        if not v or any(c in v for c in ' \t\n;{}#"\\'):
+            raise ValueError(f"invalid upstream host: {v!r}")
+        return v
+
+    @field_validator("client_max_body_size")
+    @classmethod
+    def _valid_body_size(cls, v: str) -> str:
+        v = v.strip()
+        # nginx size: digits with optional k/m/g suffix (0 = unlimited)
+        if not re.fullmatch(r"\d+[kKmMgG]?", v):
+            raise ValueError(f"invalid client_max_body_size: {v!r} (e.g. '1m', '100m', '0')")
+        return v
+
+    @field_validator("proxy_read_timeout")
+    @classmethod
+    def _valid_timeout(cls, v: int) -> int:
+        if not (1 <= v <= 3600):
+            raise ValueError(f"proxy_read_timeout out of range (1-3600s): {v}")
+        return v
+
+    @field_validator("allow_ips", "deny_ips")
+    @classmethod
+    def _valid_ips(cls, v: list[str]) -> list[str]:
+        out = []
+        for item in v:
+            item = item.strip()
+            if not item:
+                continue
+            try:
+                # accept both single IPs and CIDR ranges
+                ipaddress.ip_network(item, strict=False)
+            except ValueError:
+                raise ValueError(f"invalid IP/CIDR: {item!r}")
+            out.append(item)
+        return out
 
 
 class NginxConfig(BaseModel):
@@ -418,7 +477,7 @@ class AuthConfig(BaseModel):
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
-    version: int = 3
+    version: int = 4
     # `domain` is the legacy single-name field, kept for compatibility with
     # existing call sites (installer, nginx generator, CLI). The authoritative
     # model is `naming` (three-names). `domain` mirrors naming.lan_name for the
@@ -448,7 +507,7 @@ class ForgeOSConfig(BaseModel):
         return v
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _migrate_v1_to_v2(data: dict) -> dict:
@@ -480,10 +539,20 @@ def _migrate_v2_to_v3(data: dict) -> dict:
     return data
 
 
+def _migrate_v3_to_v4(data: dict) -> dict:
+    """v4 expands NginxVhost with advanced proxy options (upstream host/scheme,
+    http2/force_ssl/hsts/gzip toggles, body size, timeouts, IP allow/deny,
+    custom snippet). Additive — existing vhosts get defaults that reproduce the
+    prior hardcoded behaviour — so no data transform, just bump the marker."""
+    data["version"] = 4
+    return data
+
+
 # version N -> N+1 migrators, applied in order until data reaches SCHEMA_VERSION
 _MIGRATIONS = {
     1: _migrate_v1_to_v2,
     2: _migrate_v2_to_v3,
+    3: _migrate_v3_to_v4,
 }
 
 

@@ -14,7 +14,7 @@ import forgeos_config as fc  # noqa: E402
 def test_migrate_v1_populates_naming_from_domain():
     v1 = {"version": 1, "domain": "nas.local"}
     out = fc.migrate(v1)
-    assert out["version"] == 3
+    assert out["version"] == fc.SCHEMA_VERSION
     assert out["naming"]["lan_name"] == "nas.local"
     assert out["naming"]["system_hostname"] == "nas"   # label before first dot
     assert out["naming"]["public_fqdn"] == ""
@@ -23,16 +23,15 @@ def test_migrate_v1_populates_naming_from_domain():
 def test_migrate_no_version_treated_as_v1():
     # the very first schema shipped without an explicit version int
     out = fc.migrate({"domain": "home.local"})
-    assert out["version"] == 3
+    assert out["version"] == fc.SCHEMA_VERSION
     assert out["naming"]["lan_name"] == "home.local"
 
 
 def test_migrate_is_idempotent_on_current_version():
-    v3 = {"version": 3, "domain": "x.local",
-          "naming": {"system_hostname": "x", "lan_name": "x.local", "public_fqdn": ""},
-          "auth": {"require_totp_new_users": False}}
-    out = fc.migrate(dict(v3))
-    assert out == v3
+    # a config already at the current schema passes through migrate() unchanged
+    current = fc.ForgeOSConfig(domain="x.local").model_dump()
+    out = fc.migrate(dict(current))
+    assert out == current
 
 
 def test_migrate_preserves_existing_naming_fields():
@@ -53,7 +52,7 @@ def test_load_migrates_v1_file_in_memory(tmp_path):
     p = tmp_path / "config.json"
     p.write_text(json.dumps({"version": 1, "domain": "old.local"}))
     cfg = fc.load(p)
-    assert cfg.version == 3
+    assert cfg.version == fc.SCHEMA_VERSION
     assert cfg.naming.lan_name == "old.local"
     # load() does NOT rewrite the file
     assert json.loads(p.read_text())["version"] == 1
@@ -63,10 +62,10 @@ def test_load_and_upgrade_persists_migration(tmp_path):
     p = tmp_path / "config.json"
     p.write_text(json.dumps({"version": 1, "domain": "old.local"}))
     cfg = fc.load_and_upgrade(p)
-    assert cfg.version == 3
+    assert cfg.version == fc.SCHEMA_VERSION
     # the on-disk file is now upgraded
     on_disk = json.loads(p.read_text())
-    assert on_disk["version"] == 3
+    assert on_disk["version"] == fc.SCHEMA_VERSION
     assert on_disk["naming"]["lan_name"] == "old.local"
 
 
@@ -101,7 +100,7 @@ def test_storage_field_backward_compatible_no_bump():
            "naming": {"system_hostname": "nas", "lan_name": "nas.local", "public_fqdn": ""}}
     cfg = fc.ForgeOSConfig.model_validate(fc.migrate(dict(old)))
     assert cfg.storage.pools == []
-    assert cfg.version == 3
+    assert cfg.version == fc.SCHEMA_VERSION
 
 
 def test_storage_pool_validation_and_mountpoint():
@@ -118,9 +117,9 @@ def test_storage_pool_validation_and_mountpoint():
 def test_migrate_v2_to_v3_adds_auth_policy_default_off():
     v2 = {"version": 2, "domain": "x.local",
           "naming": {"system_hostname": "x", "lan_name": "x.local", "public_fqdn": ""}}
-    out = fc.migrate(v2)
+    out = fc._migrate_v2_to_v3(dict(v2))   # the step, in isolation
     assert out["version"] == 3
-    cfg = fc.ForgeOSConfig.model_validate(out)
+    cfg = fc.ForgeOSConfig.model_validate(fc.migrate(dict(v2)))
     assert cfg.auth.require_totp_new_users is False   # safe default
 
 
@@ -142,5 +141,29 @@ def test_migrate_v2_to_v3_keeps_preset_auth_block():
 
 def test_default_config_is_current_schema_with_auth():
     cfg = fc.ForgeOSConfig()
-    assert cfg.version == fc.SCHEMA_VERSION == 3
+    assert cfg.version == fc.SCHEMA_VERSION
     assert cfg.auth.require_totp_new_users is False
+
+
+def test_migrate_v3_to_v4_is_additive_step():
+    v3 = {"version": 3, "domain": "x.local",
+          "naming": {"system_hostname": "x", "lan_name": "x.local", "public_fqdn": ""},
+          "auth": {"require_totp_new_users": False}}
+    out = fc._migrate_v3_to_v4(dict(v3))   # the step, in isolation
+    assert out["version"] == 4
+
+
+def test_v3_config_with_basic_vhost_upgrades_with_advanced_defaults():
+    # an old vhost (name/domain/port only) must validate at the current schema
+    # with advanced fields defaulted to behaviour-preserving values
+    v3 = {"version": 3, "domain": "x.local",
+          "naming": {"system_hostname": "x", "lan_name": "x.local", "public_fqdn": ""},
+          "auth": {"require_totp_new_users": False},
+          "nginx": {"enabled": True,
+                    "vhosts": [{"name": "ui", "domain": "x.local", "upstream_port": 5080}]}}
+    cfg = fc.ForgeOSConfig.model_validate(fc.migrate(dict(v3)))
+    vh = cfg.nginx.vhosts[0]
+    assert vh.upstream_host == "127.0.0.1"     # default reproduces old upstream
+    assert vh.upstream_scheme == "http"
+    assert vh.http2 is True and vh.force_ssl is True and vh.hsts is True
+    assert vh.client_max_body_size == "1m" and vh.proxy_read_timeout == 60
