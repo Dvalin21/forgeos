@@ -81,17 +81,17 @@ class TestNewUserFlagging:
 
 
 class TestLoginEnrollmentRequired:
-    def test_required_but_not_enrolled_signals_enrollment(self, test_client):
+    def test_required_but_not_enrolled_issues_restricted_enroll_token(self, test_client):
         _seed({"bob": ("password2", "user")})
         users = load_users(); users["bob"]["totp_required"] = True; save_users(users)
         r = test_client.post("/api/auth/login",
                              json={"username": "bob", "password": "password2"})
         assert r.status_code == 200
         body = r.json()
-        # gets a real session (so it can call the enroll endpoints) ...
-        assert body["token"] and "forgeos_token" in r.headers.get("set-cookie", "")
-        # ... but is told enrollment is mandatory
         assert body["enrollment_required"] is True
+        assert body["enroll_token"]                       # restricted, not a session
+        assert "token" not in body                        # NO full session token
+        assert "forgeos_token" not in r.headers.get("set-cookie", "")   # NO cookie
 
     def test_enabled_takes_precedence_over_required(self, test_client):
         """Once enrolled, login is the normal 2FA challenge — no enrollment flag."""
@@ -117,3 +117,55 @@ class TestLoginEnrollmentRequired:
         body = r.json()
         assert "enrollment_required" not in body
         assert body["token"]
+
+
+class TestEnrollmentEnforcementBypassProof:
+    """The restricted enroll token may ONLY set up 2FA — never reach a real
+    endpoint. This is the bypass-proof replacement for the old soft enforcement.
+    """
+
+    def _enroll_token(self, client, username="bob", pw="password2"):
+        users = load_users(); users[username]["totp_required"] = True; save_users(users)
+        r = client.post("/api/auth/login", json={"username": username, "password": pw})
+        assert r.status_code == 200, r.text
+        return r.json()["enroll_token"]
+
+    def test_enroll_token_cannot_reach_normal_endpoints(self, test_client):
+        # THE bypass test: force-browsing past enrollment must fail.
+        _seed({"bob": ("password2", "user")})
+        hdr = {"Authorization": "Bearer " + self._enroll_token(test_client)}
+        assert test_client.get("/api/users", headers=hdr).status_code == 401
+        assert test_client.post("/api/users/me/totp/disable", json={}, headers=hdr).status_code == 401
+        assert test_client.get("/api/nginx/vhosts", headers=hdr).status_code == 401
+
+    def test_enroll_token_completes_enrollment(self, test_client):
+        _seed({"bob": ("password2", "user")})
+        hdr = {"Authorization": "Bearer " + self._enroll_token(test_client)}
+        r = test_client.post("/api/users/me/totp/enroll", headers=hdr)
+        assert r.status_code == 200, r.text
+        secret = r.json()["secret"]
+        r2 = test_client.post("/api/users/me/totp/verify",
+                              json={"code": pyotp.TOTP(secret).now()}, headers=hdr)
+        assert r2.status_code == 200, r2.text
+        assert load_users()["bob"]["totp_enabled"] is True
+
+    def test_enroll_token_still_blocked_after_enrollment(self, test_client):
+        # even after 2FA is enabled, the enroll token grants nothing — must
+        # re-login to get a session.
+        _seed({"bob": ("password2", "user")})
+        hdr = {"Authorization": "Bearer " + self._enroll_token(test_client)}
+        secret = test_client.post("/api/users/me/totp/enroll", headers=hdr).json()["secret"]
+        test_client.post("/api/users/me/totp/verify",
+                         json={"code": pyotp.TOTP(secret).now()}, headers=hdr)
+        assert test_client.get("/api/users", headers=hdr).status_code == 401
+
+    def test_after_forced_enrollment_next_login_is_2fa_challenge(self, test_client):
+        _seed({"bob": ("password2", "user")})
+        hdr = {"Authorization": "Bearer " + self._enroll_token(test_client)}
+        secret = test_client.post("/api/users/me/totp/enroll", headers=hdr).json()["secret"]
+        test_client.post("/api/users/me/totp/verify",
+                         json={"code": pyotp.TOTP(secret).now()}, headers=hdr)
+        r = test_client.post("/api/auth/login", json={"username": "bob", "password": "password2"})
+        body = r.json()
+        assert body["mfa_required"] is True
+        assert "enrollment_required" not in body and "token" not in body

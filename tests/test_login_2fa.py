@@ -11,7 +11,7 @@ Uses the same conftest isolation as test_users / test_totp.
 import pyotp
 
 from forgeos_auth import (save_users, load_users, pwd_ctx, create_token,
-                          create_mfa_token, verify_ws_token)
+                          create_mfa_token, create_enroll_token, verify_ws_token)
 
 
 def _seed(users: dict):
@@ -174,3 +174,7 @@ class TestWebSocketGuard:
         assert verify_ws_token(self._FakeWS(create_mfa_token("alice"))) is None
         ok = verify_ws_token(self._FakeWS(create_token("alice", "admin")))
         assert ok is not None and ok["sub"] == "alice"
+
+    def test_ws_rejects_enroll_token(self):
+        # a restricted enroll token must not open a WebSocket either
+        assert verify_ws_token(self._FakeWS(create_enroll_token("alice"))) is None

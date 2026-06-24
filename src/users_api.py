@@ -31,7 +31,7 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from forgeos_auth import load_users, save_users, pwd_ctx, verify_token
+from forgeos_auth import load_users, save_users, pwd_ctx, verify_token, verify_enroll_or_session
 import forgeos_auth as fa
 import forgeos_config as fcfg
 
@@ -203,7 +203,7 @@ def _totp_secret_fields():
 
 
 @router.post("/api/users/me/totp/enroll")
-async def totp_enroll(user=Depends(verify_token)):
+async def totp_enroll(user=Depends(verify_enroll_or_session)):
     """Begin 2FA enrollment: generate a PENDING secret (not yet active) and
     return the otpauth:// URI + secret. Verify-before-enable: nothing is
     enforced until POST /verify confirms the user's authenticator works."""
@@ -222,7 +222,7 @@ async def totp_enroll(user=Depends(verify_token)):
 
 
 @router.post("/api/users/me/totp/verify")
-async def totp_verify(body: dict, user=Depends(verify_token)):
+async def totp_verify(body: dict, user=Depends(verify_enroll_or_session)):
     """Confirm enrollment: verify a code against the pending secret, then
     activate 2FA and return single-use backup codes (shown ONCE — they are
     bcrypt-hashed at rest and cannot be retrieved again)."""

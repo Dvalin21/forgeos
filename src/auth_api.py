@@ -28,6 +28,7 @@ from forgeos_auth import (
     LoginRequest,
     create_mfa_token,
     create_token,
+    create_enroll_token,
     decode_mfa_token,
     load_users,
     pwd_ctx,
@@ -109,9 +110,16 @@ async def login(body: LoginRequest, request: Request):
     # yet. Issue a session AND signal that enrollment is mandatory — the UI
     # routes them straight into setup. (Enforcement is UI-gated, not token-gated;
     # acceptable for an admin-set policy on a self-hosted box.)
+    # New-account 2FA mandate: password is correct but the user hasn't enrolled.
+    # Hand back a RESTRICTED enroll token (NOT a session, no cookie) — it reaches
+    # only the enroll/verify endpoints, so the user must set up 2FA before they
+    # can do anything. This is the bypass-proof enforcement (no force-browse).
     if user.get("totp_required"):
-        return _issue_session(request, body.username, user["role"],
-                              {"enrollment_required": True})
+        if _audit is not None:
+            _audit(body.username, "auth.login.enroll_required", "pending",
+                   "Password accepted; 2FA enrollment mandatory")
+        return JSONResponse({"enrollment_required": True,
+                             "enroll_token": create_enroll_token(body.username)})
     return _issue_session(request, body.username, user["role"])
 
 

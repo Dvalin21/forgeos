@@ -103,6 +103,15 @@ JWT_EXPIRE  = 12  # hours
 MFA_PENDING_SCOPE   = "mfa_pending"
 JWT_EXPIRE_MFA_MIN  = 5   # minutes
 
+# Token scoped MFA_ENROLL_SCOPE is issued when a user under the "require 2FA for
+# new accounts" policy logs in but has not enrolled yet. Like mfa_pending it is
+# NOT a session token: it reaches ONLY the TOTP enroll/verify endpoints (via
+# verify_enroll_or_session), letting a forced-enrollment user set up 2FA — and
+# nothing else — before they hold a session. This is what makes the policy
+# bypass-proof: the token can't be force-browsed to any real endpoint.
+MFA_ENROLL_SCOPE      = "mfa_enroll"
+JWT_EXPIRE_ENROLL_MIN = 15  # minutes (enough to scan a QR + enter a code)
+
 pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -196,20 +205,58 @@ def decode_mfa_token(token: str) -> str | None:
     return payload.get("sub")
 
 
-def verify_token(request: Request) -> dict:
-    """FastAPI dependency — extracts + validates JWT from header or cookie."""
+def create_enroll_token(username: str) -> str:
+    """Restricted token for a forced-enrollment user. Scoped MFA_ENROLL_SCOPE so
+    it is accepted ONLY by the TOTP enroll/verify endpoints — never a real
+    endpoint. Carries no role."""
+    payload = {
+        "sub": username,
+        "scope": MFA_ENROLL_SCOPE,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_ENROLL_MIN),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+
+def _extract_token(request: Request) -> str:
+    """Pull the JWT from the Authorization header, falling back to the cookie."""
     token = request.headers.get("Authorization", "").removeprefix("Bearer ")
     if not token:
         token = request.cookies.get("forgeos_token", "")
+    return token
+
+
+def verify_token(request: Request) -> dict:
+    """FastAPI dependency — full session tokens only. Rejects the restricted
+    mfa_pending / mfa_enroll scopes, so a half-authenticated token can never
+    reach a real endpoint (the MFA bypass guard)."""
+    token = _extract_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
-    if payload.get("scope") == MFA_PENDING_SCOPE:
-        # A password-only (pre-2FA) token must never reach a real endpoint.
+    if payload.get("scope") in (MFA_PENDING_SCOPE, MFA_ENROLL_SCOPE):
+        # A half-authenticated token (pre-2FA, or pre-enrollment) must never
+        # reach a real endpoint.
         raise HTTPException(status_code=401, detail="Two-factor authentication required")
+    return payload
+
+
+def verify_enroll_or_session(request: Request) -> dict:
+    """Dependency for the TOTP enroll/verify endpoints ONLY. Accepts a full
+    session token OR an mfa_enroll-scoped token — a forced-enrollment user holds
+    only the latter until 2FA is set up. mfa_pending and anything else are
+    rejected."""
+    token = _extract_token(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if payload.get("scope") not in (None, MFA_ENROLL_SCOPE):
+        raise HTTPException(status_code=401, detail="Not authorized for enrollment")
     return payload
 
 
@@ -226,7 +273,7 @@ def verify_ws_token(ws: WebSocket) -> dict | None:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
     except JWTError:
         return None
-    if payload.get("scope") == MFA_PENDING_SCOPE:
+    if payload.get("scope") in (MFA_PENDING_SCOPE, MFA_ENROLL_SCOPE):
         return None
     return payload
 
