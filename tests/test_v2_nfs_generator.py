@@ -80,4 +80,4 @@ def test_rejects_duplicate_export_paths():
 
 def test_renders_to_etc_exports():
     rf = NfsGenerator().render(_cfg())[0]
-    assert rf.path == "/etc/exports"
+    assert rf.path == "/etc/exports.d/forgeos.exports"

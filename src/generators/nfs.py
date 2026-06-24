@@ -1,9 +1,12 @@
 """NFS exports generator (v2).
 
-Renders /etc/exports from the config DB. Export OPTIONS are derived from a
-fixed set of export types (rw/ro/public/backup) rather than freeform — the
-same finite-template approach as Samba share types. The NFSv4 root export
-(fsid=0) is always emitted when enabled.
+Renders /etc/exports.d/forgeos.exports from the config DB (exportfs reads
+/etc/exports plus /etc/exports.d/*.exports). Writing our own drop-in keeps the
+file under a writable parent dir — /etc itself is read-only under the API's
+ProtectSystem=strict namespace — and never clobbers a hand-written /etc/exports.
+Export OPTIONS are derived from a fixed set of export types (rw/ro/public/backup)
+rather than freeform — the same finite-template approach as Samba share types.
+The NFSv4 root export (fsid=0) is always emitted when enabled.
 """
 
 from __future__ import annotations
@@ -40,7 +43,7 @@ class NfsGenerator(ServiceGenerator):
             lines.append(f"{e.path} {cidr}({opts})")
         return [
             RenderedFile(
-                path="/etc/exports",
+                path="/etc/exports.d/forgeos.exports",
                 content="\n".join(lines) + "\n",
                 mode=0o644,
             )

@@ -377,3 +377,41 @@ def test_service_config_dirs_in_readwritepaths():
     for d in ("/etc/samba", "/etc/nginx", "/etc/fail2ban",
               "/etc/letsencrypt", "/var/log/letsencrypt", "/var/lib/letsencrypt"):
         assert ("-" + d) in unit or (" " + d) in unit, f"{d} missing from ReadWritePaths"
+
+
+def test_generator_writes_stay_within_readwritepaths():
+    """INVARIANT: every path any registered generator emits must sit under a
+    ReadWritePaths entry. Otherwise ProtectSystem=strict silently denies the
+    write at runtime — the Samba / letsencrypt / exports / wireguard / rear bug
+    class. Renders ALL generators against a fully-populated config and fails if
+    any output escapes the writable set, so the class cannot silently regress.
+    """
+    import forgeos_config as fc
+    from generators import registry
+
+    rwp = next(l for l in fi._API_SERVICE_UNIT.splitlines()
+               if l.strip().startswith("ReadWritePaths="))
+    prefixes = [p.lstrip("-").replace("{opt}", "/opt/forgeos")
+                for p in rwp.split("=", 1)[1].split()]
+
+    def covered(path: str) -> bool:
+        return any(path == pre or path.startswith(pre.rstrip("/") + "/")
+                   for pre in prefixes)
+
+    cfg = fc.ForgeOSConfig()
+    cfg.nfs.enabled = True
+    cfg.nfs.exports = [fc.NfsExport(path="/srv/nas/share", type="rw")]
+    cfg.wireguard.enabled = True
+    cfg.osbackup.enabled = True
+    cfg.samba.enabled = True
+    cfg.samba.shares = [fc.SambaShare(name="data", path="/srv/nas/data")]
+    cfg.security.profile = "high"          # widest tool set
+    cfg.nginx.enabled = True
+    cfg.nginx.vhosts = [fc.NginxVhost(name="app", domain="app.lan", upstream_port=8080)]
+
+    uncovered = []
+    for name in registry.names():
+        for rf in registry.get(name).render(cfg):
+            if not covered(rf.path):
+                uncovered.append((name, rf.path))
+    assert not uncovered, f"generator writes escape ReadWritePaths: {uncovered}"
