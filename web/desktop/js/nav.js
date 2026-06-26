@@ -49,7 +49,7 @@
       { id: "apps",     label: "Apps & Containers", icon: "apps", page: "apps.html" }
     ]},
     { title: "Network", items: [
-      { id: "proxy",    label: "Reverse Proxy", icon: "proxy",    page: null },
+      { id: "proxy",    label: "Reverse Proxy", icon: "proxy",    page: "reverse-proxy.html" },
       { id: "firewall", label: "Firewall",      icon: "firewall", page: "firewall.html" },
       { id: "vpn",      label: "VPN",           icon: "vpn",      page: "vpn.html" }
     ]},
