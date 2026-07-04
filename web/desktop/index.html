@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>ForgeNAS Control Center</title>
-<script>document.documentElement.dataset.theme=localStorage.getItem("forgeos_theme")||"dark"</script>
+<script>var _d=document.documentElement,_l=localStorage;_d.dataset.theme=_l.getItem("forgeos_theme")||"dark";_d.dataset.accent=_l.getItem("forgeos_accent")||"ember"</script>
 <link rel="stylesheet" href="/css/forgeos.css">
 <style>
 /* index-specific */
@@ -138,17 +138,22 @@
         </div>
         <div class="top-actions">
           <button class="circle-btn" id="refresh-btn" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></button>
-          <button class="circle-btn" id="logout-btn" aria-label="Sign out"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></button>
-          <div class="profile">
+          <button class="circle-btn" id="customize-btn" aria-label="Customize dashboard" title="Customize dashboard"><svg viewBox="0 0 24 24"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2"/><circle cx="10" cy="16" r="2"/></svg></button>
+          <div class="profile" id="profile-btn" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">
             <div class="avatar" id="avatar">A</div>
             <div><strong id="profile-user">admin</strong><span id="profile-role">Local account</span></div>
+            <div class="avatar-menu" id="avatar-menu" role="menu">
+              <div class="am-id"><strong id="am-user">admin</strong><span id="am-role">Local account</span></div>
+              <div class="am-item" aria-disabled="true" title="Arrives with the Users &amp; 2FA page"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-3.4 3.6-5 7-5s6.2 1.6 7 5"/></svg>Profile &amp; users — coming soon</div>
+              <button id="logout-btn" role="menuitem"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
+            </div>
           </div>
         </div>
       </header>
 
       <!-- HERO: repurposed from the marketing block into a live system-identity + status panel -->
       <section class="hero">
-        <div class="panel hero-card">
+        <div class="panel hero-card" data-widget="hero">
           <span class="eyebrow"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/><path d="M9.5 12l1.8 1.8 3.7-4"/></svg><span data-live="hero-state">System healthy</span></span>
           <h2 data-live="hero-host">forgenas</h2>
           <p data-live="hero-sub">Reading appliance identity…</p>
@@ -164,7 +169,7 @@
           </div>
         </div>
 
-        <aside class="panel pad">
+        <aside class="panel pad" data-widget="health">
           <div class="section-head"><div><h3>Health Center</h3><p>Critical system state at a glance</p></div><span class="chip" data-live="health-chip">—</span></div>
           <div class="health-stack" id="health-stack">
             <div class="mini-card"><div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></div><div><h4>CPU package</h4><p data-live="hc-cpu">—</p></div><b data-live="hc-cpu-b">—</b></div>
@@ -176,7 +181,7 @@
       </section>
 
       <!-- METRICS -->
-      <section class="grid-4" aria-label="Metrics">
+      <section class="grid-4" aria-label="Metrics" data-widget="metrics">
         <article class="panel metric">
           <div class="metric-top"><div><label>CPU Load</label><strong data-live="m-cpu">—</strong></div><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></div></div>
           <div class="trend" data-live="m-cpu-t">—</div><div class="bar good"><i style="width:0%" data-bar="cpu"></i></div>
@@ -197,7 +202,7 @@
 
       <section class="content-grid">
         <div class="left-stack">
-          <article id="storage" class="panel pad">
+          <article id="storage" class="panel pad" data-widget="storage">
             <div class="section-head"><div><h3>Storage Manager</h3><p>ForgeRAID (mdadm + LVM + btrfs) capacity, volumes, and array health</p></div><span class="chip" data-live="st-chip">—</span></div>
             <div class="storage-layout">
               <div class="donut" style="--pct:0%" id="st-donut"><div class="donut-inner"><div><strong data-live="st-pct">—</strong><span>Pool used</span></div></div></div>
@@ -205,7 +210,7 @@
             </div>
           </article>
 
-          <article id="files" class="panel pad" style="margin-top:22px;">
+          <article id="files" class="panel pad" data-widget="files" style="margin-top:22px;">
             <div class="section-head"><div><h3>File Station</h3><p>Samba shares and recent administrative file activity</p></div><a class="button" id="act-share2" role="button" style="background:var(--primary-soft); color:var(--primary);"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New Share</a></div>
             <div class="table-wrap">
               <table>
@@ -215,14 +220,14 @@
             </div>
           </article>
 
-          <article id="services" class="panel pad" style="margin-top:22px;">
+          <article id="services" class="panel pad" data-widget="services" style="margin-top:22px;">
             <div class="section-head"><div><h3>Apps &amp; Services</h3><p>System services and Docker / Incus workloads</p></div><span class="chip" data-live="svc-chip">—</span></div>
             <div class="app-grid" id="app-grid"><div class="vol-empty">Loading services…</div></div>
           </article>
         </div>
 
         <aside class="right-stack">
-          <section class="panel pad">
+          <section class="panel pad" data-widget="quick">
             <div class="section-head"><div><h3>Quick Actions</h3><p>Common NAS operations</p></div></div>
             <div class="quick-actions">
               <div class="quick" id="qa-share"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div><h4>Create share</h4><p>Provision path, ACLs, access.</p></div>
@@ -232,12 +237,12 @@
             </div>
           </section>
 
-          <section id="backup" class="panel pad" style="margin-top:22px;">
+          <section id="backup" class="panel pad" data-widget="backup" style="margin-top:22px;">
             <div class="section-head"><div><h3>Backup Jobs</h3><p>Restic / Rclone / Borg job status</p></div><span class="chip" data-live="bk-chip">—</span></div>
             <div class="tasks" id="backup-tasks"><div class="vol-empty">Loading jobs…</div></div>
           </section>
 
-          <section class="panel pad" style="margin-top:22px;">
+          <section class="panel pad" style="margin-top:22px;" data-widget="activity">
             <div class="section-head"><div><h3>Activity Log</h3><p>Most recent administrative events</p></div></div>
             <div class="activity" id="activity"><div class="vol-empty">Loading audit log…</div></div>
           </section>
@@ -288,6 +293,7 @@
 
   <div id="toasts"></div>
 
+<script src="/js/widgets.js"></script>
 <script src="/js/index.js"></script>
   <script src="/js/nav.js"></script>
 </body>

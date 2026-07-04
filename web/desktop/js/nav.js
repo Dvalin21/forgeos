@@ -111,15 +111,23 @@
     });
     html += "</div>"; // close .nav-scroll
 
+    var SUN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1"/></svg>';
+    var MOON = '<svg viewBox="0 0 24 24"><path d="M20 13.5A8 8 0 1 1 10.5 4a6.5 6.5 0 0 0 9.5 9.5z"/></svg>';
+    var ACCENTS = { ember: "#e8862e", teal: "#14b8a6", violet: "#8b7cf6", sky: "#3d9df2", graphite: "#8a94a6" };
+    var accBtns = Object.keys(ACCENTS).map(function (a) {
+      var sel = document.documentElement.dataset.accent === a ? " sel" : "";
+      return '<button class="accent-dot' + sel + '" data-accent-pick="' + a + '" title="' + a + '" aria-label="Accent: ' + a + '" style="background:' + ACCENTS[a] + '"></button>';
+    }).join("");
     html += '' +
       '<div class="sidebar-footer">' +
         '<strong id="sf-title">NAS Health: <span data-live="health">checking…</span></strong>' +
         '<span id="sf-detail">Reading pool state, SMART status, and snapshot replication…</span>' +
-        '<button id="theme-toggle" type="button" title="Switch light/dark theme" ' +
-          'style="margin-top:10px;width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--line);' +
-          'background:transparent;color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer">' +
-          (document.documentElement.dataset.theme === "light" ? "◐ Dark mode" : "◑ Light mode") +
-        '</button>' +
+        '<div class="sf-controls">' +
+          '<button id="theme-toggle" type="button" class="theme-btn" title="Switch light/dark">' +
+            (document.documentElement.dataset.theme === "light" ? MOON : SUN) +
+          '</button>' +
+          '<div class="accent-row" role="group" aria-label="Accent color">' + accBtns + '</div>' +
+        '</div>' +
       "</div>";
 
     aside.innerHTML = html;
@@ -128,8 +136,17 @@
       var light = document.documentElement.dataset.theme !== "light";
       document.documentElement.dataset.theme = light ? "light" : "dark";
       try { localStorage.setItem("forgeos_theme", light ? "light" : "dark"); } catch (e) {}
-      tt.textContent = light ? "◐ Dark mode" : "◑ Light mode";
+      tt.innerHTML = light ? MOON : SUN;
     };
+    [].forEach.call(aside.querySelectorAll("[data-accent-pick]"), function (b) {
+      b.onclick = function () {
+        var a = b.getAttribute("data-accent-pick");
+        document.documentElement.dataset.accent = a;
+        try { localStorage.setItem("forgeos_accent", a); } catch (e) {}
+        [].forEach.call(aside.querySelectorAll(".accent-dot"), function (d) { d.classList.remove("sel"); });
+        b.classList.add("sel");
+      };
+    });
     return aside;
   }
 
