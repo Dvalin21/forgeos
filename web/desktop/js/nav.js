@@ -115,9 +115,21 @@
       '<div class="sidebar-footer">' +
         '<strong id="sf-title">NAS Health: <span data-live="health">checking…</span></strong>' +
         '<span id="sf-detail">Reading pool state, SMART status, and snapshot replication…</span>' +
+        '<button id="theme-toggle" type="button" title="Switch light/dark theme" ' +
+          'style="margin-top:10px;width:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--line);' +
+          'background:transparent;color:var(--muted);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer">' +
+          (document.documentElement.dataset.theme === "light" ? "◐ Dark mode" : "◑ Light mode") +
+        '</button>' +
       "</div>";
 
     aside.innerHTML = html;
+    var tt = aside.querySelector("#theme-toggle");
+    if (tt) tt.onclick = function () {
+      var light = document.documentElement.dataset.theme !== "light";
+      document.documentElement.dataset.theme = light ? "light" : "dark";
+      try { localStorage.setItem("forgeos_theme", light ? "light" : "dark"); } catch (e) {}
+      tt.textContent = light ? "◐ Dark mode" : "◑ Light mode";
+    };
     return aside;
   }
 
