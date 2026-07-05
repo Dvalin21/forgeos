@@ -20,6 +20,7 @@ tiers, it does NOT add new security software.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from generators import RenderedFile, ServiceGenerator
 
@@ -99,6 +100,15 @@ class SecurityGenerator(ServiceGenerator):
 
     def apply(self, cfg, *, do_reload: bool = True) -> list[str]:
         written = super().apply(cfg, do_reload=False)
+        # fail2ban validates logpath at load and drops the jail if the file is
+        # absent. auth.log is created lazily on the first failure, so touch it
+        # here to break the chicken-and-egg.
+        try:
+            log = Path("/var/log/forgeos/auth.log")
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.touch(exist_ok=True)
+        except OSError:
+            pass
         for p in self.plan(cfg):
             if p.active:
                 self._enable_tool(p.tool)
