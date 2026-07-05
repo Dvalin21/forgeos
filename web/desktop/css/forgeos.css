@@ -1,53 +1,39 @@
 /* ForgeOS UI — single shared stylesheet. Source of truth for all pages.
-   Dark is the default. Light = <html data-theme="light"> (toggle in sidebar).
+   Single light theme (original palette). Dark returns in W2b once page deltas are tokenized.
    Components reference tokens only — retheme = edit this block. */
 :root {
-  --bg: #0b0a09;                 /* true black, warm cast — not blue-black */
-  --surface: #141210;
-  --surface-2: #1a1815;
-  --surface-3: #22201b;
-  --text: #ece8e1;
-  --muted: #9a948a;
-  --line: rgba(236,232,225,.09);
-  --ink: 236,232,225;
-  --primary: #e8862e;            /* overridden by data-accent below */
-  --primary-2: #f2a45c;
-  --primary-soft: rgba(232,134,46,.16);
-  --success: #22c07d;
-  --warn: #e0a83a;
-  --danger: #ef5b64;
-  --shadow: 0 12px 32px rgba(0,0,0,.5);
-  --shadow-soft: 0 6px 18px rgba(0,0,0,.35);
-  --radius: 18px;
-  --radius-sm: 12px;
+  --bg: #eef3f8;
+  --surface: #ffffff;
+  --surface-2: #f7faff;
+  --surface-3: #edf4ff;
+  --text: #152238;
+  --muted: #68758b;
+  --line: rgba(21,34,56,.10);
+  --ink: 21,34,56;
+  --primary: #2962ff;
+  --primary-2: #00a4b8;
+  --primary-soft: rgba(41,98,255,.10);
+  --success: #10a66a;
+  --warn: #d88a00;
+  --danger: #cf3d46;
+  --shadow: 0 14px 40px rgba(19,35,58,.10);
+  --shadow-soft: 0 6px 20px rgba(19,35,58,.06);
+  --radius: 20px;
+  --radius-sm: 13px;
   --sidebar: 268px;
   --topbar: 70px;
   --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: ui-monospace, "Cascadia Code", "JetBrains Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
-html[data-theme="light"] {
-  --bg: #f5f3ef;
-  --surface: #ffffff;
-  --surface-2: #faf8f4;
-  --surface-3: #f1ede6;
-  --text: #221f1a;
-  --muted: #6f6a60;
-  --line: rgba(34,31,26,.12);
-  --ink: 34,31,26;
-  --shadow: 0 18px 55px rgba(34,31,26,.10);
-  --shadow-soft: 0 10px 30px rgba(34,31,26,.07);
-}
-/* accent presets — user-picked (sidebar), persisted as forgeos_accent */
-html[data-accent="ember"]    { --primary:#e8862e; --primary-2:#f2a45c; --primary-soft:rgba(232,134,46,.16); }
-html[data-accent="teal"]     { --primary:#14b8a6; --primary-2:#4dd6c6; --primary-soft:rgba(20,184,166,.16); }
-html[data-accent="violet"]   { --primary:#8b7cf6; --primary-2:#ab9ffa; --primary-soft:rgba(139,124,246,.16); }
-html[data-accent="sky"]      { --primary:#3d9df2; --primary-2:#6cb8f7; --primary-soft:rgba(61,157,242,.16); }
-html[data-accent="graphite"] { --primary:#8a94a6; --primary-2:#aab3c2; --primary-soft:rgba(138,148,166,.18); }
+/* ponytail: single light theme. Dark returns (W2b) only after every page-delta
+   color is tokenized — a half-tokenized dark ships unreadable panels. */
 
 
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
     body {
+  background-image: radial-gradient(900px 420px at 85% -8%, rgba(41,98,255,.07), transparent 60%),
+                    radial-gradient(700px 380px at -6% 30%, rgba(0,164,184,.06), transparent 55%);
       margin: 0;
       min-height: 100vh;
       font-family: var(--font);
@@ -804,15 +790,6 @@ html[data-accent="graphite"] { --primary:#8a94a6; --primary-2:#aab3c2; --primary
 .avatar-menu button:hover { background: var(--surface-2); }
 .avatar-menu .am-item[aria-disabled="true"] { color: var(--muted); cursor: default; }
 .avatar-menu svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.9; flex: none; }
-/* ── sidebar: theme + accent controls ── */
-.sf-controls { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
-.theme-btn { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px;
-  border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
-.theme-btn:hover { color: var(--text); background: var(--surface-2); }
-.theme-btn svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.9; }
-.accent-row { display: flex; gap: 7px; align-items: center; }
-.accent-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
-.accent-dot.sel { border-color: var(--text); box-shadow: 0 0 0 2px var(--surface); }
 /* ── dashboard widget system ── */
 [data-widget].w-off { display: none !important; }
 .wz-widget-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
@@ -825,3 +802,21 @@ html[data-accent="graphite"] { --primary:#8a94a6; --primary-2:#aab3c2; --primary
 .wz-widget-row button:disabled { opacity: .35; cursor: default; }
 .wz-widget-row button svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 2; }
 .wz-widget-row button.w-eye.on { color: var(--primary); border-color: var(--primary-soft); background: var(--primary-soft); }
+
+/* ── icon tiles (nav + health + metric icons) ── */
+.tile { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: none;
+  box-shadow: inset 0 -6px 10px rgba(0,0,0,.10), 0 3px 7px rgba(19,35,58,.14); }
+.tile svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.t-dash    { background: linear-gradient(135deg,#3d78ff,#2450d6); }
+.t-store   { background: linear-gradient(135deg,#5b8bff,#3a5fd9); }
+.t-db      { background: linear-gradient(135deg,#7a6bff,#5b46e0); }
+.t-files   { background: linear-gradient(135deg,#ffb03a,#f08c1a); }
+.t-share   { background: linear-gradient(135deg,#18bfa4,#0d9d8b); }
+.t-apps    { background: linear-gradient(135deg,#a05cf0,#7d3fd6); }
+.t-proxy   { background: linear-gradient(135deg,#22aee6,#128ac4); }
+.t-fw      { background: linear-gradient(135deg,#ff7350,#e2492e); }
+.t-vpn     { background: linear-gradient(135deg,#37c26a,#1ea351); }
+.t-users   { background: linear-gradient(135deg,#f0619e,#d63f7f); }
+.t-sys     { background: linear-gradient(135deg,#8a97ad,#66738a); }
+.nav a .tile { margin-right: 0; }
+.mini-icon.tile svg, .stat-ic.tile svg { stroke: #fff; }

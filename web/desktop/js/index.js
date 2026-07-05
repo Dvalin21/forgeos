@@ -94,7 +94,6 @@
     setLive("hero-sub", [d.os, "kernel " + (d.kernel || "?"), "ForgeOS " + (d.forgeos_ver || "?")].filter(Boolean).join("  ·  "));
     setLive("set-host", d.hostname || "—");
     setLive("set-ver", "ForgeOS " + (d.forgeos_ver || "?") + "  ·  " + (d.os || ""));
-    setLive("hc-cpu", (d.cpu || "CPU") + "  ·  " + (d.cpu_cores || "?") + " threads" + (window._cpuTemp ? "  ·  " + window._cpuTemp + " °C" : ""));
     var u = ($("#profile-user")); var un = u ? u.textContent.trim() : "admin";
     var av = $("#avatar"); if (av) av.textContent = (un[0] || "A").toUpperCase();
   }
@@ -108,7 +107,6 @@
       setLive("m-cpu", s.cpu_pct.toFixed(0) + "%");
       setLive("m-cpu-t", (s.load ? "load " + s.load.join(" / ") : "—"));
       setBar("cpu", s.cpu_pct); barClass($('[data-bar="cpu"]'), s.cpu_pct);
-      setLive("hc-cpu-b", s.cpu_pct < 85 ? "OK" : "BUSY");
       window._cpuTemp = s.temps && s.temps.cpu;
     }
     // Memory (API returns memory.pct — NOT percent)
@@ -183,6 +181,17 @@
 
     // RAID health from pools
     var pools = (await api("/api/storage/pools")).data;
+    try {
+      var dd = (await api("/api/storage/drives")).data;
+      var drv = (dd && dd.drives) || [];
+      if (drv.length) {
+        var pass = drv.filter(function (x) { return x.health >= 90; }).length;
+        var worstD = drv.some(function (x) { return x.health < 60; }) ? "ERR"
+                   : (pass === drv.length ? "OK" : "CHECK");
+        setLive("hc-smart", pass + "/" + drv.length + " drives SMART passed");
+        setLive("hc-smart-b", worstD);
+      } else { setLive("hc-smart", "No drives detected"); setLive("hc-smart-b", "—"); }
+    } catch (e) { setLive("hc-smart", "SMART unavailable"); setLive("hc-smart-b", "—"); }
     if (pools && pools.pools) {
       var arr = pools.pools, ndrives = 0, worst = "ok";
       var order = { ok: 0, predict: 1, warn: 2, rebuilding: 2, err: 3 };

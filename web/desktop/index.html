@@ -4,7 +4,6 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>ForgeNAS Control Center</title>
-<script>var _d=document.documentElement,_l=localStorage;_d.dataset.theme=_l.getItem("forgeos_theme")||"dark";_d.dataset.accent=_l.getItem("forgeos_accent")||"ember"</script>
 <link rel="stylesheet" href="/css/forgeos.css">
 <style>
 /* index-specific */
@@ -172,10 +171,10 @@
         <aside class="panel pad" data-widget="health">
           <div class="section-head"><div><h3>Health Center</h3><p>Critical system state at a glance</p></div><span class="chip" data-live="health-chip">—</span></div>
           <div class="health-stack" id="health-stack">
-            <div class="mini-card"><div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></div><div><h4>CPU package</h4><p data-live="hc-cpu">—</p></div><b data-live="hc-cpu-b">—</b></div>
-            <div class="mini-card"><div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></div><div><h4>Storage pool</h4><p data-live="hc-pool">—</p></div><b data-live="hc-pool-b">—</b></div>
-            <div class="mini-card"><div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></div><div><h4>File services</h4><p data-live="hc-svc">—</p></div><b data-live="hc-svc-b">—</b></div>
-            <div class="mini-card"><div class="mini-icon"><svg viewBox="0 0 24 24"><path d="M12 5v8l4 2"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/></svg></div><div><h4>Last snapshot</h4><p data-live="hc-snap">—</p></div><b data-live="hc-snap-b">—</b></div>
+            <div class="mini-card"><div class="mini-icon tile t-store"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/><path d="M9 15.5l2 2 4-4.5"/></svg></div><div><h4>Drive health</h4><p data-live="hc-smart">—</p></div><b data-live="hc-smart-b">—</b></div>
+            <div class="mini-card"><div class="mini-icon tile t-db"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></div><div><h4>Storage pool</h4><p data-live="hc-pool">—</p></div><b data-live="hc-pool-b">—</b></div>
+            <div class="mini-card"><div class="mini-icon tile t-files"><svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></div><div><h4>File services</h4><p data-live="hc-svc">—</p></div><b data-live="hc-svc-b">—</b></div>
+            <div class="mini-card"><div class="mini-icon tile t-sys"><svg viewBox="0 0 24 24"><path d="M12 5v8l4 2"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/></svg></div><div><h4>Last snapshot</h4><p data-live="hc-snap">—</p></div><b data-live="hc-snap-b">—</b></div>
           </div>
         </aside>
       </section>
