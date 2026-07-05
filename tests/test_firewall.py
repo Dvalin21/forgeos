@@ -145,3 +145,24 @@ class TestUfwConverge:
         assert g._rule_args(fc.FirewallRule(port="53", family="ipv4"))[:3] == \
             ["allow", "from", "0.0.0.0/0"]
         assert g._rule_args(fc.FirewallRule(port="53")) == ["allow", "53"]
+
+
+def test_apply_ordering_converge_before_save(monkeypatch, tmp_path):
+    """A failed converge must NOT persist to config-DB (no silent divergence)."""
+    import firewall_api as fa, forgeos_config as fc
+    from generators import registry
+    fa.set_apply(None)                                  # exercise the real path
+    cfgfile = tmp_path / "config.json"
+    monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+    saved = {"n": 0}
+    monkeypatch.setattr(fc, "save", lambda c, *a, **k: saved.__setitem__("n", saved["n"] + 1))
+    class Bad:  ok = False; error = "boom"
+    monkeypatch.setattr(registry, "apply_one", lambda *a, **k: Bad())
+    import pytest
+    with pytest.raises(Exception):
+        fa._apply_fw(fc.ForgeOSConfig())
+    assert saved["n"] == 0                              # never saved on failure
+    class Good: ok = True; error = ""
+    monkeypatch.setattr(registry, "apply_one", lambda *a, **k: Good())
+    fa._apply_fw(fc.ForgeOSConfig())
+    assert saved["n"] == 1                              # saved only after converge

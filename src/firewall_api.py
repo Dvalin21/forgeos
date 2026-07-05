@@ -33,10 +33,13 @@ def _apply_fw(cfg) -> None:
     if _apply is not None:
         _apply(cfg)
         return
-    fc.save(cfg)
+    # Converge live ufw FIRST; persist only if it took. Otherwise a partial
+    # converge (e.g. EROFS mid-sequence) leaves config-DB claiming state the
+    # firewall rejected — DB and live silently diverge.
     res = registry.apply_one("ufw", cfg=cfg)
     if not res.ok:
         raise HTTPException(500, f"firewall apply failed: {res.error}")
+    fc.save(cfg)
 
 
 def set_apply(fn) -> None:
