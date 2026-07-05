@@ -934,6 +934,19 @@ except ImportError as e:
 
 
 # ────────────────────────────────────────────────────────────
+# FIREWALL — config-DB backed (firewall_api.py, security P1)
+# ────────────────────────────────────────────────────────────
+try:
+    from firewall_api import router as firewall_router, set_helpers as set_firewall_helpers
+    set_firewall_helpers(audit=_audit)
+    app.include_router(firewall_router)
+    logger.info("Firewall API loaded")
+except ImportError as e:
+    logger.error("Firewall API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
 # VPN — WireGuard peer management (vpn_api.py, Sprint 5 / LTH-001)
 # Wraps the forgeos-vpn CLI installed by 11-vpn.sh.
 # ────────────────────────────────────────────────────────────

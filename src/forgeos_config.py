@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 CONFIG_PATH = Path(os.environ.get("FORGEOS_CONFIG_JSON", "/etc/forgeos/config.json"))
 
@@ -201,6 +201,71 @@ class NginxConfig(BaseModel):
 
 SecurityProfile = Literal["low", "medium", "high"]
 
+
+
+class FirewallRule(BaseModel):
+    """One ufw rule. port may be a single port or a range "a:b"; ranges
+    require an explicit proto (ufw constraint). from_ip: 'any', an IP, or a
+    CIDR. family follows the legacy API semantics (both|ipv4|ipv6)."""
+    port: str
+    proto: Literal["any", "tcp", "udp"] = "any"
+    action: Literal["allow", "deny", "reject", "limit"] = "allow"
+    from_ip: str = "any"
+    family: Literal["both", "ipv4", "ipv6"] = "both"
+    comment: str = ""
+
+    @field_validator("port")
+    @classmethod
+    def _valid_port(cls, v: str) -> str:
+        v = v.strip()
+        m = re.match(r"^(\d{1,5})(?::(\d{1,5}))?$", v)
+        if not m:
+            raise ValueError(f"invalid port: {v!r}")
+        lo = int(m.group(1)); hi = int(m.group(2)) if m.group(2) else lo
+        if not (1 <= lo <= 65535 and 1 <= hi <= 65535 and lo <= hi):
+            raise ValueError(f"port out of range: {v!r}")
+        return v
+
+    @field_validator("from_ip")
+    @classmethod
+    def _valid_from(cls, v: str) -> str:
+        v = v.strip()
+        if v in ("", "any"):
+            return "any"
+        import ipaddress
+        ipaddress.ip_network(v, strict=False)   # raises on garbage
+        return v
+
+    @field_validator("comment")
+    @classmethod
+    def _valid_comment(cls, v: str) -> str:
+        v = v.strip()
+        if not re.match(r"^[A-Za-z0-9 ._-]{0,60}$", v):
+            raise ValueError("comment: letters, digits, spaces, ._- only (max 60)")
+        return v
+
+    @model_validator(mode="after")
+    def _range_needs_proto(self):
+        if ":" in self.port and self.proto == "any":
+            raise ValueError("port ranges require an explicit proto (tcp or udp)")
+        if self.from_ip != "any":
+            import ipaddress
+            fam = "ipv6" if ipaddress.ip_network(self.from_ip, strict=False).version == 6 else "ipv4"
+            if self.family == "both":
+                self.family = fam
+            elif self.family != fam:
+                raise ValueError(f"family {self.family} does not match address {self.from_ip}")
+        return self
+
+
+class FirewallConfig(BaseModel):
+    """Firewall intent — config-DB is the source of truth; the ufw generator
+    converges the live firewall to this."""
+    enabled: bool = False
+    default_incoming: Literal["deny", "allow", "reject"] = "deny"
+    default_outgoing: Literal["deny", "allow", "reject"] = "allow"
+    logging: Literal["off", "low", "medium", "high", "full"] = "low"
+    rules: list[FirewallRule] = Field(default_factory=list)
 
 class SecurityConfig(BaseModel):
     profile: SecurityProfile = "medium"
@@ -487,7 +552,7 @@ class AuthConfig(BaseModel):
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
-    version: int = 4
+    version: int = 5
     # `domain` is the legacy single-name field, kept for compatibility with
     # existing call sites (installer, nginx generator, CLI). The authoritative
     # model is `naming` (three-names). `domain` mirrors naming.lan_name for the
@@ -499,6 +564,7 @@ class ForgeOSConfig(BaseModel):
     samba: SambaConfig = Field(default_factory=SambaConfig)
     nginx: NginxConfig = Field(default_factory=NginxConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
+    firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     wireguard: WireGuardConfig = Field(default_factory=WireGuardConfig)
     nfs: NfsConfig = Field(default_factory=NfsConfig)
     smtp: SmtpConfig = Field(default_factory=SmtpConfig)
@@ -517,7 +583,7 @@ class ForgeOSConfig(BaseModel):
         return v
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def _migrate_v1_to_v2(data: dict) -> dict:
@@ -559,10 +625,18 @@ def _migrate_v3_to_v4(data: dict) -> dict:
 
 
 # version N -> N+1 migrators, applied in order until data reaches SCHEMA_VERSION
+
+def _migrate_v4_to_v5(data: dict) -> dict:
+    """v5: firewall block (config-DB-owned ufw). Additive."""
+    data.setdefault("firewall", {})
+    data["version"] = 5
+    return data
+
 _MIGRATIONS = {
     1: _migrate_v1_to_v2,
     2: _migrate_v2_to_v3,
     3: _migrate_v3_to_v4,
+    4: _migrate_v4_to_v5,
 }
 
 

@@ -19,6 +19,7 @@ from generators.nginx import NginxGenerator
 from generators.rear import RearGenerator
 from generators.samba import SambaGenerator
 from generators.security import SecurityGenerator
+from generators.ufw import UfwGenerator
 from generators.wireguard import WireGuardGenerator
 
 # Order matters for `apply all`: security (firewall) early, proxy after the
@@ -30,6 +31,7 @@ _REGISTRY: dict[str, ServiceGenerator] = {
     "wireguard": WireGuardGenerator(),
     "nginx": NginxGenerator(),
     "osbackup": RearGenerator(),
+    "ufw": UfwGenerator(),
 }
 
 
