@@ -61,17 +61,18 @@ def test_plan_covers_all_tools_at_every_tier():
         assert tools == ALL_TOOLS
 
 
-def test_low_renders_sshd_jail_only():
+def test_jails_driven_by_fail2ban_config_not_profile():
+    # P2: jail switches live in security.fail2ban, not the profile tier;
+    # the samba jail is gone (no upstream filter — it never worked).
     c = SecurityGenerator().render(_cfg("low"))[0].content
-    assert "[sshd]" in c
-    assert "[samba]" not in c
-    assert "[forgeos-api]" not in c
-
-
-def test_medium_renders_full_jail_set():
-    c = SecurityGenerator().render(_cfg("medium"))[0].content
-    for jail in ("[sshd]", "[nginx-http-auth]", "[forgeos-api]", "[samba]"):
+    for jail in ("[sshd]", "[nginx-http-auth]", "[forgeos-api]"):
         assert jail in c
+    assert "[samba]" not in c
+
+
+def test_render_emits_forgeos_api_filter():
+    files = {f.path: f.content for f in SecurityGenerator().render(_cfg("medium"))}
+    assert "ip=<HOST>" in files["/etc/fail2ban/filter.d/forgeos-api.conf"]
 
 
 def test_apply_enables_and_disables_per_tier(tmp_path, monkeypatch):

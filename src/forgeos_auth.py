@@ -3,6 +3,8 @@ ForgeOS Auth — shared JWT auth for API routers and WebSockets.
 """
 from __future__ import annotations
 
+import re
+
 import json
 import logging
 import os
@@ -215,6 +217,37 @@ def create_enroll_token(username: str) -> str:
         "exp": datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE_ENROLL_MIN),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
+
+
+# ── fail2ban feed ─────────────────────────────────────────────────────────────
+# Auth failures also go to a FILE (the audit trail is SQLite, which fail2ban
+# cannot read). Fixed grammar — the fail2ban filter regex depends on it:
+#   <ts> forgeos-auth FAILED <WHAT> user=<u> ip=<ip>
+AUTH_LOG = Path("/var/log/forgeos/auth.log")
+_auth_logger = None
+
+
+def log_auth_failure(what: str, username: str, ip: str) -> None:
+    """Append one jailable line. Never raises — a logging failure must not
+    break login itself."""
+    global _auth_logger
+    try:
+        if _auth_logger is None:
+            import logging
+            from logging.handlers import RotatingFileHandler
+            AUTH_LOG.parent.mkdir(parents=True, exist_ok=True)
+            lg = logging.getLogger("forgeos.authlog")
+            lg.setLevel(logging.INFO)
+            lg.propagate = False
+            h = RotatingFileHandler(str(AUTH_LOG), maxBytes=5_000_000, backupCount=3)
+            h.setFormatter(logging.Formatter("%(asctime)s forgeos-auth %(message)s"))
+            lg.addHandler(h)
+            _auth_logger = lg
+        # sanitize: usernames are attacker-controlled; keep the line unspoofable
+        u = re.sub(r"[^\w.@-]", "_", str(username))[:64] or "_"
+        _auth_logger.info("FAILED %s user=%s ip=%s", what, u, ip)
+    except Exception:
+        pass
 
 
 def _extract_token(request: Request) -> str:

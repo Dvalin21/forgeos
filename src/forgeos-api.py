@@ -980,7 +980,7 @@ except ImportError as e:
 # ────────────────────────────────────────────────────────────
 try:
     from security_api import router as security_router, set_helpers as set_security_helpers
-    set_security_helpers(run_args=_run_args)
+    set_security_helpers(run_args=_run_args, audit=_audit)
     app.include_router(security_router)
     logger.info("Security API loaded")
 except ImportError as e:
@@ -1353,4 +1353,8 @@ if __name__ == "__main__":
         log_level="info",
         access_log=True,
         workers=1,
+        # API binds 127.0.0.1 behind nginx; only the proxy can set XFF, so
+        # trusting loopback is safe and request.client.host = real client.
+        proxy_headers=True,
+        forwarded_allow_ips="127.0.0.1",
     )

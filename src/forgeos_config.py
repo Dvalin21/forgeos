@@ -267,9 +267,38 @@ class FirewallConfig(BaseModel):
     logging: Literal["off", "low", "medium", "high", "full"] = "low"
     rules: list[FirewallRule] = Field(default_factory=list)
 
+
+class Fail2banConfig(BaseModel):
+    """fail2ban tunables + per-jail switches. Rendered into jail.d/forgeos.conf
+    by the security generator; the forgeos-api jail reads /var/log/forgeos/auth.log."""
+    enabled: bool = True
+    bantime: str = "1h"
+    findtime: str = "10m"
+    maxretry: int = 5
+    jail_sshd: bool = True
+    jail_nginx: bool = True
+    jail_forgeos: bool = True
+
+    @field_validator("bantime", "findtime")
+    @classmethod
+    def _duration(cls, v: str) -> str:
+        v = v.strip()
+        if not re.match(r"^\d{1,6}[smhdw]?$", v):
+            raise ValueError(f"invalid duration: {v!r} (e.g. 600, 10m, 1h, 1d)")
+        return v
+
+    @field_validator("maxretry")
+    @classmethod
+    def _retry(cls, v: int) -> int:
+        if not 1 <= v <= 100:
+            raise ValueError("maxretry must be 1-100")
+        return v
+
+
 class SecurityConfig(BaseModel):
     profile: SecurityProfile = "medium"
     lan_cidr: str = "10.0.0.0/24"
+    fail2ban: Fail2banConfig = Field(default_factory=Fail2banConfig)
 
     @field_validator("lan_cidr")
     @classmethod
@@ -552,7 +581,7 @@ class AuthConfig(BaseModel):
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
-    version: int = 5
+    version: int = 6
     # `domain` is the legacy single-name field, kept for compatibility with
     # existing call sites (installer, nginx generator, CLI). The authoritative
     # model is `naming` (three-names). `domain` mirrors naming.lan_name for the
@@ -583,7 +612,7 @@ class ForgeOSConfig(BaseModel):
         return v
 
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def _migrate_v1_to_v2(data: dict) -> dict:
@@ -632,11 +661,19 @@ def _migrate_v4_to_v5(data: dict) -> dict:
     data["version"] = 5
     return data
 
+
+def _migrate_v5_to_v6(data: dict) -> dict:
+    """v6: fail2ban tunables under security. Additive."""
+    data.setdefault("security", {}).setdefault("fail2ban", {})
+    data["version"] = 6
+    return data
+
 _MIGRATIONS = {
     1: _migrate_v1_to_v2,
     2: _migrate_v2_to_v3,
     3: _migrate_v3_to_v4,
     4: _migrate_v4_to_v5,
+    5: _migrate_v5_to_v6,
 }
 
 

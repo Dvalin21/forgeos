@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from forgeos_auth import (
+    log_auth_failure,
     JWT_EXPIRE,
     LoginRequest,
     create_mfa_token,
@@ -96,6 +97,7 @@ async def login(body: LoginRequest, request: Request):
     user = users.get(body.username)
     if not user or not pwd_ctx.verify(body.password, user["hash"]):
         logger.warning("FAILED LOGIN user=%s from=%s", body.username, request.client.host)
+        log_auth_failure("LOGIN", body.username, request.client.host)
         raise HTTPException(status_code=401, detail="Invalid credentials")
     # Step-2 gate: with 2FA enabled, the password alone earns only a short-lived
     # mfa_pending token — never a session token. The caller must complete
@@ -160,6 +162,7 @@ async def login_totp(body: TotpLoginRequest, request: Request):
             accepted = True
     if not accepted:
         logger.warning("FAILED 2FA user=%s from=%s", username, request.client.host)
+        log_auth_failure("2FA", username, request.client.host)
         raise HTTPException(status_code=401, detail="Invalid code")
 
     users[username] = user
