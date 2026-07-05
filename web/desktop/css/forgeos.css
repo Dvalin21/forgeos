@@ -701,7 +701,7 @@
     .svc-opt:hover{border-color:var(--primary)} .svc-opt.sel{border-color:var(--primary);background:var(--primary-soft)}
     .svc-opt h5{margin:0;font-size:13px;font-weight:800} .svc-opt p{margin:3px 0 0;color:var(--muted);font-size:11px;font-weight:600}
     .seg{display:flex;gap:8px} .seg button{flex:1;height:46px;border:1.5px solid var(--line);border-radius:13px;background:var(--surface-2);font:800 13px var(--font);color:#3a495f;cursor:pointer;transition:.15s}
-    .seg button.sel{color:#fff;border-color:transparent} .seg button.sel.allow{background:linear-gradient(135deg,var(--success),#0bbf78)} .seg button.sel.deny{background:linear-gradient(135deg,var(--danger),#ff7a86)}
+    .seg button.sel{color:#fff;border-color:transparent} .seg button.sel.allow{background:linear-gradient(135deg,var(--success),#0bbf78)} .seg button.sel.deny,.seg button.sel.reject{background:linear-gradient(135deg,var(--danger),#ff7a86)}
     .wz-input{height:46px;width:100%;padding:0 14px;border:1.5px solid var(--line);border-radius:13px;background:var(--surface-2);font:600 14px var(--font);color:var(--text);outline:0}
     .wz-input:focus{border-color:var(--primary)}
     .wz-from{display:grid;grid-template-columns:1fr 1fr;gap:10px}

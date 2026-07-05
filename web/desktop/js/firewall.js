@@ -20,7 +20,8 @@
     $('#fw-title').textContent='Firewall is '+(on?'on':'off');
     $('#fw-desc').textContent=on?'Protecting this NAS. '+(d.rules||[]).length+' active rule'+((d.rules||[]).length!==1?'s':'')+'.':'All connections are currently allowed. Turn it on to enforce rules.';
     // default policy segments
-    setSeg('pol-in',d.default_incoming);setSeg('pol-out',d.default_outgoing);
+    var pol=d.defaults||{};
+    setSeg('pol-in',pol.incoming);setSeg('pol-out',pol.outgoing);
     // rules
     var box=$('#rules');var rules=d.rules||[];
     $('#rule-chip').textContent=rules.length+' rule'+(rules.length!==1?'s':'');
