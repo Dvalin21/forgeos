@@ -374,8 +374,11 @@ def test_service_config_dirs_in_readwritepaths():
     # exactly the bug where smb.conf never regenerated). '-' prefix = writable
     # if present, ignored if missing (no 226/NAMESPACE crash on minimal boxes).
     unit = fi._API_SERVICE_UNIT
+    # /run: admin CLIs (ufw, iptables/xtables, fail2ban-client) keep lockfiles
+    # and sockets there; ProtectSystem=strict makes it read-only otherwise.
     for d in ("/etc/samba", "/etc/nginx", "/etc/fail2ban",
-              "/etc/letsencrypt", "/var/log/letsencrypt", "/var/lib/letsencrypt"):
+              "/etc/letsencrypt", "/var/log/letsencrypt", "/var/lib/letsencrypt",
+              "/etc/ufw", "/run"):
         assert ("-" + d) in unit or (" " + d) in unit, f"{d} missing from ReadWritePaths"
 
 

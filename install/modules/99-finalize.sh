@@ -97,7 +97,7 @@ SyslogIdentifier=forgeos-api
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-ReadWritePaths=/etc/forgeos /var/log/forgeos /opt/forgeos /srv -/etc/samba -/etc/nginx -/etc/fail2ban -/etc/letsencrypt -/var/log/letsencrypt -/var/lib/letsencrypt -/etc/exports.d -/etc/wireguard -/etc/rear -/etc/ufw -/etc/crowdsec -/etc/snapper
+ReadWritePaths=/etc/forgeos /var/log/forgeos /opt/forgeos /srv -/etc/samba -/etc/nginx -/etc/fail2ban -/etc/letsencrypt -/var/log/letsencrypt -/var/lib/letsencrypt -/etc/exports.d -/etc/wireguard -/etc/rear -/etc/ufw -/etc/crowdsec -/etc/snapper -/run
 
 [Install]
 WantedBy=multi-user.target
