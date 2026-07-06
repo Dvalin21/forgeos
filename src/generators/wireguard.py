@@ -71,6 +71,26 @@ class WireGuardGenerator(ServiceGenerator):
             return p.read_text().strip()
         return "__FORGEOS_WG_SERVER_KEY_MISSING__"
 
+    def ensure_server_key(self) -> str:
+        """Generate the server keypair if absent; return the public key.
+        Called by the API before add-peer so a fresh box just works."""
+        priv = self._server_key_path()
+        pub = priv.with_suffix(".pub")
+        if priv.exists() and pub.exists():
+            return pub.read_text().strip()
+        priv.parent.mkdir(parents=True, exist_ok=True)
+        import subprocess
+        key = subprocess.run(["wg", "genkey"], capture_output=True, text=True, check=True).stdout.strip()
+        pubkey = subprocess.run(["wg", "pubkey"], input=key, capture_output=True, text=True, check=True).stdout.strip()
+        # 0600 private, written atomically via the base helper contract
+        priv.write_text(key + "\n"); priv.chmod(0o600)
+        pub.write_text(pubkey + "\n"); pub.chmod(0o644)
+        return pubkey
+
+    def server_pubkey(self) -> str:
+        pub = self._server_key_path().with_suffix(".pub")
+        return pub.read_text().strip() if pub.exists() else self.ensure_server_key()
+
     def validate(self, files: list[RenderedFile]) -> None:
         for f in files:
             if "__FORGEOS_WG_SERVER_KEY_MISSING__" in f.content:

@@ -952,7 +952,7 @@ except ImportError as e:
 # ────────────────────────────────────────────────────────────
 try:
     from vpn_api import router as vpn_router, set_helpers as set_vpn_helpers
-    set_vpn_helpers(run_args=_run_args, audit=_audit)
+    set_vpn_helpers(audit=_audit)
     app.include_router(vpn_router)
     logger.info("VPN API loaded")
 except ImportError as e:

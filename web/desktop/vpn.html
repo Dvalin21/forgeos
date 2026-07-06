@@ -190,8 +190,10 @@ tbody tr:hover { background: var(--surface-2); }
   <div class="backdrop" id="qr-backdrop">
     <div class="modal qr-wrap">
       <h3 id="qr-title">Scan to connect</h3>
-      <p class="sub">Open the WireGuard app on the device and scan this code.</p>
+      <p class="sub">Open the WireGuard app on the device and scan this code, or download the config below.</p>
       <img id="qr-img" alt="WireGuard QR code">
+      <pre id="qr-conf" style="text-align:left;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;font:12px/1.5 var(--mono);overflow:auto;max-height:180px;margin:12px 0"></pre>
+      <p id="qr-warn" class="sub" style="color:var(--warn);font-weight:700"></p>
       <div class="modal-actions" style="justify-content:space-between">
         <button class="button ghost" id="qr-download">Download .conf</button>
         <button class="button" id="qr-close">Done</button>

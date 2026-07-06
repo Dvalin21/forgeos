@@ -1,262 +1,198 @@
-"""ForgeOS — WireGuard VPN API surface (LTH-001).
+"""ForgeOS — WireGuard VPN API (v2, config-DB backed).
 
-Mounts under the existing FastAPI app via:
+Peers live in cfg.wireguard.peers[] (config-DB); the wireguard generator
+renders /etc/wireguard/wg0.conf from that list and reloads. This replaces the
+legacy forgeos-vpn bash CLI (install/modules/11-vpn.sh), which is not present
+on v2 and was the "CLI not installed" failure.
 
-    from vpn_api import router as vpn_router, set_helpers as set_vpn_helpers
-    set_vpn_helpers(run_args=_run_args, audit=_audit)
-    app.include_router(vpn_router)
-
-Routes (/api/vpn/*):
-  GET    /api/vpn/status              server + interface status
-  GET    /api/vpn/peers               structured peer list (+ live handshake)
-  POST   /api/vpn/peers               add a peer            (admin)
-  DELETE /api/vpn/peers/{name}        remove a peer         (admin)
-  GET    /api/vpn/peers/{name}/config download the .conf    (admin)
-  GET    /api/vpn/peers/{name}/qr     QR code (PNG)         (admin)
-  POST   /api/vpn/control/{action}    start|stop|restart    (admin)
-
-Design: this module is a thin wrapper over the `forgeos-vpn` CLI that the
-installer (install/modules/11-vpn.sh) places at /usr/local/bin/forgeos-vpn.
-The CLI owns the WireGuard logic (key generation, IP allocation, server
-config mutation, hot-reload). Reimplementing that here would create two
-sources of truth that could drift. We read structured peer metadata
-directly from the peers directory because the CLI's `list` output is
-human-formatted text, unsuitable for an API.
+Client private keys are RETURN-ONCE: generated at add-peer, embedded in the
+client .conf returned in that one response, never persisted. The server config
+only ever stores peer PUBLIC keys. Consequence: no QR/config regeneration later
+— the client is shown its config exactly once, at creation.
 """
 from __future__ import annotations
 
-import json
-import logging
-import re
+import ipaddress
 import subprocess
-from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import PlainTextResponse, Response
+from fastapi.responses import Response
 
+import forgeos_config as fc
 from forgeos_auth import verify_token
-
-logger = logging.getLogger("forgeos-api")
+from generators import registry
+from generators.wireguard import WireGuardGenerator
 
 router = APIRouter()
 
-# Where the installer stores per-peer metadata and configs.
-PEERS_DIR = Path("/etc/forgeos/vpn/peers")
-WG_INTERFACE = "wg0"
-
-# Peer names must be safe to use as a directory name and a CLI argument.
-# The installer keys peers by name under PEERS_DIR/<name>/, so we constrain
-# to a conservative charset and reject anything else up front.
-_PEER_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$")
-
-# Injected by main module — see set_helpers().
-_run_args: Optional[Callable[..., str]] = None
 _audit: Optional[Callable[..., None]] = None
+_apply = None  # test seam
 
 
-def set_helpers(
-    run_args: Callable[..., str],
-    audit: Callable[..., None],
-) -> None:
-    global _run_args, _audit
-    _run_args = run_args
+def set_helpers(run_args: Callable[..., str] = None, audit: Callable[..., None] = None) -> None:
+    global _audit
     _audit = audit
 
 
-def _require_admin(user) -> None:
+def set_apply(fn) -> None:
+    global _apply
+    _apply = fn
+
+
+def _admin(user) -> None:
     if user.get("role") != "admin":
         raise HTTPException(403, "Admin required")
 
 
-def _validate_peer_name(name: str) -> str:
-    """Reject anything that isn't a safe peer name before it reaches the CLI."""
-    if not _PEER_NAME_RE.match(name):
-        raise HTTPException(
-            400,
-            "Invalid peer name. Use 1-32 chars: letters, digits, hyphen, "
-            "underscore; must start with a letter or digit.",
-        )
-    return name
+def _apply_wg(cfg) -> None:
+    if _apply is not None:
+        _apply(cfg)
+        return
+    res = registry.apply_one("wireguard", cfg=cfg)
+    if not res.ok:
+        raise HTTPException(500, f"wireguard apply failed: {res.error}")
+    fc.save(cfg)
 
 
-def _run_checked(args: list[str], timeout: int = 15) -> str:
-    """Run a mutating command and FAIL LOUDLY on nonzero exit.
-
-    _run_args (the injected helper) swallows errors and returns "" — fine
-    for reads, dangerous for mutations because the API would report success
-    when nothing happened. Mutations use this instead.
-    """
+def _wg_show_handshakes(interface: str) -> dict:
+    """pubkey -> last-handshake-epoch, live from wg. Empty if down."""
     try:
-        proc = subprocess.run(
-            args, shell=False, capture_output=True, text=True, timeout=timeout
-        )
-    except subprocess.TimeoutExpired:
-        raise HTTPException(504, f"Command timed out: {' '.join(args[:2])}")
-    except FileNotFoundError:
-        raise HTTPException(
-            503,
-            "forgeos-vpn CLI not found. Is the WireGuard installer module "
-            "(11-vpn.sh) installed on this system?",
-        )
-    if proc.returncode != 0:
-        detail = (proc.stderr or proc.stdout or "command failed").strip()
-        raise HTTPException(400, detail[:300])
-    return proc.stdout.strip()
-
-
-def _read_peer_meta(name: str) -> dict:
-    """Read a peer's meta.json, returning {} if absent/unreadable."""
-    meta_file = PEERS_DIR / name / "meta.json"
-    try:
-        return json.loads(meta_file.read_text())
-    except (OSError, json.JSONDecodeError):
+        out = subprocess.run(["wg", "show", interface, "latest-handshakes"],
+                             capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
         return {}
-
-
-def _live_handshakes() -> dict[str, str]:
-    """Map peer public key -> latest handshake string, from `wg show`.
-
-    Returns {} if wg isn't running or readable.
-    """
-    assert _run_args is not None
-    out = _run_args(["wg", "show", WG_INTERFACE, "latest-handshakes"])
-    handshakes: dict[str, str] = {}
+    hs = {}
     for line in out.splitlines():
         parts = line.split()
         if len(parts) == 2:
-            pubkey, epoch = parts
-            handshakes[pubkey] = epoch
-    return handshakes
+            hs[parts[0]] = parts[1]
+    return hs
+
+
+def _next_ip(cfg) -> str:
+    """Lowest free /32 in the subnet, skipping the server address."""
+    net = ipaddress.ip_network(cfg.wireguard.subnet, strict=False)
+    taken = {ipaddress.ip_address(cfg.wireguard.server_address)}
+    for p in cfg.wireguard.peers:
+        taken.add(ipaddress.ip_address(p.address.split("/")[0]))
+    for host in net.hosts():
+        if host not in taken:
+            return str(host)
+    raise HTTPException(507, "subnet exhausted — no free address")
 
 
 @router.get("/api/vpn/status")
 async def vpn_status(user=Depends(verify_token)):
-    """Server + interface status. Read-only, any authenticated user."""
-    assert _run_args is not None
-    raw = _run_args(["forgeos-vpn", "status"])
-    running = bool(raw) and "not running" not in raw.lower()
-    return {"running": running, "interface": WG_INTERFACE, "raw": raw}
+    wg = fc.load().wireguard
+    up = False
+    try:
+        r = subprocess.run(["wg", "show", wg.interface], capture_output=True, timeout=5)
+        up = r.returncode == 0 and bool(r.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {"running": up, "interface": wg.interface, "enabled": wg.enabled,
+            "listen_port": wg.listen_port, "peer_count": len(wg.peers)}
 
 
 @router.get("/api/vpn/peers")
 async def list_peers(user=Depends(verify_token)):
-    """Structured peer list with live handshake status.
-
-    Reads meta.json per peer (authoritative for name/ip/created/allowed_ips)
-    and overlays live handshake state from `wg show`.
-    """
-    handshakes = _live_handshakes()
+    wg = fc.load().wireguard
+    hs = _wg_show_handshakes(wg.interface)
     peers = []
-    if PEERS_DIR.is_dir():
-        for peer_dir in sorted(PEERS_DIR.iterdir()):
-            if not peer_dir.is_dir():
-                continue
-            name = peer_dir.name
-            meta = _read_peer_meta(name)
-            pub = ""
-            try:
-                pub = (peer_dir / "public.key").read_text().strip()
-            except OSError:
-                pass
-            hs = handshakes.get(pub, "0")
-            peers.append({
-                "name": meta.get("name", name),
-                "ip": meta.get("ip", "—"),
-                "created": meta.get("created", ""),
-                "allowed_ips": meta.get("allowed_ips", ""),
-                "online": hs not in ("", "0"),
-                "last_handshake_epoch": int(hs) if hs.isdigit() else 0,
-            })
+    for p in wg.peers:
+        epoch = hs.get(p.public_key, "0")
+        peers.append({"name": p.name, "address": p.address,
+                      "online": epoch not in ("", "0"),
+                      "last_handshake_epoch": int(epoch) if epoch.isdigit() else 0})
     return {"peers": peers, "count": len(peers)}
 
 
 @router.post("/api/vpn/peers")
 async def add_peer(body: dict, user=Depends(verify_token)):
-    """Add a WireGuard peer. Admin only.
+    """Create a peer. Returns the client .conf ONCE (private key never stored)."""
+    _admin(user)
+    cfg = fc.load()
+    name = str(body.get("name", "")).strip()
+    try:
+        # model validator enforces charset + uniqueness on assignment below
+        if any(p.name.lower() == name.lower() for p in cfg.wireguard.peers):
+            raise HTTPException(409, f"peer '{name}' already exists")
+        dns = str(body.get("dns", "1.1.1.1")).strip() or "1.1.1.1"
+        allowed = str(body.get("allowed_ips", "0.0.0.0/0")).strip() or "0.0.0.0/0"
+        for val in (dns, allowed):
+            for token in val.replace(" ", "").split(","):
+                ipaddress.ip_network(token, strict=False) if "/" in token else ipaddress.ip_address(token)
 
-    Body: {"name": str (required),
-           "dns": str (optional, default 1.1.1.1),
-           "allowed_ips": str (optional, default 0.0.0.0/0)}
-    """
-    _require_admin(user)
-    name = _validate_peer_name(str(body.get("name", "")).strip())
+        gen = WireGuardGenerator()
+        server_pub = gen.ensure_server_key()
+        client_priv = subprocess.run(["wg", "genkey"], capture_output=True, text=True, check=True).stdout.strip()
+        client_pub = subprocess.run(["wg", "pubkey"], input=client_priv, capture_output=True, text=True, check=True).stdout.strip()
+        addr = _next_ip(cfg)
 
-    if (PEERS_DIR / name).exists():
-        raise HTTPException(409, f"Peer '{name}' already exists")
+        cfg.wireguard.peers.append(fc.WireGuardPeer(
+            name=name, public_key=client_pub, address=addr + "/32"))
+    except ValueError as e:
+        raise HTTPException(400, detail=f"invalid peer: {e}")
 
-    dns = str(body.get("dns", "1.1.1.1")).strip() or "1.1.1.1"
-    allowed_ips = str(body.get("allowed_ips", "0.0.0.0/0")).strip() or "0.0.0.0/0"
+    _apply_wg(cfg)  # re-render server conf + reload
 
-    # Basic shape checks — the CLI ultimately validates, but reject obvious junk.
-    if not re.match(r"^[0-9.,:/ a-fA-F]+$", dns):
-        raise HTTPException(400, "Invalid dns value")
-    if not re.match(r"^[0-9.,:/ a-fA-F]+$", allowed_ips):
-        raise HTTPException(400, "Invalid allowed_ips value")
+    client_conf = (
+        f"[Interface]\n"
+        f"PrivateKey = {client_priv}\n"
+        f"Address = {addr}/32\n"
+        f"DNS = {dns}\n\n"
+        f"[Peer]\n"
+        f"PublicKey = {server_pub}\n"
+        f"AllowedIPs = {allowed}\n"
+        f"Endpoint = {body.get('endpoint', '<SERVER_PUBLIC_IP>')}:{cfg.wireguard.listen_port}\n"
+        f"PersistentKeepalive = 25\n"
+    )
+    qr_png = None
+    try:
+        r = subprocess.run(["qrencode", "-t", "PNG", "-o", "-"], input=client_conf.encode(),
+                          capture_output=True, timeout=10)
+        if r.returncode == 0:
+            import base64
+            qr_png = "data:image/png;base64," + base64.b64encode(r.stdout).decode()
+    except (OSError, subprocess.SubprocessError):
+        pass
 
-    out = _run_checked(["forgeos-vpn", "add", name, dns, allowed_ips])
     assert _audit is not None
-    _audit(user["sub"], "vpn.peer.add", "success", f"Peer '{name}' ({allowed_ips})")
-    return {"ok": True, "name": name, "message": out}
+    _audit(user["sub"], "vpn.peer.add", "success", f"peer '{name}' ({addr})")
+    return {"ok": True, "name": name, "address": addr + "/32",
+            "config": client_conf, "qr": qr_png,
+            "warning": "Save this now — the private key is shown only once."}
 
 
 @router.delete("/api/vpn/peers/{name}")
 async def remove_peer(name: str, user=Depends(verify_token)):
-    """Remove a WireGuard peer. Admin only."""
-    _require_admin(user)
-    name = _validate_peer_name(name)
-    if not (PEERS_DIR / name).exists():
-        raise HTTPException(404, f"Peer '{name}' not found")
-    out = _run_checked(["forgeos-vpn", "remove", name])
+    _admin(user)
+    cfg = fc.load()
+    before = len(cfg.wireguard.peers)
+    cfg.wireguard.peers = [p for p in cfg.wireguard.peers if p.name != name]
+    if len(cfg.wireguard.peers) == before:
+        raise HTTPException(404, f"peer '{name}' not found")
+    _apply_wg(cfg)
     assert _audit is not None
-    _audit(user["sub"], "vpn.peer.remove", "success", f"Peer '{name}' removed")
-    return {"ok": True, "name": name, "message": out}
-
-
-@router.get("/api/vpn/peers/{name}/config", response_class=PlainTextResponse)
-async def peer_config(name: str, user=Depends(verify_token)):
-    """Return the peer's WireGuard .conf as text. Admin only (contains keys)."""
-    _require_admin(user)
-    name = _validate_peer_name(name)
-    conf = PEERS_DIR / name / f"{name}.conf"
-    try:
-        return PlainTextResponse(conf.read_text())
-    except OSError:
-        raise HTTPException(404, f"Config for peer '{name}' not found")
-
-
-@router.get("/api/vpn/peers/{name}/qr")
-async def peer_qr(name: str, user=Depends(verify_token)):
-    """Return a PNG QR code of the peer config. Admin only.
-
-    Uses qrencode (installed by 11-vpn.sh) to render the .conf as a PNG.
-    """
-    _require_admin(user)
-    name = _validate_peer_name(name)
-    conf = PEERS_DIR / name / f"{name}.conf"
-    if not conf.is_file():
-        raise HTTPException(404, f"Config for peer '{name}' not found")
-    try:
-        proc = subprocess.run(
-            ["qrencode", "-t", "PNG", "-o", "-", "-r", str(conf)],
-            capture_output=True, timeout=10,
-        )
-    except FileNotFoundError:
-        raise HTTPException(503, "qrencode not installed")
-    except subprocess.TimeoutExpired:
-        raise HTTPException(504, "qrencode timed out")
-    if proc.returncode != 0:
-        raise HTTPException(500, "Failed to generate QR code")
-    return Response(content=proc.stdout, media_type="image/png")
+    _audit(user["sub"], "vpn.peer.remove", "success", f"peer '{name}'")
+    return {"ok": True, "name": name}
 
 
 @router.post("/api/vpn/control/{action}")
 async def vpn_control(action: str, user=Depends(verify_token)):
-    """Start / stop / restart the WireGuard service. Admin only."""
-    _require_admin(user)
+    _admin(user)
     if action not in ("start", "stop", "restart"):
         raise HTTPException(400, "action must be start, stop, or restart")
-    out = _run_checked(["forgeos-vpn", action])
+    wg = fc.load().wireguard
+    unit = f"wg-quick@{wg.interface}"
+    verb = {"start": "start", "stop": "stop", "restart": "restart"}[action]
+    try:
+        r = subprocess.run(["systemctl", verb, unit], capture_output=True, text=True, timeout=20)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise HTTPException(500, f"{action} failed: {e}")
+    if r.returncode != 0:
+        raise HTTPException(400, r.stderr.strip() or f"{action} failed")
     assert _audit is not None
     _audit(user["sub"], f"vpn.{action}", "success", f"WireGuard {action}")
-    return {"ok": True, "action": action, "message": out}
+    return {"ok": True, "action": action}

@@ -64,11 +64,10 @@ function token(){ try { return localStorage.getItem('forgeos_token'); } catch(e)
         : '<span class="pill offline"><span class="dot"></span>Offline</span>';
       tr.innerHTML =
         '<td class="peer-name">' + esc(p.name) + '</td>' +
-        '<td class="peer-ip">' + esc(p.ip) + '</td>' +
+        '<td class="peer-ip">' + esc(p.address) + '</td>' +
         '<td>' + statusPill + '</td>' +
         '<td style="color:var(--muted);font-size:13px">' + fmtHandshake(p.last_handshake_epoch) + '</td>' +
         '<td><div class="row-actions">' +
-          '<button class="icon-btn" title="Show QR / config" data-qr="' + esc(p.name) + '"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3M17 17v4h4v-4M21 14v.01"/></svg></button>' +
           '<button class="icon-btn danger" title="Remove" data-del="' + esc(p.name) + '"><svg class="ico" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>' +
         '</div></td>';
       rows.appendChild(tr);
@@ -100,47 +99,36 @@ function token(){ try { return localStorage.getItem('forgeos_token'); } catch(e)
     addBack.classList.remove('show');
     toast('Device "' + name + '" added', 'ok');
     await loadPeers();
-    showQr(name);
+    showConfigOnce(r.data);   // return-once: this is the only time the key is shown
   };
 
-  // ── QR modal ──
+  // ── Config-once modal (return-once: server never stores the client key) ──
   var qrBack = document.getElementById('qr-backdrop');
-  var qrCurrentName = null;
-  async function showQr(name){
-    qrCurrentName = name;
-    document.getElementById('qr-title').textContent = 'Scan to connect — ' + name;
+  function showConfigOnce(data){
+    if (!data) return;
+    document.getElementById('qr-title').textContent = 'Add this device — ' + data.name;
     var img = document.getElementById('qr-img');
-    // Fetch QR PNG with auth header, render as blob URL
-    var t = token();
-    var resp = await fetch('/api/vpn/peers/' + encodeURIComponent(name) + '/qr', {
-      headers: t ? { Authorization: 'Bearer ' + t } : {}
-    });
-    if (!resp.ok){ toast('Could not load QR code', 'err'); return; }
-    var blob = await resp.blob();
-    img.src = URL.createObjectURL(blob);
+    if (data.qr){ img.src = data.qr; img.style.display = ''; } else { img.style.display = 'none'; }
+    var box = document.getElementById('qr-conf');
+    if (box){ box.textContent = data.config || ''; }
+    var warn = document.getElementById('qr-warn');
+    if (warn){ warn.textContent = data.warning || ''; }
+    window._lastConf = { name: data.name, config: data.config || '' };
     qrBack.classList.add('show');
   }
   document.getElementById('qr-close').onclick = function(){ qrBack.classList.remove('show'); };
-  document.getElementById('qr-download').onclick = async function(){
-    if (!qrCurrentName) return;
-    var t = token();
-    var resp = await fetch('/api/vpn/peers/' + encodeURIComponent(qrCurrentName) + '/config', {
-      headers: t ? { Authorization: 'Bearer ' + t } : {}
-    });
-    if (!resp.ok){ toast('Could not download config', 'err'); return; }
-    var text = await resp.text();
-    var blob = new Blob([text], { type: 'text/plain' });
+  document.getElementById('qr-download').onclick = function(){
+    var c = window._lastConf; if (!c) return;
+    var blob = new Blob([c.config], { type: 'text/plain' });
     var a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = qrCurrentName + '.conf';
+    a.download = c.name + '.conf';
     a.click();
   };
 
   // ── Row actions (event delegation) ──
   document.getElementById('peer-rows').onclick = async function(e){
-    var qrBtn = e.target.closest('[data-qr]');
     var delBtn = e.target.closest('[data-del]');
-    if (qrBtn){ showQr(qrBtn.getAttribute('data-qr')); return; }
     if (delBtn){
       var name = delBtn.getAttribute('data-del');
       if (!confirm('Remove VPN device "' + name + '"? Its config will stop working immediately.')) return;
