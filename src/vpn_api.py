@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ipaddress
 import subprocess
+from pathlib import Path
 from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -52,22 +53,60 @@ def _apply_wg(cfg) -> None:
     res = registry.apply_one("wireguard", cfg=cfg)
     if not res.ok:
         raise HTTPException(500, f"wireguard apply failed: {res.error}")
+    # Converge ufw too: the listen-port guard must open/close with VPN state.
+    # Full reset+rebuild is idempotent; a failure here is a real firewall
+    # problem and must surface, not be swallowed.
+    res = registry.apply_one("ufw", cfg=cfg)
+    if not res.ok:
+        raise HTTPException(500, f"ufw apply failed: {res.error}")
     fc.save(cfg)
 
 
-def _wg_show_handshakes(interface: str) -> dict:
-    """pubkey -> last-handshake-epoch, live from wg. Empty if down."""
+def _wg_dump(interface: str) -> dict:
+    """pubkey -> {endpoint, handshake, rx, tx}, live from `wg show dump`.
+    Empty if the interface is down. Line 1 is the interface itself; peer
+    lines are: pubkey psk endpoint allowed-ips handshake rx tx keepalive."""
     try:
-        out = subprocess.run(["wg", "show", interface, "latest-handshakes"],
+        out = subprocess.run(["wg", "show", interface, "dump"],
                              capture_output=True, text=True, timeout=5).stdout
     except (OSError, subprocess.SubprocessError):
         return {}
-    hs = {}
-    for line in out.splitlines():
-        parts = line.split()
-        if len(parts) == 2:
-            hs[parts[0]] = parts[1]
-    return hs
+    peers = {}
+    for line in out.splitlines()[1:]:
+        f = line.split("\t")
+        if len(f) < 7:
+            continue
+        peers[f[0]] = {
+            "endpoint": "" if f[2] == "(none)" else f[2],
+            "handshake": int(f[4]) if f[4].isdigit() else 0,
+            "rx": int(f[5]) if f[5].isdigit() else 0,
+            "tx": int(f[6]) if f[6].isdigit() else 0,
+        }
+    return peers
+
+
+def _detect_ips() -> dict:
+    """Best-effort LAN + public IP for the endpoint field. Both nullable —
+    detection is a convenience, never a dependency."""
+    lan = pub = None
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(2)
+        s.connect(("9.9.9.9", 53))            # no packet sent; routes only
+        lan = s.getsockname()[0]
+        s.close()
+    except OSError:
+        pass
+    try:
+        from urllib.request import urlopen
+        raw = urlopen("https://checkip.amazonaws.com", timeout=5).read()
+        cand = raw.decode("ascii", "replace").strip()
+        ipaddress.ip_address(cand)            # trust boundary: must parse as IP
+        pub = cand
+    except (OSError, ValueError):
+        pass
+    return {"lan_ip": lan, "public_ip": pub}
 
 
 def _next_ip(cfg) -> str:
@@ -91,20 +130,61 @@ async def vpn_status(user=Depends(verify_token)):
         up = r.returncode == 0 and bool(r.stdout.strip())
     except (OSError, subprocess.SubprocessError):
         pass
+    try:
+        fwd = Path("/proc/sys/net/ipv4/ip_forward").read_text().strip() == "1"
+    except OSError:
+        fwd = None
     return {"running": up, "interface": wg.interface, "enabled": wg.enabled,
-            "listen_port": wg.listen_port, "peer_count": len(wg.peers)}
+            "listen_port": wg.listen_port, "peer_count": len(wg.peers),
+            "endpoint": wg.endpoint, "ip_forward": fwd}
+
+
+@router.get("/api/vpn/settings")
+async def get_settings(user=Depends(verify_token)):
+    wg = fc.load().wireguard
+    return {"endpoint": wg.endpoint, "listen_port": wg.listen_port,
+            "subnet": wg.subnet}
+
+
+@router.put("/api/vpn/settings")
+async def put_settings(body: dict, user=Depends(verify_token)):
+    """Only `endpoint` is settable here — it is client-conf-only, so no
+    generator re-render is needed, just persist."""
+    _admin(user)
+    cfg = fc.load()
+    try:
+        # No validate_assignment in this codebase — construct a throwaway
+        # model so the endpoint validator actually runs.
+        validated = fc.WireGuardConfig(endpoint=str(body.get("endpoint", "")).strip()).endpoint
+    except ValueError as e:
+        raise HTTPException(400, f"invalid endpoint: {e}")
+    cfg.wireguard.endpoint = validated
+    fc.save(cfg)
+    assert _audit is not None
+    _audit(user["sub"], "vpn.settings", "success", f"endpoint '{cfg.wireguard.endpoint}'")
+    return {"ok": True, "endpoint": cfg.wireguard.endpoint}
+
+
+@router.get("/api/vpn/detect-endpoint")
+async def detect_endpoint(user=Depends(verify_token)):
+    _admin(user)
+    return _detect_ips()
 
 
 @router.get("/api/vpn/peers")
 async def list_peers(user=Depends(verify_token)):
     wg = fc.load().wireguard
-    hs = _wg_show_handshakes(wg.interface)
+    live = _wg_dump(wg.interface)
     peers = []
     for p in wg.peers:
-        epoch = hs.get(p.public_key, "0")
+        d = live.get(p.public_key, {})
+        epoch = d.get("handshake", 0)
         peers.append({"name": p.name, "address": p.address,
-                      "online": epoch not in ("", "0"),
-                      "last_handshake_epoch": int(epoch) if epoch.isdigit() else 0})
+                      "online": epoch > 0,
+                      "last_handshake_epoch": epoch,
+                      "remote": d.get("endpoint", ""),
+                      "rx_bytes": d.get("rx", 0),
+                      "tx_bytes": d.get("tx", 0)})
     return {"peers": peers, "count": len(peers)}
 
 
@@ -118,6 +198,11 @@ async def add_peer(body: dict, user=Depends(verify_token)):
         # model validator enforces charset + uniqueness on assignment below
         if any(p.name.lower() == name.lower() for p in cfg.wireguard.peers):
             raise HTTPException(409, f"peer '{name}' already exists")
+        endpoint = str(body.get("endpoint", "")).strip() or cfg.wireguard.endpoint
+        if not endpoint:
+            raise HTTPException(400, "Server endpoint not set. Use Detect on the "
+                                     "VPN page (or enter your public IP/hostname) "
+                                     "before adding devices.")
         dns = str(body.get("dns", "1.1.1.1")).strip() or "1.1.1.1"
         allowed = str(body.get("allowed_ips", "0.0.0.0/0")).strip() or "0.0.0.0/0"
         for val in (dns, allowed):
@@ -145,7 +230,7 @@ async def add_peer(body: dict, user=Depends(verify_token)):
         f"[Peer]\n"
         f"PublicKey = {server_pub}\n"
         f"AllowedIPs = {allowed}\n"
-        f"Endpoint = {body.get('endpoint', '<SERVER_PUBLIC_IP>')}:{cfg.wireguard.listen_port}\n"
+        f"Endpoint = {endpoint}:{cfg.wireguard.listen_port}\n"
         f"PersistentKeepalive = 25\n"
     )
     qr_png = None

@@ -105,6 +105,21 @@ tbody tr:hover { background: var(--surface-2); }
 @keyframes rise { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+.ep-row { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.ep-row label { font-size: 12px; font-weight: 700; display: block; margin-bottom: 6px; }
+.ep-hint { color: var(--muted); font-weight: 500; }
+.ep-controls { display: flex; gap: 8px; }
+.ep-controls input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; }
+.ep-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); min-height: 15px; }
+.ep-note.warn { color: #b45309; }
+.diag-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.diag .dl { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; }
+.diag .dv { font-size: 15px; font-weight: 700; margin-top: 3px; }
+.diag .dv.ok { color: #16a34a; } .diag .dv.bad { color: #dc2626; }
+.diag-help { color: var(--muted); font-size: 12px; margin: 10px 2px 0; }
+.live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #16a34a; margin-left: 6px; vertical-align: middle; animation: pulse 2s infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.peer-xfer { color: var(--muted); font-size: 12px; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -140,13 +155,22 @@ tbody tr:hover { background: var(--surface-2); }
           <div class="stat"><div class="n" id="stat-total">—</div><div class="l">Devices</div></div>
           <div class="stat"><div class="n" id="stat-online">—</div><div class="l">Online</div></div>
         </div>
+        <div class="ep-row">
+          <label for="ep-input">Server endpoint <span class="ep-hint">what devices dial from outside</span></label>
+          <div class="ep-controls">
+            <input id="ep-input" type="text" placeholder="public IP or hostname" autocomplete="off">
+            <button class="button ghost" id="ep-detect" title="Detect this server's public and LAN IP">Detect</button>
+            <button class="button" id="ep-save">Save</button>
+          </div>
+          <p class="ep-note" id="ep-note"></p>
+        </div>
       </aside>
     </section>
 
     <div class="section-title">Devices</div>
     <div class="panel">
       <table>
-        <thead><tr><th>Name</th><th>VPN IP</th><th>Status</th><th>Last handshake</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>VPN IP</th><th>Status</th><th>Last handshake</th><th>Transfer</th><th>Remote</th><th></th></tr></thead>
         <tbody id="peer-rows"></tbody>
       </table>
       <div class="empty" id="empty" style="display:none">
@@ -154,6 +178,15 @@ tbody tr:hover { background: var(--surface-2); }
         <div>No VPN devices yet. Add one to let a phone or laptop connect remotely.</div>
       </div>
     </div>
+
+    <div class="section-title">Diagnostics <span class="live-dot" id="live-dot" title="refreshing every 5s"></span></div>
+    <div class="panel pad diag-grid" id="diag">
+      <div class="diag"><div class="dl">Interface</div><div class="dv" id="dg-if">—</div></div>
+      <div class="diag"><div class="dl">Listen port</div><div class="dv" id="dg-port">—</div></div>
+      <div class="diag"><div class="dl">Endpoint</div><div class="dv" id="dg-ep">—</div></div>
+      <div class="diag"><div class="dl">IP forwarding</div><div class="dv" id="dg-fwd">—</div></div>
+    </div>
+    <p class="diag-help">A device shows <b>Online</b> only after its first handshake. No handshake ever = packets are not reaching this server: check the endpoint above and that UDP port is forwarded on your router.</p>
   </main>
 
   <!-- Add peer modal -->

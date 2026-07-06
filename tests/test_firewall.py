@@ -166,3 +166,25 @@ def test_apply_ordering_converge_before_save(monkeypatch, tmp_path):
     monkeypatch.setattr(registry, "apply_one", lambda *a, **k: Good())
     fa._apply_fw(fc.ForgeOSConfig())
     assert saved["n"] == 1                              # saved only after converge
+
+
+class TestWireGuardGuard:
+    """The listen-port guard is what makes the VPN reachable at all under
+    default-deny — its absence was the silent no-handshake failure."""
+
+    def _cfg(self, wg_enabled):
+        cfg = fc.ForgeOSConfig()
+        cfg.firewall.enabled = True
+        cfg.wireguard.enabled = wg_enabled
+        return cfg
+
+    def test_wg_port_opened_when_vpn_enabled(self):
+        g, calls = _capture_gen()
+        g.apply(self._cfg(True))
+        flat = [" ".join(c) for c in calls]
+        assert any("51820/udp" in s and "WireGuard" in s for s in flat)
+
+    def test_wg_port_absent_when_vpn_disabled(self):
+        g, calls = _capture_gen()
+        g.apply(self._cfg(False))
+        assert not any("51820/udp" in " ".join(c) for c in calls)

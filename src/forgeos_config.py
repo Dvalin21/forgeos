@@ -356,7 +356,27 @@ class WireGuardConfig(BaseModel):
     listen_port: int = 51820
     subnet: str = "10.10.0.0/24"
     egress_nic: str = "eth0"
+    # Public host/IP clients dial (port comes from listen_port). "" = unset;
+    # add-peer refuses until set so client configs never ship a placeholder.
+    endpoint: str = ""
     peers: list[WireGuardPeer] = Field(default_factory=list)
+
+    @field_validator("endpoint")
+    @classmethod
+    def _endpoint(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            return v
+        try:                                   # IP literal (v4/v6) is fine
+            ipaddress.ip_address(v)
+            return v
+        except ValueError:
+            pass
+        # RFC 1123 hostname: per-label check, same discipline as certbot fix
+        label = r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+        if len(v) > 253 or not re.fullmatch(rf"{label}(\.{label})*", v):
+            raise ValueError(f"invalid endpoint host: {v!r}")
+        return v
 
     @field_validator("listen_port")
     @classmethod

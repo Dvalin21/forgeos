@@ -20,6 +20,13 @@ function token(){ try { return localStorage.getItem('forgeos_token'); } catch(e)
     setTimeout(function(){ el.remove(); }, 3200);
   }
 
+  function fmtBytes(n){
+    if (!n) return '0 B';
+    var u = ['B','KB','MB','GB','TB'], i = 0;
+    while (n >= 1024 && i < u.length - 1){ n /= 1024; i++; }
+    return (n < 10 && i ? n.toFixed(1) : Math.round(n)) + ' ' + u[i];
+  }
+
   function fmtHandshake(epoch){
     if (!epoch) return 'never';
     var secs = Math.floor(Date.now()/1000) - epoch;
@@ -45,6 +52,18 @@ function token(){ try { return localStorage.getItem('forgeos_token'); } catch(e)
       title.textContent = 'VPN is stopped';
       desc.textContent = 'WireGuard is not currently running. Start it to allow remote devices.';
     }
+    // diagnostics strip
+    var set = function(id, txt, cls){ var el = document.getElementById(id); el.textContent = txt; el.className = 'dv' + (cls ? ' ' + cls : ''); };
+    set('dg-if', d.running ? (d.interface || 'wg0') + ' up' : 'down', d.running ? 'ok' : 'bad');
+    set('dg-port', d.listen_port + '/udp');
+    set('dg-ep', d.endpoint || 'not set', d.endpoint ? 'ok' : 'bad');
+    set('dg-fwd', d.ip_forward === null ? 'unknown' : (d.ip_forward ? 'on' : 'off'),
+        d.ip_forward === null ? '' : (d.ip_forward ? 'ok' : 'bad'));
+    // prefill endpoint field once (don't clobber while user types)
+    var ep = document.getElementById('ep-input');
+    if (!ep.dataset.touched && !ep.value && d.endpoint) ep.value = d.endpoint;
+    var note = document.getElementById('ep-note');
+    if (!d.endpoint){ note.textContent = 'Required before devices can be added.'; note.className = 'ep-note warn'; }
   }
 
   async function loadPeers(){
@@ -67,6 +86,8 @@ function token(){ try { return localStorage.getItem('forgeos_token'); } catch(e)
         '<td class="peer-ip">' + esc(p.address) + '</td>' +
         '<td>' + statusPill + '</td>' +
         '<td style="color:var(--muted);font-size:13px">' + fmtHandshake(p.last_handshake_epoch) + '</td>' +
+        '<td class="peer-xfer">↓ ' + fmtBytes(p.rx_bytes) + ' · ↑ ' + fmtBytes(p.tx_bytes) + '</td>' +
+        '<td class="peer-xfer">' + esc(p.remote || '—') + '</td>' +
         '<td><div class="row-actions">' +
           '<button class="icon-btn danger" title="Remove" data-del="' + esc(p.name) + '"><svg class="ico" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>' +
         '</div></td>';
@@ -162,5 +183,32 @@ function token(){ try { return localStorage.getItem('forgeos_token'); } catch(e)
     b.onclick = function(e){ if (e.target === b) b.classList.remove('show'); };
   });
 
+  // ── Server endpoint ──
+  var epInput = document.getElementById('ep-input');
+  epInput.oninput = function(){ epInput.dataset.touched = '1'; };
+  document.getElementById('ep-save').onclick = async function(){
+    var r = await api('/api/vpn/settings', { method: 'PUT', body: JSON.stringify({ endpoint: epInput.value.trim() }) });
+    if (!r.ok){ toast((r.data && r.data.detail) || 'Could not save endpoint', 'err'); return; }
+    toast('Endpoint saved', 'ok');
+    var note = document.getElementById('ep-note'); note.textContent = ''; note.className = 'ep-note';
+    await loadStatus();
+  };
+  document.getElementById('ep-detect').onclick = async function(){
+    var btn = this; btn.disabled = true;
+    var r = await api('/api/vpn/detect-endpoint');
+    btn.disabled = false;
+    var d = r.data || {};
+    if (!r.ok || (!d.public_ip && !d.lan_ip)){ toast('Detection failed — enter it manually', 'err'); return; }
+    epInput.value = d.public_ip || d.lan_ip;
+    epInput.dataset.touched = '1';
+    var note = document.getElementById('ep-note');
+    note.className = 'ep-note';
+    note.textContent = d.public_ip
+      ? 'Public IP ' + d.public_ip + (d.lan_ip ? ' (LAN: ' + d.lan_ip + ')' : '') + ' — remote devices also need UDP port-forwarding on your router.'
+      : 'Only the LAN IP was found (' + d.lan_ip + ') — works on your network only.';
+  };
+
   refreshAll();
-  setInterval(loadPeers, 15000);  // light auto-refresh of handshake status
+  setInterval(function(){                    // live view: 5s, only while visible
+    if (!document.hidden) refreshAll();
+  }, 5000);

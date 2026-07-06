@@ -63,6 +63,13 @@ class UfwGenerator(ServiceGenerator):
         for p in ("80", "443"):
             g.append(["allow"] + src + ["to", "any", "port", p, "proto", "tcp",
                                         "comment", "ForgeOS management UI"])
+        # WireGuard must be reachable from the WAN, not just lan_cidr —
+        # without this guard the default-deny policy silently eats the
+        # handshake and the VPN "runs" but no client can ever connect.
+        wg = getattr(cfg, "wireguard", None)
+        if wg is not None and wg.enabled:
+            g.append(["allow", f"{wg.listen_port}/udp",
+                      "comment", "ForgeOS WireGuard VPN"])
         return g
 
     # ── converge ─────────────────────────────────────────────────

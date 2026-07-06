@@ -7,7 +7,9 @@ Address    = {{ server_address }}/{{ prefix }}
 ListenPort = {{ listen_port }}
 PrivateKey = {{ server_private_key }}
 
-PostUp   = ufw route allow in on {{ interface }} out on {{ egress_nic }}; iptables -t nat -A POSTROUTING -s {{ subnet }} -o {{ egress_nic }} -j MASQUERADE
+# ip_forward is enabled at up and deliberately NOT reverted at down —
+# Docker and other services share the same sysctl.
+PostUp   = sysctl -q -w net.ipv4.ip_forward=1; ufw route allow in on {{ interface }} out on {{ egress_nic }}; iptables -t nat -A POSTROUTING -s {{ subnet }} -o {{ egress_nic }} -j MASQUERADE
 PostDown = ufw route delete allow in on {{ interface }} out on {{ egress_nic }}; iptables -t nat -D POSTROUTING -s {{ subnet }} -o {{ egress_nic }} -j MASQUERADE
 {% for p in peers %}
 
