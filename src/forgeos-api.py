@@ -1063,7 +1063,7 @@ except ImportError as e:
 # ────────────────────────────────────────────────────────────
 # ────────────────────────────────────────────────────────────
 # SECURITY — extracted to security_api.py (Sprint 1, commit 6)
-# Routes: fail2ban, crowdsec, firewall status
+# Routes: fail2ban, firewall status
 # ────────────────────────────────────────────────────────────
 
 

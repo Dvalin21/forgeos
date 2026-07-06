@@ -492,7 +492,7 @@ async def docker_update(body: dict, user=Depends(verify_token)):
 
 # ── Generic system service control ────────────────────────────
 SERVICE_WHITELIST = {
-    "nginx", "smbd", "nmbd", "ssh", "sshd", "fail2ban", "crowdsec",
+    "nginx", "smbd", "nmbd", "ssh", "sshd", "fail2ban",
     "docker", "incus", "forge-object-storage", "rustfs",
     "snapper-timeline.timer", "snapper-cleanup.timer", "smartd", "ufw",
 }

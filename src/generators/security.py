@@ -1,59 +1,29 @@
-"""Security profile generator (v2).
+"""Security generator (v2).
 
-Manages WHICH security tools are active for the selected profile
-(low/medium/high). Tier definitions live in a declarative matrix below — so
-"what does High add over Medium" is answerable by reading data, not tracing
-logic.
+Owns fail2ban (jails + the forgeos-api filter) and ensures AppArmor stays
+enforced. That is the whole list — deliberately.
 
-Decisions (agreed with Keith):
-  - Default profile: medium.
-  - Lowering the tier DISABLES/stops the now-unneeded tools but keeps them
-    INSTALLED, so switching back up is fast (no reinstall).
-  - Re-applicable any time from the web UI: write profile to the config DB,
-    call this generator's apply().
-
-Tools managed: ufw, fail2ban, apparmor, auditd, aide, rkhunter, crowdsec.
-All already present in legacy 07-security.sh — this organizes them into
-tiers, it does NOT add new security software.
+Deleted from scope (small-business NAS threat model, per owner decision):
+auditd, AIDE, rkhunter, crowdsec — high operational burden / false-positive
+fatigue for a shop with no analyst; near-zero marginal detection on a patched,
+auto-updating appliance. ufw moved to its own generator (single owner:
+config.firewall). Patching lives in the updates generator.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 from generators import RenderedFile, ServiceGenerator
 
-TIER_TOOLS: dict[str, set[str]] = {
-    "low": {"ufw", "fail2ban"},
-    "medium": {"ufw", "fail2ban", "apparmor", "crowdsec"},
-    "high": {"ufw", "fail2ban", "apparmor", "crowdsec", "auditd", "aide", "rkhunter"},
-}
 
-ALL_TOOLS = TIER_TOOLS["high"]
-
-TOOL_UNIT: dict[str, str] = {
-    "ufw": "ufw",
-    "fail2ban": "fail2ban",
-    "apparmor": "apparmor",
-    "crowdsec": "crowdsec",
-    "auditd": "auditd",
-}
-
-
-@dataclass(frozen=True)
-class ToolPlan:
-    tool: str
-    active: bool
+def _have(cmd: str) -> bool:
+    import shutil
+    return shutil.which(cmd) is not None
 
 
 class SecurityGenerator(ServiceGenerator):
     name = "security"
-
-    def plan(self, cfg) -> list[ToolPlan]:
-        """Pure: profile -> per-tool active/inactive plan. Unit-testable."""
-        active = TIER_TOOLS[cfg.security.profile]
-        return [ToolPlan(tool=t, active=(t in active)) for t in sorted(ALL_TOOLS)]
 
     def render(self, cfg) -> list[RenderedFile]:
         f2b = cfg.security.fail2ban
@@ -81,6 +51,10 @@ class SecurityGenerator(ServiceGenerator):
              ["port = http,https",
               "filter = forgeos-api",
               "logpath = /var/log/forgeos/auth.log"])
+        # repeat offenders across ALL jails: week-long ban after 3 bans in a day
+        jail("recidive", f2b.jail_recidive,
+             ["logpath = /var/log/fail2ban.log",
+              "bantime = 1w", "findtime = 1d", "maxretry = 3"])
 
         # the filter the forgeos-api jail references — grammar matches
         # forgeos_auth.log_auth_failure exactly
@@ -100,46 +74,23 @@ class SecurityGenerator(ServiceGenerator):
 
     def apply(self, cfg, *, do_reload: bool = True) -> list[str]:
         written = super().apply(cfg, do_reload=False)
-        # fail2ban validates logpath at load and drops the jail if the file is
-        # absent. auth.log is created lazily on the first failure, so touch it
-        # here to break the chicken-and-egg.
-        try:
-            log = Path("/var/log/forgeos/auth.log")
-            log.parent.mkdir(parents=True, exist_ok=True)
-            log.touch(exist_ok=True)
-        except OSError:
-            pass
-        for p in self.plan(cfg):
-            if p.active:
-                self._enable_tool(p.tool)
+        # fail2ban validates logpaths at load and drops jails whose file is
+        # missing; both our sources are created lazily. Touch them.
+        for lp in ("/var/log/forgeos/auth.log", "/var/log/fail2ban.log"):
+            try:
+                f = Path(lp)
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.touch(exist_ok=True)
+            except OSError:
+                pass
+        if _have("systemctl"):
+            if cfg.security.fail2ban.enabled:
+                self._run(["systemctl", "enable", "--now", "fail2ban"], check=False)
             else:
-                self._disable_tool(p.tool)
-        if do_reload and _have("systemctl"):
-            self._run(["systemctl", "reload", "fail2ban"], check=False)
+                self._run(["systemctl", "disable", "--now", "fail2ban"], check=False)
+            # AppArmor: stock Debian profiles confine nginx/samba for free.
+            # Always on; no config surface.
+            self._run(["systemctl", "enable", "--now", "apparmor"], check=False)
+            if do_reload and cfg.security.fail2ban.enabled:
+                self._run(["systemctl", "reload", "fail2ban"], check=False)
         return written
-
-    def _enable_tool(self, tool: str) -> None:
-        if not _have("systemctl"):
-            return
-        if tool in ("aide", "rkhunter"):
-            self._run(["systemctl", "enable", "--now", f"{tool}.timer"], check=False)
-            return
-        unit = TOOL_UNIT.get(tool)
-        if unit:
-            self._run(["systemctl", "enable", "--now", unit], check=False)
-
-    def _disable_tool(self, tool: str) -> None:
-        if not _have("systemctl"):
-            return
-        if tool in ("aide", "rkhunter"):
-            self._run(["systemctl", "disable", "--now", f"{tool}.timer"], check=False)
-            return
-        unit = TOOL_UNIT.get(tool)
-        if unit:
-            self._run(["systemctl", "disable", "--now", unit], check=False)
-
-
-def _have(cmd: str) -> bool:
-    import shutil
-
-    return shutil.which(cmd) is not None

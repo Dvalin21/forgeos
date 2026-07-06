@@ -1,135 +1,80 @@
-"""Tests for the v2 security profile generator."""
+"""Security generator (post-P3): fail2ban jails/filter + AppArmor, nothing else.
 
+auditd/AIDE/rkhunter/crowdsec and the tier system are deleted (owner decision:
+small-business NAS threat model). ufw is owned by the firewall generator.
+"""
+import re
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-
 import forgeos_config as fc  # noqa: E402
-from generators.security import (  # noqa: E402
-    ALL_TOOLS,
-    TIER_TOOLS,
-    SecurityGenerator,
-)
+import generators.security as sg  # noqa: E402
+from generators.security import SecurityGenerator  # noqa: E402
 
 
-def _cfg(profile):
+def _files(cfg=None):
+    return {f.path: f.content for f in SecurityGenerator().render(cfg or fc.ForgeOSConfig())}
+
+
+def test_renders_jails_and_filter_only():
+    files = _files()
+    assert set(files) == {"/etc/fail2ban/jail.d/forgeos.conf",
+                          "/etc/fail2ban/filter.d/forgeos-api.conf"}
+    jail = files["/etc/fail2ban/jail.d/forgeos.conf"]
+    for j in ("[sshd]", "[nginx-http-auth]", "[forgeos-api]", "[recidive]"):
+        assert j in jail
+    for gone in ("crowdsec", "aide", "rkhunter", "auditd", "samba"):
+        assert gone not in jail.lower()
+
+
+def test_recidive_reads_fail2ban_own_log():
+    jail = _files()["/etc/fail2ban/jail.d/forgeos.conf"]
+    m = re.search(r"\[recidive\]\n(.*?)\n\n", jail, re.S)
+    assert m and "logpath = /var/log/fail2ban.log" in m.group(1)
+    assert "bantime = 1w" in m.group(1)
+
+
+def test_jail_switches():
     cfg = fc.ForgeOSConfig()
-    cfg.security.profile = profile
-    return cfg
+    cfg.security.fail2ban.jail_recidive = False
+    jail = _files(cfg)["/etc/fail2ban/jail.d/forgeos.conf"]
+    assert re.search(r"\[recidive\]\nenabled = false", jail)
 
 
-def test_default_profile_is_medium():
-    assert fc.ForgeOSConfig().security.profile == "medium"
-
-
-def test_rejects_bad_profile():
-    with pytest.raises(ValueError):
-        fc.SecurityConfig(profile="paranoid")
-
-
-def test_tiers_are_supersets():
-    assert TIER_TOOLS["low"] < TIER_TOOLS["medium"] < TIER_TOOLS["high"]
-
-
-def test_low_plan_only_ufw_fail2ban():
-    plan = {p.tool: p.active for p in SecurityGenerator().plan(_cfg("low"))}
-    assert plan["ufw"] and plan["fail2ban"]
-    assert not plan["apparmor"]
-    assert not plan["aide"]
-    assert not plan["crowdsec"]
-
-
-def test_medium_adds_apparmor_crowdsec():
-    plan = {p.tool: p.active for p in SecurityGenerator().plan(_cfg("medium"))}
-    assert plan["apparmor"] and plan["crowdsec"]
-    assert not plan["aide"]
-    assert not plan["rkhunter"]
-    assert not plan["auditd"]
-
-
-def test_high_enables_everything():
-    plan = {p.tool: p.active for p in SecurityGenerator().plan(_cfg("high"))}
-    assert all(plan[t] for t in ALL_TOOLS)
-
-
-def test_plan_covers_all_tools_at_every_tier():
-    for prof in ("low", "medium", "high"):
-        tools = {p.tool for p in SecurityGenerator().plan(_cfg(prof))}
-        assert tools == ALL_TOOLS
-
-
-def test_jails_driven_by_fail2ban_config_not_profile():
-    # P2: jail switches live in security.fail2ban, not the profile tier;
-    # the samba jail is gone (no upstream filter — it never worked).
-    c = SecurityGenerator().render(_cfg("low"))[0].content
-    for jail in ("[sshd]", "[nginx-http-auth]", "[forgeos-api]"):
-        assert jail in c
-    assert "[samba]" not in c
-
-
-def test_render_emits_forgeos_api_filter():
-    files = {f.path: f.content for f in SecurityGenerator().render(_cfg("medium"))}
-    assert "ip=<HOST>" in files["/etc/fail2ban/filter.d/forgeos-api.conf"]
-
-
-def test_apply_enables_and_disables_per_tier(tmp_path, monkeypatch):
-    import generators.security as sg
-
+def _apply_capture(monkeypatch, tmp_path, cfg):
+    g = SecurityGenerator()
     calls = []
-
-    def fake_run(self, cmd, check=True):
-        calls.append(cmd)
-        class R:
-            returncode = 0
-            stdout = ""
-            stderr = ""
-        return R()
-
-    monkeypatch.setattr(sg.SecurityGenerator, "_run", fake_run, raising=False)
+    ok = type("P", (), {"returncode": 0, "stderr": "", "stdout": ""})
+    monkeypatch.setattr(g, "_run", lambda cmd, check=True: (calls.append(cmd), ok())[1])
+    monkeypatch.setattr(g, "_atomic_write", lambda *a, **k: None)
     monkeypatch.setattr(sg, "_have", lambda c: True)
-    gen = sg.SecurityGenerator()
-    monkeypatch.setattr(
-        gen, "render",
-        lambda cfg: [sg.RenderedFile(path=str(tmp_path / "forgeos.conf"),
-                                     content="x", mode=0o644)],
-    )
-
-    gen.apply(_cfg("low"), do_reload=False)
-    joined = [" ".join(c) for c in calls]
-    assert any("enable --now ufw" in j for j in joined)
-    assert any("enable --now fail2ban" in j for j in joined)
-    assert any("disable --now aide.timer" in j for j in joined)
-    assert any("disable --now rkhunter.timer" in j for j in joined)
-    assert any("disable --now auditd" in j for j in joined)
-    assert any("disable --now apparmor" in j for j in joined)
+    orig = sg.Path
+    monkeypatch.setattr(sg, "Path",
+                        lambda p: orig(str(tmp_path) + str(p))
+                        if str(p).startswith("/var/log") else orig(p))
+    g.apply(cfg, do_reload=True)
+    return calls
 
 
-def test_apply_high_enables_aide_rkhunter_timers(tmp_path, monkeypatch):
-    import generators.security as sg
+def test_apply_enables_fail2ban_and_apparmor(monkeypatch, tmp_path):
+    calls = _apply_capture(monkeypatch, tmp_path, fc.ForgeOSConfig())
+    flat = [" ".join(c) for c in calls]
+    assert "systemctl enable --now fail2ban" in flat
+    assert "systemctl enable --now apparmor" in flat
+    assert "systemctl reload fail2ban" in flat
+    assert not any(t in " ".join(flat) for t in ("aide", "rkhunter", "auditd", "crowdsec", "ufw"))
 
-    calls = []
 
-    def fake_run(self, cmd, check=True):
-        calls.append(cmd)
-        class R:
-            returncode = 0
-            stdout = ""
-            stderr = ""
-        return R()
+def test_apply_disables_fail2ban_when_off(monkeypatch, tmp_path):
+    cfg = fc.ForgeOSConfig(); cfg.security.fail2ban.enabled = False
+    flat = [" ".join(c) for c in _apply_capture(monkeypatch, tmp_path, cfg)]
+    assert "systemctl disable --now fail2ban" in flat
+    assert "systemctl reload fail2ban" not in flat
+    assert "systemctl enable --now apparmor" in flat   # apparmor unconditional
 
-    monkeypatch.setattr(sg.SecurityGenerator, "_run", fake_run, raising=False)
-    monkeypatch.setattr(sg, "_have", lambda c: True)
-    gen = sg.SecurityGenerator()
-    monkeypatch.setattr(
-        gen, "render",
-        lambda cfg: [sg.RenderedFile(path=str(tmp_path / "f.conf"), content="x")],
-    )
 
-    gen.apply(_cfg("high"), do_reload=False)
-    joined = [" ".join(c) for c in calls]
-    assert any("enable --now aide.timer" in j for j in joined)
-    assert any("enable --now rkhunter.timer" in j for j in joined)
-    assert any("enable --now auditd" in j for j in joined)
+def test_apply_touches_both_logpaths(monkeypatch, tmp_path):
+    _apply_capture(monkeypatch, tmp_path, fc.ForgeOSConfig())
+    assert (tmp_path / "var/log/forgeos/auth.log").exists()
+    assert (tmp_path / "var/log/fail2ban.log").exists()

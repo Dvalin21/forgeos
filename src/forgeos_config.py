@@ -278,6 +278,7 @@ class Fail2banConfig(BaseModel):
     jail_sshd: bool = True
     jail_nginx: bool = True
     jail_forgeos: bool = True
+    jail_recidive: bool = True
 
     @field_validator("bantime", "findtime")
     @classmethod
@@ -295,8 +296,24 @@ class Fail2banConfig(BaseModel):
         return v
 
 
+
+class UpdatesConfig(BaseModel):
+    """Unattended security updates (Debian unattended-upgrades). Debian's
+    default origin set is security-only; we surface reboot behavior."""
+    enabled: bool = True
+    auto_reboot: bool = False
+    reboot_time: str = "02:00"
+
+    @field_validator("reboot_time")
+    @classmethod
+    def _hhmm(cls, v: str) -> str:
+        if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", v.strip()):
+            raise ValueError(f"reboot_time must be HH:MM: {v!r}")
+        return v.strip()
+
+
 class SecurityConfig(BaseModel):
-    profile: SecurityProfile = "medium"
+    profile: SecurityProfile = "medium"   # deprecated: informational only since P3
     lan_cidr: str = "10.0.0.0/24"
     fail2ban: Fail2banConfig = Field(default_factory=Fail2banConfig)
 
@@ -581,7 +598,7 @@ class AuthConfig(BaseModel):
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
-    version: int = 6
+    version: int = 7
     # `domain` is the legacy single-name field, kept for compatibility with
     # existing call sites (installer, nginx generator, CLI). The authoritative
     # model is `naming` (three-names). `domain` mirrors naming.lan_name for the
@@ -594,6 +611,7 @@ class ForgeOSConfig(BaseModel):
     nginx: NginxConfig = Field(default_factory=NginxConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
+    updates: UpdatesConfig = Field(default_factory=UpdatesConfig)
     wireguard: WireGuardConfig = Field(default_factory=WireGuardConfig)
     nfs: NfsConfig = Field(default_factory=NfsConfig)
     smtp: SmtpConfig = Field(default_factory=SmtpConfig)
@@ -612,7 +630,7 @@ class ForgeOSConfig(BaseModel):
         return v
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def _migrate_v1_to_v2(data: dict) -> dict:
@@ -668,12 +686,20 @@ def _migrate_v5_to_v6(data: dict) -> dict:
     data["version"] = 6
     return data
 
+
+def _migrate_v6_to_v7(data: dict) -> dict:
+    """v7: unattended-updates block. Additive."""
+    data.setdefault("updates", {})
+    data["version"] = 7
+    return data
+
 _MIGRATIONS = {
     1: _migrate_v1_to_v2,
     2: _migrate_v2_to_v3,
     3: _migrate_v3_to_v4,
     4: _migrate_v4_to_v5,
     5: _migrate_v5_to_v6,
+    6: _migrate_v6_to_v7,
 }
 
 

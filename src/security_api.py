@@ -6,7 +6,7 @@ Mounts under the existing FastAPI app via:
     set_security_helpers(run_args=_run_args)
     app.include_router(security_router)
 
-Routes (/api/security/*): fail2ban, crowdsec, firewall status
+Routes (/api/security/*): fail2ban, firewall status
 """
 from __future__ import annotations
 
@@ -40,6 +40,33 @@ def set_helpers(
     global _run_args, _audit
     _run_args = run_args
     _audit = audit
+
+
+@router.get("/api/security/updates")
+async def updates_status(user=Depends(verify_token)):
+    u = fc.load().updates
+    return {"enabled": u.enabled, "auto_reboot": u.auto_reboot, "reboot_time": u.reboot_time}
+
+
+@router.put("/api/security/updates")
+async def updates_config(body: dict, user=Depends(verify_token)):
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    cfg = fc.load()
+    try:
+        cfg.updates = fc.UpdatesConfig(**{**cfg.updates.model_dump(), **body})
+    except ValueError as e:
+        raise HTTPException(400, detail=f"invalid updates config: {e}")
+    if _apply is not None:
+        _apply(cfg)
+    else:
+        res = registry.apply_one("updates", cfg=cfg)
+        if not res.ok:
+            raise HTTPException(500, f"updates apply failed: {res.error}")
+        fc.save(cfg)
+    if _audit is not None:
+        _audit(user["sub"], "security.updates.config", "success", str(body))
+    return {"ok": True, "updates": cfg.updates.model_dump()}
 
 
 @router.get("/api/security/fail2ban")
@@ -119,12 +146,6 @@ def set_apply(fn) -> None:
     """Test seam: inject converge+persist."""
     global _apply
     _apply = fn
-
-
-@router.get("/api/security/crowdsec")
-async def crowdsec_status(user=Depends(verify_token)):
-    out = _run_args(["cscli", "decisions", "list"])
-    return {"output": out or "CrowdSec not installed"}
 
 
 @router.get("/api/security/firewall")

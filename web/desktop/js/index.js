@@ -307,18 +307,17 @@
     }
     var f2b = (await api("/api/security/fail2ban")).data;
     if (f2b) {
-      var banned = (f2b.output.match(/Currently banned:\s*(\d+)/i) || [])[1];
-      var jails = (f2b.output.match(/Jail list:\s*(.+)/i) || [])[1];
-      var running = !/not running/i.test(f2b.output);
+      var jl = f2b.jails || [];
+      var on = jl.filter(function (j) { return j.enabled; });
+      var banned = jl.reduce(function (n, j) { return n + (j.banned || []).length; }, 0);
+      var running = !!f2b.enabled && on.length > 0;
       setLive("sec-f2b", running ? "Active" : "Off"); $$('[data-live="sec-f2b"]')[0].className = "status " + lvl(running);
-      setLive("sec-f2b-p", running ? ("Jails: " + (jails || "sshd").trim() + " · banned " + (banned || "0")) : "fail2ban not running");
+      setLive("sec-f2b-p", running ? ("Jails: " + on.map(function (j) { return j.name; }).join(", ") + " · banned " + banned) : "fail2ban not running");
     }
-    var cs = (await api("/api/security/crowdsec")).data;
-    if (cs) {
-      var installed = !/not installed/i.test(cs.output || "");
-      var decisions = (cs.output.match(/\n/g) || []).length;
-      setLive("sec-cs", installed ? "Active" : "—"); $$('[data-live="sec-cs"]')[0].className = "status " + (installed ? "ok" : "warn");
-      setLive("sec-cs-p", installed ? (Math.max(0, decisions - 2) + " active decisions") : "CrowdSec not installed (optional)");
+    var up = (await api("/api/security/updates")).data;
+    if (up) {
+      setLive("sec-up", up.enabled ? "Active" : "Off"); $$('[data-live="sec-up"]')[0].className = "status " + (up.enabled ? "ok" : "warn");
+      setLive("sec-up-p", up.enabled ? ("Security patches install automatically" + (up.auto_reboot ? " · reboot " + up.reboot_time : "")) : "Unattended upgrades disabled");
     }
     setLive("sec-chip", "Hardened");
   }

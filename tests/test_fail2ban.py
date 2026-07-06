@@ -150,3 +150,28 @@ def test_uvicorn_trusts_loopback_proxy_only():
     src = (Path(__file__).resolve().parent.parent / "src" / "forgeos-api.py").read_text()
     assert "proxy_headers=True" in src
     assert 'forwarded_allow_ips="127.0.0.1"' in src
+
+
+class TestUpdatesEndpoints:
+    def test_get_defaults(self, test_client, auth_headers):
+        d = test_client.get("/api/security/updates", headers=auth_headers).json()
+        assert d == {"enabled": True, "auto_reboot": False, "reboot_time": "02:00"}
+
+    def test_put_persists_and_validates(self, test_client, auth_headers):
+        import security_api, forgeos_config as fc
+        applied = []
+        security_api.set_apply(lambda cfg: applied.append(cfg) or fc.save(cfg))
+        try:
+            r = test_client.put("/api/security/updates",
+                                json={"auto_reboot": True, "reboot_time": "03:30"},
+                                headers=auth_headers)
+            assert r.status_code == 200 and r.json()["updates"]["reboot_time"] == "03:30"
+            assert test_client.put("/api/security/updates", json={"reboot_time": "25:99"},
+                                   headers=auth_headers).status_code == 400
+            assert len(applied) == 1
+        finally:
+            security_api.set_apply(None)
+
+    def test_put_requires_admin(self, test_client, user_headers):
+        assert test_client.put("/api/security/updates", json={"enabled": False},
+                               headers=user_headers).status_code == 403
