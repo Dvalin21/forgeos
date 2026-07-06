@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>Users &middot; ForgeNAS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+<style>
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+.field input, .field select { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.pill.on { background: rgba(22,163,74,.12); color: #16a34a; }
+.pill.off { background: var(--primary-soft); color: var(--muted); }
+.row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.icon-btn { border: 1px solid var(--line); background: none; border-radius: 8px; padding: 6px; cursor: pointer; color: var(--muted); }
+.icon-btn:hover { color: var(--primary); border-color: var(--primary); }
+.icon-btn.danger:hover { color: #dc2626; border-color: #dc2626; }
+.icon-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.policy-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.backup-codes { background: var(--primary-soft); border-radius: 10px; padding: 12px; font-size: 13px; line-height: 1.8; user-select: all; }
+.note { font-size: 12.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+  <div class="app"><main class="main" style="grid-column:1/-1">
+    <header class="topbar" style="grid-template-columns:1fr auto">
+      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Users</h3><p>Accounts, roles, and two-factor administration</p></div></div>
+      <div class="top-actions">
+        <a class="button" style="background:var(--primary-soft);color:var(--primary);text-decoration:none" href="/profile.html">My profile</a>
+        <button class="button" id="add-user"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add user</button>
+      </div>
+    </header>
+
+    <section class="panel pad" style="margin-bottom:18px">
+      <div class="policy-row">
+        <div><h3 style="margin:0">Require 2FA for new accounts</h3><p class="note" style="margin:4px 0 0">New users must enroll an authenticator before their first session.</p></div>
+        <div class="switch" id="policy-2fa"><i></i></div>
+      </div>
+    </section>
+
+    <div class="panel">
+      <table>
+        <thead><tr><th>User</th><th>Role</th><th>2FA</th><th>Backup codes</th><th></th></tr></thead>
+        <tbody id="user-rows"></tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:10px">The last administrator cannot be deleted or demoted, and you cannot delete yourself &mdash; the API enforces both.</p>
+  </main></div>
+
+  <div class="backdrop" id="add-backdrop">
+    <div class="modal">
+      <h3>Add user</h3>
+      <div class="field"><label>Username</label><input id="u-name" autocomplete="off"></div>
+      <div class="field"><label>Password</label><input id="u-pass" type="password" autocomplete="new-password"></div>
+      <div class="field"><label>Role</label><select id="u-role"><option value="user">User</option><option value="admin">Administrator</option></select></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="button ghost" id="add-cancel">Cancel</button>
+        <button class="button" id="add-confirm">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="backdrop" id="pw-backdrop">
+    <div class="modal">
+      <h3 id="pw-title">Reset password</h3>
+      <div class="field"><label>New password</label><input id="pw-new" type="password" autocomplete="new-password"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="button ghost" id="pw-cancel">Cancel</button>
+        <button class="button" id="pw-confirm">Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts" style="position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50"></div>
+  <script src="/js/nav.js"></script>
+  <script src="/js/users.js"></script>
+</body>
+</html>

@@ -81,6 +81,17 @@ def _public_view(username: str, rec: dict) -> dict:
     }
 
 
+@router.get("/api/users/me")
+async def get_me(user=Depends(verify_token)):
+    """Own public record — lets any user (not just admins) see their 2FA
+    state and backup-code count on the profile page."""
+    users = load_users()
+    rec = users.get(user["sub"])
+    if rec is None:
+        raise HTTPException(404, "User not found")
+    return _public_view(user["sub"], rec)
+
+
 @router.get("/api/users")
 async def list_users(user=Depends(verify_token)):
     _require_admin(user)
@@ -218,7 +229,18 @@ async def totp_enroll(user=Depends(verify_enroll_or_session)):
     rec["totp_pending_secret"] = secret
     users[me] = rec
     save_users(users)
-    return {"secret": secret, "uri": fa.totp_uri(secret, me), "issuer": fa.TOTP_ISSUER}
+    uri = fa.totp_uri(secret, me)
+    qr = None
+    try:                          # same system qrencode the VPN page uses
+        import base64
+        import subprocess
+        r = subprocess.run(["qrencode", "-t", "PNG", "-o", "-"], input=uri.encode(),
+                           capture_output=True, timeout=10)
+        if r.returncode == 0:
+            qr = "data:image/png;base64," + base64.b64encode(r.stdout).decode()
+    except (OSError, subprocess.SubprocessError):
+        pass                      # secret + uri still work for manual entry
+    return {"secret": secret, "uri": uri, "issuer": fa.TOTP_ISSUER, "qr": qr}
 
 
 @router.post("/api/users/me/totp/verify")

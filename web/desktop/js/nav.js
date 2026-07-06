@@ -55,7 +55,7 @@
     ]},
     { title: "Access", items: [
       { id: "security", label: "Security",      icon: "firewall", page: "security.html" },
-      { id: "users",    label: "Users & 2FA",   icon: "users",    page: null }
+      { id: "users",    label: "Users",         icon: "users",    page: "users.html" }
     ]},
     { title: "System", items: [
       { id: "settings", label: "Settings",      icon: "settings", page: null },

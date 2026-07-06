@@ -201,3 +201,26 @@ class TestAdminResetPassword:
         resp = test_client.post("/api/users/ghost/password", json={"password": "newpassword123"},
                                 headers=_hdr("alice", "admin"))
         assert resp.status_code == 404
+
+
+class TestGetMe:
+    """Self-service view for the profile page — any authenticated user, own
+    record only, no secrets."""
+
+    def test_requires_auth(self, test_client):
+        assert test_client.get("/api/users/me").status_code in (401, 403)
+
+    def test_non_admin_sees_own_record(self, test_client):
+        _seed({"bob": ("password1", "user")})
+        r = test_client.get("/api/users/me", headers=_hdr("bob", "user"))
+        assert r.status_code == 200
+        d = r.json()
+        assert d["username"] == "bob"
+        assert d["role"] == "user"
+        assert set(d.keys()) == {"username", "role", "totp_enabled",
+                                 "totp_required", "backup_codes_remaining"}
+
+    def test_unknown_subject_404(self, test_client):
+        _seed({"bob": ("password1", "user")})
+        r = test_client.get("/api/users/me", headers=_hdr("ghost", "user"))
+        assert r.status_code == 404

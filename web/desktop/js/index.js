@@ -400,6 +400,22 @@
   }
   function stopPolling() { clearInterval(fastTimer); clearInterval(heavyTimer); }
 
+  function tokenPayload() {
+    try {
+      var t = getToken(); if (!t) return null;
+      return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    } catch (e) { return null; }
+  }
+  function setIdentity(username, role) {
+    var r = role === "admin" ? "Administrator" : "User";
+    $("#profile-user").textContent = username;
+    $("#profile-role").textContent = r;
+    var amU = $("#am-user"), amR = $("#am-role");
+    if (amU) amU.textContent = username;
+    if (amR) amR.textContent = r;
+    $("#avatar").textContent = (username[0] || "A").toUpperCase();
+  }
+
   // ════════════ AUTH UI ════════════
   function showApp() { $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); }
   function showLogin() { $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); var u = $("#login-user"); if (u) u.focus(); }
@@ -412,15 +428,75 @@
     btn.disabled = true; btn.textContent = "Signing in…";
     var r = await api("/api/auth/login", { method: "POST", body: JSON.stringify({ username: u, password: p }) });
     btn.disabled = false; btn.textContent = "Sign in";
-    if (r.ok && r.data && r.data.token) {
-      setToken(r.data.token);
-      $("#profile-user").textContent = r.data.username || u;
-      $("#profile-role").textContent = (r.data.role || "user") === "admin" ? "Administrator" : (r.data.role || "user");
-      $("#avatar").textContent = ((r.data.username || u)[0] || "A").toUpperCase();
+    var d = r.data || {};
+    if (r.ok && d.token) {
+      setToken(d.token);
+      setIdentity(d.username || u, d.role || "user");
       showApp(); startPolling();
+    } else if (r.ok && d.mfa_required) {
+      _mfaToken = d.mfa_token;
+      loginStep("mfa");
+      $("#mfa-code").focus();
+    } else if (r.ok && d.enrollment_required) {
+      _enrollToken = d.enroll_token;
+      loginStep("enroll");
+      startEnroll();
     } else {
-      err.textContent = (r.data && r.data.detail) || "Login failed.";
+      err.textContent = d.detail || "Login failed.";
     }
+  }
+
+  // ── 2FA login + forced enrollment ──
+  var _mfaToken = null, _enrollToken = null;
+  function loginStep(step) {
+    // step: "creds" | "mfa" | "enroll"
+    var creds = step === "creds";
+    ["login-user", "login-pass"].forEach(function (id) {
+      $("#" + id).closest(".field").classList.toggle("hidden", !creds);
+    });
+    $("#login-btn").classList.toggle("hidden", !creds);
+    $("#login-mfa").classList.toggle("hidden", step !== "mfa");
+    $("#login-enroll").classList.toggle("hidden", step !== "enroll");
+  }
+  async function mfaLogin() {
+    var err = $("#login-err"); err.textContent = "";
+    var code = $("#mfa-code").value.trim();
+    if (!code) { err.textContent = "Enter a code."; return; }
+    var r = await api("/api/auth/login/totp", { method: "POST",
+      body: JSON.stringify({ mfa_token: _mfaToken, code: code }) });
+    var d = r.data || {};
+    if (r.ok && d.token) {
+      _mfaToken = null; $("#mfa-code").value = "";
+      setToken(d.token);
+      setIdentity(d.username || $("#login-user").value.trim(), d.role || "user");
+      loginStep("creds"); showApp(); startPolling();
+    } else {
+      err.textContent = d.detail || "Invalid code.";
+    }
+  }
+  async function startEnroll() {
+    var err = $("#login-err"); err.textContent = "";
+    var r = await api("/api/users/me/totp/enroll", { method: "POST",
+      headers: { Authorization: "Bearer " + _enrollToken } });
+    var d = r.data || {};
+    if (!r.ok) { err.textContent = d.detail || "Could not start enrollment."; return; }
+    if (d.qr) { $("#enroll-qr").src = d.qr; $("#enroll-qr").style.display = ""; }
+    else { $("#enroll-qr").style.display = "none"; }
+    $("#enroll-secret").textContent = d.secret + "  (" + d.issuer + ")";
+  }
+  async function verifyEnroll() {
+    var err = $("#login-err"); err.textContent = "";
+    var code = $("#enroll-code").value.trim();
+    if (!code) { err.textContent = "Enter the code from your app."; return; }
+    var r = await api("/api/users/me/totp/verify", { method: "POST",
+      headers: { Authorization: "Bearer " + _enrollToken },
+      body: JSON.stringify({ code: code }) });
+    var d = r.data || {};
+    if (!r.ok) { err.textContent = d.detail || "Invalid code."; return; }
+    _enrollToken = null;
+    $("#enroll-codes").textContent = (d.backup_codes || []).join("\n");
+    $("#enroll-done").classList.remove("hidden");
+    $("#enroll-btn").classList.add("hidden");
   }
   function logout() {
     stopPolling(); setToken(null);
@@ -432,6 +508,18 @@
   function wire() {
     $("#login-btn").addEventListener("click", login);
     $("#login-pass").addEventListener("keydown", function (e) { if (e.key === "Enter") login(); });
+    $("#mfa-btn").addEventListener("click", mfaLogin);
+    $("#mfa-code").addEventListener("keydown", function (e) { if (e.key === "Enter") mfaLogin(); });
+    $("#mfa-back").addEventListener("click", function () { _mfaToken = null; loginStep("creds"); });
+    $("#enroll-btn").addEventListener("click", verifyEnroll);
+    $("#enroll-relogin").addEventListener("click", function () {
+      loginStep("creds");
+      ["enroll-code", "login-pass"].forEach(function (id) { $("#" + id).value = ""; });
+      $("#enroll-done").classList.add("hidden"); $("#enroll-btn").classList.remove("hidden");
+      $("#login-err").textContent = "2FA enabled — sign in again with your code.";
+    });
+    var pl = tokenPayload();
+    if (pl && pl.sub) setIdentity(pl.sub, pl.role || "user");
     $("#logout-btn").addEventListener("click", logout);
     $("#refresh-btn").addEventListener("click", function () { refreshFast(); refreshHeavy(); toast("Refreshed", "info"); });
     [["#act-snapshot", doSnapshot], ["#qa-snap", doSnapshot], ["#act-share", doShare], ["#act-share2", doShare], ["#qa-share", doShare], ["#qa-proxy", doProxyReload],

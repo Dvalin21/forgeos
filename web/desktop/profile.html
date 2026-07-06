@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>Profile &middot; ForgeNAS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+<style>
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+.id-row { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.id-avatar { width: 52px; height: 52px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; }
+.id-row h3 { margin: 0; } .id-row p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+.field input { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; }
+.mfa-state { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.enroll-qr { text-align: center; margin: 10px 0; }
+.enroll-qr img { width: 176px; height: 176px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.enroll-qr code { display: block; font-size: 11px; word-break: break-all; color: var(--muted); margin-top: 6px; }
+.backup-codes { background: var(--primary-soft); border-radius: 10px; padding: 12px; font-size: 13px; line-height: 1.8; letter-spacing: .04em; user-select: all; }
+.note { font-size: 12.5px; color: var(--muted); }
+.warn { color: #b45309; font-weight: 700; }
+</style>
+</head>
+<body>
+  <div class="app"><main class="main" style="grid-column:1/-1">
+    <header class="topbar" style="grid-template-columns:1fr auto">
+      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">My Profile</h3><p>Your account, password, and two-factor authentication</p></div></div>
+      <div class="top-actions"><a class="button" style="background:var(--primary-soft);color:var(--primary);text-decoration:none" href="/index.html">Dashboard</a></div>
+    </header>
+
+    <section class="panel pad" style="margin-bottom:18px">
+      <div class="id-row">
+        <div class="id-avatar" id="pf-avatar">&mdash;</div>
+        <div><h3 id="pf-user">&mdash;</h3><p id="pf-role">&mdash;</p></div>
+      </div>
+    </section>
+
+    <div class="grid2">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>Change password</h3><p>Requires your current password</p></div></div>
+        <div class="field"><label>Current password</label><input id="cp-cur" type="password" autocomplete="current-password"></div>
+        <div class="field"><label>New password</label><input id="cp-new" type="password" autocomplete="new-password"></div>
+        <div class="field"><label>Repeat new password</label><input id="cp-new2" type="password" autocomplete="new-password"></div>
+        <button class="button" id="cp-btn">Change password</button>
+      </section>
+
+      <section class="panel pad">
+        <div class="section-head"><div><h3>Two-factor authentication</h3><p>TOTP codes from an authenticator app</p></div></div>
+        <div class="mfa-state"><span class="chip" id="mfa-chip">&mdash;</span><span class="note" id="mfa-codes-left"></span></div>
+
+        <!-- 2FA off -->
+        <div id="mfa-off" class="hidden">
+          <button class="button" id="mfa-enroll-btn">Set up 2FA</button>
+          <div id="mfa-wizard" class="hidden">
+            <div class="enroll-qr"><img id="mfa-qr" alt="TOTP QR code"><code id="mfa-secret"></code></div>
+            <div class="field"><label>Code from app</label><input id="mfa-verify-code" inputmode="numeric" autocomplete="one-time-code"></div>
+            <button class="button" id="mfa-verify-btn">Verify &amp; enable</button>
+          </div>
+        </div>
+
+        <!-- 2FA on -->
+        <div id="mfa-on" class="hidden">
+          <div class="field"><label>Current code (re-authentication)</label><input id="mfa-reauth-code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"></div>
+          <button class="button ghost" id="mfa-regen-btn">Regenerate backup codes</button>
+          <button class="button danger" id="mfa-disable-btn">Disable 2FA</button>
+          <p class="note">Disabling also accepts your password if you have no device: leave the code empty and you will be asked.</p>
+        </div>
+
+        <div id="mfa-backup" class="hidden">
+          <p class="note warn">Backup codes &mdash; shown once, save them now:</p>
+          <pre class="backup-codes" id="mfa-backup-list"></pre>
+        </div>
+      </section>
+    </div>
+  </main></div>
+  <div id="toasts" style="position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50"></div>
+  <script src="/js/nav.js"></script>
+  <script src="/js/profile.js"></script>
+</body>
+</html>

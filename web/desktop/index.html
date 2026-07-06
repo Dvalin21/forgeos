@@ -38,6 +38,13 @@
     }
 .btn-solid:disabled { opacity:.6; cursor: default; }
 .login-err { color: var(--danger); font-size: 13px; font-weight: 700; margin: 2px 0 12px; min-height: 16px; }
+.btn-plain { background: none; border: none; color: var(--muted); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 8px; width: 100%; }
+.enroll-note { font-size: 13px; color: var(--muted); margin: 0 0 10px; }
+.enroll-qr { text-align: center; margin-bottom: 10px; }
+.enroll-qr img { width: 168px; height: 168px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.enroll-qr code { display: block; font-size: 11px; word-break: break-all; color: var(--muted); margin-top: 6px; }
+.backup-codes { background: var(--primary-soft); border-radius: 10px; padding: 12px; font-size: 13px; line-height: 1.8; letter-spacing: .04em; user-select: all; }
+a.am-item { text-decoration: none; color: inherit; }
 .button[role="button"], .quick, .app-card, .nav a, .circle-btn, .task .run { cursor: pointer; }
 .quick:hover, .app-card:hover, .mini-card:hover { border-color: var(--primary); }
 /* live values + skeleton shimmer */
@@ -95,6 +102,26 @@
       <div class="field"><label>Username</label><input id="login-user" autocomplete="username" placeholder="admin"></div>
       <div class="field"><label>Password</label><input id="login-pass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
       <button class="btn-solid" id="login-btn">Sign in</button>
+
+      <!-- step 2: 2FA code (shown when login returns mfa_required) -->
+      <div id="login-mfa" class="hidden">
+        <div class="field"><label>Authenticator code</label><input id="mfa-code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code or backup code"></div>
+        <button class="btn-solid" id="mfa-btn">Verify</button>
+        <button class="btn-plain" id="mfa-back">Back</button>
+      </div>
+
+      <!-- forced enrollment: account requires 2FA before first session -->
+      <div id="login-enroll" class="hidden">
+        <p class="enroll-note">This account requires two-factor authentication. Scan the QR with an authenticator app, then enter a code to finish.</p>
+        <div class="enroll-qr"><img id="enroll-qr" alt="TOTP QR code"><code id="enroll-secret"></code></div>
+        <div class="field"><label>Code from app</label><input id="enroll-code" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code"></div>
+        <button class="btn-solid" id="enroll-btn">Enable 2FA</button>
+        <div id="enroll-done" class="hidden">
+          <p class="enroll-note"><b>Backup codes — save them now, they are shown once:</b></p>
+          <pre id="enroll-codes" class="backup-codes"></pre>
+          <button class="btn-solid" id="enroll-relogin">Continue to sign in</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -140,10 +167,10 @@
           <button class="circle-btn" id="customize-btn" aria-label="Customize dashboard" title="Customize dashboard"><svg viewBox="0 0 24 24"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2"/><circle cx="10" cy="16" r="2"/></svg></button>
           <div class="profile" id="profile-btn" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">
             <div class="avatar" id="avatar">A</div>
-            <div><strong id="profile-user">admin</strong><span id="profile-role">Local account</span></div>
+            <div><strong id="profile-user">admin</strong><span id="profile-role">—</span></div>
             <div class="avatar-menu" id="avatar-menu" role="menu">
-              <div class="am-id"><strong id="am-user">admin</strong><span id="am-role">Local account</span></div>
-              <div class="am-item" aria-disabled="true" title="Arrives with the Users &amp; 2FA page"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-3.4 3.6-5 7-5s6.2 1.6 7 5"/></svg>Profile &amp; users — coming soon</div>
+              <div class="am-id"><strong id="am-user">admin</strong><span id="am-role">—</span></div>
+              <a class="am-item" href="/profile.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.8-3.4 3.6-5 7-5s6.2 1.6 7 5"/></svg>Profile &amp; security</a>
               <button id="logout-btn" role="menuitem"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg>Sign out</button>
             </div>
           </div>

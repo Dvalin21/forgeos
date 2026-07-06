@@ -217,3 +217,24 @@ class TestHelperInvariants:
         assert not ok2                                          # single-use
         ok3, _ = fa.consume_backup_code(display[1].replace("-", ""), remaining)
         assert ok3                                              # hyphen ignored
+
+
+class TestEnrollQr:
+    def test_enroll_carries_qr_when_qrencode_present(self, test_client):
+        _seed({"alice": ("password1", "admin")})
+        from unittest.mock import patch, MagicMock
+        fake = MagicMock(returncode=0, stdout=b"\x89PNG_fake")
+        with patch("subprocess.run", return_value=fake):
+            r = test_client.post("/api/users/me/totp/enroll", headers=_hdr("alice", "admin"))
+        assert r.status_code == 200
+        assert r.json()["qr"].startswith("data:image/png;base64,")
+
+    def test_enroll_survives_missing_qrencode(self, test_client):
+        _seed({"alice": ("password1", "admin")})
+        from unittest.mock import patch
+        with patch("subprocess.run", side_effect=OSError("not installed")):
+            r = test_client.post("/api/users/me/totp/enroll", headers=_hdr("alice", "admin"))
+        assert r.status_code == 200
+        body = r.json()
+        assert body["qr"] is None
+        assert body["secret"] and body["uri"].startswith("otpauth://")
