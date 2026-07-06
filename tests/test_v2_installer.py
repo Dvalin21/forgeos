@@ -218,6 +218,7 @@ def test_base_package_list_has_core_services():
     assert "nginx" in pkgs
     assert "ssl-cert" in pkgs   # snakeoil cert -> nginx can open :443 pre-LE
     assert "wireguard" in pkgs
+    assert "qrencode" in pkgs   # VPN + 2FA QR both silently degrade without it
     assert "nfs-kernel-server" in pkgs
     assert "fail2ban" in pkgs
     assert "restic" in pkgs

@@ -34,8 +34,9 @@ BASE_PACKAGES: list[str] = [
     # generated vhost references a cert that doesn't exist and nginx silently
     # runs :80 only).
     "nginx", "certbot", "python3-certbot-nginx", "ssl-cert",
-    # vpn
-    "wireguard", "wireguard-tools",
+    # vpn (qrencode also serves 2FA enrollment QR — both degrade to
+    # manual-entry-only without it, silently)
+    "wireguard", "wireguard-tools", "qrencode",
     # security tier tools (all of them; tiers enable/disable at runtime)
     "ufw", "fail2ban", "apparmor", "apparmor-utils",
     "unattended-upgrades",
