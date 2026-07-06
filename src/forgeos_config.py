@@ -355,7 +355,10 @@ class WireGuardConfig(BaseModel):
     server_address: str = "10.10.0.1"
     listen_port: int = 51820
     subnet: str = "10.10.0.0/24"
-    egress_nic: str = "eth0"
+    # "" = resolve the default-route NIC at render time. A hardcoded "eth0"
+    # default silently rendered dead NAT/forward rules on any box with
+    # predictable interface names (ens18, enp3s0, ...).
+    egress_nic: str = ""
     # Public host/IP clients dial (port comes from listen_port). "" = unset;
     # add-peer refuses until set so client configs never ship a placeholder.
     endpoint: str = ""
@@ -618,7 +621,7 @@ class AuthConfig(BaseModel):
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
-    version: int = 7
+    version: int = 8
     # `domain` is the legacy single-name field, kept for compatibility with
     # existing call sites (installer, nginx generator, CLI). The authoritative
     # model is `naming` (three-names). `domain` mirrors naming.lan_name for the
@@ -650,7 +653,7 @@ class ForgeOSConfig(BaseModel):
         return v
 
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def _migrate_v1_to_v2(data: dict) -> dict:
@@ -713,6 +716,16 @@ def _migrate_v6_to_v7(data: dict) -> dict:
     data["version"] = 7
     return data
 
+def _migrate_v7_to_v8(data: dict) -> dict:
+    """v8: egress_nic "eth0" was a blind default, never a user choice — reset
+    to "" (auto-detect default-route NIC at render time)."""
+    wg = data.setdefault("wireguard", {})
+    if wg.get("egress_nic", "") == "eth0":
+        wg["egress_nic"] = ""
+    data["version"] = 8
+    return data
+
+
 _MIGRATIONS = {
     1: _migrate_v1_to_v2,
     2: _migrate_v2_to_v3,
@@ -720,6 +733,7 @@ _MIGRATIONS = {
     4: _migrate_v4_to_v5,
     5: _migrate_v5_to_v6,
     6: _migrate_v6_to_v7,
+    7: _migrate_v7_to_v8,
 }
 
 

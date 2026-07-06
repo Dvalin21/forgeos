@@ -134,9 +134,16 @@ async def vpn_status(user=Depends(verify_token)):
         fwd = Path("/proc/sys/net/ipv4/ip_forward").read_text().strip() == "1"
     except OSError:
         fwd = None
+    try:
+        from generators.wireguard import resolve_egress_nic
+        nic = resolve_egress_nic(wg)
+        nic_ok = True
+    except Exception as e:
+        nic, nic_ok = str(e), False
     return {"running": up, "interface": wg.interface, "enabled": wg.enabled,
             "listen_port": wg.listen_port, "peer_count": len(wg.peers),
-            "endpoint": wg.endpoint, "ip_forward": fwd}
+            "endpoint": wg.endpoint, "ip_forward": fwd,
+            "egress_nic": nic, "egress_nic_ok": nic_ok}
 
 
 @router.get("/api/vpn/settings")

@@ -59,6 +59,8 @@ function token(){ try { return localStorage.getItem('forgeos_token'); } catch(e)
     set('dg-ep', d.endpoint || 'not set', d.endpoint ? 'ok' : 'bad');
     set('dg-fwd', d.ip_forward === null ? 'unknown' : (d.ip_forward ? 'on' : 'off'),
         d.ip_forward === null ? '' : (d.ip_forward ? 'ok' : 'bad'));
+    set('dg-nic', d.egress_nic_ok ? d.egress_nic : 'unresolved', d.egress_nic_ok ? 'ok' : 'bad');
+    if (!d.egress_nic_ok) document.getElementById('dg-nic').title = d.egress_nic;
     // prefill endpoint field once (don't clobber while user types)
     var ep = document.getElementById('ep-input');
     if (!ep.dataset.touched && !ep.value && d.endpoint) ep.value = d.endpoint;
@@ -183,30 +185,46 @@ function token(){ try { return localStorage.getItem('forgeos_token'); } catch(e)
     b.onclick = function(e){ if (e.target === b) b.classList.remove('show'); };
   });
 
-  // ── Server endpoint ──
+  // ── Server endpoint: auto-detect when unset, field stays editable ──
   var epInput = document.getElementById('ep-input');
   epInput.oninput = function(){ epInput.dataset.touched = '1'; };
+  var epNote = document.getElementById('ep-note');
+  async function saveEndpoint(v, silent){
+    var r = await api('/api/vpn/settings', { method: 'PUT', body: JSON.stringify({ endpoint: v }) });
+    if (!r.ok){ toast((r.data && r.data.detail) || 'Could not save endpoint', 'err'); return false; }
+    if (!silent) toast('Endpoint saved', 'ok');
+    return true;
+  }
   document.getElementById('ep-save').onclick = async function(){
-    var r = await api('/api/vpn/settings', { method: 'PUT', body: JSON.stringify({ endpoint: epInput.value.trim() }) });
-    if (!r.ok){ toast((r.data && r.data.detail) || 'Could not save endpoint', 'err'); return; }
-    toast('Endpoint saved', 'ok');
-    var note = document.getElementById('ep-note'); note.textContent = ''; note.className = 'ep-note';
-    await loadStatus();
+    if (await saveEndpoint(epInput.value.trim(), false)){
+      epNote.textContent = ''; epNote.className = 'ep-note';
+      await loadStatus();
+    }
   };
-  document.getElementById('ep-detect').onclick = async function(){
-    var btn = this; btn.disabled = true;
-    var r = await api('/api/vpn/detect-endpoint');
-    btn.disabled = false;
-    var d = r.data || {};
-    if (!r.ok || (!d.public_ip && !d.lan_ip)){ toast('Detection failed — enter it manually', 'err'); return; }
-    epInput.value = d.public_ip || d.lan_ip;
-    epInput.dataset.touched = '1';
-    var note = document.getElementById('ep-note');
-    note.className = 'ep-note';
-    note.textContent = d.public_ip
-      ? 'Public IP ' + d.public_ip + (d.lan_ip ? ' (LAN: ' + d.lan_ip + ')' : '') + ' — remote devices also need UDP port-forwarding on your router.'
-      : 'Only the LAN IP was found (' + d.lan_ip + ') — works on your network only.';
-  };
+  async function autoDetectEndpoint(){
+    var st = (await api('/api/vpn/settings')).data;
+    if (!st || st.endpoint){ epInput.placeholder = 'public IP or hostname'; return; }  // already set — leave it alone
+    var d = (await api('/api/vpn/detect-endpoint')).data || {};
+    epInput.placeholder = 'public IP or hostname';
+    if (d.public_ip){
+      epInput.value = d.public_ip;
+      if (await saveEndpoint(d.public_ip, true)){
+        epNote.className = 'ep-note';
+        epNote.textContent = 'Auto-detected public IP — edit + Save if wrong. Remote devices also need UDP port-forwarding on your router.';
+        await loadStatus();
+      }
+    } else if (d.lan_ip){
+      // LAN-only fallback is NOT auto-saved: it only works on this network.
+      epInput.value = d.lan_ip;
+      epInput.dataset.touched = '1';
+      epNote.className = 'ep-note warn';
+      epNote.textContent = 'Could not reach the internet to detect your public IP — this is the LAN address. Replace with your public IP/hostname and Save.';
+    } else {
+      epNote.className = 'ep-note warn';
+      epNote.textContent = 'Detection failed — enter your public IP or hostname and Save.';
+    }
+  }
+  autoDetectEndpoint();
 
   refreshAll();
   setInterval(function(){                    // live view: 5s, only while visible

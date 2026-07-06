@@ -21,6 +21,34 @@ from generators import GeneratorError, RenderedFile, ServiceGenerator
 
 _TEMPLATES = Path(__file__).parent / "templates"
 WG_KEY_DIR = "/etc/forgeos/wireguard"
+SYS_NET = "/sys/class/net"                    # test seam
+
+
+def default_route_nic() -> str:
+    """Interface carrying the IPv4 default route, from /proc/net/route
+    (stdlib, no `ip` dependency). Fail fast if there is none — rendering
+    NAT rules against a guessed NIC is exactly the bug this replaces."""
+    try:
+        lines = Path("/proc/net/route").read_text().splitlines()[1:]
+    except OSError as e:
+        raise GeneratorError(f"cannot read /proc/net/route: {e}")
+    for line in lines:
+        f = line.split()
+        if len(f) > 1 and f[1] == "00000000":
+            return f[0]
+    raise GeneratorError("no IPv4 default route — cannot resolve egress NIC; "
+                         "set wireguard.egress_nic explicitly")
+
+
+def resolve_egress_nic(wg) -> str:
+    """Pinned value must actually exist; '' auto-resolves."""
+    if wg.egress_nic:
+        if not Path(SYS_NET, wg.egress_nic).exists():
+            raise GeneratorError(
+                f"egress_nic '{wg.egress_nic}' does not exist on this host "
+                f"(see {SYS_NET}) — fix it or set it to \"\" for auto-detect")
+        return wg.egress_nic
+    return default_route_nic()
 
 
 class WireGuardGenerator(ServiceGenerator):
@@ -53,7 +81,7 @@ class WireGuardGenerator(ServiceGenerator):
             listen_port=wg.listen_port,
             server_private_key=server_key,
             interface=wg.interface,
-            egress_nic=wg.egress_nic,
+            egress_nic=resolve_egress_nic(wg),
             subnet=wg.subnet,
             peers=wg.peers,
         )

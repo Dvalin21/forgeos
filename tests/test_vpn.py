@@ -185,3 +185,53 @@ class TestLiveStats:
             d = test_client.get("/api/vpn/status", headers=auth_headers).json()
         assert d["ip_forward"] is True
         assert "endpoint" in d
+
+
+class TestEgressNic:
+    """egress_nic='eth0' was a blind default — it rendered NAT/forward rules
+    against a NIC that does not exist on predictable-name systems (ens18)."""
+
+    def _fake_route(self, tmp_path, nic="ens18"):
+        rt = tmp_path / "route"
+        rt.write_text("Iface\tDestination\tGateway\n"
+                      f"{nic}\t00000000\t0100000A\n")
+        return rt
+
+    def test_auto_resolves_default_route_nic(self, tmp_path, monkeypatch):
+        from generators import wireguard as gw
+        rt = self._fake_route(tmp_path)
+        monkeypatch.setattr(gw, "Path", lambda *a: rt if str(a[0]).endswith("net/route") else __import__("pathlib").Path(*a))
+        assert gw.default_route_nic() == "ens18"
+
+    def test_no_default_route_fails_fast(self, tmp_path, monkeypatch):
+        from generators import wireguard as gw
+        from generators import GeneratorError
+        rt = tmp_path / "route"; rt.write_text("Iface\tDestination\n")
+        monkeypatch.setattr(gw, "Path", lambda *a: rt if str(a[0]).endswith("net/route") else __import__("pathlib").Path(*a))
+        with pytest.raises(GeneratorError):
+            gw.default_route_nic()
+
+    def test_pinned_missing_nic_fails_fast(self, tmp_path, monkeypatch):
+        from generators import wireguard as gw
+        from generators import GeneratorError
+        monkeypatch.setattr(gw, "SYS_NET", str(tmp_path))   # empty dir: no NICs
+        wg = fc.WireGuardConfig(egress_nic="eth0")
+        with pytest.raises(GeneratorError, match="eth0"):
+            gw.resolve_egress_nic(wg)
+
+    def test_pinned_existing_nic_used(self, tmp_path, monkeypatch):
+        from generators import wireguard as gw
+        (tmp_path / "ens18").mkdir()
+        monkeypatch.setattr(gw, "SYS_NET", str(tmp_path))
+        assert gw.resolve_egress_nic(fc.WireGuardConfig(egress_nic="ens18")) == "ens18"
+
+
+class TestV8Migration:
+    def test_eth0_default_reset_to_auto(self):
+        d = fc.migrate({"version": 7, "wireguard": {"egress_nic": "eth0"}})
+        assert d["wireguard"]["egress_nic"] == ""
+        assert d["version"] == 8
+
+    def test_user_pinned_nic_preserved(self):
+        d = fc.migrate({"version": 7, "wireguard": {"egress_nic": "bond0"}})
+        assert d["wireguard"]["egress_nic"] == "bond0"
