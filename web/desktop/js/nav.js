@@ -54,6 +54,7 @@
       { id: "vpn",      label: "VPN",           icon: "vpn",      page: "vpn.html" }
     ]},
     { title: "Access", items: [
+      { id: "security", label: "Security",      icon: "firewall", page: "security.html" },
       { id: "users",    label: "Users & 2FA",   icon: "users",    page: null }
     ]},
     { title: "System", items: [
