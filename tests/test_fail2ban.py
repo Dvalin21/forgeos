@@ -113,6 +113,7 @@ class TestFail2banEndpoints:
     def test_status_parses_bans(self, test_client, auth_headers, run_capture):
         d = test_client.get("/api/security/fail2ban", headers=auth_headers).json()
         sshd = next(j for j in d["jails"] if j["name"] == "sshd")
+        assert any(j["name"] == "recidive" for j in d["jails"])
         assert sshd["banned"] == ["198.51.100.7", "203.0.113.5"]
         assert sshd["total"] == 4
 

@@ -75,7 +75,7 @@ async def fail2ban_status(user=Depends(verify_token)):
     cfg = fc.load()
     f2b = cfg.security.fail2ban
     jails = {"sshd": f2b.jail_sshd, "nginx-http-auth": f2b.jail_nginx,
-             "forgeos-api": f2b.jail_forgeos}
+             "forgeos-api": f2b.jail_forgeos, "recidive": f2b.jail_recidive}
     out = {"enabled": f2b.enabled, "bantime": f2b.bantime,
            "findtime": f2b.findtime, "maxretry": f2b.maxretry, "jails": []}
     assert _run_args is not None

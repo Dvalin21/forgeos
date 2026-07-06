@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>Security · ForgeNAS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+
+</head>
+
+<body>
+
+  <div class="app"><main class="main" style="grid-column:1/-1">
+    <header class="topbar" style="grid-template-columns:1fr auto">
+      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Security Center</h3><p>Intrusion prevention and automatic security updates</p></div></div>
+      <div class="top-actions">
+        <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
+        <a class="button" style="background:var(--primary-soft);color:var(--primary);text-decoration:none" href="/firewall.html">Firewall rules</a>
+      </div>
+    </header>
+
+    <section class="panel pad" style="margin-bottom:18px">
+      <div class="section-head"><div><h3>Intrusion prevention (fail2ban)</h3><p>Repeated failed logins get their IP banned automatically. Recidive re-bans repeat offenders for a week.</p></div><span class="chip" id="f2b-chip">&mdash;</span></div>
+      <div id="jails"><p style="color:var(--muted)">Loading jails&hellip;</p></div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+      <div class="fld"><label>Tuning</label>
+        <div class="wz-from">
+          <input class="wz-input" id="f2b-bantime" placeholder="bantime e.g. 1h" style="max-width:150px">
+          <input class="wz-input" id="f2b-findtime" placeholder="findtime e.g. 10m" style="max-width:150px">
+          <input class="wz-input" id="f2b-maxretry" type="number" min="1" max="100" placeholder="maxretry" style="max-width:130px">
+        </div>
+        <div class="hint">Ban for <b>bantime</b> after <b>maxretry</b> failures within <b>findtime</b>. Applies to all jails.</div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn-pri" id="f2b-save">Save &amp; apply</button></div>
+    </section>
+
+    <section class="panel pad">
+      <div class="section-head"><div><h3>Automatic security updates</h3><p>Debian security patches install unattended. Reboots only happen if you allow them.</p></div><span class="chip" id="up-chip">&mdash;</span></div>
+      <div class="opt-row"><div class="opt-text"><h5>Install security updates automatically</h5><p>Uses Debian unattended-upgrades (security origin).</p></div><div class="switch" data-sw="up-enabled"><i></i></div></div>
+      <div class="opt-row"><div class="opt-text"><h5>Reboot automatically when required</h5><p>Some kernel updates need a reboot to take effect.</p></div><div class="switch" data-sw="up-reboot"><i></i></div></div>
+      <div class="fld" id="up-time-row" style="display:none"><label>Reboot time</label><input class="wz-input" id="up-time" placeholder="02:00" style="max-width:130px"><div class="hint">24-hour HH:MM, local time.</div></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn-pri" id="up-save">Save &amp; apply</button></div>
+    </section>
+
+  </main></div>
+  <div id="toasts"></div>
+<script src="/js/security.js"></script>
+  <script src="/js/nav.js"></script>
+</body>
+</html>

@@ -97,7 +97,7 @@
       html += '<nav class="nav">';
       g.items.forEach(function (it) {
         var TILE = { dashboard:"t-dash", storage:"t-store", forgedb:"t-db", files:"t-files",
-                 shares:"t-share", apps:"t-apps", proxy:"t-proxy", firewall:"t-fw",
+                 shares:"t-share", apps:"t-apps", proxy:"t-proxy", firewall:"t-fw", security:"t-fw",
                  vpn:"t-vpn", users:"t-users" };
         var icon = '<span class="tile ' + (TILE[it.id] || "t-sys") + '">' + svg(it.icon) + "</span>";
         if (it.page) {
