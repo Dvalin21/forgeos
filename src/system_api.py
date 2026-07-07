@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import subprocess
 import time
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -295,45 +296,122 @@ async def get_config(user=Depends(verify_token)):
     }
 
 
-@router.get("/api/settings")
-async def get_settings(user=Depends(verify_token)):
+@router.get("/api/settings/smtp")
+async def get_smtp(user=Depends(verify_token)):
     if user.get("role") != "admin":
         raise HTTPException(403)
-    assert _conf_get is not None
-    safe_keys = [
-        "DOMAIN", "HOSTNAME", "TIMEZONE", "ACME_EMAIL",
-        "FORGEOS_VERSION", "PRIMARY_POOL", "PRIMARY_POOL_MOUNT",
-        "PRIMARY_POOL_TYPE", "HIPAA_ENABLED", "PROXY",
-        "MARIADB_ENABLED", "REDIS_ENABLED",
-    ]
-    return {k: _conf_get(k, "") for k in safe_keys}
+    import forgeos_config as fcfg
+    import forgeos_smtp as fsmtp
+    m = fcfg.load().smtp
+    return {"enabled": m.enabled, "host": m.host, "port": m.port,
+            "use_tls": m.use_tls, "use_ssl": m.use_ssl, "username": m.username,
+            "from_addr": m.from_addr, "to_addrs": m.to_addrs,
+            "password_set": fsmtp.password_path().exists()}
+
+
+@router.put("/api/settings/smtp")
+async def put_smtp(body: dict, user=Depends(verify_token)):
+    """Password never enters config.json — keystore file 0600, write-only from
+    the UI's perspective (GET only reports password_set)."""
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    import forgeos_config as fcfg
+    import forgeos_smtp as fsmtp
+    assert _audit is not None
+    cfg = fcfg.load()
+    allowed = {"enabled", "host", "port", "use_tls", "use_ssl",
+               "username", "from_addr", "to_addrs"}
+    merged = {k: getattr(cfg.smtp, k) for k in allowed}
+    merged.update({k: v for k, v in body.items() if k in allowed})
+    try:
+        cfg.smtp = fcfg.SmtpConfig(**merged)
+    except ValueError as e:
+        raise HTTPException(400, f"invalid SMTP config: {e}")
+    pw = body.get("password")
+    if pw:
+        pp = fsmtp.password_path()
+        pp.parent.mkdir(parents=True, exist_ok=True)
+        pp.touch(mode=0o600, exist_ok=True)
+        pp.write_text(str(pw))
+        pp.chmod(0o600)
+    fcfg.save(cfg)
+    _audit(user["sub"], "settings.smtp", "success",
+           f"host={cfg.smtp.host} enabled={cfg.smtp.enabled} pw={'set' if pw else 'kept'}")
+    return {"ok": True}
+
+
+@router.post("/api/settings/smtp/test")
+async def smtp_test(user=Depends(verify_token)):
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    import forgeos_config as fcfg
+    import forgeos_smtp as fsmtp
+    m = fcfg.load().smtp
+    if not m.enabled:
+        raise HTTPException(400, "SMTP is disabled — enable and save first")
+    try:
+        fsmtp.send(m, "ForgeOS test notification",
+                   "SMTP settings are working. Sent from the Settings page.")
+    except Exception as e:
+        raise HTTPException(502, f"send failed: {str(e)[:300]}")
+    return {"ok": True}
+
+
+@router.get("/api/settings")
+async def get_settings(user=Depends(verify_token)):
+    """v2: config-DB is the source of truth. The v1 shell-conf read (HIPAA/
+    MariaDB/Redis/PROXY vocabulary) is deleted — none of it exists in v2."""
+    if user.get("role") != "admin":
+        raise HTTPException(403)
+    import forgeos_config as fcfg
+    cfg = fcfg.load()
+    try:
+        tz = subprocess.run(["timedatectl", "show", "-p", "Timezone", "--value"],
+                            capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        tz = ""
+    try:
+        real_hostname = subprocess.run(["hostname"], capture_output=True,
+                                       text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        real_hostname = ""
+    sysc = cfg.naming
+    return {"system_hostname": sysc.system_hostname,
+            "effective_hostname": sysc.system_hostname or real_hostname,
+            "lan_name": sysc.lan_name or ((sysc.system_hostname or real_hostname) + ".local"),
+            "public_fqdn": sysc.public_fqdn,
+            "timezone": tz,
+            "version": _conf_get("FORGEOS_VERSION", "") if _conf_get else ""}
 
 
 @router.put("/api/settings")
 async def save_settings(body: dict, user=Depends(verify_token)):
+    """Identity + timezone. Hostname is NEVER silently changed — persisting
+    system_hostname here only records intent; hostnamectl stays operator-run
+    (same sandbox boundary as timers: /etc/hostname isn't in ReadWritePaths).
+    Timezone goes through timedated over D-Bus, which is sandbox-legal."""
     if user.get("role") != "admin":
         raise HTTPException(403)
-    assert _conf_file_path is not None
-    assert _conf_cache is not None
+    import forgeos_config as fcfg
     assert _audit is not None
-    # Only allow safe keys
-    allowed = {"DOMAIN", "TIMEZONE", "ACME_EMAIL", "HOSTNAME"}
-    safe = {k: v for k, v in body.items() if k in allowed}
-    if not safe:
-        return {"ok": True, "message": "No allowed settings to update"}
-    # Append to config file
-    text = _conf_file_path.read_text() if _conf_file_path.exists() else ""
-    for k, v in safe.items():
-        text = re.sub(rf'^{k}=.*$', f'{k}="{v}"', text, flags=re.MULTILINE)
-        if f'{k}=' not in text:
-            text += f'\n{k}="{v}"'
-    _conf_file_path.write_text(text)
-    _audit(user["sub"], "settings.update", "success",
-           f"Settings changed: {', '.join(f'{k}={v}' for k, v in safe.items())}")
-    # Reload in-memory cache so settings take effect without restart
-    _conf_cache.clear()
-    for line in _conf_file_path.read_text().splitlines():
-        if "=" in line and not line.startswith("#"):
-            k, _, v = line.partition("=")
-            _conf_cache[k.strip()] = v.strip().strip('"')
-    return {"ok": True, "updated": list(safe.keys())}
+    cfg = fcfg.load()
+    allowed = {"system_hostname", "lan_name", "public_fqdn"}
+    merged = {k: getattr(cfg.naming, k) for k in allowed}
+    merged.update({k: str(v).strip() for k, v in body.items() if k in allowed})
+    try:
+        cfg.naming = fcfg.NamingConfig(**merged)
+    except ValueError as e:
+        raise HTTPException(400, f"invalid identity: {e}")
+    updated = list(merged.keys())
+    tz = str(body.get("timezone", "")).strip()
+    if tz:
+        if not re.fullmatch(r"[A-Za-z0-9_+\-]+(/[A-Za-z0-9_+\-]+){0,2}", tz):
+            raise HTTPException(400, f"invalid timezone: {tz!r}")
+        r = subprocess.run(["timedatectl", "set-timezone", tz],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode != 0:
+            raise HTTPException(500, f"timedatectl failed: {r.stderr.strip()[:200]}")
+        updated.append("timezone")
+    fcfg.save(cfg)
+    _audit(user["sub"], "settings.update", "success", ", ".join(updated))
+    return {"ok": True, "updated": updated}

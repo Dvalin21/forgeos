@@ -325,10 +325,10 @@
   async function loadSettings() {
     var s = (await api("/api/settings")).data;
     if (!s) { setLive("set-chip", "admin only"); return; }
-    setLive("set-chip", s.HIPAA_ENABLED === "1" ? "HIPAA on" : "Auto patch");
-    setLive("set-domain", s.DOMAIN || "local");
-    setLive("set-tz", s.TIMEZONE || "UTC");
-    setLive("set-ver", "ForgeOS " + (s.FORGEOS_VERSION || "?"));
+    setLive("set-chip", s.lan_name || "local");
+    setLive("set-domain", s.public_fqdn || s.lan_name || "local");
+    setLive("set-tz", s.timezone || "UTC");
+    setLive("set-ver", "ForgeOS " + (s.version || "?"));
     setLive("set-ver-s", "Current");
     if (s.PRIMARY_POOL) setLive("hc-pool", (s.PRIMARY_POOL_TYPE || "btrfs") + " · " + s.PRIMARY_POOL);
   }

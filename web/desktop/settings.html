@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>Settings &middot; ForgeNAS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+<style>
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+@media (max-width: 980px) { .grid2 { grid-template-columns: 1fr; } }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+.field input { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; }
+.field .hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+.opt-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin: 10px 0; }
+.opt-row h5 { margin: 0; font-size: 13.5px; } .opt-row p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+.note { font-size: 12.5px; color: var(--muted); }
+.kv { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.kv:last-child { border-bottom: none; }
+.kv .k { color: var(--muted); font-weight: 700; }
+.chip2 { font-size: 12px; font-weight: 700; padding: 4px 11px; border-radius: 999px; background: var(--primary-soft); color: var(--muted); }
+.chip2.ok { background: rgba(22,163,74,.12); color: #16a34a; }
+.two { display: flex; gap: 10px; } .two .field { flex: 1; }
+</style>
+</head>
+<body>
+  <div class="app"><main class="main" style="grid-column:1/-1">
+    <header class="topbar" style="grid-template-columns:1fr auto">
+      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Settings</h3><p>System identity, timezone, and notification email</p></div></div>
+    </header>
+
+    <div class="grid2">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>System</h3><p>Identity and time</p></div></div>
+        <div id="sys-info" style="margin-bottom:14px"></div>
+        <div class="field"><label>LAN name (mDNS)</label><input id="s-lan">
+          <div class="hint">How you reach the box on your network, e.g. forgeos.local</div></div>
+        <div class="field"><label>Public FQDN</label><input id="s-fqdn" placeholder="empty until you own a domain">
+          <div class="hint">Globally-resolvable name for real TLS. Never a .local name.</div></div>
+        <div class="field"><label>Timezone</label><input id="s-tz" placeholder="America/Chicago">
+          <div class="hint">IANA name; applied via timedatectl immediately on save.</div></div>
+        <button class="button" id="s-save">Save system settings</button>
+        <p class="note" style="margin-top:10px">The OS hostname is never changed from the web UI &mdash; rename with <code>hostnamectl</code> on the box if you need to.</p>
+      </section>
+
+      <section class="panel pad">
+        <div class="section-head"><div><h3>Notification email</h3><p>Outbound SMTP for alerts &mdash; not a mail server</p></div><span class="chip2" id="smtp-chip">&mdash;</span></div>
+        <div class="opt-row"><div><h5>Enable email notifications</h5><p>Service failures, backup results, drive alerts</p></div><div class="switch" id="m-enabled"><i></i></div></div>
+        <div class="two">
+          <div class="field"><label>SMTP host</label><input id="m-host" placeholder="smtp.example.com"></div>
+          <div class="field" style="max-width:110px"><label>Port</label><input id="m-port" inputmode="numeric" placeholder="587"></div>
+        </div>
+        <div class="opt-row"><div><h5>STARTTLS</h5><p>Port 587 (off = SMTPS on 465 if SSL is on)</p></div><div class="switch" id="m-tls"><i></i></div></div>
+        <div class="field"><label>Username</label><input id="m-user" autocomplete="off"></div>
+        <div class="field"><label>Password <span class="note" id="m-pw-state"></span></label><input id="m-pass" type="password" autocomplete="new-password" placeholder="leave blank to keep current">
+          <div class="hint">Stored in the keystore with 0600 perms &mdash; never in config.json.</div></div>
+        <div class="field"><label>From address</label><input id="m-from" placeholder="forgeos@example.com"></div>
+        <div class="field"><label>To addresses (comma-separated)</label><input id="m-to"></div>
+        <div style="display:flex;gap:8px">
+          <button class="button" id="m-save">Save SMTP</button>
+          <button class="button ghost" id="m-test">Send test email</button>
+        </div>
+      </section>
+    </div>
+  </main></div>
+  <div id="toasts" style="position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50"></div>
+  <script src="/js/nav.js"></script>
+  <script src="/js/settings.js"></script>
+</body>
+</html>

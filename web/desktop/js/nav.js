@@ -58,7 +58,7 @@
       { id: "users",    label: "Users",         icon: "users",    page: "users.html" }
     ]},
     { title: "System", items: [
-      { id: "settings", label: "Settings",      icon: "settings", page: null },
+      { id: "settings", label: "Settings",      icon: "settings", page: "settings.html" },
       { id: "backup",   label: "Backup & DR",   icon: "backup",   page: "backup.html" },
       { id: "activity", label: "Activity Log",  icon: "activity", page: "activity.html" },
       { id: "notify",   label: "Notifications", icon: "notify",   page: null },
