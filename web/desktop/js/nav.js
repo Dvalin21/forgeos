@@ -60,7 +60,7 @@
     { title: "System", items: [
       { id: "settings", label: "Settings",      icon: "settings", page: null },
       { id: "backup",   label: "Backup & DR",   icon: "backup",   page: "backup.html" },
-      { id: "activity", label: "Activity Log",  icon: "activity", page: null },
+      { id: "activity", label: "Activity Log",  icon: "activity", page: "activity.html" },
       { id: "notify",   label: "Notifications", icon: "notify",   page: null },
       { id: "imaging",  label: "Imaging",       icon: "imaging",  page: null }
     ]}

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>Activity Log &middot; ForgeNAS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+<style>
+.filters { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; margin-bottom: 14px; }
+.filters .field { margin: 0; }
+.filters label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+.filters input { padding: 8px 11px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 13px; width: 190px; }
+.pill { display: inline-flex; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.pill.ok { background: rgba(22,163,74,.12); color: #16a34a; }
+.pill.err { background: rgba(220,38,38,.10); color: #dc2626; }
+.pill.mut { background: var(--primary-soft); color: var(--muted); }
+.detail { color: var(--muted); font-size: 12.5px; max-width: 480px; overflow-wrap: anywhere; }
+.ts { white-space: nowrap; font-size: 12.5px; }
+.ts .rel { color: var(--muted); }
+.pager { display: flex; align-items: center; gap: 12px; justify-content: flex-end; padding: 12px; }
+.pager .note { font-size: 12.5px; color: var(--muted); }
+td.mono { font-family: ui-monospace, monospace; font-size: 12.5px; }
+</style>
+</head>
+<body>
+  <div class="app"><main class="main" style="grid-column:1/-1">
+    <header class="topbar" style="grid-template-columns:1fr auto">
+      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Activity Log</h3><p>Who did what, when, and whether it worked</p></div></div>
+      <div class="top-actions"><button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button></div>
+    </header>
+
+    <div class="filters">
+      <div class="field"><label>User</label><input id="f-who" placeholder="exact username"></div>
+      <div class="field"><label>Action</label><input id="f-action" placeholder="exact, e.g. backup.job.create"></div>
+      <button class="button" id="f-apply">Apply</button>
+      <button class="button ghost" id="f-clear">Clear</button>
+    </div>
+
+    <div class="panel">
+      <table>
+        <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Status</th><th>Detail</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="note" id="empty" style="display:none;padding:14px;color:var(--muted)">No entries match.</div>
+      <div class="pager">
+        <span class="note" id="pageinfo"></span>
+        <button class="button ghost" id="prev">&larr; Newer</button>
+        <button class="button ghost" id="next">Older &rarr;</button>
+      </div>
+    </div>
+  </main></div>
+  <script src="/js/nav.js"></script>
+  <script src="/js/activity.js"></script>
+</body>
+</html>
