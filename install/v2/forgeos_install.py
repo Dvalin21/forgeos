@@ -41,7 +41,7 @@ BASE_PACKAGES: list[str] = [
     "ufw", "fail2ban", "apparmor", "apparmor-utils",
     "unattended-upgrades",
     # backup
-    "restic", "rclone",
+    "restic", "rclone", "borgbackup",   # backup_api offers all three tools
     # storage: btrfs pools + disk inspection/partitioning (disk-prep safety)
     "btrfs-progs", "util-linux", "parted", "gdisk", "smartmontools",
     # bare-metal disaster recovery (ReaR builds the rescue ISO + system archive)

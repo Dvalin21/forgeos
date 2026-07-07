@@ -222,6 +222,7 @@ def test_base_package_list_has_core_services():
     assert "nfs-kernel-server" in pkgs
     assert "fail2ban" in pkgs
     assert "restic" in pkgs
+    assert "borgbackup" in pkgs   # backup_api offers borg jobs; chip was red on live box
 
 
 def test_repo_root_auto_derived_not_hardcoded_root():
