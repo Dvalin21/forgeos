@@ -378,6 +378,82 @@ async def run_backup_job_now(job_id: str, user=Depends(verify_token)):
 
 
 # ────────────────────────────────────────────────────────────
+# DISASTER RECOVERY (ReaR os-backup) — read status + config only.
+# ponytail: timer enable/disable and `rear mkbackup` stay on the root CLI
+# (forgeos-osbackup) — rear's write surface (loop mounts, /var/lib/rear,
+# arbitrary backup disks) and systemd unit writes don't belong inside the
+# API sandbox (ProtectSystem=strict grants -/etc/rear only). The page
+# surfaces exact commands instead of pretending. Revisit only on real need.
+# ────────────────────────────────────────────────────────────
+
+
+def _dr_admin(user) -> None:
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+
+
+@router.get("/api/backup/dr")
+async def dr_status(user=Depends(verify_token)):
+    import forgeos_config as fcfg
+    from forgeos_osbackup import OsBackupRunner
+    ob = fcfg.load().osbackup
+    rear = _check_tool("rear", ["--version"])
+    rendered = Path("/etc/rear/local.conf").exists()
+    try:
+        r = subprocess.run(["systemctl", "is-active", "forgeos-osbackup.timer"],
+                           capture_output=True, text=True, timeout=5)
+        timer_active = r.stdout.strip() == "active"
+    except (OSError, subprocess.SubprocessError):
+        timer_active = False
+    iso_b = arch_b = 0
+    newest = None
+    if ob.backup_path and Path(ob.backup_path).is_dir():
+        iso_b, arch_b = OsBackupRunner._default_find_artifacts(ob.backup_path)
+        mtimes = [f.stat().st_mtime for f in Path(ob.backup_path).rglob("*.iso")
+                  if ".old" not in f.parts]
+        newest = max(mtimes) if mtimes else None
+    return {"enabled": ob.enabled, "output": ob.output,
+            "backup_path": ob.backup_path, "schedule": ob.schedule,
+            "cloud_sync": ob.cloud_sync, "cloud_remote": ob.cloud_remote,
+            "rear_installed": rear, "config_rendered": rendered,
+            "timer_active": timer_active,
+            "artifacts": {"iso_bytes": iso_b, "archive_bytes": arch_b,
+                          "newest_iso_epoch": newest}}
+
+
+@router.put("/api/backup/dr")
+async def dr_configure(body: dict, user=Depends(verify_token)):
+    """Persist DR config and render /etc/rear/local.conf. Does NOT touch the
+    timer or run backups — see the CLI note above; the response tells the UI
+    which sudo command is still needed."""
+    import forgeos_config as fcfg
+    from generators import registry
+    _dr_admin(user)
+    cfg = fcfg.load()
+    allowed = {"enabled", "output", "backup_path", "schedule",
+               "cloud_sync", "cloud_remote"}
+    merged = {k: getattr(cfg.osbackup, k) for k in allowed}
+    merged.update({k: v for k, v in body.items() if k in allowed})
+    try:
+        # No validate_assignment in the config models — construct to validate
+        # (backup_path root-fs guard lives in the model validator).
+        cfg.osbackup = fcfg.OsBackupConfig(**merged)
+    except ValueError as e:
+        raise HTTPException(400, f"invalid DR config: {e}")
+    if cfg.osbackup.enabled:
+        res = registry.apply_one("osbackup", cfg=cfg)
+        if not res.ok:
+            raise HTTPException(500, f"rear config render failed: {res.error}")
+    fcfg.save(cfg)
+    _audit(user["sub"], "backup.dr.configure", "success",
+           f"enabled={cfg.osbackup.enabled} path={cfg.osbackup.backup_path}")
+    next_cmd = None
+    if cfg.osbackup.enabled:
+        next_cmd = "sudo forgeos-osbackup enable"
+    return {"ok": True, "enabled": cfg.osbackup.enabled, "next_command": next_cmd}
+
+
+# ────────────────────────────────────────────────────────────
 # BACKGROUND TASK STATUS
 # ────────────────────────────────────────────────────────────
 
