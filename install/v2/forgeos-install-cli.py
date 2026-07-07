@@ -38,6 +38,8 @@ def _prompt_bool(text: str, default: bool) -> bool:
 
 def collect_choices_interactive() -> fi.InstallChoices:
     print("\nForgeOS v2 — configuration\n")
+    hostname = _prompt("Hostname (blank = keep current)", "")
+    timezone = _prompt("Timezone, IANA name (blank = keep current)", "")
     domain = _prompt("LAN name (blank = <hostname>.local)", "")
     lan_cidr = _prompt("LAN CIDR", "10.0.0.0/24")
     profile = _prompt("Security profile (low/medium/high)", "medium")
@@ -49,7 +51,8 @@ def collect_choices_interactive() -> fi.InstallChoices:
     coral = _prompt_bool("Enable Coral TPU (if present)", False)
     gpu = _prompt_bool("Enable GPU drivers (if present)", False)
     return fi.InstallChoices(
-        domain=domain, lan_cidr=lan_cidr, security_profile=profile,
+        domain=domain, hostname=hostname, timezone=timezone,
+        lan_cidr=lan_cidr, security_profile=profile,
         enable_wireguard=wg, enable_nfs=nfs,
         enable_forgefiledb=filedb, enable_coral=coral, enable_gpu=gpu,
     )
@@ -63,6 +66,8 @@ def main(argv=None) -> int:
                     help="LAN name (default: derive <hostname>.local). A "
                          "custom .local name is published as an mDNS alias; a "
                          "non-.local name needs your own DNS.")
+    ap.add_argument("--hostname", default="", help="set the OS hostname (default: keep)")
+    ap.add_argument("--timezone", default="", help="IANA timezone (default: keep)")
     ap.add_argument("--lan-cidr", default="10.0.0.0/24")
     ap.add_argument("--profile", default="medium", choices=["low", "medium", "high"])
     ap.add_argument("--wireguard", action="store_true")
@@ -74,7 +79,8 @@ def main(argv=None) -> int:
 
     if args.unattended:
         choices = fi.InstallChoices(
-            domain=args.domain, lan_cidr=args.lan_cidr,
+            domain=args.domain, hostname=args.hostname, timezone=args.timezone,
+            lan_cidr=args.lan_cidr,
             security_profile=args.profile,
             enable_wireguard=args.wireguard, enable_nfs=args.nfs,
             enable_forgefiledb=args.forgefiledb,

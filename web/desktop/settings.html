@@ -33,6 +33,8 @@
       <section class="panel pad">
         <div class="section-head"><div><h3>System</h3><p>Identity and time</p></div></div>
         <div id="sys-info" style="margin-bottom:14px"></div>
+        <div class="field"><label>Hostname</label><input id="s-host">
+          <div class="hint">Applied via hostnamectl on save. Samba/NetBIOS and logs reference it &mdash; expect SMB clients to see the new name after a service restart.</div></div>
         <div class="field"><label>LAN name (mDNS)</label><input id="s-lan">
           <div class="hint">How you reach the box on your network, e.g. forgeos.local</div></div>
         <div class="field"><label>Public FQDN</label><input id="s-fqdn" placeholder="empty until you own a domain">
@@ -40,7 +42,7 @@
         <div class="field"><label>Timezone</label><input id="s-tz" placeholder="America/Chicago">
           <div class="hint">IANA name; applied via timedatectl immediately on save.</div></div>
         <button class="button" id="s-save">Save system settings</button>
-        <p class="note" style="margin-top:10px">The OS hostname is never changed from the web UI &mdash; rename with <code>hostnamectl</code> on the box if you need to.</p>
+
       </section>
 
       <section class="panel pad">

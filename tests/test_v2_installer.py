@@ -420,3 +420,27 @@ def test_generator_writes_stay_within_readwritepaths():
             if not covered(rf.path):
                 uncovered.append((name, rf.path))
     assert not uncovered, f"generator writes escape ReadWritePaths: {uncovered}"
+
+
+def test_installer_applies_hostname_and_timezone():
+    calls = []
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        import types
+        return types.SimpleNamespace(returncode=0, stderr="", stdout="")
+    inst = _installer(run=fake_run, choices=fi.InstallChoices(
+        hostname="forgebox", timezone="America/Chicago"))
+    inst.phase_seed_config()
+    assert ["hostnamectl", "set-hostname", "forgebox"] in calls
+    assert ["timedatectl", "set-timezone", "America/Chicago"] in calls
+
+
+def test_installer_keeps_identity_when_blank():
+    calls = []
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        import types
+        return types.SimpleNamespace(returncode=0, stderr="", stdout="")
+    inst = _installer(run=fake_run, choices=fi.InstallChoices())
+    inst.phase_seed_config()
+    assert not any(c[0] in ("hostnamectl", "timedatectl") for c in calls)

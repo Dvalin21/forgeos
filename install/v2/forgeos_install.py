@@ -110,6 +110,8 @@ class InstallChoices:
     """What the operator selected at install time."""
 
     domain: str = ""              # "" = derive <hostname>.local (Option 3)
+    hostname: str = ""            # "" = keep the OS's current hostname
+    timezone: str = ""            # "" = keep the OS's current timezone
     lan_cidr: str = "10.0.0.0/24"
     security_profile: str = "medium"
     enable_wireguard: bool = False
@@ -366,6 +368,20 @@ class Installer:
         return cfg
 
     def phase_seed_config(self) -> PhaseResult:
+        # Identity first: hostname/timezone are operator choices collected at
+        # install; hostnamectl/timedatectl run BEFORE build_config so the
+        # derived lan_name uses the new hostname.
+        c = self.choices
+        if c.hostname:
+            r = self.run(["hostnamectl", "set-hostname", c.hostname])
+            if getattr(r, "returncode", 1) != 0:
+                return PhaseResult("seed_config", False,
+                                   f"hostnamectl failed: {getattr(r, 'stderr', '').strip()}")
+        if c.timezone:
+            r = self.run(["timedatectl", "set-timezone", c.timezone])
+            if getattr(r, "returncode", 1) != 0:
+                return PhaseResult("seed_config", False,
+                                   f"timedatectl failed: {getattr(r, 'stderr', '').strip()}")
         cfg = self.build_config()
         try:
             self.save_cfg(cfg)

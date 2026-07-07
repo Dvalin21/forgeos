@@ -31,14 +31,15 @@
     if (!r.ok) { toast("Could not load settings", "err"); return; }
     var d = r.data;
     $("#sys-info").innerHTML =
-      '<div class="kv"><span class="k">Hostname</span><span>' + esc(d.effective_hostname) + "</span></div>" +
       '<div class="kv"><span class="k">Version</span><span>' + esc(d.version || "unknown") + "</span></div>";
+    if (document.activeElement !== $("#s-host")) $("#s-host").value = d.effective_hostname || "";
     if (document.activeElement !== $("#s-lan")) $("#s-lan").value = d.lan_name || "";
     if (document.activeElement !== $("#s-fqdn")) $("#s-fqdn").value = d.public_fqdn || "";
     if (document.activeElement !== $("#s-tz")) $("#s-tz").value = d.timezone || "";
   }
   $("#s-save").onclick = async function () {
     var r = await api("/api/settings", { method: "PUT", body: JSON.stringify({
+      system_hostname: $("#s-host").value.trim(),
       lan_name: $("#s-lan").value.trim(),
       public_fqdn: $("#s-fqdn").value.trim(),
       timezone: $("#s-tz").value.trim()

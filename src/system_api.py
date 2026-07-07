@@ -386,10 +386,10 @@ async def get_settings(user=Depends(verify_token)):
 
 @router.put("/api/settings")
 async def save_settings(body: dict, user=Depends(verify_token)):
-    """Identity + timezone. Hostname is NEVER silently changed — persisting
-    system_hostname here only records intent; hostnamectl stays operator-run
-    (same sandbox boundary as timers: /etc/hostname isn't in ReadWritePaths).
-    Timezone goes through timedated over D-Bus, which is sandbox-legal."""
+    """Identity + timezone. Both hostnamectl and timedatectl talk to their
+    systemd daemons over D-Bus — the daemon writes the file, so this is
+    sandbox-legal under ProtectSystem=strict. An explicit edit here is not a
+    silent rename; the page warns about Samba/NetBIOS references."""
     if user.get("role") != "admin":
         raise HTTPException(403)
     import forgeos_config as fcfg
@@ -403,6 +403,15 @@ async def save_settings(body: dict, user=Depends(verify_token)):
     except ValueError as e:
         raise HTTPException(400, f"invalid identity: {e}")
     updated = list(merged.keys())
+    new_host = str(body.get("system_hostname", "")).strip()
+    if new_host:
+        label = r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+        if not re.fullmatch(rf"{label}(\.{label})*", new_host) or len(new_host) > 253:
+            raise HTTPException(400, f"invalid hostname: {new_host!r}")
+        r = subprocess.run(["hostnamectl", "set-hostname", new_host],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode != 0:
+            raise HTTPException(500, f"hostnamectl failed: {r.stderr.strip()[:200]}")
     tz = str(body.get("timezone", "")).strip()
     if tz:
         if not re.fullmatch(r"[A-Za-z0-9_+\-]+(/[A-Za-z0-9_+\-]+){0,2}", tz):

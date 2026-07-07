@@ -109,3 +109,28 @@ class TestSmtpSettings:
 
     def test_smtp_requires_admin(self, test_client, user_headers):
         assert test_client.get("/api/settings/smtp", headers=user_headers).status_code == 403
+
+
+class TestHostnameEdit:
+    def test_put_hostname_calls_hostnamectl_and_persists(self, test_client, auth_headers):
+        import forgeos_config as fcfg
+        from unittest.mock import patch, MagicMock
+        with patch("subprocess.run", return_value=MagicMock(returncode=0, stderr="")) as m:
+            r = test_client.put("/api/settings", headers=auth_headers,
+                                json={"system_hostname": "forge2"})
+        assert r.status_code == 200
+        assert any(c.args[0][:2] == ["hostnamectl", "set-hostname"] for c in m.call_args_list)
+        assert fcfg.load().naming.system_hostname == "forge2"
+
+    def test_put_hostname_rejects_garbage(self, test_client, auth_headers):
+        r = test_client.put("/api/settings", headers=auth_headers,
+                            json={"system_hostname": "bad host;{}"})
+        assert r.status_code == 400
+
+    def test_blank_hostname_means_keep(self, test_client, auth_headers):
+        from unittest.mock import patch, MagicMock
+        with patch("subprocess.run", return_value=MagicMock(returncode=0, stderr="")) as m:
+            r = test_client.put("/api/settings", headers=auth_headers,
+                                json={"lan_name": "x.local"})
+        assert r.status_code == 200
+        assert not any("hostnamectl" in c.args[0] for c in m.call_args_list)
