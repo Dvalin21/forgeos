@@ -1,30 +1,26 @@
-"""ForgeOS — Notifications API surface.
+"""ForgeOS — Notifications API surface (v2: auth-required, SMTP-only sink).
 
-Mounts under the existing FastAPI app via:
-
-    from notifications_api import router as notifications_router, set_helpers as set_notifications_helpers
-    set_notifications_helpers(conf=conf)
-    app.include_router(notifications_router)
-
-Routes:
-  • POST /api/notify          — internal notification endpoint (scripts, alertmanager)
+Routes (all require a session token):
+  • POST /api/notify          — UI/test intake; Python callers use record()
   • POST /api/drive-alert     — SMART/hot-swap drive alerts → tray indicators
-  • GET  /api/notifications   — list recent notifications (last 20, newest first)
+  • GET  /api/notifications   — last 20, newest first
   • GET  /api/drive-alerts    — current drive alerts state
-  • POST /api/alert-webhook   — Alertmanager webhook bridge → /api/notify
+
+Deleted from v1: Gotify + Apprise forwarders and the /api/alert-webhook
+alertmanager bridge — none of that stack exists in v2, and the endpoints
+were unauthenticated (LAN-spammable, SMTP-relay abuse; Gotify curl leaked
+the token into /proc/*/cmdline).
 
 State:
-  _notifications and _drive_alerts are module-level. NOT thread-safe.
-  Production runs with workers=1 — if workers>1 is needed, wrap with asyncio.Lock.
+  _notifications and _drive_alerts are module-level, in-memory (lost on
+  restart — they are transient toasts; the audit log is the durable trail).
+  NOT thread-safe. Production runs workers=1.
 """
 from __future__ import annotations
 
-import json
 import logging
-import subprocess
 import time
 from collections import deque
-from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends
 
@@ -38,48 +34,24 @@ router = APIRouter()
 _notifications: deque[dict] = deque(maxlen=100)
 _drive_alerts: dict[str, dict] = {}
 
-# Injected by main module — see set_helpers().
-_conf_get: Optional[Callable[[str, str], str]] = None
-
-
-def set_helpers(conf: Callable[[str, str], str]) -> None:
-    global _conf_get
-    _conf_get = conf
-
-
 @router.post("/api/notify")
-async def notify(body: dict):
-    """Internal notification endpoint — called by scripts and alertmanager."""
-    assert _conf_get is not None
-    level = body.get("level", "info")
-    title = body.get("title", "ForgeOS")
-    message = body.get("message", "")
+async def notify(body: dict, user=Depends(verify_token)):
+    """Notification intake. AUTH REQUIRED — the v1 no-auth version let any
+    LAN client spam the queue and trigger SMTP sends through the box's own
+    relay. Internal Python callers use record() directly, not HTTP.
+    Gotify/Apprise/alertmanager forwarders deleted with the v1 stack (none
+    are installed by v2; the Gotify curl also leaked the token into
+    /proc/*/cmdline). SMTP is the v2 delivery path."""
+    record(body.get("level", "info"), body.get("title", "ForgeOS"),
+           body.get("message", ""))
+    return {"ok": True}
 
-    # Forward to Gotify
-    gotify_url = _conf_get("GOTIFY_URL", "http://localhost:8070")
-    gotify_tok = _conf_get("GOTIFY_TOKEN", "")
-    if gotify_tok:
-        priority = {"info": 2, "warning": 5, "warn": 5, "critical": 10, "err": 8}.get(level, 2)
-        _payload = json.dumps({"title": title, "message": message, "priority": priority})
-        subprocess.run(
-            ["curl", "-sf", "-X", "POST",
-             f"{gotify_url}/message?token={gotify_tok}",
-             "-H", "Content-Type: application/json",
-             "-d", _payload],
-            capture_output=True, timeout=10,
-        )
 
-    # Forward to Apprise (if configured)
-    apprise_urls = _conf_get("APPRISE_URLS", "")
-    if apprise_urls:
-        subprocess.run(
-            ["apprise", "-t", title, "-b", message, apprise_urls],
-            capture_output=True, timeout=10,
-        )
+def record(level: str, title: str, message: str) -> None:
+    """In-process notification sink — call this from Python, not /api/notify.
 
-    # Forward to SMTP (v2 config DB). Non-raising: a mail misconfig must
-    # never break the notification path. Only warnings/critical go to email
-    # by default — info-level is too noisy for inboxes.
+    SMTP only for warning+ (info is too noisy for inboxes); a mail
+    misconfig must never break the caller."""
     if level in ("warning", "warn", "critical", "err", "error"):
         try:
             import forgeos_config as _fc
@@ -89,22 +61,22 @@ async def notify(body: dict):
                 _smtp.send_safe(_cfg.smtp, title, message)
         except Exception:
             pass  # never let notification delivery crash the caller
-
-    # Store in notification queue for Web UI
-    _notifications.append({"level": level, "title": title, "message": message, "ts": time.time()})
-
-    return {"ok": True}
+    _notifications.append({"level": level, "title": title,
+                           "message": message, "ts": time.time()})
 
 
 @router.post("/api/drive-alert")
-async def drive_alert(body: dict):
-    """Drive SMART/hot-swap alerts — updates tray indicators."""
+async def drive_alert(body: dict, user=Depends(verify_token)):
+    """Drive SMART/hot-swap alerts — updates tray indicators.
+    ponytail: if a root-owned smartd hook ever needs to post these, give it
+    a unix-socket path or a service token — do not remove auth again."""
     _drive_alerts[body.get("device", "?")] = {
         "level": body.get("level", "warn"),
         "message": body.get("message", ""),
         "ts": time.time(),
     }
-    await notify(body)
+    record(body.get("level", "warn"), body.get("title", "Drive alert"),
+           body.get("message", ""))
     return {"ok": True}
 
 
@@ -116,17 +88,3 @@ async def get_notifications(user=Depends(verify_token)):
 @router.get("/api/drive-alerts")
 async def get_drive_alerts(user=Depends(verify_token)):
     return {"alerts": _drive_alerts}
-
-
-@router.post("/api/alert-webhook")
-async def alertmanager_webhook(body: dict):
-    """Alertmanager webhook → forward to /api/notify."""
-    for alert in body.get("alerts", []):
-        labels = alert.get("labels", {})
-        annotations = alert.get("annotations", {})
-        status_ = alert.get("status", "firing")
-        level = "critical" if status_ == "firing" else "info"
-        title = labels.get("alertname", "Alert")
-        message = annotations.get("description", annotations.get("summary", str(labels)))
-        await notify({"level": level, "title": title, "message": message})
-    return {"ok": True}

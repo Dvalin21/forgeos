@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>Notifications &middot; ForgeNAS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+<style>
+.n-row { display: flex; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--line); align-items: baseline; }
+.n-row:last-child { border-bottom: none; }
+.lvl { flex: 0 0 auto; font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .04em; }
+.lvl.info { background: var(--primary-soft); color: var(--primary); }
+.lvl.warning, .lvl.warn { background: rgba(216,146,26,.14); color: #b45309; }
+.lvl.critical, .lvl.err, .lvl.error { background: var(--danger-soft); color: var(--danger); }
+.n-body h5 { margin: 0; font-size: 13.5px; } .n-body p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+.n-ts { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.note { font-size: 12.5px; color: var(--muted); }
+.grid2 { display: grid; grid-template-columns: 1.3fr .7fr; gap: 18px; align-items: start; }
+@media (max-width: 980px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <div class="app"><main class="main" style="grid-column:1/-1">
+    <header class="topbar" style="grid-template-columns:1fr auto">
+      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Notifications</h3><p>Recent events and drive alerts &mdash; email delivery for warnings via Settings &rarr; SMTP</p></div></div>
+      <div class="top-actions">
+        <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
+        <button class="button ghost" id="test">Send test notification</button>
+      </div>
+    </header>
+
+    <div class="grid2">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>Recent</h3><p>Last 20, newest first &mdash; in-memory, cleared on API restart (the Activity Log is the durable trail)</p></div></div>
+        <div id="n-list"></div>
+        <p class="note" id="n-empty" style="display:none">Nothing yet.</p>
+      </section>
+      <section class="panel pad">
+        <div class="section-head"><div><h3>Drive alerts</h3><p>SMART / hot-swap state per device</p></div></div>
+        <div id="d-list"></div>
+        <p class="note" id="d-empty" style="display:none">No drive alerts.</p>
+      </section>
+    </div>
+  </main></div>
+  <div id="toasts" style="position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:50"></div>
+  <script src="/js/nav.js"></script>
+  <script src="/js/notifications.js"></script>
+</body>
+</html>

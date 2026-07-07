@@ -61,7 +61,7 @@
       { id: "settings", label: "Settings",      icon: "settings", page: "settings.html" },
       { id: "backup",   label: "Backup & DR",   icon: "backup",   page: "backup.html" },
       { id: "activity", label: "Activity Log",  icon: "activity", page: "activity.html" },
-      { id: "notify",   label: "Notifications", icon: "notify",   page: null },
+      { id: "notify",   label: "Notifications", icon: "notify",   page: "notifications.html" },
       { id: "imaging",  label: "Imaging",       icon: "imaging",  page: null }
     ]}
   ];

@@ -10,7 +10,6 @@ Architecture:
   HTTP REST API  — GUI calls for data, actions
   WebSocket /ws  — Live metrics stream (2s interval)
   WebSocket /ws/logs — Tail -f system logs live
-  Webhook /api/alert-webhook — Alertmanager → Gotify/Apprise
 
 Security:
   JWT auth (12h tokens), bcrypt passwords
@@ -992,8 +991,7 @@ except ImportError as e:
 # NOTIFICATIONS — extracted to notifications_api.py (Sprint 1, commit 7)
 # ────────────────────────────────────────────────────────────
 try:
-    from notifications_api import router as notifications_router, set_helpers as set_notifications_helpers
-    set_notifications_helpers(conf=conf)
+    from notifications_api import router as notifications_router
     app.include_router(notifications_router)
     logger.info("Notifications API loaded")
 except ImportError as e:
