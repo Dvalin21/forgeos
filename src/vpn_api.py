@@ -2,7 +2,7 @@
 
 Peers live in cfg.wireguard.peers[] (config-DB); the wireguard generator
 renders /etc/wireguard/wg0.conf from that list and reloads. This replaces the
-legacy forgeos-vpn bash CLI (install/modules/11-vpn.sh), which is not present
+legacy forgeos-vpn bash CLI (deleted v1 installer), which is not present
 on v2 and was the "CLI not installed" failure.
 
 Client private keys are RETURN-ONCE: generated at add-peer, embedded in the

@@ -45,8 +45,8 @@ class JwtSecretMissingError(RuntimeError):
       - /etc/forgeos/forgeos.conf is missing or has no WEBUI_JWT_SECRET line
         (or the value matches a known placeholder)
 
-    Fix: run `bash install/modules/99-finalize.sh` to generate a secret,
-    or set WEBUI_JWT_SECRET="<48-random-bytes-base64>" in the config file.
+    Fix: the v2 installer writes the secret to /etc/forgeos/api.env at
+    install; set WEBUI_JWT_SECRET or FORGEOS_JWT_SECRET manually otherwise.
     """
 
 
@@ -57,9 +57,9 @@ def _load_jwt_secret() -> str:
     parallel workers could each generate a different secret, last writer
     wins, all tokens from the loser become invalid).
 
-    The installer (`install/modules/99-finalize.sh`) is now solely
-    responsible for generating and persisting the secret. If this
-    function cannot find a valid one, the API process must not start.
+    The installer is solely responsible for generating and persisting the
+    secret (v2: phase_keystores -> /etc/forgeos/api.env). If this function
+    cannot find a valid one, the API process must not start.
     """
     # Priority 1: explicit env var (used by the systemd unit)
     env_secret = os.environ.get("FORGEOS_JWT_SECRET", "").strip()
@@ -85,9 +85,7 @@ def _load_jwt_secret() -> str:
         "    1. FORGEOS_JWT_SECRET environment variable — unset or placeholder\n"
         f"    2. WEBUI_JWT_SECRET in {CONFIG_FILE} — missing or placeholder\n"
         "\n"
-        "  Fix:  run the installer's finalize module which generates one idempotently:\n"
-        "          sudo bash install/modules/99-finalize.sh\n"
-        "        or set it manually:\n"
+        "  Fix:  re-run the v2 installer (writes /etc/forgeos/api.env), or set it manually:\n"
         '          echo \'WEBUI_JWT_SECRET="\'"$(openssl rand -base64 48 | tr -d \'\\n/\')\'"\' \\\n'
         f"              | sudo tee -a {CONFIG_FILE}\n"
     )

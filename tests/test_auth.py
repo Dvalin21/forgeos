@@ -188,7 +188,7 @@ class TestJwtSecretLoading:
 
         # Error message must tell the user how to fix it
         msg = str(exc_info.value)
-        assert "99-finalize.sh" in msg, "Error must mention the installer fix"
+        assert "api.env" in msg, "Error must mention the installer fix (v2: /etc/forgeos/api.env)"
         assert "WEBUI_JWT_SECRET" in msg, "Error must name the config key"
 
     def test_refuses_placeholder_changeme(self, tmp_path, monkeypatch):

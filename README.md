@@ -255,22 +255,20 @@ explaining why and what to do.
 ## Quick Install
 
 ```bash
-# On a fresh Ubuntu 24.04 or Debian 12 system
-git clone https://github.com/Dvalin21/forgeos.git
+# On a fresh Debian 12 system
+git clone -b v2-rearchitect https://github.com/Dvalin21/forgeos.git
 cd forgeos
-sudo bash install/install.sh
+sudo bash install/v2/bootstrap.sh
 ```
 
-The interactive wizard runs in about 15-30 minutes depending on selected modules and internet speed. All modules are idempotent — safe to re-run.
+The interactive installer prompts for hostname, timezone, LAN name, security profile, and optional services (WireGuard, NFS, ForgeFileDB, Coral, GPU). The admin password is generated and shown once at the end — save it.
 
 ### Unattended Install (CI / Automated)
 
 ```bash
-export FORGEOS_HOSTNAME=nas
-export FORGEOS_DOMAIN=home.example.com
-export FORGEOS_ADMIN_USER=admin
-export FORGEOS_TIMEZONE=America/Chicago
-sudo bash install/install.sh --unattended --modules=base,storage,docker,security,proxy,fileshare,backup
+sudo bash install/v2/bootstrap.sh --unattended \
+  --hostname nas --timezone America/Chicago \
+  --domain nas.local --profile medium --wireguard
 ```
 
 ---
