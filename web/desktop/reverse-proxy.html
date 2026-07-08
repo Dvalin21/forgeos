@@ -28,12 +28,17 @@
       <div class="section-head"><div><h3>TLS certificates (Let&rsquo;s Encrypt)</h3><p>Issue certs via HTTP-01, or DNS-01 for wildcards / hosts not exposed on port 80. Issued certs are picked up automatically.</p></div><span class="chip" id="dns-chip">&mdash;</span></div>
 
       <div class="fld"><label>DNS provider (for DNS-01)</label>
-        <div class="wz-from"><input class="wz-input" id="dns-provider" placeholder="cloudflare" autocomplete="off" style="max-width:240px"><button class="btn-ghost" id="dns-clear" type="button">Remove</button></div>
-        <div class="hint">A <a href="https://go-acme.github.io/lego/dns/" target="_blank" rel="noopener">lego provider code</a> (lowercase). Credentials below are write-only &mdash; never shown again.</div>
+        <div class="wz-from">
+          <select class="wz-input" id="dns-select" style="max-width:240px"></select>
+          <input class="wz-input" id="dns-provider" placeholder="lego provider code" autocomplete="off" style="max-width:200px;display:none">
+          <button class="btn-ghost" id="dns-clear" type="button">Remove</button>
+        </div>
+        <div class="hint" id="dns-docs">Pick your provider &mdash; the credential fields it needs appear below, write-only. Not listed? Choose Other and use any <a href="https://go-acme.github.io/lego/dns/" target="_blank" rel="noopener">lego provider code</a>.</div>
       </div>
       <div class="fld"><label>Provider credentials</label>
-        <textarea id="dns-creds" class="raw-conf" style="min-height:96px" spellcheck="false" placeholder="One per line, ENV_VAR = value&#10;CLOUDFLARE_DNS_API_TOKEN = abc123"></textarea>
-        <div class="hint">The environment variables your provider needs (see its lego page). Saved to a 0600 file the API owns.</div>
+        <div id="dns-fields"></div>
+        <textarea id="dns-creds" class="raw-conf" style="min-height:96px;display:none" spellcheck="false" placeholder="One per line, ENV_VAR = value&#10;MYPROVIDER_API_TOKEN = abc123"></textarea>
+        <div class="hint">Saved to a 0600 file the API owns &mdash; never shown again after saving.</div>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:8px"><button class="btn-pri" id="dns-save">Save provider</button></div>
 

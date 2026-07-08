@@ -161,27 +161,112 @@
   }
 
   // ── ACME DNS-01 provider ──
+  // Credential env keys VERIFIED against lego's provider definitions
+  // (go-acme/lego providers/dns/<code>/<code>.toml) — wrong key names fail
+  // auth silently, so these are source-checked, not remembered.
+  var PROVIDERS = {
+    cloudflare:   { title: "Cloudflare", fields: [
+      { k: "CLOUDFLARE_DNS_API_TOKEN", label: "API token", secret: true,
+        hint: "Create a token with Zone:Read + DNS:Edit (not the Global API Key)." }]},
+    porkbun:      { title: "Porkbun", fields: [
+      { k: "PORKBUN_API_KEY", label: "API key", secret: true },
+      { k: "PORKBUN_SECRET_API_KEY", label: "Secret API key", secret: true,
+        hint: "Enable API access per-domain in Porkbun's domain settings." }]},
+    duckdns:      { title: "DuckDNS", fields: [
+      { k: "DUCKDNS_TOKEN", label: "Account token", secret: true }]},
+    desec:        { title: "deSEC", fields: [
+      { k: "DESEC_TOKEN", label: "Domain token", secret: true }]},
+    gandiv5:      { title: "Gandi (v5)", fields: [
+      { k: "GANDIV5_PERSONAL_ACCESS_TOKEN", label: "Personal access token", secret: true,
+        hint: "The old GANDIV5_API_KEY is deprecated — use a Personal Access Token." }]},
+    namecheap:    { title: "Namecheap", fields: [
+      { k: "NAMECHEAP_API_USER", label: "API user" },
+      { k: "NAMECHEAP_API_KEY", label: "API key", secret: true,
+        hint: "Namecheap requires whitelisting this server's public IP in their API settings." }]},
+    godaddy:      { title: "GoDaddy", fields: [
+      { k: "GODADDY_API_KEY", label: "API key", secret: true },
+      { k: "GODADDY_API_SECRET", label: "API secret", secret: true }]},
+    route53:      { title: "AWS Route 53", fields: [
+      { k: "AWS_ACCESS_KEY_ID", label: "Access key ID" },
+      { k: "AWS_SECRET_ACCESS_KEY", label: "Secret access key", secret: true },
+      { k: "AWS_REGION", label: "Region", hint: "e.g. us-east-1" }]},
+    digitalocean: { title: "DigitalOcean", fields: [
+      { k: "DO_AUTH_TOKEN", label: "API token", secret: true }]},
+    hetzner:      { title: "Hetzner DNS", fields: [
+      { k: "HETZNER_API_TOKEN", label: "API token", secret: true }]},
+    dynu:         { title: "Dynu", fields: [
+      { k: "DYNU_API_KEY", label: "API key", secret: true }]},
+    ovh:          { title: "OVH", fields: [
+      { k: "OVH_ENDPOINT", label: "Endpoint", hint: "ovh-eu or ovh-ca" },
+      { k: "OVH_APPLICATION_KEY", label: "Application key" },
+      { k: "OVH_APPLICATION_SECRET", label: "Application secret", secret: true },
+      { k: "OVH_CONSUMER_KEY", label: "Consumer key", secret: true }]}
+  };
+
+  function renderProviderSelect() {
+    var sel = $('#dns-select');
+    var opts = ['<option value="">— choose provider —</option>'];
+    Object.keys(PROVIDERS).forEach(function (code) {
+      opts.push('<option value="' + code + '">' + PROVIDERS[code].title + '</option>');
+    });
+    opts.push('<option value="__other">Other (lego code)…</option>');
+    sel.innerHTML = opts.join('');
+  }
+  function renderFields(code) {
+    var box = $('#dns-fields'), manual = $('#dns-creds'), provInput = $('#dns-provider');
+    var isOther = code === '__other';
+    provInput.style.display = isOther ? '' : 'none';
+    manual.style.display = isOther ? '' : 'none';
+    if (isOther || !PROVIDERS[code]) { box.innerHTML = ''; return; }
+    var docs = 'https://go-acme.github.io/lego/dns/' + code + '/';
+    box.innerHTML = PROVIDERS[code].fields.map(function (f) {
+      return '<div class="fld"><label>' + esc(f.label) + ' <span style="color:var(--muted);font-weight:500">(' + esc(f.k) + ')</span></label>' +
+        '<input class="wz-input dns-f" data-k="' + esc(f.k) + '" type="' + (f.secret ? 'password' : 'text') + '" autocomplete="off">' +
+        (f.hint ? '<div class="hint">' + esc(f.hint) + '</div>' : '') + '</div>';
+    }).join('') +
+    '<div class="hint">Provider docs: <a href="' + docs + '" target="_blank" rel="noopener">' + docs + '</a></div>';
+  }
   async function loadDns() {
     var d = (await api('/api/nginx/acme/dns')).data;
     var chip = $('#dns-chip');
-    if (d && d.configured) { chip.textContent = (d.provider || '') + ' configured'; $('#dns-provider').value = d.provider || ''; }
-    else { chip.textContent = 'no DNS provider'; }
+    if (d && d.configured) {
+      chip.textContent = (d.provider || '') + ' configured';
+      var sel = $('#dns-select');
+      if (PROVIDERS[d.provider]) { sel.value = d.provider; renderFields(d.provider); }
+      else { sel.value = '__other'; renderFields('__other'); $('#dns-provider').value = d.provider || ''; }
+    } else { chip.textContent = 'no DNS provider'; }
   }
   async function saveDns() {
-    var prov = $('#dns-provider').value.trim().toLowerCase();
-    if (!prov) { toast('Enter a provider code', 'err'); return; }
-    var creds = {};
-    $('#dns-creds').value.split('\n').forEach(function (ln) {
-      ln = ln.trim(); if (!ln || ln.charAt(0) === '#') return;
-      var i = ln.indexOf('='); if (i < 0) return;
-      var k = ln.slice(0, i).trim(); if (k) creds[k] = ln.slice(i + 1).trim();
-    });
-    if (!Object.keys(creds).length) { toast('Add at least one credential (KEY = value)', 'err'); return; }
+    var code = $('#dns-select').value;
+    var prov, creds = {};
+    if (code && code !== '__other') {
+      prov = code;
+      var missing = [];
+      document.querySelectorAll('.dns-f').forEach(function (el) {
+        var v = el.value.trim();
+        if (v) creds[el.getAttribute('data-k')] = v; else missing.push(el.getAttribute('data-k'));
+      });
+      // Route53 region is optional-ish; require only that SOMETHING was entered
+      if (!Object.keys(creds).length) { toast('Fill in the credential fields', 'err'); return; }
+    } else {
+      prov = $('#dns-provider').value.trim().toLowerCase();
+      if (!prov) { toast('Pick a provider or enter a lego code', 'err'); return; }
+      $('#dns-creds').value.split('\n').forEach(function (ln) {
+        ln = ln.trim(); if (!ln || ln.charAt(0) === '#') return;
+        var i = ln.indexOf('='); if (i < 0) return;
+        var k = ln.slice(0, i).trim(); if (k) creds[k] = ln.slice(i + 1).trim();
+      });
+      if (!Object.keys(creds).length) { toast('Add at least one credential (KEY = value)', 'err'); return; }
+    }
     var btn = $('#dns-save'); btn.disabled = true;
     var r = await api('/api/nginx/acme/dns', { method: 'PUT', body: JSON.stringify({ provider: prov, credentials: creds }) });
     btn.disabled = false;
     toast(r.ok ? 'DNS provider saved' : (r.data && r.data.detail) || 'Could not save provider', r.ok ? 'ok' : 'err');
-    if (r.ok) { $('#dns-creds').value = ''; loadDns(); }
+    if (r.ok) {
+      $('#dns-creds').value = '';
+      document.querySelectorAll('.dns-f').forEach(function (el) { el.value = ''; });
+      loadDns();
+    }
   }
   async function clearDns() {
     if (!confirm('Remove the DNS provider credentials?')) return;
@@ -250,6 +335,8 @@
     var rr = $('#raw-reload'); if (rr) rr.onclick = function () { loadRaw(); toast('Reloaded', 'info'); };
     var rs = $('#raw-save'); if (rs) rs.onclick = saveRaw;
     selCertMode('http');
+    renderProviderSelect();
+    var dsel = $('#dns-select'); if (dsel) dsel.onchange = function () { renderFields(this.value); };
     loadVhosts(); loadDns(); loadRaw();
   });
 })();
