@@ -70,6 +70,8 @@ py-modules = [
     "forgeos_toggles",
     "forgeos_osbackup",
     "forgeos_osbackup_cli",
+    "forgeos_imaging",
+    "forgeos_imaging_cli",
     "forgeos_diskprep",
     "forgeos_storage_cli",
     "forgeos_generate_cli",

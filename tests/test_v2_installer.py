@@ -444,3 +444,17 @@ def test_installer_keeps_identity_when_blank():
     inst = _installer(run=fake_run, choices=fi.InstallChoices())
     inst.phase_seed_config()
     assert not any(c[0] in ("hostnamectl", "timedatectl") for c in calls)
+
+
+def test_every_console_script_module_is_in_py_modules():
+    """A [project.scripts] entry whose module is missing from py-modules
+    builds a wheel with a broken entrypoint (ModuleNotFoundError on the
+    box, invisible to pytest which imports src/ directly). Bit us with
+    forgeos-imaging — never again."""
+    import tomllib
+    from pathlib import Path
+    data = tomllib.loads(Path(__file__).resolve().parents[1].joinpath("pyproject.toml").read_text())
+    mods = set(data["tool"]["setuptools"]["py-modules"])
+    for script, target in data["project"]["scripts"].items():
+        mod = target.split(":")[0]
+        assert mod in mods, f"{script} -> {mod} missing from py-modules"
