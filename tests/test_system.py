@@ -149,3 +149,63 @@ class TestAppsList:
 
     def test_apps_requires_auth(self, test_client):
         assert test_client.get("/api/apps").status_code in (401, 403)
+
+
+class TestImagingNative:
+    def test_status_not_installed(self, test_client, auth_headers):
+        from unittest.mock import patch, MagicMock
+        with patch("subprocess.run", return_value=MagicMock(returncode=1, stdout="", stderr="")):
+            r = test_client.get("/api/imaging", headers=auth_headers)
+        assert r.status_code == 200
+        d = r.json()
+        assert d["installed"] is False and d["running"] is False
+
+    def test_status_installed_running(self, test_client, auth_headers):
+        from unittest.mock import patch, MagicMock
+        def fake(cmd, **kw):
+            if cmd[0] == "dpkg-query":
+                return MagicMock(returncode=0, stdout="2.5.37")
+            return MagicMock(returncode=0, stdout="active\n")
+        with patch("subprocess.run", side_effect=fake):
+            d = test_client.get("/api/imaging", headers=auth_headers).json()
+        assert d["installed"] and d["running"] and d["version"] == "2.5.37"
+        assert d["url"].startswith("https://urbackup.")
+
+    def test_install_adds_vhost_and_uninstall_removes(self, tmp_path, monkeypatch):
+        import sys
+        sys.path.insert(0, "src")
+        import forgeos_imaging as fim
+        import forgeos_config as fcfg
+        from generators import registry
+        from unittest.mock import MagicMock
+        deb = tmp_path / "fake.deb"; deb.write_bytes(b"x" * 2_000_000)
+        calls = []
+        def fake(cmd, **kw):
+            calls.append(cmd)
+            if cmd[0] == "curl":
+                import shutil; shutil.copy(deb, cmd[3])
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "dpkg-query":
+                return MagicMock(returncode=0, stdout="2.5.37")
+            return MagicMock(returncode=0, stdout="active\n", stderr="")
+        monkeypatch.setattr(registry, "apply_one",
+                            lambda name, cfg=None: MagicMock(ok=True))
+        st = fim.install(run=fake)
+        assert st["installed"]
+        assert any(c[0] == "apt-get" and "install" in c for c in calls)
+        assert any(v.name == "urbackup" for v in fcfg.load().nginx.vhosts)
+        fim.uninstall(run=fake)
+        assert not any(v.name == "urbackup" for v in fcfg.load().nginx.vhosts)
+
+    def test_install_rejects_tiny_download(self, tmp_path):
+        import sys; sys.path.insert(0, "src")
+        import forgeos_imaging as fim
+        from unittest.mock import MagicMock
+        import pytest as pt
+        def fake(cmd, **kw):
+            if cmd[0] == "curl":
+                open(cmd[3], "w").write("404 page")
+                return MagicMock(returncode=0, stdout="", stderr="")
+            return MagicMock(returncode=0, stdout="")
+        with pt.raises(fim.ImagingError):
+            fim.install(run=fake)

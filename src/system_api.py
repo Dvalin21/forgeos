@@ -296,6 +296,14 @@ async def get_config(user=Depends(verify_token)):
     }
 
 
+@router.get("/api/imaging")
+async def imaging_status(user=Depends(verify_token)):
+    """Native UrBackup service state. Read-only — install/uninstall is the
+    root forgeos-imaging CLI (package installs stay out of the API sandbox)."""
+    import forgeos_imaging as fim
+    return fim.status()
+
+
 @router.get("/api/apps")
 async def list_apps(user=Depends(verify_token)):
     """Installed app-store apps (read-only; install/uninstall is the

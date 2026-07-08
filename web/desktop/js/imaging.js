@@ -13,13 +13,13 @@
     } catch (e) { return { ok: false, data: null }; }
   }
   async function load() {
-    var r = await api("/api/apps");
-    var app = r.ok ? (r.data.apps || []).find(function (a) { return a.id === "urbackup"; }) : null;
+    var r = await api("/api/imaging");
+    var d = (r.ok && r.data) || {};
     var chip = $("#state-chip");
-    if (app) {
-      chip.textContent = "Installed" + (app.enabled ? "" : " (disabled)");
-      chip.className = "chip2 ok";
-      $("#open-ui").href = app.url;
+    if (d.installed) {
+      chip.textContent = d.running ? "Running · v" + d.version : "Installed, not running";
+      chip.className = "chip2 " + (d.running ? "ok" : "");
+      $("#open-ui").href = d.url;
       $("#installed-card").style.display = "";
     } else {
       chip.textContent = "Not installed";

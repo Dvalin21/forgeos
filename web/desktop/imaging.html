@@ -25,8 +25,8 @@
 
     <div class="grid2">
       <section class="panel pad" id="installed-card" style="display:none">
-        <div class="section-head"><div><h3>UrBackup server</h3><p>Running as an app &mdash; it has its own full web interface</p></div></div>
-        <p class="note">Image and file backups, schedules, clients, and restores are all managed in the UrBackup UI, not here.</p>
+        <div class="section-head"><div><h3>UrBackup server</h3><p>Native systemd service (urbackupsrv) &mdash; it has its own full web interface</p></div></div>
+        <p class="note">Image and file backups, schedules, clients, and restores are all managed in the UrBackup UI, not here. First thing after install: UrBackup Settings &rarr; <b>Backup storage path</b> &rarr; point it at a storage pool (e.g. /srv/nas/tank/urbackup), never the root filesystem.</p>
         <p><a class="button" id="open-ui" target="_blank" rel="noopener">Open UrBackup</a></p>
         <div class="section-head" style="margin-top:18px"><div><h3>Restoring a machine</h3></div></div>
         <ol class="steps">
@@ -37,10 +37,10 @@
       </section>
 
       <section class="panel pad" id="absent-card" style="display:none">
-        <div class="section-head"><div><h3>Not installed</h3><p>UrBackup ships as a ForgeOS app</p></div></div>
-        <p class="note">Install from the box (app orchestration is a root-CLI operation, kept outside the API on purpose):</p>
-        <div class="cmd">sudo forgeos-app sync<br>sudo forgeos-app install urbackup</div>
-        <p class="note">Then refresh this page. Image backups are large &mdash; after install, point UrBackup&rsquo;s backup storage at a storage pool, not the root filesystem (see the app tip shown during install).</p>
+        <div class="section-head"><div><h3>Not installed</h3><p>Installs upstream&rsquo;s official Debian package as a native service</p></div></div>
+        <p class="note">Install from the box (package installs are a root-CLI operation, kept outside the API on purpose):</p>
+        <div class="cmd">sudo forgeos-imaging install</div>
+        <p class="note">Pinned to a verified upstream release; upgrades are manual (not covered by unattended-upgrades) &mdash; rerun install after a version bump. Then refresh this page and set the backup storage path in UrBackup&rsquo;s Settings to a storage pool.</p>
       </section>
 
       <section class="panel pad">
