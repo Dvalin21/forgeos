@@ -119,16 +119,24 @@ class TestDnsCertRequest:
                              json={"domain": "example.com"}, headers=auth_headers)
         assert r.status_code == 400
 
+    def _capture_start_task(self, monkeypatch):
+        import nginx_api
+        calls = []
+        monkeypatch.setattr(nginx_api, "_start_task",
+                            lambda cmd, tool, action, timeout=600: (calls.append((cmd, timeout)), "tid-1")[1])
+        return calls
+
     def test_builds_certbot_dns_multi_command(self, test_client, auth_headers, dns_creds, monkeypatch):
         dns_creds.write_text("dns_multi_provider = cloudflare\n")
-        calls = []
-        monkeypatch.setattr("subprocess.run",
-                            lambda *a, **kw: (calls.append(a[0]), _mock_run(stdout="ok"))[1])
+        tasks = self._capture_start_task(monkeypatch)
         r = test_client.post("/api/nginx/cert/dns",
                              json={"domain": "example.com", "email": "me@example.com"},
                              headers=auth_headers)
         assert r.status_code == 200, r.text
-        cmd = next(c for c in calls if "certbot" in str(c))
+        assert r.json()["task_id"] == "tid-1"
+        cmd, timeout = tasks[0]
+        # propagation ceiling must cover the slowest provider default (3600s)
+        assert timeout >= 3700
         assert "dns-multi" in cmd
         assert "--dns-multi-credentials" in cmd
         assert "-d" in cmd and "example.com" in cmd
@@ -136,14 +144,12 @@ class TestDnsCertRequest:
 
     def test_wildcard_adds_star_label(self, test_client, auth_headers, dns_creds, monkeypatch):
         dns_creds.write_text("dns_multi_provider = cloudflare\n")
-        calls = []
-        monkeypatch.setattr("subprocess.run",
-                            lambda *a, **kw: (calls.append(a[0]), _mock_run(stdout="ok"))[1])
+        tasks = self._capture_start_task(monkeypatch)
         r = test_client.post("/api/nginx/cert/dns",
                              json={"domain": "example.com", "wildcard": True},
                              headers=auth_headers)
         assert r.status_code == 200, r.text
-        cmd = next(c for c in calls if "certbot" in str(c))
+        cmd, _ = tasks[0]
         assert "*.example.com" in cmd
         assert "example.com" in cmd                # apex + wildcard
 

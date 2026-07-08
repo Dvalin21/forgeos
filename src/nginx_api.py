@@ -35,10 +35,15 @@ _audit: Optional[Callable[..., None]] = None
 def set_helpers(
     run_args: Callable[..., str],
     audit: Callable[..., None],
+    start_task: Callable[..., str] | None = None,
 ) -> None:
-    global _run_args, _audit
+    global _run_args, _audit, _start_task
     _run_args = run_args
     _audit = audit
+    _start_task = start_task
+
+
+_start_task: Callable[..., str] | None = None
 
 
 # certbot-dns-multi credential store. A 0600 ini the API owns; certbot reads it
@@ -321,9 +326,16 @@ async def request_cert_dns(body: dict, user=Depends(verify_token)):
            "--email", email or f"admin@{domain}", "-d", domain]
     if wildcard:
         cmd += ["-d", f"*.{domain}"]
-    assert _run_args is not None
-    result = _run_args(cmd, timeout=180)
+    # DNS-01 waits for propagation — lego's per-provider defaults run 600s
+    # (Porkbun) up to 3600s (Namecheap). A synchronous request dies three
+    # ways: subprocess timeout, blocked event loop (workers=1), and nginx's
+    # 60s proxy timeout. Background task + polling is the only honest shape.
+    # 3900s ceiling = worst provider default + certbot overhead.
+    assert _start_task is not None
+    task_id = _start_task(cmd, "certbot", "dns-01", timeout=3900)
     assert _audit is not None
     _audit(user["sub"], "nginx.cert.dns", "success",
            f"DNS-01 cert requested for {domain}{' (+wildcard)' if wildcard else ''}")
-    return {"ok": True, "output": result}
+    return {"ok": True, "task_id": task_id,
+            "note": "Issuance runs in the background; DNS propagation can "
+                    "take up to your provider's timeout (e.g. Porkbun 600s)."}

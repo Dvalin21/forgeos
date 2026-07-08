@@ -294,6 +294,13 @@
     if (_certMode === 'dns') { url = '/api/nginx/cert/dns'; body = { domain: domain, email: email, wildcard: _wild }; }
     else { url = '/api/nginx/certbot'; body = { domain: domain, email: email }; }
     var r = await api(url, { method: 'POST', body: JSON.stringify(body) });
+    if (r.ok && r.data && r.data.task_id) {
+      // DNS-01 runs in the background — propagation can take minutes
+      // (provider-dependent: Porkbun 600s, Namecheap up to 3600s).
+      toast('Issuing in the background \u2014 waiting for DNS propagation\u2026', 'info');
+      pollCertTask(r.data.task_id, domain, btn, out);
+      return;
+    }
     btn.disabled = false;
     if (r.ok) { toast('Certificate issued for ' + domain, 'ok'); }
     else {
@@ -302,6 +309,21 @@
       out.textContent = msg; out.className = 'raw-err';
       toast('Request failed \u2014 see details below', 'err');
     }
+  }
+  async function pollCertTask(id, domain, btn, out) {
+    var t = setInterval(async function () {
+      if (document.hidden) return;
+      var r = await api('/api/backup/tasks/' + id);
+      var st = r.ok && r.data && r.data.status;
+      if (st === 'running' || st === 'pending') return;
+      clearInterval(t); btn.disabled = false;
+      if (st === 'success') { toast('Certificate issued for ' + domain, 'ok'); }
+      else {
+        out.textContent = (r.data && (r.data.error || r.data.output)) || 'Issuance failed';
+        out.className = 'raw-err';
+        toast('Certificate issuance failed \u2014 details below', 'err');
+      }
+    }, 5000);
   }
 
   // ── raw nginx.conf ──

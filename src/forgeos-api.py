@@ -911,7 +911,7 @@ except ImportError as e:
 # ────────────────────────────────────────────────────────────
 try:
     from nginx_api import router as nginx_router, set_helpers as set_nginx_helpers
-    set_nginx_helpers(run_args=_run_args, audit=_audit)
+    set_nginx_helpers(run_args=_run_args, audit=_audit, start_task=_start_task)
     app.include_router(nginx_router)
     logger.info("Nginx API loaded")
 except ImportError as e:
