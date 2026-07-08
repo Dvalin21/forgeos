@@ -201,6 +201,24 @@
     };
   }
 
+  function showCertError(domain, detail) {
+    var box = document.getElementById('cert-err-panel');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'cert-err-panel';
+      box.className = 'panel pad';
+      box.style.cssText = 'border-left:4px solid var(--danger);margin-bottom:16px';
+      var hosts = document.getElementById('vhosts');
+      hosts.parentNode.insertBefore(box, hosts);
+    }
+    box.innerHTML = '<div class="section-head"><div><h3 style="color:var(--danger)">Certificate failed \u2014 ' + esc(domain) + '</h3>' +
+      '<p>certbot output below. Common causes: domain not publicly resolvable, port 80 not reachable (HTTP-01), or DNS provider credentials.</p></div>' +
+      '<button class="btn-ghost" onclick="this.closest(\'#cert-err-panel\').remove()">Dismiss</button></div>' +
+      '<pre class="raw-conf" style="white-space:pre-wrap;max-height:280px;overflow:auto;margin:0">' + esc(detail) + '</pre>';
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    toast('Certificate failed \u2014 details shown above the host list', 'err');
+  }
+
   // ── cert issuance for a vhost (HTTP-01 sync, DNS-01 background task) ──
   async function issueCertFor(domain, email, mode, wildcard) {
     toast('Requesting certificate for ' + domain + '\u2026', 'info');
@@ -215,12 +233,12 @@
         if (stt === 'running' || stt === 'pending') return;
         clearInterval(t);
         if (stt === 'success') { await api('/api/nginx/apply', { method: 'POST' }); toast('Certificate issued for ' + domain, 'ok'); loadVhosts(); }
-        else toast('Certificate issuance failed for ' + domain + ' \u2014 check the Activity Log', 'err');
+        else { showCertError(domain, (s.data && s.data.error) || 'Issuance failed (no detail captured)'); }
       }, 5000);
     } else {
       var r2 = await api('/api/nginx/certbot', { method: 'POST', body: JSON.stringify({ domain: domain, email: email }) });
       if (r2.ok) { await api('/api/nginx/apply', { method: 'POST' }); toast('Certificate issued for ' + domain, 'ok'); loadVhosts(); }
-      else toast((r2.data && r2.data.detail && r2.data.detail.output) || 'Certificate request failed', 'err');
+      else showCertError(domain, (r2.data && r2.data.detail && (r2.data.detail.output || r2.data.detail)) || 'Certificate request failed');
     }
   }
 

@@ -14,6 +14,34 @@
 (function () {
   "use strict";
 
+  // ── global session guard ──────────────────────────────────
+  // api() is duplicated across page scripts; only the dashboard handled 401.
+  // Wrap fetch ONCE here (nav.js loads on every page) so an expired JWT on
+  // ANY call clears the token and returns to login with a clear reason,
+  // instead of surfacing as a misleading per-feature "failed" message.
+  (function guardSession() {
+    if (window.__forgeAuthGuard) return;
+    window.__forgeAuthGuard = true;
+    var _fetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+      return _fetch(input, init).then(function (res) {
+        try {
+          var url = typeof input === "string" ? input : (input && input.url) || "";
+          if (res.status === 401 && url.indexOf("/api/") >= 0 &&
+              url.indexOf("/api/auth/login") < 0) {
+            try { localStorage.removeItem("forgeos_token"); } catch (e) {}
+            try { sessionStorage.setItem("forge_session_expired", "1"); } catch (e) {}
+            if (!/\/index\.html$|\/$/.test(location.pathname))
+              location.href = "/index.html";
+          }
+        } catch (e) {}
+        return res;
+      });
+    };
+  })();
+
+  "use strict";
+
   // --- icons (stroke style matches the existing `.nav svg` rules) -----------
   var ICON = {
     dashboard: '<path d="M4 13h7V4H4zM13 20h7V4h-7zM4 20h7v-5H4z"/>',

@@ -73,3 +73,33 @@ class TestBackupDefaults:
     def test_no_pools_empty(self, test_client, auth_headers):
         d = test_client.get("/api/backup/defaults", headers=auth_headers).json()
         assert d["destination_base"] == "" and d["pool"] is None
+
+
+class TestTaskFailureCapturesStdout:
+    """certbot writes its real reason to stdout, not stderr — the runner must
+    keep stdout on failure or the user gets a useless 'Exit code 1'.
+    Exercises the real _run_background from forgeos-api.py."""
+
+    def _load_mod(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("forgeos_api_mod", "src/forgeos-api.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_failure_keeps_stdout_detail(self, monkeypatch):
+        try:
+            mod = self._load_mod()
+        except Exception:
+            import pytest; pytest.skip("forgeos-api.py not importable standalone in this env")
+        from unittest.mock import MagicMock
+        monkeypatch.setattr(mod, "_persist_tasks", lambda: None)
+        monkeypatch.setattr(mod, "_update_job_from_task", lambda *a, **k: None)
+        monkeypatch.setattr(mod.subprocess, "run",
+                            lambda *a, **k: MagicMock(returncode=1,
+                                                      stdout="ACME challenge failed: DNS problem",
+                                                      stderr=""))
+        tid = "t1"
+        mod._background_tasks[tid] = {"id": tid, "status": "pending", "error": None}
+        mod._run_background(["certbot"], tid, timeout=10)
+        assert "ACME challenge failed" in mod._background_tasks[tid]["error"]

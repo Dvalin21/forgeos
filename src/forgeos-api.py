@@ -370,7 +370,11 @@ def _run_background(cmd: list[str], task_id: str, timeout: int = 600,
                     final_status = "done"
                 else:
                     t["status"] = "failed"
-                    t["error"] = r.stderr.strip() or "Exit code %d" % r.returncode
+                    # certbot (and many tools) print the actual reason to
+                    # STDOUT, not stderr — keep whichever is non-empty, prefer
+                    # the tail so the ACME error line survives truncation.
+                    detail = (r.stderr.strip() + "\n" + r.stdout.strip()).strip()
+                    t["error"] = detail[-2000:] if detail else "Exit code %d" % r.returncode
                     final_error = t["error"]
                 t["finished_at"] = time.time()
     except subprocess.TimeoutExpired:

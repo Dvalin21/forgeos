@@ -418,7 +418,14 @@
 
   // ════════════ AUTH UI ════════════
   function showApp() { $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); }
-  function showLogin() { $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); var u = $("#login-user"); if (u) u.focus(); }
+  function showLogin() {
+    try {
+      if (sessionStorage.getItem("forge_session_expired")) {
+        sessionStorage.removeItem("forge_session_expired");
+        var e = document.getElementById("login-err");
+        if (e) e.textContent = "Your session expired \u2014 please sign in again.";
+      }
+    } catch (x) {} $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); var u = $("#login-user"); if (u) u.focus(); }
 
   async function login() {
     var u = $("#login-user").value.trim(), p = $("#login-pass").value;
