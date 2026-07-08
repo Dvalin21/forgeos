@@ -3,7 +3,7 @@
 <head>
 <meta charset=utf-8>
 <meta name=viewport content='width=device-width, initial-scale=1'>
-<title>Backup &amp; DR &middot; ForgeNAS</title>
+<title>NAS Backup &middot; ForgeNAS</title>
 <link rel="stylesheet" href="/css/forgeos.css">
 <style>
 .grid2 { display: grid; grid-template-columns: 1.2fr .8fr; gap: 18px; align-items: start; }
@@ -28,12 +28,24 @@
 .icon-btn:hover { color: var(--primary); border-color: var(--primary); }
 .icon-btn.danger:hover { color: #dc2626; border-color: #dc2626; }
 .icon-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; display: block; }
+.browse-row { display: flex; gap: 8px; } .browse-row input { flex: 1; min-width: 0; }
+.br-crumb { font-size: 12.5px; font-family: ui-monospace, monospace; color: var(--muted); padding: 6px 2px 10px; word-break: break-all; }
+.br-crumb a { color: var(--primary); cursor: pointer; text-decoration: none; }
+.br-list { max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.br-item { display: flex; align-items: center; gap: 9px; padding: 9px 12px; border-bottom: 1px solid var(--line); cursor: pointer; font-size: 13.5px; }
+.br-item:last-child { border-bottom: none; }
+.br-item:hover { background: var(--primary-soft); }
+.br-item svg { width: 16px; height: 16px; stroke: var(--primary); fill: none; stroke-width: 1.8; flex: 0 0 auto; }
+.br-item .add { margin-left: auto; font-size: 11.5px; font-weight: 800; color: var(--primary); opacity: 0; }
+.br-item:hover .add { opacity: 1; }
+.br-picked { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+.br-picked span { background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
 </style>
 </head>
 <body>
   <div class="app"><main class="main" style="grid-column:1/-1">
     <header class="topbar" style="grid-template-columns:1fr auto">
-      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Backup &amp; DR</h3><p>Data backup jobs and bare-metal disaster recovery</p></div></div>
+      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">NAS Backup</h3><p>Backs up what is stored ON this NAS &mdash; for backing up your PCs, see PC Backup</p></div></div>
       <div class="top-actions">
         <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
         <button class="button" id="add-job"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add backup job</button>
@@ -55,7 +67,8 @@
         <p class="note" style="margin-top:0">Running ForgeOS as a VM? Your hypervisor&rsquo;s backup (Proxmox Backup Server / vzdump) is the right DR tool &mdash; ReaR is for bare metal.</p>
         <div class="chips" id="dr-chips"></div>
         <div class="opt-row"><div><h5>Enable OS backup</h5><p>Renders /etc/rear/local.conf from this config</p></div><div class="switch" id="dr-enabled"><i></i></div></div>
-        <div class="field"><label>Backup path (must be a separate, non-root filesystem)</label><input id="dr-path"></div>
+        <div class="field"><label>Backup path (must be a separate, non-root filesystem)</label>
+          <div class="browse-row"><input id="dr-path"><button class="button ghost" id="dr-path-browse" type="button">Browse</button></div></div>
         <div class="field"><label>Schedule (systemd OnCalendar)</label><input id="dr-sched" placeholder="weekly"></div>
         <div class="opt-row"><div><h5>Cloud sync</h5><p>Also push the archive via an Rclone remote</p></div><div class="switch" id="dr-cloud"><i></i></div></div>
         <div class="field" id="dr-remote-row" style="display:none"><label>Rclone remote name</label><input id="dr-remote"></div>
@@ -82,12 +95,27 @@
       <h3 id="job-title">Add backup job</h3>
       <div class="field"><label>Name</label><input id="j-name"></div>
       <div class="field"><label>Tool</label><select id="j-tool"><option>borg</option><option>restic</option><option>rclone</option></select></div>
-      <div class="field"><label>Source paths (comma-separated)</label><input id="j-src" placeholder="/srv/nas/tank/photos, /etc/forgeos"></div>
-      <div class="field"><label>Destination</label><input id="j-dst" placeholder="/mnt/backup/borg-repo or remote:bucket"></div>
+      <div class="field"><label>Source paths (comma-separated)</label>
+        <div class="browse-row"><input id="j-src" placeholder="/srv/nas/tank/photos, /etc/forgeos"><button class="button ghost" id="j-src-browse" type="button">Browse</button></div></div>
+      <div class="field"><label>Destination</label>
+        <div class="browse-row"><input id="j-dst" placeholder="prefilled from your first pool; rclone remotes stay manual"><button class="button ghost" id="j-dst-browse" type="button">Browse</button></div></div>
       <div class="field"><label>Schedule</label><select id="j-sched"><option>hourly</option><option selected>daily</option><option>weekly</option><option>monthly</option></select></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="button ghost" id="job-cancel">Cancel</button>
         <button class="button" id="job-confirm">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="backdrop" id="br-backdrop">
+    <div class="modal" style="max-width:460px">
+      <h3 id="br-title">Choose a folder</h3>
+      <div class="br-crumb" id="br-crumb"></div>
+      <div class="br-list" id="br-list"></div>
+      <div class="br-picked" id="br-picked"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+        <button class="button ghost" id="br-cancel">Cancel</button>
+        <button class="button" id="br-ok">Use selection</button>
       </div>
     </div>
   </div>

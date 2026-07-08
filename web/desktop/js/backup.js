@@ -110,6 +110,8 @@
   var back = $("#job-backdrop");
   $("#add-job").onclick = function () {
     ["#j-name", "#j-src", "#j-dst"].forEach(function (s) { $(s).value = ""; });
+    if (_defaults.destination_base)
+      $("#j-dst").value = _defaults.destination_base + "/";   // sane default, editable
     back.classList.add("show"); $("#j-name").focus();
   };
   $("#job-cancel").onclick = function () { back.classList.remove("show"); };
@@ -206,7 +208,85 @@
     }, 4000);
   }
 
+  // ── folder browser (shared by job source/destination + DR path) ──
+  var _br = { multi: false, picked: [], target: null, cwd: "/" };
+  var brBack = $("#br-backdrop");
+  async function brLoad(path) {
+    var r = await api("/api/fs/dirs?path=" + encodeURIComponent(path));
+    if (!r.ok) { toast((r.data && r.data.detail) || "Cannot open folder", "err"); return; }
+    _br.cwd = r.data.path;
+    var crumb = [], acc = "";
+    _br.cwd.split("/").forEach(function (part) {
+      if (part === "") { crumb.push('<a data-p="/">/</a>'); return; }
+      acc += "/" + part;
+      crumb.push('<a data-p="' + esc(acc) + '">' + esc(part) + "</a>/");
+    });
+    $("#br-crumb").innerHTML = crumb.join("");
+    $("#br-list").innerHTML = (r.data.dirs || []).map(function (d) {
+      var full = (_br.cwd === "/" ? "" : _br.cwd) + "/" + d;
+      return '<div class="br-item" data-p="' + esc(full) + '">' +
+        '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' +
+        esc(d) + '<span class="add">' + (_br.multi ? "add" : "select") + "</span></div>";
+    }).join("") || '<div class="br-item" style="cursor:default;color:var(--muted)">empty</div>';
+    renderPicked();
+  }
+  function renderPicked() {
+    $("#br-picked").innerHTML = _br.multi
+      ? _br.picked.map(function (p, i) { return '<span data-i="' + i + '" title="remove">' + esc(p) + " ×</span>"; }).join("")
+      : (_br.picked[0] ? '<span>' + esc(_br.picked[0]) + "</span>" : "");
+  }
+  function brOpen(opts) {
+    _br.multi = !!opts.multi; _br.target = opts.target; _br.picked = [];
+    $("#br-title").textContent = opts.title;
+    brBack.classList.add("show");
+    brLoad(opts.start || "/srv");
+  }
+  $("#br-crumb").onclick = function (e) {
+    var a = e.target.closest("a"); if (a) brLoad(a.getAttribute("data-p"));
+  };
+  $("#br-list").onclick = function (e) {
+    var it = e.target.closest(".br-item"); if (!it || !it.getAttribute("data-p")) return;
+    var p = it.getAttribute("data-p");
+    if (e.target.classList.contains("add")) {       // pick without descending
+      if (_br.multi) { if (_br.picked.indexOf(p) < 0) _br.picked.push(p); }
+      else _br.picked = [p];
+      renderPicked();
+    } else brLoad(p);                                // descend
+  };
+  $("#br-picked").onclick = function (e) {
+    var sp = e.target.closest("span[data-i]");
+    if (sp && _br.multi) { _br.picked.splice(Number(sp.getAttribute("data-i")), 1); renderPicked(); }
+  };
+  $("#br-cancel").onclick = function () { brBack.classList.remove("show"); };
+  $("#br-ok").onclick = function () {
+    // nothing explicitly picked -> current folder is the selection
+    var sel = _br.picked.length ? _br.picked : [_br.cwd];
+    var el = $(_br.target);
+    if (_br.multi) {
+      var cur = el.value.split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      sel.forEach(function (p) { if (cur.indexOf(p) < 0) cur.push(p); });
+      el.value = cur.join(", ");
+    } else el.value = sel[0];
+    brBack.classList.remove("show");
+  };
+  $("#j-src-browse").onclick = function () {
+    brOpen({ multi: true, target: "#j-src", title: "Add folders to back up", start: "/srv" });
+  };
+  $("#j-dst-browse").onclick = function () {
+    brOpen({ multi: false, target: "#j-dst", title: "Choose destination folder", start: _defaults.destination_base || "/srv" });
+  };
+  $("#dr-path-browse").onclick = function () {
+    brOpen({ multi: false, target: "#dr-path", title: "Choose DR backup path", start: "/mnt" });
+  };
+
+  // ── destination default ──
+  var _defaults = {};
+  async function loadDefaults() {
+    var r = await api("/api/backup/defaults");
+    if (r.ok) _defaults = r.data || {};
+  }
+
   $("#refresh").onclick = function () { loadTools(); loadJobs(); loadDr(); loadTasks(); };
-  loadTools(); loadJobs(); loadDr();
+  loadDefaults(); loadTools(); loadJobs(); loadDr();
   loadTasks().then(function (running) { if (running) pollTasksWhileRunning(); });
 })();

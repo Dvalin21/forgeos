@@ -378,6 +378,50 @@ async def run_backup_job_now(job_id: str, user=Depends(verify_token)):
 
 
 # ────────────────────────────────────────────────────────────
+# UX HELPERS — directory browser + destination default
+# ────────────────────────────────────────────────────────────
+
+_BROWSE_EXCLUDE = {"/proc", "/sys", "/dev", "/run", "/boot"}
+
+
+@router.get("/api/fs/dirs")
+async def list_dirs(path: str = "/", user=Depends(verify_token)):
+    """Directory names only (no files, no contents) for the source/destination
+    pickers. Admin-only; /proc-class pseudo-filesystems excluded; the path is
+    resolved so ../ tricks collapse before the exclusion check."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    p = Path(path).resolve()
+    if any(str(p) == e or str(p).startswith(e + "/") for e in _BROWSE_EXCLUDE):
+        raise HTTPException(400, "path not browsable")
+    if not p.is_dir():
+        raise HTTPException(404, f"not a directory: {p}")
+    try:
+        dirs = sorted(c.name for c in p.iterdir()
+                      if c.is_dir() and not c.is_symlink()
+                      and not c.name.startswith("."))
+    except PermissionError:
+        raise HTTPException(403, f"no permission: {p}")
+    dirs = [d for d in dirs
+            if str(p / d) not in _BROWSE_EXCLUDE]
+    return {"path": str(p), "parent": str(p.parent) if p != p.parent else None,
+            "dirs": dirs}
+
+
+@router.get("/api/backup/defaults")
+async def backup_defaults(user=Depends(verify_token)):
+    """Default destination: <first pool mountpoint>/backups. Editable in the
+    UI; this is just a sane starting point so nobody memorises paths."""
+    import forgeos_config as fcfg
+    cfg = fcfg.load()
+    if cfg.storage.pools:
+        pool = cfg.storage.pools[0]
+        base = pool.mountpoint or f"/srv/nas/{pool.name}"   # model: "" = derived
+        return {"destination_base": f"{base.rstrip('/')}/backups", "pool": pool.name}
+    return {"destination_base": "", "pool": None}
+
+
+# ────────────────────────────────────────────────────────────
 # DISASTER RECOVERY (ReaR os-backup) — read status + config only.
 # ponytail: timer enable/disable and `rear mkbackup` stay on the root CLI
 # (forgeos-osbackup) — rear's write surface (loop mounts, /var/lib/rear,
