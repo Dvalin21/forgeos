@@ -1013,18 +1013,6 @@ except ImportError as e:
 
 
 # ────────────────────────────────────────────────────────────
-# IMAGING — extracted to imaging_api.py (Sprint 1, commit 9)
-# ────────────────────────────────────────────────────────────
-try:
-    from imaging_api import router as imaging_router
-    app.include_router(imaging_router)
-    logger.info("Imaging API loaded")
-except ImportError as e:
-    logger.error("Imaging API failed to load: %s", e)
-    raise
-
-
-# ────────────────────────────────────────────────────────────
 # SYSTEM METRICS — extracted to system_api.py (Sprint 1, commit 2)
 # Routes: /api/system/stats /api/system/info /api/services
 #         /api/network /api/config /api/settings (GET+PUT)

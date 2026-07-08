@@ -134,3 +134,18 @@ class TestHostnameEdit:
                                 json={"lan_name": "x.local"})
         assert r.status_code == 200
         assert not any("hostnamectl" in c.args[0] for c in m.call_args_list)
+
+
+class TestAppsList:
+    def test_apps_list_shape(self, test_client, auth_headers):
+        import forgeos_config as fcfg
+        cfg = fcfg.load()
+        cfg.apps.append(fcfg.InstalledApp(id="urbackup", version="2.5.37", webui_port=55414))
+        fcfg.save(cfg)
+        r = test_client.get("/api/apps", headers=auth_headers)
+        assert r.status_code == 200
+        a = r.json()["apps"][0]
+        assert a["id"] == "urbackup" and a["url"].startswith("https://urbackup.")
+
+    def test_apps_requires_auth(self, test_client):
+        assert test_client.get("/api/apps").status_code in (401, 403)

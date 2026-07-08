@@ -296,6 +296,19 @@ async def get_config(user=Depends(verify_token)):
     }
 
 
+@router.get("/api/apps")
+async def list_apps(user=Depends(verify_token)):
+    """Installed app-store apps (read-only; install/uninstall is the
+    forgeos-app root CLI — same sandbox boundary as DR timers: docker
+    compose orchestration stays out of the API process)."""
+    import forgeos_config as fcfg
+    cfg = fcfg.load()
+    return {"apps": [{"id": a.id, "version": a.version, "enabled": a.enabled,
+                      "webui_port": a.webui_port,
+                      "url": f"https://{a.id}.{cfg.domain}"}
+                     for a in cfg.apps]}
+
+
 @router.get("/api/settings/smtp")
 async def get_smtp(user=Depends(verify_token)):
     if user.get("role") != "admin":
