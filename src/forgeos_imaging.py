@@ -16,6 +16,7 @@ Deliberate ceilings:
 
 from __future__ import annotations
 
+import os
 import platform
 import subprocess
 from pathlib import Path
@@ -38,6 +39,7 @@ class ImagingError(RuntimeError):
 def _default_run(cmd, **kw):
     kw.setdefault("capture_output", True)
     kw.setdefault("text", True)
+    kw.setdefault("timeout", 120)      # nothing in this module may hang forever
     return subprocess.run(cmd, **kw)
 
 
@@ -67,17 +69,27 @@ def install(run=_default_run, version: str = URBACKUP_VERSION) -> dict:
     """Download the pinned upstream deb, apt-install it (resolves deps),
     enable the service, and give it a ForgeOS TLS vhost."""
     deb = f"/tmp/urbackup-server_{version}.deb"
-    r = run(["curl", "-fsSL", "-o", deb, deb_url(version)])
+    r = run(["curl", "-fsSL", "-o", deb, deb_url(version)], timeout=300)
     if r.returncode != 0:
         raise ImagingError(f"download failed: {r.stderr.strip()[:200]}")
     if not Path(deb).exists() or Path(deb).stat().st_size < 1_000_000:
         # a real server deb is tens of MB; a tiny file is an error page
         raise ImagingError(f"downloaded deb looks wrong ({deb})")
-    r = run(["apt-get", "install", "-y", deb],
-            env={"DEBIAN_FRONTEND": "noninteractive", "PATH": "/usr/sbin:/usr/bin:/sbin:/bin"})
+    # apt runs VISIBLY (no pipe capture) with hard bounds. The first version
+    # captured output with no timeout and a wiped env — when apt stalled
+    # (lock wait / prompt / postinst), the operator saw nothing, forever.
+    r = run(["apt-get", "install", "-y",
+             "-o", "DPkg::Lock::Timeout=60",          # bounded lock wait, visible msg
+             "-o", "Dpkg::Options::=--force-confdef",
+             "-o", "Dpkg::Options::=--force-confold",
+             deb],
+            capture_output=False, timeout=900,
+            env={**os.environ, "DEBIAN_FRONTEND": "noninteractive"})
     if r.returncode != 0:
-        raise ImagingError(f"apt install failed: {r.stderr.strip()[:300]}")
-    run(["systemctl", "enable", "--now", SERVICE])
+        raise ImagingError("apt install failed — output above")
+    r = run(["systemctl", "enable", "--now", SERVICE], timeout=60)
+    if r.returncode != 0:
+        raise ImagingError(f"service enable failed: {(r.stderr or '').strip()[:200]}")
 
     # ForgeOS vhost: urbackup.<domain> -> 127.0.0.1:55414, TLS from the
     # existing nginx generator. Idempotent: skip if present.
@@ -94,10 +106,13 @@ def install(run=_default_run, version: str = URBACKUP_VERSION) -> dict:
 
 
 def uninstall(run=_default_run, purge: bool = False) -> dict:
-    run(["systemctl", "disable", "--now", SERVICE])
-    r = run(["apt-get", "remove" if not purge else "purge", "-y", "urbackup-server"])
+    run(["systemctl", "disable", "--now", SERVICE], timeout=60)
+    r = run(["apt-get", "remove" if not purge else "purge", "-y",
+             "-o", "DPkg::Lock::Timeout=60", "urbackup-server"],
+            capture_output=False, timeout=600,
+            env={**os.environ, "DEBIAN_FRONTEND": "noninteractive"})
     if r.returncode != 0:
-        raise ImagingError(f"apt remove failed: {r.stderr.strip()[:300]}")
+        raise ImagingError("apt remove failed — output above")
     cfg = fc.load()
     before = len(cfg.nginx.vhosts)
     cfg.nginx.vhosts = [v for v in cfg.nginx.vhosts if v.name != VHOST_NAME]
