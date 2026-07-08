@@ -40,7 +40,8 @@
     if (!_vhosts.length) { box.innerHTML = '<p style="color:var(--muted)">No hosts yet. Tap <b>New Vhost</b> to route a domain to a service.</p>'; return; }
     box.innerHTML = _vhosts.map(function (v) {
       var prot = v.name === UI_VHOST;
-      var tags = '<span class="tag type">' + esc(v.upstream_scheme || 'http') + '</span>' +
+      var tags = '<span class="tag ' + (v.cert === 'letsencrypt' ? 'rw' : 'ro') + '">' + (v.cert === 'letsencrypt' ? 'LE cert' : 'self-signed') + '</span>' +
+        '<span class="tag type">' + esc(v.upstream_scheme || 'http') + '</span>' +
         '<span class="tag ' + (v.force_ssl ? 'rw' : 'ro') + '">' + (v.force_ssl ? 'HTTPS' : 'HTTP') + '</span>' +
         (v.websocket ? '<span class="tag vis">WebSocket</span>' : '') +
         (v.block_common_exploits ? '<span class="tag vis">Exploit-block</span>' : '') +
@@ -95,6 +96,11 @@
       '<div class="fld"><label>Allow IPs (optional)</label><input class="wz-input" id="v-allow" placeholder="10.0.0.0/24 192.168.1.5" autocomplete="off"><div class="hint">If set, ONLY these IPs / CIDRs may connect. Space-separated.</div></div>' +
       '<div class="fld"><label>Deny IPs (optional)</label><input class="wz-input" id="v-deny" placeholder="203.0.113.0/24" autocomplete="off"><div class="hint">Blocklist. Ignored when an allow-list is set above.</div></div>' +
       '<div class="fld"><label>Custom snippet (optional)</label><textarea id="v-snip" class="raw-conf" style="min-height:80px" spellcheck="false" placeholder="# raw nginx, inside server { }"></textarea><div class="hint">Advanced escape hatch &mdash; raw nginx inside the server block.</div></div>' +
+      '<div class="fld"><label>Certificate</label><div class="seg" id="v-cert"><button data-c="local">Local (self-signed)</button><button data-c="http">Let\u2019s Encrypt HTTP-01</button><button data-c="dns">Let\u2019s Encrypt DNS-01</button></div>' +
+        '<div class="hint" id="v-cert-hint"></div></div>' +
+      '<div class="fld" id="v-le-extra" style="display:none">' +
+        '<div class="opt-row" id="v-wild-row" style="display:none"><div class="opt-text"><h5>Wildcard</h5><p>Also request <code>*.domain</code> (DNS-01 only).</p></div><div class="switch" data-sw="wildcard"><i></i></div></div>' +
+        '<label>Email for Let\u2019s Encrypt (optional)</label><input class="wz-input" id="v-le-email" placeholder="you@example.com" autocomplete="off"></div>' +
       '<div class="row" style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="btn-ghost" data-x>Cancel</button><button class="btn-pri" data-go disabled style="opacity:.5">' + (ed ? 'Save changes' : 'Create host') + '</button></div>' +
       '</div>';
     document.body.appendChild(back);
@@ -104,6 +110,36 @@
     $$('[data-sw]', back).forEach(function (el) { el.onclick = function () { var k = el.getAttribute('data-sw'); setSw(k, !st[k]); }; });
     function selScheme(s) { st.upstream_scheme = s; $$('#scheme button', back).forEach(function (b) { b.className = b.getAttribute('data-s') === s ? 'sel pri' : ''; }); }
     $$('#scheme button', back).forEach(function (b) { b.onclick = function () { selScheme(b.getAttribute('data-s')); }; });
+
+    // ── certificate mode ──
+    st.cert = 'local'; st.wildcard = false;
+    function domainIsPublic(d) {
+      // LE only issues for public DNS names — never .local/.lan/RFC-8375, IPs, or bare labels
+      if (!d || d.indexOf('.') < 0) return false;
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(d)) return false;
+      return !/\.(local|lan|internal|home\.arpa)$/i.test(d);
+    }
+    function selCert(c) {
+      var dom = $('#v-domain', back).value.trim().replace(/^\*\./, '');
+      var hint = $('#v-cert-hint', back);
+      if (c !== 'local' && !domainIsPublic(dom)) {
+        hint.textContent = 'Let\u2019s Encrypt needs a public DNS name \u2014 .local / .lan / IP hosts stay self-signed.';
+        c = 'local';
+      } else if (c === 'dns' && !_dnsConfigured) {
+        hint.textContent = 'DNS-01 needs a DNS provider configured (panel below) \u2014 falling back.';
+        c = 'local';
+      } else {
+        hint.textContent = c === 'local' ? 'ForgeOS self-signed cert \u2014 fine on your LAN, browsers warn once.'
+          : c === 'http' ? 'Validates over port 80 \u2014 the host must be reachable from the internet.'
+          : 'Validates via your DNS provider \u2014 works without exposing port 80; supports wildcard. Propagation can take minutes.';
+      }
+      st.cert = c;
+      $$('#v-cert button', back).forEach(function (b) { b.className = b.getAttribute('data-c') === c ? 'sel pri' : ''; });
+      $('#v-le-extra', back).style.display = c === 'local' ? 'none' : '';
+      $('#v-wild-row', back).style.display = c === 'dns' ? '' : 'none';
+    }
+    $$('#v-cert button', back).forEach(function (b) { b.onclick = function () { selCert(b.getAttribute('data-c')); }; });
+    $('#v-domain', back).addEventListener('input', function () { selCert(st.cert); });
 
     function update() {
       var name = $('#v-name', back).value.trim(), dom = $('#v-domain', back).value.trim(), port = $('#v-uport', back).value.trim();
@@ -115,6 +151,7 @@
     // defaults
     selScheme('http'); setSw('force_ssl', true); setSw('hsts', true); setSw('http2', true);
     setSw('websocket', false); setSw('block_common_exploits', false); setSw('gzip', false);
+    selCert('local');
 
     if (ed) {
       $('#v-domain', back).value = ed.domain || '';
@@ -130,6 +167,7 @@
       setSw('force_ssl', ed.force_ssl !== false); setSw('hsts', ed.hsts !== false);
       setSw('http2', ed.http2 !== false); setSw('websocket', !!ed.websocket);
       setSw('block_common_exploits', !!ed.block_common_exploits); setSw('gzip', !!ed.gzip);
+      if (ed.cert === 'letsencrypt') { $('#v-cert-hint', back).textContent = 'This host already has a Let\u2019s Encrypt certificate.'; }
       update();
     }
 
@@ -153,11 +191,37 @@
       go.disabled = true; go.style.opacity = .5;
       var url = ed ? '/api/nginx/vhost/' + encodeURIComponent(ed.name) : '/api/nginx/vhost';
       var r = await api(url, { method: ed ? 'PUT' : 'POST', body: JSON.stringify(body) });
-      toast(r.ok ? (ed ? 'Host updated' : 'Host created')
-                 : (r.data && r.data.detail) || ('Could not ' + (ed ? 'update' : 'create') + ' host'),
-            r.ok ? 'ok' : 'err');
-      if (r.ok) { close(); loadVhosts(); } else { go.disabled = false; go.style.opacity = 1; }
+      if (!r.ok) {
+        toast((r.data && r.data.detail) || ('Could not ' + (ed ? 'update' : 'create') + ' host'), 'err');
+        go.disabled = false; go.style.opacity = 1; return;
+      }
+      toast(ed ? 'Host updated' : 'Host created', 'ok');
+      close(); loadVhosts();
+      if (st.cert !== 'local') issueCertFor(body.domain.replace(/^\*\./, ''), $('#v-le-email', back) ? $('#v-le-email', back).value.trim() : '', st.cert, st.wildcard);
     };
+  }
+
+  // ── cert issuance for a vhost (HTTP-01 sync, DNS-01 background task) ──
+  async function issueCertFor(domain, email, mode, wildcard) {
+    toast('Requesting certificate for ' + domain + '\u2026', 'info');
+    if (mode === 'dns') {
+      var r = await api('/api/nginx/cert/dns', { method: 'POST',
+        body: JSON.stringify({ domain: domain, email: email, wildcard: !!wildcard }) });
+      if (!r.ok || !r.data || !r.data.task_id) { toast((r.data && r.data.detail) || 'Certificate request failed', 'err'); return; }
+      var t = setInterval(async function () {
+        if (document.hidden) return;
+        var s = await api('/api/backup/tasks/' + r.data.task_id);
+        var stt = s.ok && s.data && s.data.status;
+        if (stt === 'running' || stt === 'pending') return;
+        clearInterval(t);
+        if (stt === 'success') { await api('/api/nginx/apply', { method: 'POST' }); toast('Certificate issued for ' + domain, 'ok'); loadVhosts(); }
+        else toast('Certificate issuance failed for ' + domain + ' \u2014 check the Activity Log', 'err');
+      }, 5000);
+    } else {
+      var r2 = await api('/api/nginx/certbot', { method: 'POST', body: JSON.stringify({ domain: domain, email: email }) });
+      if (r2.ok) { await api('/api/nginx/apply', { method: 'POST' }); toast('Certificate issued for ' + domain, 'ok'); loadVhosts(); }
+      else toast((r2.data && r2.data.detail && r2.data.detail.output) || 'Certificate request failed', 'err');
+    }
   }
 
   // ── ACME DNS-01 provider ──
@@ -226,8 +290,10 @@
     }).join('') +
     '<div class="hint">Provider docs: <a href="' + docs + '" target="_blank" rel="noopener">' + docs + '</a></div>';
   }
+  var _dnsConfigured = false;
   async function loadDns() {
     var d = (await api('/api/nginx/acme/dns')).data;
+    _dnsConfigured = !!(d && d.configured);
     var chip = $('#dns-chip');
     if (d && d.configured) {
       chip.textContent = (d.provider || '') + ' configured';
@@ -275,57 +341,6 @@
     if (r.ok) { $('#dns-provider').value = ''; $('#dns-creds').value = ''; loadDns(); }
   }
 
-  // ── cert request ──
-  var _certMode = 'http', _wild = false;
-  function selCertMode(m) {
-    _certMode = m;
-    $$('#cert-mode button').forEach(function (b) { b.className = b.getAttribute('data-m') === m ? 'sel pri' : ''; });
-    $('#cert-wild-row').style.display = m === 'dns' ? '' : 'none';
-    $('#cert-mode-hint').innerHTML = m === 'dns'
-      ? 'DNS-01 uses the provider above &mdash; works for wildcards and hosts not exposed on port 80.'
-      : 'HTTP-01 validates over port 80 &mdash; the host must be reachable from the internet.';
-  }
-  async function certGo() {
-    var domain = $('#cert-domain').value.trim(), email = $('#cert-email').value.trim();
-    var out = $('#cert-out'); out.className = 'raw-err hidden';
-    if (!domain) { toast('Enter a domain', 'err'); return; }
-    var btn = $('#cert-go'); btn.disabled = true; toast('Requesting certificate\u2026 this can take a minute', 'info');
-    var url, body;
-    if (_certMode === 'dns') { url = '/api/nginx/cert/dns'; body = { domain: domain, email: email, wildcard: _wild }; }
-    else { url = '/api/nginx/certbot'; body = { domain: domain, email: email }; }
-    var r = await api(url, { method: 'POST', body: JSON.stringify(body) });
-    if (r.ok && r.data && r.data.task_id) {
-      // DNS-01 runs in the background — propagation can take minutes
-      // (provider-dependent: Porkbun 600s, Namecheap up to 3600s).
-      toast('Issuing in the background \u2014 waiting for DNS propagation\u2026', 'info');
-      pollCertTask(r.data.task_id, domain, btn, out);
-      return;
-    }
-    btn.disabled = false;
-    if (r.ok) { toast('Certificate issued for ' + domain, 'ok'); }
-    else {
-      var detail = r.data && r.data.detail;
-      var msg = (detail && detail.output) || (typeof detail === 'string' ? detail : 'Certificate request failed');
-      out.textContent = msg; out.className = 'raw-err';
-      toast('Request failed \u2014 see details below', 'err');
-    }
-  }
-  async function pollCertTask(id, domain, btn, out) {
-    var t = setInterval(async function () {
-      if (document.hidden) return;
-      var r = await api('/api/backup/tasks/' + id);
-      var st = r.ok && r.data && r.data.status;
-      if (st === 'running' || st === 'pending') return;
-      clearInterval(t); btn.disabled = false;
-      if (st === 'success') { toast('Certificate issued for ' + domain, 'ok'); }
-      else {
-        out.textContent = (r.data && (r.data.error || r.data.output)) || 'Issuance failed';
-        out.className = 'raw-err';
-        toast('Certificate issuance failed \u2014 details below', 'err');
-      }
-    }, 5000);
-  }
-
   // ── raw nginx.conf ──
   async function loadRaw() {
     var ta = $('#raw-conf'); if (!ta) return;
@@ -351,12 +366,8 @@
     var rf = $('#refresh'); if (rf) rf.onclick = function () { loadVhosts(); loadDns(); toast('Refreshed', 'info'); };
     var ds = $('#dns-save'); if (ds) ds.onclick = saveDns;
     var dc = $('#dns-clear'); if (dc) dc.onclick = clearDns;
-    $$('#cert-mode button').forEach(function (b) { b.onclick = function () { selCertMode(b.getAttribute('data-m')); }; });
-    var cw = $('[data-sw="wildcard"]'); if (cw) cw.onclick = function () { _wild = !_wild; cw.className = 'switch' + (_wild ? ' on' : ''); };
-    var cg = $('#cert-go'); if (cg) cg.onclick = certGo;
     var rr = $('#raw-reload'); if (rr) rr.onclick = function () { loadRaw(); toast('Reloaded', 'info'); };
     var rs = $('#raw-save'); if (rs) rs.onclick = saveRaw;
-    selCertMode('http');
     renderProviderSelect();
     var dsel = $('#dns-select'); if (dsel) dsel.onchange = function () { renderFields(this.value); };
     loadVhosts(); loadDns(); loadRaw();

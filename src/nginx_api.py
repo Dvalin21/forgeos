@@ -97,11 +97,35 @@ def set_apply(fn) -> None:
     _apply = fn
 
 
+def _cert_state(domain: str) -> str:
+    """'letsencrypt' if a live cert dir covers this domain (exact, or the
+    parent domain for wildcard coverage), else 'self-signed' (snakeoil)."""
+    base = domain[2:] if domain.startswith("*.") else domain
+    candidates = [base]
+    if "." in base:
+        candidates.append(base.split(".", 1)[1])   # wildcard on the parent
+    for c in candidates:
+        if Path(f"/etc/letsencrypt/live/{c}/fullchain.pem").exists():
+            return "letsencrypt"
+    return "self-signed"
+
+
 @router.get("/api/nginx/vhosts")
 async def nginx_vhosts(user=Depends(verify_token)):
     # V2 engine: read vhosts from the config-DB, not by scraping forgeos.d/*.conf.
     cfg = fc.load()
-    return {"vhosts": [v.model_dump() for v in cfg.nginx.vhosts]}
+    return {"vhosts": [{**v.model_dump(), "cert": _cert_state(v.domain)}
+                       for v in cfg.nginx.vhosts]}
+
+
+@router.post("/api/nginx/apply")
+async def nginx_apply(user=Depends(verify_token)):
+    """Re-render + reload without changing config — needed after cert
+    issuance completes so the generator switches snakeoil -> LE cert."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    _apply_nginx(fc.load())
+    return {"ok": True}
 
 
 @router.post("/api/nginx/vhost")

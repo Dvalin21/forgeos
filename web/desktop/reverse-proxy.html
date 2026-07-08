@@ -25,7 +25,7 @@
     </section>
 
     <section class="panel pad" style="margin-bottom:18px">
-      <div class="section-head"><div><h3>TLS certificates (Let&rsquo;s Encrypt)</h3><p>Issue certs via HTTP-01, or DNS-01 for wildcards / hosts not exposed on port 80. Issued certs are picked up automatically.</p></div><span class="chip" id="dns-chip">&mdash;</span></div>
+      <div class="section-head"><div><h3>DNS provider (for DNS-01 certificates)</h3><p>Certificates are requested per-host in the New/Edit host dialog. Configure the DNS provider here once; DNS-01 enables wildcards and hosts not exposed on port 80.</p></div><span class="chip" id="dns-chip">&mdash;</span></div>
 
       <div class="fld"><label>DNS provider (for DNS-01)</label>
         <div class="wz-from">
@@ -42,16 +42,6 @@
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:8px"><button class="btn-pri" id="dns-save">Save provider</button></div>
 
-      <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
-
-      <div class="fld"><label>Request a certificate</label>
-        <div class="wz-from"><input class="wz-input" id="cert-domain" placeholder="app.example.com" autocomplete="off"><input class="wz-input" id="cert-email" placeholder="you@example.com (optional)" autocomplete="off"></div>
-      </div>
-      <div class="fld"><label>Challenge</label><div class="seg" id="cert-mode"><button data-m="http">HTTP-01</button><button data-m="dns">DNS-01</button></div>
-        <div class="hint" id="cert-mode-hint">HTTP-01 validates over port 80 &mdash; the host must be reachable from the internet.</div></div>
-      <div class="opt-row" id="cert-wild-row" style="display:none"><div class="opt-text"><h5>Wildcard</h5><p>Also request <code>*.domain</code> (DNS-01 only).</p></div><div class="switch" data-sw="wildcard"><i></i></div></div>
-      <div id="cert-out" class="raw-err hidden"></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px"><button class="btn-pri" id="cert-go">Request certificate</button></div>
     </section>
 
     <section class="panel pad">

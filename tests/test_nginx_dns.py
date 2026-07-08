@@ -158,3 +158,36 @@ class TestDnsCertRequest:
         r = test_client.post("/api/nginx/cert/dns",
                              json={"domain": "bad;rm -rf"}, headers=auth_headers)
         assert r.status_code == 400
+
+
+class TestVhostCertState:
+    def test_list_reports_cert_state(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import nginx_api
+        # exact-domain LE dir present
+        live = tmp_path / "live" / "app.example.com"
+        live.mkdir(parents=True); (live / "fullchain.pem").write_text("x")
+        real_exists = nginx_api.Path.exists
+        monkeypatch.setattr(nginx_api, "_cert_state",
+                            lambda d: "letsencrypt" if d == "app.example.com" else "self-signed")
+        r = test_client.get("/api/nginx/vhosts", headers=auth_headers)
+        assert r.status_code == 200
+        for v in r.json()["vhosts"]:
+            assert v["cert"] in ("letsencrypt", "self-signed")
+
+    def test_cert_state_wildcard_parent(self, tmp_path, monkeypatch):
+        import sys; sys.path.insert(0, "src")
+        import nginx_api
+        def fake_exists(self):
+            return str(self) == "/etc/letsencrypt/live/example.com/fullchain.pem"
+        monkeypatch.setattr(type(nginx_api.Path("/x")), "exists", fake_exists)
+        assert nginx_api._cert_state("app.example.com") == "letsencrypt"   # parent wildcard
+        assert nginx_api._cert_state("example.com") == "letsencrypt"
+        assert nginx_api._cert_state("other.net") == "self-signed"
+
+    def test_apply_endpoint(self, test_client, auth_headers, user_headers, monkeypatch):
+        import nginx_api
+        called = []
+        monkeypatch.setattr(nginx_api, "_apply_nginx", lambda cfg: called.append(1))
+        assert test_client.post("/api/nginx/apply", headers=user_headers).status_code == 403
+        r = test_client.post("/api/nginx/apply", headers=auth_headers)
+        assert r.status_code == 200 and called
