@@ -209,3 +209,52 @@ class TestImagingNative:
             return MagicMock(returncode=0, stdout="")
         with pt.raises(fim.ImagingError):
             fim.install(run=fake)
+
+
+class TestImagingFirewallRules:
+    def _fake_env(self, tmp_path, monkeypatch):
+        import forgeos_imaging as fim
+        from generators import registry
+        from unittest.mock import MagicMock
+        deb = tmp_path / "d.deb"; deb.write_bytes(b"x" * 2_000_000)
+        applied = []
+        monkeypatch.setattr(registry, "apply_one",
+                            lambda name, cfg=None: (applied.append(name), MagicMock(ok=True))[1])
+        def fake(cmd, **kw):
+            if cmd[0] == "curl":
+                import shutil; shutil.copy(deb, cmd[3])
+                return MagicMock(returncode=0, stdout="", stderr="")
+            if cmd[0] == "dpkg-query":
+                return MagicMock(returncode=0, stdout="2.5.37")
+            return MagicMock(returncode=0, stdout="active\n", stderr="")
+        return fim, fake, applied
+
+    def test_install_adds_lan_scoped_rules_and_applies_ufw(self, tmp_path, monkeypatch):
+        import forgeos_config as fcfg
+        fim, fake, applied = self._fake_env(tmp_path, monkeypatch)
+        fim.install(run=fake)
+        rules = fcfg.load().firewall.rules
+        ports = {(r.port, r.proto) for r in rules}
+        assert ("55413:55415", "tcp") in ports and ("35623", "udp") in ports
+        lan = fcfg.load().security.lan_cidr
+        assert all(r.from_ip == lan for r in rules if "UrBackup" in r.comment)
+        assert "ufw" in applied
+
+    def test_install_idempotent_no_duplicate_rules(self, tmp_path, monkeypatch):
+        import forgeos_config as fcfg
+        fim, fake, applied = self._fake_env(tmp_path, monkeypatch)
+        fim.install(run=fake)
+        fim.install(run=fake)
+        rules = [r for r in fcfg.load().firewall.rules if "UrBackup" in r.comment]
+        assert len(rules) == 2
+
+    def test_uninstall_removes_only_ours(self, tmp_path, monkeypatch):
+        import forgeos_config as fcfg
+        fim, fake, applied = self._fake_env(tmp_path, monkeypatch)
+        cfg = fcfg.load()
+        cfg.firewall.rules.append(fcfg.FirewallRule(port="8080", proto="tcp", comment="keep me"))
+        fcfg.save(cfg)
+        fim.install(run=fake)
+        fim.uninstall(run=fake)
+        remaining = fcfg.load().firewall.rules
+        assert [r.comment for r in remaining] == ["keep me"]

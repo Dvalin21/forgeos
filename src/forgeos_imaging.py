@@ -30,6 +30,11 @@ _DEB_URL = ("https://github.com/uroni/urbackup_backend/releases/download/"
 SERVICE = "urbackupsrv"
 WEB_PORT = 55414
 VHOST_NAME = "urbackup"
+# Client-facing ports (web UI stays nginx-only): connections + LAN discovery.
+_FW_RULES = [
+    {"port": "55413:55415", "proto": "tcp", "comment": "UrBackup clients"},
+    {"port": "35623", "proto": "udp", "comment": "UrBackup discovery"},
+]
 
 
 class ImagingError(RuntimeError):
@@ -92,8 +97,13 @@ def install(run=_default_run, version: str = URBACKUP_VERSION) -> dict:
         raise ImagingError(f"service enable failed: {(r.stderr or '').strip()[:200]}")
 
     # ForgeOS vhost: urbackup.<domain> -> 127.0.0.1:55414, TLS from the
-    # existing nginx generator. Idempotent: skip if present.
+    # existing nginx generator. Client firewall rules go into the config-DB
+    # (from lan_cidr only) — same class as the WireGuard listen-port guard:
+    # without them, clients silently can't reach the server under
+    # default-deny, and raw `ufw allow` gets wiped by the next converge.
+    # Idempotent: each piece skipped if present.
     cfg = fc.load()
+    changed = False
     if not any(v.name == VHOST_NAME for v in cfg.nginx.vhosts):
         cfg.nginx.vhosts.append(fc.NginxVhost(
             name=VHOST_NAME, domain=f"{VHOST_NAME}.{cfg.domain}",
@@ -101,6 +111,18 @@ def install(run=_default_run, version: str = URBACKUP_VERSION) -> dict:
         res = registry.apply_one("nginx", cfg=cfg)
         if not res.ok:
             raise ImagingError(f"nginx vhost apply failed: {res.error}")
+        changed = True
+    existing = {(r.port, r.proto) for r in cfg.firewall.rules}
+    for spec in _FW_RULES:
+        if (spec["port"], spec["proto"]) not in existing:
+            cfg.firewall.rules.append(fc.FirewallRule(
+                port=spec["port"], proto=spec["proto"], action="allow",
+                from_ip=cfg.security.lan_cidr, comment=spec["comment"]))
+            changed = True
+    if changed:
+        res = registry.apply_one("ufw", cfg=cfg)
+        if not res.ok:
+            raise ImagingError(f"ufw apply failed: {res.error}")
         fc.save(cfg)
     return status(run=run)
 
@@ -114,11 +136,20 @@ def uninstall(run=_default_run, purge: bool = False) -> dict:
     if r.returncode != 0:
         raise ImagingError("apt remove failed — output above")
     cfg = fc.load()
-    before = len(cfg.nginx.vhosts)
+    before_v = len(cfg.nginx.vhosts)
     cfg.nginx.vhosts = [v for v in cfg.nginx.vhosts if v.name != VHOST_NAME]
-    if len(cfg.nginx.vhosts) != before:
+    ours = {(r["port"], r["proto"]) for r in _FW_RULES}
+    before_r = len(cfg.firewall.rules)
+    cfg.firewall.rules = [r for r in cfg.firewall.rules
+                          if (r.port, r.proto) not in ours]
+    if len(cfg.nginx.vhosts) != before_v:
         res = registry.apply_one("nginx", cfg=cfg)
         if not res.ok:
             raise ImagingError(f"nginx apply failed: {res.error}")
+    if len(cfg.firewall.rules) != before_r:
+        res = registry.apply_one("ufw", cfg=cfg)
+        if not res.ok:
+            raise ImagingError(f"ufw apply failed: {res.error}")
+    if len(cfg.nginx.vhosts) != before_v or len(cfg.firewall.rules) != before_r:
         fc.save(cfg)
     return status(run=run)
