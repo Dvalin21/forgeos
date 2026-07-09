@@ -96,14 +96,11 @@
       '<div class="fld"><label>Allow IPs (optional)</label><input class="wz-input" id="v-allow" placeholder="10.0.0.0/24 192.168.1.5" autocomplete="off"><div class="hint">If set, ONLY these IPs / CIDRs may connect. Space-separated.</div></div>' +
       '<div class="fld"><label>Deny IPs (optional)</label><input class="wz-input" id="v-deny" placeholder="203.0.113.0/24" autocomplete="off"><div class="hint">Blocklist. Ignored when an allow-list is set above.</div></div>' +
       '<div class="fld"><label>Custom snippet (optional)</label><textarea id="v-snip" class="raw-conf" style="min-height:80px" spellcheck="false" placeholder="# raw nginx, inside server { }"></textarea><div class="hint">Advanced escape hatch &mdash; raw nginx inside the server block.</div></div>' +
-      '<div class="fld"><label>Certificate</label><div class="seg" id="v-cert"><button data-c="local">Local (self-signed)</button><button data-c="existing">Use existing cert</button><button data-c="http">Issue HTTP-01</button><button data-c="dns">Issue DNS-01</button></div>' +
+      '<div class="fld"><label>Certificate</label><div class="seg" id="v-cert"><button data-c="local">Self-signed</button><button data-c="existing">Select certificate</button></div>' +
         '<div class="hint" id="v-cert-hint"></div></div>' +
-      '<div class="fld" id="v-cert-pick-row" style="display:none"><label>Existing certificate</label>' +
+      '<div class="fld" id="v-cert-pick-row" style="display:none"><label>Certificate</label>' +
         '<select class="wz-input" id="v-cert-pick"></select>' +
-        '<div class="hint" id="v-cert-pick-hint">Share one issued cert across vhosts \u2014 e.g. a <code>*.example.com</code> wildcard for every subdomain.</div></div>' +
-      '<div class="fld" id="v-le-extra" style="display:none">' +
-        '<div class="opt-row" id="v-wild-row" style="display:none"><div class="opt-text"><h5>Wildcard</h5><p>Also request <code>*.domain</code> (DNS-01 only).</p></div><div class="switch" data-sw="wildcard"><i></i></div></div>' +
-        '<label>Email for Let\u2019s Encrypt (optional)</label><input class="wz-input" id="v-le-email" placeholder="you@example.com" autocomplete="off"></div>' +
+        '<div class="hint" id="v-cert-pick-hint">Pick a certificate from the Certificates list. Issue one there first (wildcards cover every subdomain).</div></div>' +
       '<div class="row" style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px"><button class="btn-ghost" data-x>Cancel</button><button class="btn-pri" data-go disabled style="opacity:.5">' + (ed ? 'Save changes' : 'Create host') + '</button></div>' +
       '</div>';
     document.body.appendChild(back);
@@ -114,20 +111,13 @@
     function selScheme(s) { st.upstream_scheme = s; $$('#scheme button', back).forEach(function (b) { b.className = b.getAttribute('data-s') === s ? 'sel pri' : ''; }); }
     $$('#scheme button', back).forEach(function (b) { b.onclick = function () { selScheme(b.getAttribute('data-s')); }; });
 
-    // ── certificate mode ──
-    st.cert = 'local'; st.wildcard = false;
-    function domainIsPublic(d) {
-      // LE only issues for public DNS names — never .local/.lan/RFC-8375, IPs, or bare labels
-      if (!d || d.indexOf('.') < 0) return false;
-      if (/^\d+\.\d+\.\d+\.\d+$/.test(d)) return false;
-      return !/\.(local|lan|internal|home\.arpa)$/i.test(d);
-    }
+    // ── certificate: self-signed, or select one from the Certificates list ──
+    st.cert = 'local';
     function certCovers(covers, dom) {
-      // does a SAN list cover this hostname? exact or single-label wildcard.
       return (covers || []).some(function (n) {
         if (n === dom) return true;
         if (n.indexOf('*.') === 0) {
-          var suffix = n.slice(1);                 // "*.example.com" -> ".example.com"
+          var suffix = n.slice(1);
           var host = dom.slice(0, dom.length - suffix.length);
           return dom.slice(-suffix.length) === suffix && host && host.indexOf('.') < 0;
         }
@@ -137,50 +127,40 @@
     function selCert(c) {
       var dom = $('#v-domain', back).value.trim().replace(/^\*\./, '');
       var hint = $('#v-cert-hint', back);
-      if ((c === 'http' || c === 'dns') && !domainIsPublic(dom)) {
-        hint.textContent = 'Let\u2019s Encrypt needs a public DNS name \u2014 .local / .lan / IP hosts stay self-signed.';
-        c = 'local';
-      } else if (c === 'dns' && !_dnsConfigured) {
-        hint.textContent = 'DNS-01 needs a DNS provider configured (panel below) \u2014 falling back.';
-        c = 'local';
-      } else if (c === 'existing' && !_certs.length) {
-        hint.textContent = 'No issued certificates yet \u2014 issue one first, then it becomes selectable.';
+      if (c === 'existing' && !_certs.length) {
+        hint.textContent = 'No certificates yet \u2014 issue or register one in the Certificates section, then select it here.';
         c = 'local';
       } else {
-        hint.textContent = c === 'local' ? 'ForgeOS self-signed cert \u2014 fine on your LAN, browsers warn once.'
-          : c === 'existing' ? 'Reuse an already-issued cert (no new issuance). Pick one that covers this hostname.'
-          : c === 'http' ? 'Validates over port 80 \u2014 the host must be reachable from the internet.'
-          : 'Validates via your DNS provider \u2014 works without exposing port 80; supports wildcard. Propagation can take minutes.';
+        hint.textContent = c === 'local'
+          ? 'ForgeOS self-signed cert \u2014 fine on your LAN, browsers warn once.'
+          : 'Uses a certificate from the Certificates list. Pick one that covers this hostname.';
       }
       st.cert = c;
       $$('#v-cert button', back).forEach(function (b) { b.className = b.getAttribute('data-c') === c ? 'sel pri' : ''; });
       $('#v-cert-pick-row', back).style.display = c === 'existing' ? '' : 'none';
-      $('#v-le-extra', back).style.display = (c === 'http' || c === 'dns') ? '' : 'none';
-      $('#v-wild-row', back).style.display = c === 'dns' ? '' : 'none';
       if (c === 'existing') fillCertPick(dom);
     }
     function fillCertPick(dom) {
       var sel = $('#v-cert-pick', back), h = $('#v-cert-pick-hint', back);
       sel.innerHTML = _certs.map(function (crt) {
         var ok = certCovers(crt.covers, dom);
-        return '<option value="' + esc(crt.name) + '"' + (ok ? '' : ' data-nomatch="1"') + '>' +
+        return '<option value="' + esc(crt.name) + '">' +
           esc(crt.name) + (crt.covers && crt.covers.length ? ' \u2014 covers ' + esc(crt.covers.join(', ')) : '') +
           (ok ? '' : '  (does NOT cover ' + esc(dom) + ')') + '</option>';
       }).join('');
-      // auto-pick the first covering cert
       var match = _certs.filter(function (crt) { return certCovers(crt.covers, dom); })[0];
-      if (match) { sel.value = match.name; h.textContent = 'This cert covers ' + dom + '.'; h.style.color = ''; }
-      else { h.textContent = 'Warning: no listed cert covers ' + dom + ' \u2014 the browser will show a name mismatch.'; h.style.color = 'var(--danger)'; }
+      if (match) { sel.value = match.name; h.textContent = 'This certificate covers ' + dom + '.'; h.style.color = ''; }
+      else { h.textContent = 'Warning: no listed certificate covers ' + dom + '.'; h.style.color = 'var(--danger)'; }
     }
     $('#v-cert-pick', back) && ($('#v-cert-pick', back).onchange = function () {
       var dom = $('#v-domain', back).value.trim().replace(/^\*\./, '');
-      var opt = this.options[this.selectedIndex];
-      var h = $('#v-cert-pick-hint', back);
-      if (opt && opt.getAttribute('data-nomatch')) { h.textContent = 'This cert does NOT cover ' + dom + ' \u2014 name mismatch in the browser.'; h.style.color = 'var(--danger)'; }
-      else { h.textContent = 'This cert covers ' + dom + '.'; h.style.color = ''; }
+      var opt = this.options[this.selectedIndex], h = $('#v-cert-pick-hint', back);
+      var nomatch = opt && opt.textContent.indexOf('does NOT cover') >= 0;
+      if (nomatch) { h.textContent = 'This certificate does NOT cover ' + dom + '.'; h.style.color = 'var(--danger)'; }
+      else { h.textContent = 'This certificate covers ' + dom + '.'; h.style.color = ''; }
     });
     $$('#v-cert button', back).forEach(function (b) { b.onclick = function () { selCert(b.getAttribute('data-c')); }; });
-    $('#v-domain', back).addEventListener('input', function () { selCert(st.cert); });
+    $('#v-domain', back).addEventListener('input', function () { if (st.cert === 'existing') fillCertPick($('#v-domain', back).value.trim().replace(/^\*\./, '')); });
 
     function update() {
       var name = $('#v-name', back).value.trim(), dom = $('#v-domain', back).value.trim(), port = $('#v-uport', back).value.trim();
@@ -244,51 +224,12 @@
       }
       toast(ed ? 'Host updated' : 'Host created', 'ok');
       close(); loadVhosts();
+      // Cert selection is just config now (issuance lives in the Certificates
+      // section). Re-render so the generator picks the selected cert file.
       if (st.cert === 'existing') { await api('/api/nginx/apply', { method: 'POST' }); loadVhosts(); }
-      else if (st.cert === 'http' || st.cert === 'dns') issueCertFor(body.domain.replace(/^\*\./, ''), $('#v-le-email', back) ? $('#v-le-email', back).value.trim() : '', st.cert, st.wildcard);
     };
   }
 
-  function showCertError(domain, detail) {
-    var box = document.getElementById('cert-err-panel');
-    if (!box) {
-      box = document.createElement('div');
-      box.id = 'cert-err-panel';
-      box.className = 'panel pad';
-      box.style.cssText = 'border-left:4px solid var(--danger);margin-bottom:16px';
-      var hosts = document.getElementById('vhosts');
-      hosts.parentNode.insertBefore(box, hosts);
-    }
-    box.innerHTML = '<div class="section-head"><div><h3 style="color:var(--danger)">Certificate failed \u2014 ' + esc(domain) + '</h3>' +
-      '<p>certbot output below. Common causes: domain not publicly resolvable, port 80 not reachable (HTTP-01), or DNS provider credentials.</p></div>' +
-      '<button class="btn-ghost" onclick="this.closest(\'#cert-err-panel\').remove()">Dismiss</button></div>' +
-      '<pre class="raw-conf" style="white-space:pre-wrap;max-height:280px;overflow:auto;margin:0">' + esc(detail) + '</pre>';
-    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    toast('Certificate failed \u2014 details shown above the host list', 'err');
-  }
-
-  // ── cert issuance for a vhost (HTTP-01 sync, DNS-01 background task) ──
-  async function issueCertFor(domain, email, mode, wildcard) {
-    toast('Requesting certificate for ' + domain + '\u2026', 'info');
-    if (mode === 'dns') {
-      var r = await api('/api/nginx/cert/dns', { method: 'POST',
-        body: JSON.stringify({ domain: domain, email: email, wildcard: !!wildcard }) });
-      if (!r.ok || !r.data || !r.data.task_id) { toast((r.data && r.data.detail) || 'Certificate request failed', 'err'); return; }
-      var t = setInterval(async function () {
-        if (document.hidden) return;
-        var s = await api('/api/backup/tasks/' + r.data.task_id);
-        var stt = s.ok && s.data && s.data.status;
-        if (stt === 'running' || stt === 'pending') return;
-        clearInterval(t);
-        if (stt === 'done') { await api('/api/nginx/apply', { method: 'POST' }); toast('Certificate issued for ' + domain, 'ok'); loadVhosts(); }
-        else { showCertError(domain, (s.data && s.data.error) || 'Issuance failed (no detail captured)'); }
-      }, 5000);
-    } else {
-      var r2 = await api('/api/nginx/certbot', { method: 'POST', body: JSON.stringify({ domain: domain, email: email }) });
-      if (r2.ok) { await api('/api/nginx/apply', { method: 'POST' }); toast('Certificate issued for ' + domain, 'ok'); loadVhosts(); }
-      else showCertError(domain, (r2.data && r2.data.detail && (r2.data.detail.output || r2.data.detail)) || 'Certificate request failed');
-    }
-  }
 
   // ── ACME DNS-01 provider ──
   // Credential env keys VERIFIED against lego's provider definitions
@@ -361,6 +302,116 @@
   async function loadCerts() {
     var r = await api('/api/nginx/certs');
     _certs = (r.ok && r.data && r.data.certs) || [];
+    renderCertList();
+  }
+  function renderCertList() {
+    var box = $('#cert-list'); if (!box) return;
+    if (!_certs.length) { box.innerHTML = '<p style="color:var(--muted)">No certificates yet. Issue one (wildcards via DNS-01) or register an external cert.</p>'; return; }
+    box.innerHTML = _certs.map(function (c) {
+      var covers = (c.covers && c.covers.length) ? esc(c.covers.join(', ')) : '<span style="color:var(--muted)">coverage unknown</span>';
+      var badge = c.source === 'external'
+        ? '<span class="tag ro">external</span>'
+        : '<span class="tag rw">Let\u2019s Encrypt</span>';
+      var missing = c.present === false ? ' <span class="tag" style="background:var(--danger-soft);color:var(--danger)">files missing</span>' : '';
+      var exp = c.expires ? '<div class="hint" style="margin:2px 0 0">expires ' + esc(c.expires) + '</div>' : '';
+      return '<div class="rule-row" style="align-items:flex-start">' +
+        '<div style="flex:1"><div style="font-weight:700">' + esc(c.name) + ' ' + badge + missing + '</div>' +
+        '<div class="hint" style="margin:2px 0 0">covers ' + covers + '</div>' + exp + '</div>' +
+        '<button class="icon-btn danger" data-cert-del="' + esc(c.name) + '" title="Delete"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-9 0v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7"/></svg></button>' +
+        '</div>';
+    }).join('');
+    box.querySelectorAll('[data-cert-del]').forEach(function (b) {
+      b.onclick = function () { deleteCert(b.getAttribute('data-cert-del')); };
+    });
+  }
+  async function deleteCert(name) {
+    if (!confirm('Delete certificate "' + name + '"? External certs only lose their registration (files stay). This is refused if a host still uses it.')) return;
+    var r = await api('/api/nginx/certs/' + encodeURIComponent(name), { method: 'DELETE' });
+    if (r.ok) { toast('Certificate removed', 'ok'); loadCerts(); await api('/api/nginx/apply', { method: 'POST' }); loadVhosts(); }
+    else toast((r.data && r.data.detail) || 'Could not delete', 'err');
+  }
+
+  // ── issue-certificate modal (standalone; NOT tied to a host) ──
+  function certIssueModal() {
+    var back = document.createElement('div'); back.className = 'backdrop show';
+    back.innerHTML =
+      '<div class="modal" style="max-width:520px">' +
+      '<h3>Issue a certificate</h3>' +
+      '<div class="fld"><label>Domain(s)</label><input class="wz-input" id="ci-domain" placeholder="example.com" autocomplete="off">' +
+        '<div class="hint">One name, e.g. <code>example.com</code>. Turn on wildcard to also cover <code>*.example.com</code>.</div></div>' +
+      '<div class="opt-row"><div class="opt-text"><h5>Wildcard</h5><p>Also issue <code>*.domain</code> (covers every one-level subdomain). Requires DNS-01.</p></div><div class="switch" id="ci-wild"><i></i></div></div>' +
+      '<div class="opt-row"><div class="opt-text"><h5>Also cover the apex</h5><p>Include the bare <code>domain</code> alongside the wildcard.</p></div><div class="switch" id="ci-apex"><i></i></div></div>' +
+      '<div class="fld"><label>Challenge</label><div class="seg" id="ci-mode"><button data-m="dns" class="sel pri">DNS-01</button><button data-m="http">HTTP-01</button></div>' +
+        '<div class="hint" id="ci-mode-hint">DNS-01 works without exposing port 80 and supports wildcards.</div></div>' +
+      '<div class="fld"><label>Email (optional)</label><input class="wz-input" id="ci-email" placeholder="you@example.com" autocomplete="off"></div>' +
+      '<div id="ci-out" class="raw-err" style="display:none"></div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
+        '<button class="button ghost" id="ci-cancel">Cancel</button><button class="button" id="ci-go">Issue</button></div>' +
+      '</div>';
+    document.body.appendChild(back);
+    var mode = 'dns', wild = false, apex = false;
+    function setMode(m) { mode = m; back.querySelectorAll('#ci-mode button').forEach(function (b) { b.className = b.getAttribute('data-m') === m ? 'sel pri' : ''; });
+      $('#ci-mode-hint', back).textContent = m === 'dns' ? 'DNS-01 works without exposing port 80 and supports wildcards.' : 'HTTP-01 validates over port 80 \u2014 the host must be reachable from the internet, and cannot do wildcards.';
+      if (m === 'http' && wild) { wild = false; $('#ci-wild', back).className = 'switch'; }
+    }
+    back.querySelectorAll('#ci-mode button').forEach(function (b) { b.onclick = function () { setMode(b.getAttribute('data-m')); }; });
+    $('#ci-wild', back).onclick = function () { wild = !wild; this.className = 'switch' + (wild ? ' on' : ''); if (wild) setMode('dns'); };
+    $('#ci-apex', back).onclick = function () { apex = !apex; this.className = 'switch' + (apex ? ' on' : ''); };
+    $('#ci-cancel', back).onclick = function () { back.remove(); };
+    $('#ci-go', back).onclick = async function () {
+      var dom = $('#ci-domain', back).value.trim().replace(/^\*\./, '');
+      var email = $('#ci-email', back).value.trim();
+      if (!dom) { toast('Enter a domain', 'err'); return; }
+      this.disabled = true; this.style.opacity = .5;
+      var out = $('#ci-out', back);
+      if (mode === 'dns') {
+        var r = await api('/api/nginx/cert/dns', { method: 'POST',
+          body: JSON.stringify({ domain: dom, email: email, wildcard: wild, apex: apex }) });
+        if (!r.ok || !r.data || !r.data.task_id) { out.style.display = ''; out.textContent = (r.data && r.data.detail) || 'Request failed'; this.disabled = false; this.style.opacity = 1; return; }
+        toast('Issuing \u2014 waiting for DNS propagation\u2026', 'info');
+        var btn = this;
+        var t = setInterval(async function () {
+          if (document.hidden) return;
+          var s = await api('/api/backup/tasks/' + r.data.task_id);
+          var stt = s.ok && s.data && s.data.status;
+          if (stt === 'running' || stt === 'pending') return;
+          clearInterval(t);
+          if (stt === 'done') { toast('Certificate issued', 'ok'); back.remove(); loadCerts(); }
+          else { out.style.display = ''; out.textContent = (s.data && s.data.error) || 'Issuance failed'; btn.disabled = false; btn.style.opacity = 1; }
+        }, 5000);
+      } else {
+        var r2 = await api('/api/nginx/certbot', { method: 'POST', body: JSON.stringify({ domain: dom, email: email }) });
+        if (r2.ok) { toast('Certificate issued', 'ok'); back.remove(); loadCerts(); }
+        else { out.style.display = ''; out.textContent = (r2.data && r2.data.detail && (r2.data.detail.output || r2.data.detail)) || 'Request failed'; this.disabled = false; this.style.opacity = 1; }
+      }
+    };
+  }
+
+  // ── register-external-cert modal ──
+  function certRegisterModal() {
+    var back = document.createElement('div'); back.className = 'backdrop show';
+    back.innerHTML =
+      '<div class="modal" style="max-width:520px">' +
+      '<h3>Register an external certificate</h3>' +
+      '<p class="hint">Point ForgeOS at PEM files an external tool maintains (e.g. a porkbun-certbot container). ForgeOS will use and select it, but will NOT renew it \u2014 the external tool owns that.</p>' +
+      '<div class="fld"><label>Name</label><input class="wz-input" id="cr-name" placeholder="example.com" autocomplete="off"><div class="hint">A label, used to select this cert on a host.</div></div>' +
+      '<div class="fld"><label>fullchain.pem path</label><input class="wz-input" id="cr-fc" placeholder="/etc/certs/example.com/fullchain.pem" autocomplete="off"></div>' +
+      '<div class="fld"><label>privkey.pem path</label><input class="wz-input" id="cr-pk" placeholder="/etc/certs/example.com/privkey.pem" autocomplete="off"></div>' +
+      '<div id="cr-out" class="raw-err" style="display:none"></div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
+        '<button class="button ghost" id="cr-cancel">Cancel</button><button class="button" id="cr-go">Register</button></div>' +
+      '</div>';
+    document.body.appendChild(back);
+    $('#cr-cancel', back).onclick = function () { back.remove(); };
+    $('#cr-go', back).onclick = async function () {
+      var name = $('#cr-name', back).value.trim(), fcp = $('#cr-fc', back).value.trim(), pk = $('#cr-pk', back).value.trim();
+      if (!name || !fcp || !pk) { toast('All fields required', 'err'); return; }
+      this.disabled = true; this.style.opacity = .5;
+      var r = await api('/api/nginx/certs/register', { method: 'POST',
+        body: JSON.stringify({ name: name, fullchain_path: fcp, privkey_path: pk }) });
+      if (r.ok) { toast('Certificate registered', 'ok'); back.remove(); loadCerts(); }
+      else { var o = $('#cr-out', back); o.style.display = ''; o.textContent = (r.data && r.data.detail) || 'Could not register'; this.disabled = false; this.style.opacity = 1; }
+    };
   }
   async function loadDns() {
     var d = (await api('/api/nginx/acme/dns')).data;
@@ -434,6 +485,8 @@
 
   document.addEventListener('DOMContentLoaded', function () {
     var add = $('#add-vhost'); if (add) add.onclick = function () { vhostModal(null); };
+    var ci = $('#cert-issue'); if (ci) ci.onclick = certIssueModal;
+    var cr = $('#cert-register'); if (cr) cr.onclick = certRegisterModal;
     var rf = $('#refresh'); if (rf) rf.onclick = function () { loadVhosts(); loadDns(); toast('Refreshed', 'info'); };
     var ds = $('#dns-save'); if (ds) ds.onclick = saveDns;
     var dc = $('#dns-clear'); if (dc) dc.onclick = clearDns;

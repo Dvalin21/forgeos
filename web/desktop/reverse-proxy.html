@@ -25,7 +25,13 @@
     </section>
 
     <section class="panel pad" style="margin-bottom:18px">
-      <div class="section-head"><div><h3>DNS provider (for DNS-01 certificates)</h3><p>Certificates are requested per-host in the New/Edit host dialog. Configure the DNS provider here once; DNS-01 enables wildcards and hosts not exposed on port 80.</p></div><span class="chip" id="dns-chip">&mdash;</span></div>
+      <div class="section-head"><div><h3>Certificates</h3><p>Issue a certificate once (wildcards via DNS-01), then select it per host below. You can also register a certificate managed by an external tool.</p></div>
+        <div style="display:flex;gap:8px"><button class="button ghost" id="cert-register" type="button">Register external</button><button class="button" style="background:var(--primary-soft);color:var(--primary)" id="cert-issue" type="button"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Issue certificate</button></div></div>
+      <div id="cert-list"><p style="color:var(--muted)">Loading certificates&hellip;</p></div>
+    </section>
+
+    <section class="panel pad" style="margin-bottom:18px">
+      <div class="section-head"><div><h3>DNS provider (for DNS-01 certificates)</h3><p>Configure your DNS provider once so DNS-01 issuance (including wildcards) can prove domain ownership without exposing port 80.</p></div><span class="chip" id="dns-chip">&mdash;</span></div>
 
       <div class="fld"><label>DNS provider (for DNS-01)</label>
         <div class="wz-from">

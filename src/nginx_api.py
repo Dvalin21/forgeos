@@ -124,16 +124,99 @@ async def list_certs(user=Depends(verify_token)):
     """Issued certs under /etc/letsencrypt/live/, with the SANs each covers —
     lets a vhost SELECT an existing/wildcard cert instead of issuing its own.
     Reads the cert to report real coverage (wildcards included)."""
-    live = Path("/etc/letsencrypt/live")
     out = []
+    seen = set()
+    # 1) Registered EXTERNAL certs first (they win path resolution too).
+    cfg = fc.load()
+    for c in getattr(cfg.nginx, "external_certs", []):
+        p_fc = Path(c.fullchain_path)
+        out.append({"name": c.name, "covers": _cert_sans(p_fc),
+                    "source": "external", "present": p_fc.exists(),
+                    "expires": _cert_expiry(p_fc)})
+        seen.add(c.name)
+    # 2) Let's Encrypt issued certs.
+    live = Path("/etc/letsencrypt/live")
     if live.is_dir():
         for d in sorted(live.iterdir()):
             fc_pem = d / "fullchain.pem"
-            if not d.is_dir() or not fc_pem.exists():
+            if not d.is_dir() or not fc_pem.exists() or d.name in seen:
                 continue
-            names = _cert_sans(fc_pem)
-            out.append({"name": d.name, "covers": names})
+            out.append({"name": d.name, "covers": _cert_sans(fc_pem),
+                        "source": "letsencrypt", "present": True,
+                        "expires": _cert_expiry(fc_pem)})
     return {"certs": out}
+
+
+@router.post("/api/nginx/certs/register")
+async def register_cert(body: dict, user=Depends(verify_token)):
+    """Register an EXTERNALLY-managed cert (e.g. a porkbun-certbot container's
+    output) by name + PEM paths, so vhosts can select it. ForgeOS does not
+    issue or renew it — the external tool owns its lifecycle."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    name = str(body.get("name", "")).strip()
+    fullchain = str(body.get("fullchain_path", "")).strip()
+    privkey = str(body.get("privkey_path", "")).strip()
+    if not (name and fullchain and privkey):
+        raise HTTPException(400, "name, fullchain_path, privkey_path required")
+    # Must exist and be readable now — fail loud, not at nginx reload.
+    for pth in (fullchain, privkey):
+        if not Path(pth).is_file():
+            raise HTTPException(400, f"file not found: {pth}")
+    cfg = fc.load()
+    cfg.nginx.external_certs = [c for c in cfg.nginx.external_certs if c.name != name]
+    try:
+        cfg.nginx.external_certs.append(
+            fc.ExternalCert(name=name, fullchain_path=fullchain, privkey_path=privkey))
+    except Exception as e:
+        raise HTTPException(400, f"invalid: {e}")
+    fc.save(cfg)
+    assert _audit is not None
+    _audit(user["sub"], "nginx.cert.register", "success", f"registered external cert {name}")
+    return {"ok": True}
+
+
+@router.delete("/api/nginx/certs/{name}")
+async def delete_cert(name: str, user=Depends(verify_token)):
+    """Remove a cert. External: forget the registration (files untouched).
+    Let's Encrypt: delete the lineage via certbot. Refuses if any vhost still
+    selects it — no silent fallback to snakeoil behind the user's back."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    cfg = fc.load()
+    users = [v.name for v in cfg.nginx.vhosts if (v.cert_name or v.domain) == name]
+    if users:
+        raise HTTPException(409, f"cert in use by vhost(s): {', '.join(users)}")
+    ext = [c for c in cfg.nginx.external_certs if c.name == name]
+    if ext:
+        cfg.nginx.external_certs = [c for c in cfg.nginx.external_certs if c.name != name]
+        fc.save(cfg)
+        assert _audit is not None
+        _audit(user["sub"], "nginx.cert.delete", "success", f"unregistered external cert {name}")
+        return {"ok": True, "source": "external"}
+    # Let's Encrypt lineage
+    if not Path(f"/etc/letsencrypt/live/{name}").exists():
+        raise HTTPException(404, f"no such cert: {name}")
+    assert _run_args is not None
+    _run_args(["certbot", "delete", "--cert-name", name, "--non-interactive"], timeout=60)
+    assert _audit is not None
+    _audit(user["sub"], "nginx.cert.delete", "success", f"deleted LE cert {name}")
+    return {"ok": True, "source": "letsencrypt"}
+
+
+def _cert_expiry(fullchain: Path) -> str:
+    """notAfter date (ISO-ish) via openssl, or "" if unreadable/missing."""
+    try:
+        if not fullchain.exists():
+            return ""
+        r = subprocess.run(
+            ["openssl", "x509", "-in", str(fullchain), "-noout", "-enddate"],
+            capture_output=True, text=True, timeout=5)
+        if r.returncode == 0 and "=" in r.stdout:
+            return r.stdout.split("=", 1)[1].strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return ""
 
 
 def _cert_sans(fullchain: Path) -> list[str]:
@@ -371,17 +454,29 @@ async def request_cert_dns(body: dict, user=Depends(verify_token)):
     domain = str(body.get("domain", "")).strip()
     email = str(body.get("email", "")).strip()
     wildcard = bool(body.get("wildcard", False))
+    # apex controls whether the bare domain is included. Default True keeps
+    # back-compat (domain always issued). Three combos:
+    #   wildcard=F, apex=T  -> example.com
+    #   wildcard=T, apex=T  -> example.com + *.example.com
+    #   wildcard=T, apex=F  -> *.example.com only
+    apex = bool(body.get("apex", True))
     # Same strict validation as the HTTP-01 path — no shell metacharacters.
     if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9.\-]{0,253}[a-zA-Z0-9]$", domain):
         raise HTTPException(400, "Invalid domain name")
     if email and not re.match(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$", email):
         raise HTTPException(400, "Invalid email address")
-    # arg-list (no shell). The wildcard label is CONSTRUCTED from the validated
-    # domain, never taken raw from input.
+    if not apex and not wildcard:
+        raise HTTPException(400, "Nothing to issue: enable apex, wildcard, or both")
+    # arg-list (no shell). Labels are CONSTRUCTED from the validated domain.
     cmd = ["certbot", "certonly", "-a", "dns-multi",
            "--dns-multi-credentials", str(DNS_CREDS_FILE),
            "--non-interactive", "--agree-tos",
-           "--email", email or f"admin@{domain}", "-d", domain]
+           "--email", email or f"admin@{domain}"]
+    # cert lineage name = the apex domain so it's predictable/selectable even
+    # for a wildcard-only cert (certbot would otherwise name it after *.).
+    cmd += ["--cert-name", domain]
+    if apex:
+        cmd += ["-d", domain]
     if wildcard:
         cmd += ["-d", f"*.{domain}"]
     # DNS-01 waits for propagation — lego's per-provider defaults run 600s

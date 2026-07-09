@@ -208,3 +208,92 @@ class TestCertsEndpoint:
 
     def test_certs_requires_auth(self, test_client):
         assert test_client.get("/api/nginx/certs").status_code in (401, 403)
+
+
+class TestCertLifecycleEndpoints:
+    def test_register_external_cert(self, test_client, auth_headers, tmp_path):
+        import forgeos_config as fcfg
+        fcp = tmp_path / "fc.pem"; fcp.write_text("x")
+        pk = tmp_path / "pk.pem"; pk.write_text("y")
+        r = test_client.post("/api/nginx/certs/register", headers=auth_headers,
+                             json={"name": "wild", "fullchain_path": str(fcp),
+                                   "privkey_path": str(pk)})
+        assert r.status_code == 200, r.text
+        assert any(c.name == "wild" for c in fcfg.load().nginx.external_certs)
+
+    def test_register_missing_file_400(self, test_client, auth_headers):
+        r = test_client.post("/api/nginx/certs/register", headers=auth_headers,
+                             json={"name": "x", "fullchain_path": "/nope/a",
+                                   "privkey_path": "/nope/b"})
+        assert r.status_code == 400
+
+    def test_register_requires_admin(self, test_client, user_headers, tmp_path):
+        fcp = tmp_path / "fc.pem"; fcp.write_text("x")
+        assert test_client.post("/api/nginx/certs/register", headers=user_headers,
+                                json={"name": "x", "fullchain_path": str(fcp),
+                                      "privkey_path": str(fcp)}).status_code == 403
+
+    def test_delete_refuses_if_in_use(self, test_client, auth_headers, tmp_path):
+        import forgeos_config as fcfg
+        fcp = tmp_path / "fc.pem"; fcp.write_text("x")
+        pk = tmp_path / "pk.pem"; pk.write_text("y")
+        cfg = fcfg.load()
+        cfg.nginx.external_certs.append(fcfg.ExternalCert(name="shared", fullchain_path=str(fcp), privkey_path=str(pk)))
+        cfg.nginx.vhosts.append(fcfg.NginxVhost(name="mail", domain="mail.example.com", upstream_port=80, cert_name="shared"))
+        fcfg.save(cfg)
+        r = test_client.delete("/api/nginx/certs/shared", headers=auth_headers)
+        assert r.status_code == 409
+
+    def test_delete_external_unregisters(self, test_client, auth_headers, tmp_path):
+        import forgeos_config as fcfg
+        fcp = tmp_path / "fc.pem"; fcp.write_text("x")
+        pk = tmp_path / "pk.pem"; pk.write_text("y")
+        cfg = fcfg.load()
+        cfg.nginx.external_certs.append(fcfg.ExternalCert(name="lonely", fullchain_path=str(fcp), privkey_path=str(pk)))
+        fcfg.save(cfg)
+        r = test_client.delete("/api/nginx/certs/lonely", headers=auth_headers)
+        assert r.status_code == 200 and r.json()["source"] == "external"
+        assert not any(c.name == "lonely" for c in fcfg.load().nginx.external_certs)
+
+
+class TestDns01ApexWildcard:
+    def _cap(self, monkeypatch):
+        import nginx_api
+        calls = []
+        monkeypatch.setattr(nginx_api, "_start_task",
+                            lambda cmd, tool, action, timeout=600: (calls.append(cmd), "t")[1])
+        return calls
+
+    def test_apex_only(self, test_client, auth_headers, dns_creds, monkeypatch):
+        dns_creds.write_text("dns_multi_provider = cloudflare\n")
+        c = self._cap(monkeypatch)
+        test_client.post("/api/nginx/cert/dns", headers=auth_headers,
+                         json={"domain": "example.com", "apex": True, "wildcard": False})
+        cmd = c[0]
+        assert "example.com" in cmd and "*.example.com" not in cmd
+
+    def test_wildcard_and_apex(self, test_client, auth_headers, dns_creds, monkeypatch):
+        dns_creds.write_text("dns_multi_provider = cloudflare\n")
+        c = self._cap(monkeypatch)
+        test_client.post("/api/nginx/cert/dns", headers=auth_headers,
+                         json={"domain": "example.com", "apex": True, "wildcard": True})
+        cmd = c[0]
+        assert "example.com" in cmd and "*.example.com" in cmd
+
+    def test_wildcard_only(self, test_client, auth_headers, dns_creds, monkeypatch):
+        dns_creds.write_text("dns_multi_provider = cloudflare\n")
+        c = self._cap(monkeypatch)
+        test_client.post("/api/nginx/cert/dns", headers=auth_headers,
+                         json={"domain": "example.com", "apex": False, "wildcard": True})
+        cmd = c[0]
+        assert "*.example.com" in cmd
+        # apex bare domain NOT a -d target (but IS the --cert-name)
+        i = cmd.index("--cert-name")
+        d_targets = [cmd[j+1] for j, tok in enumerate(cmd) if tok == "-d"]
+        assert "example.com" not in d_targets
+
+    def test_nothing_selected_400(self, test_client, auth_headers, dns_creds):
+        dns_creds.write_text("dns_multi_provider = cloudflare\n")
+        r = test_client.post("/api/nginx/cert/dns", headers=auth_headers,
+                             json={"domain": "example.com", "apex": False, "wildcard": False})
+        assert r.status_code == 400

@@ -284,7 +284,7 @@ class TestSharedCertSelection:
         # vhost mail.example.com with cert_name=example.com must emit the
         # example.com cert path, NOT mail.example.com.
         import generators.nginx as ng
-        def fake_paths(cert_name):
+        def fake_paths(cert_name, external=None):
             return (f"/etc/letsencrypt/live/{cert_name}/fullchain.pem",
                     f"/etc/letsencrypt/live/{cert_name}/privkey.pem")
         monkeypatch.setattr(ng.NginxGenerator, "_cert_paths", staticmethod(fake_paths))
@@ -294,3 +294,44 @@ class TestSharedCertSelection:
         out = _vhost_files(ng.NginxGenerator().render(cfg))[0].content
         assert "/live/example.com/fullchain.pem" in out
         assert "/live/mail.example.com/" not in out
+
+
+class TestExternalCertResolution:
+    def test_external_cert_wins_over_le(self, tmp_path, monkeypatch):
+        import generators.nginx as ng
+        # external cert present on disk
+        ext_fc = tmp_path / "ext-fc.pem"; ext_fc.write_text("x")
+        ext_pk = tmp_path / "ext-pk.pem"; ext_pk.write_text("y")
+        cert, key = ng.NginxGenerator._cert_paths(
+            "wild", {"wild": (str(ext_fc), str(ext_pk))})
+        assert cert == str(ext_fc) and key == str(ext_pk)
+
+    def test_external_missing_files_falls_through(self, tmp_path):
+        import generators.nginx as ng
+        cert, key = ng.NginxGenerator._cert_paths(
+            "wild", {"wild": ("/nope/fc.pem", "/nope/pk.pem")})
+        # neither external (missing) nor LE -> snakeoil
+        assert "snakeoil" in cert
+
+    def test_generator_uses_external_cert(self, tmp_path, monkeypatch):
+        import generators.nginx as ng
+        ext_fc = tmp_path / "fc.pem"; ext_fc.write_text("x")
+        ext_pk = tmp_path / "pk.pem"; ext_pk.write_text("y")
+        cfg = _cfg(fc.NginxVhost(name="mail", domain="mail.example.com",
+                                 upstream_port=8081, cert_name="wildcert",
+                                 force_ssl=True))
+        cfg.nginx.external_certs = [fc.ExternalCert(
+            name="wildcert", fullchain_path=str(ext_fc), privkey_path=str(ext_pk))]
+        out = _vhost_files(ng.NginxGenerator().render(cfg))[0].content
+        assert str(ext_fc) in out
+
+
+class TestExternalCertModel:
+    def test_rejects_bad_name(self):
+        for bad in ("../x", "a/b", "..", "x y"):
+            with pytest.raises(Exception):
+                fc.ExternalCert(name=bad, fullchain_path="/a", privkey_path="/b")
+
+    def test_valid(self):
+        c = fc.ExternalCert(name="example.com", fullchain_path="/a/fc.pem", privkey_path="/a/pk.pem")
+        assert c.name == "example.com"

@@ -197,9 +197,27 @@ class NginxVhost(BaseModel):
         return out
 
 
+class ExternalCert(BaseModel):
+    """A cert ForgeOS did NOT issue — points at PEM files an external tool
+    (e.g. a porkbun-certbot container) drops in. Recorded so it appears in
+    the cert list and is selectable by vhosts, exactly like an issued cert."""
+    name: str                                  # dir/label, selectable as vhost.cert_name
+    fullchain_path: str
+    privkey_path: str
+
+    @field_validator("name")
+    @classmethod
+    def _valid(cls, v: str) -> str:
+        v = v.strip()
+        if not v or v in (".", "..") or any(c in v for c in "/\\\0 "):
+            raise ValueError(f"invalid cert name: {v!r}")
+        return v
+
+
 class NginxConfig(BaseModel):
     enabled: bool = True
     vhosts: list[NginxVhost] = Field(default_factory=list)
+    external_certs: list[ExternalCert] = Field(default_factory=list)
 
     @field_validator("vhosts")
     @classmethod

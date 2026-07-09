@@ -71,8 +71,10 @@ class NginxGenerator(ServiceGenerator):
         # domain — including access by IP and localhost, i.e. normal use.)
         default_name = "forgeos-ui" if any(
             v.name == "forgeos-ui" for v in nginx.vhosts) else nginx.vhosts[0].name
+        ext = {c.name: (c.fullchain_path, c.privkey_path)
+               for c in getattr(nginx, "external_certs", [])}
         for v in nginx.vhosts:
-            cert, key = self._cert_paths(v.cert_name or v.domain)
+            cert, key = self._cert_paths(v.cert_name or v.domain, ext)
             content = tpl.render(v=v, cert_path=cert, key_path=key,
                                  is_default=(v.name == default_name))
             out.append(
@@ -117,9 +119,14 @@ class NginxGenerator(ServiceGenerator):
         return written
 
     @staticmethod
-    def _cert_paths(cert_name: str) -> tuple[str, str]:
-        # cert_name is a dir under live/ — the vhost's own domain by default,
-        # or a shared/wildcard cert selected via vhost.cert_name.
+    def _cert_paths(cert_name: str, external: dict | None = None) -> tuple[str, str]:
+        # Resolution order: a registered EXTERNAL cert by that name, then a
+        # Let's Encrypt live dir, else snakeoil. cert_name defaults to the
+        # vhost domain (per-host), or names a shared/wildcard/external cert.
+        if external and cert_name in external:
+            fc, pk = external[cert_name]
+            if Path(fc).exists() and Path(pk).exists():
+                return fc, pk
         le_dir = Path(f"/etc/letsencrypt/live/{cert_name}")
         if (le_dir / "fullchain.pem").exists():
             return str(le_dir / "fullchain.pem"), str(le_dir / "privkey.pem")
