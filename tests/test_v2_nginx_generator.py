@@ -249,3 +249,48 @@ def test_upstream_host_rejects_injection():
     with pytest.raises(ValueError):
         fc.NginxVhost(name="a", domain="a.lan", upstream_port=80,
                       upstream_host="127.0.0.1; }")
+
+
+class TestSharedCertSelection:
+    """cert_name lets a vhost point at a shared/wildcard cert dir instead of
+    one named after its own domain — the whole point of issue-once-select-many."""
+
+    def test_cert_name_selects_shared_dir(self, tmp_path, monkeypatch):
+        # wildcard cert lives at live/example.com/, vhost is mail.example.com
+        live = tmp_path / "example.com"; live.mkdir()
+        (live / "fullchain.pem").write_text("x"); (live / "privkey.pem").write_text("y")
+        import generators.nginx as ng
+        monkeypatch.setattr(ng, "Path", lambda p: tmp_path / str(p).split("/live/")[-1]
+                            if "/live/" in str(p) else Path(p))
+        cert, key = ng.NginxGenerator._cert_paths("example.com")
+        assert cert.endswith("example.com/fullchain.pem")
+
+    def test_cert_name_defaults_to_domain(self):
+        v = fc.NginxVhost(name="m", domain="mail.example.com", upstream_port=8080)
+        assert v.cert_name == ""            # "" => generator uses domain
+
+    def test_cert_name_in_dump(self):
+        v = fc.NginxVhost(name="m", domain="mail.example.com", upstream_port=8080,
+                          cert_name="example.com")
+        assert v.model_dump()["cert_name"] == "example.com"
+
+    def test_cert_name_rejects_traversal(self):
+        for bad in ("../etc", "a/b", "..", "x\x00y"):
+            with pytest.raises(Exception):
+                fc.NginxVhost(name="m", domain="d.example.com",
+                              upstream_port=80, cert_name=bad)
+
+    def test_generator_uses_cert_name(self, tmp_path, monkeypatch):
+        # vhost mail.example.com with cert_name=example.com must emit the
+        # example.com cert path, NOT mail.example.com.
+        import generators.nginx as ng
+        def fake_paths(cert_name):
+            return (f"/etc/letsencrypt/live/{cert_name}/fullchain.pem",
+                    f"/etc/letsencrypt/live/{cert_name}/privkey.pem")
+        monkeypatch.setattr(ng.NginxGenerator, "_cert_paths", staticmethod(fake_paths))
+        cfg = _cfg(fc.NginxVhost(name="mail", domain="mail.example.com",
+                                 upstream_port=8080, cert_name="example.com",
+                                 force_ssl=True))
+        out = _vhost_files(ng.NginxGenerator().render(cfg))[0].content
+        assert "/live/example.com/fullchain.pem" in out
+        assert "/live/mail.example.com/" not in out

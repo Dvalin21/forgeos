@@ -96,8 +96,11 @@
       '<div class="fld"><label>Allow IPs (optional)</label><input class="wz-input" id="v-allow" placeholder="10.0.0.0/24 192.168.1.5" autocomplete="off"><div class="hint">If set, ONLY these IPs / CIDRs may connect. Space-separated.</div></div>' +
       '<div class="fld"><label>Deny IPs (optional)</label><input class="wz-input" id="v-deny" placeholder="203.0.113.0/24" autocomplete="off"><div class="hint">Blocklist. Ignored when an allow-list is set above.</div></div>' +
       '<div class="fld"><label>Custom snippet (optional)</label><textarea id="v-snip" class="raw-conf" style="min-height:80px" spellcheck="false" placeholder="# raw nginx, inside server { }"></textarea><div class="hint">Advanced escape hatch &mdash; raw nginx inside the server block.</div></div>' +
-      '<div class="fld"><label>Certificate</label><div class="seg" id="v-cert"><button data-c="local">Local (self-signed)</button><button data-c="http">Let\u2019s Encrypt HTTP-01</button><button data-c="dns">Let\u2019s Encrypt DNS-01</button></div>' +
+      '<div class="fld"><label>Certificate</label><div class="seg" id="v-cert"><button data-c="local">Local (self-signed)</button><button data-c="existing">Use existing cert</button><button data-c="http">Issue HTTP-01</button><button data-c="dns">Issue DNS-01</button></div>' +
         '<div class="hint" id="v-cert-hint"></div></div>' +
+      '<div class="fld" id="v-cert-pick-row" style="display:none"><label>Existing certificate</label>' +
+        '<select class="wz-input" id="v-cert-pick"></select>' +
+        '<div class="hint" id="v-cert-pick-hint">Share one issued cert across vhosts \u2014 e.g. a <code>*.example.com</code> wildcard for every subdomain.</div></div>' +
       '<div class="fld" id="v-le-extra" style="display:none">' +
         '<div class="opt-row" id="v-wild-row" style="display:none"><div class="opt-text"><h5>Wildcard</h5><p>Also request <code>*.domain</code> (DNS-01 only).</p></div><div class="switch" data-sw="wildcard"><i></i></div></div>' +
         '<label>Email for Let\u2019s Encrypt (optional)</label><input class="wz-input" id="v-le-email" placeholder="you@example.com" autocomplete="off"></div>' +
@@ -119,25 +122,63 @@
       if (/^\d+\.\d+\.\d+\.\d+$/.test(d)) return false;
       return !/\.(local|lan|internal|home\.arpa)$/i.test(d);
     }
+    function certCovers(covers, dom) {
+      // does a SAN list cover this hostname? exact or single-label wildcard.
+      return (covers || []).some(function (n) {
+        if (n === dom) return true;
+        if (n.indexOf('*.') === 0) {
+          var suffix = n.slice(1);                 // "*.example.com" -> ".example.com"
+          var host = dom.slice(0, dom.length - suffix.length);
+          return dom.slice(-suffix.length) === suffix && host && host.indexOf('.') < 0;
+        }
+        return false;
+      });
+    }
     function selCert(c) {
       var dom = $('#v-domain', back).value.trim().replace(/^\*\./, '');
       var hint = $('#v-cert-hint', back);
-      if (c !== 'local' && !domainIsPublic(dom)) {
+      if ((c === 'http' || c === 'dns') && !domainIsPublic(dom)) {
         hint.textContent = 'Let\u2019s Encrypt needs a public DNS name \u2014 .local / .lan / IP hosts stay self-signed.';
         c = 'local';
       } else if (c === 'dns' && !_dnsConfigured) {
         hint.textContent = 'DNS-01 needs a DNS provider configured (panel below) \u2014 falling back.';
         c = 'local';
+      } else if (c === 'existing' && !_certs.length) {
+        hint.textContent = 'No issued certificates yet \u2014 issue one first, then it becomes selectable.';
+        c = 'local';
       } else {
         hint.textContent = c === 'local' ? 'ForgeOS self-signed cert \u2014 fine on your LAN, browsers warn once.'
+          : c === 'existing' ? 'Reuse an already-issued cert (no new issuance). Pick one that covers this hostname.'
           : c === 'http' ? 'Validates over port 80 \u2014 the host must be reachable from the internet.'
           : 'Validates via your DNS provider \u2014 works without exposing port 80; supports wildcard. Propagation can take minutes.';
       }
       st.cert = c;
       $$('#v-cert button', back).forEach(function (b) { b.className = b.getAttribute('data-c') === c ? 'sel pri' : ''; });
-      $('#v-le-extra', back).style.display = c === 'local' ? 'none' : '';
+      $('#v-cert-pick-row', back).style.display = c === 'existing' ? '' : 'none';
+      $('#v-le-extra', back).style.display = (c === 'http' || c === 'dns') ? '' : 'none';
       $('#v-wild-row', back).style.display = c === 'dns' ? '' : 'none';
+      if (c === 'existing') fillCertPick(dom);
     }
+    function fillCertPick(dom) {
+      var sel = $('#v-cert-pick', back), h = $('#v-cert-pick-hint', back);
+      sel.innerHTML = _certs.map(function (crt) {
+        var ok = certCovers(crt.covers, dom);
+        return '<option value="' + esc(crt.name) + '"' + (ok ? '' : ' data-nomatch="1"') + '>' +
+          esc(crt.name) + (crt.covers && crt.covers.length ? ' \u2014 covers ' + esc(crt.covers.join(', ')) : '') +
+          (ok ? '' : '  (does NOT cover ' + esc(dom) + ')') + '</option>';
+      }).join('');
+      // auto-pick the first covering cert
+      var match = _certs.filter(function (crt) { return certCovers(crt.covers, dom); })[0];
+      if (match) { sel.value = match.name; h.textContent = 'This cert covers ' + dom + '.'; h.style.color = ''; }
+      else { h.textContent = 'Warning: no listed cert covers ' + dom + ' \u2014 the browser will show a name mismatch.'; h.style.color = 'var(--danger)'; }
+    }
+    $('#v-cert-pick', back) && ($('#v-cert-pick', back).onchange = function () {
+      var dom = $('#v-domain', back).value.trim().replace(/^\*\./, '');
+      var opt = this.options[this.selectedIndex];
+      var h = $('#v-cert-pick-hint', back);
+      if (opt && opt.getAttribute('data-nomatch')) { h.textContent = 'This cert does NOT cover ' + dom + ' \u2014 name mismatch in the browser.'; h.style.color = 'var(--danger)'; }
+      else { h.textContent = 'This cert covers ' + dom + '.'; h.style.color = ''; }
+    });
     $$('#v-cert button', back).forEach(function (b) { b.onclick = function () { selCert(b.getAttribute('data-c')); }; });
     $('#v-domain', back).addEventListener('input', function () { selCert(st.cert); });
 
@@ -167,7 +208,12 @@
       setSw('force_ssl', ed.force_ssl !== false); setSw('hsts', ed.hsts !== false);
       setSw('http2', ed.http2 !== false); setSw('websocket', !!ed.websocket);
       setSw('block_common_exploits', !!ed.block_common_exploits); setSw('gzip', !!ed.gzip);
-      if (ed.cert === 'letsencrypt') { $('#v-cert-hint', back).textContent = 'This host already has a Let\u2019s Encrypt certificate.'; }
+      if (ed.cert_name) {
+        selCert('existing');
+        var ps = $('#v-cert-pick', back); if (ps) ps.value = ed.cert_name;
+      } else if (ed.cert === 'letsencrypt') {
+        $('#v-cert-hint', back).textContent = 'This host already has a Let\u2019s Encrypt certificate.';
+      }
       update();
     }
 
@@ -182,7 +228,8 @@
         upstream_scheme: st.upstream_scheme,
         websocket: st.websocket, force_ssl: st.force_ssl, hsts: st.hsts, http2: st.http2,
         block_common_exploits: st.block_common_exploits, gzip: st.gzip,
-        custom_snippet: $('#v-snip', back).value
+        custom_snippet: $('#v-snip', back).value,
+        cert_name: st.cert === 'existing' ? ($('#v-cert-pick', back).value || '') : ''
       };
       var bsz = $('#v-body', back).value.trim(); if (bsz) body.client_max_body_size = bsz;
       var tmo = $('#v-timeout', back).value.trim(); if (tmo) body.proxy_read_timeout = parseInt(tmo, 10);
@@ -197,7 +244,8 @@
       }
       toast(ed ? 'Host updated' : 'Host created', 'ok');
       close(); loadVhosts();
-      if (st.cert !== 'local') issueCertFor(body.domain.replace(/^\*\./, ''), $('#v-le-email', back) ? $('#v-le-email', back).value.trim() : '', st.cert, st.wildcard);
+      if (st.cert === 'existing') { await api('/api/nginx/apply', { method: 'POST' }); loadVhosts(); }
+      else if (st.cert === 'http' || st.cert === 'dns') issueCertFor(body.domain.replace(/^\*\./, ''), $('#v-le-email', back) ? $('#v-le-email', back).value.trim() : '', st.cert, st.wildcard);
     };
   }
 
@@ -232,7 +280,7 @@
         var stt = s.ok && s.data && s.data.status;
         if (stt === 'running' || stt === 'pending') return;
         clearInterval(t);
-        if (stt === 'success') { await api('/api/nginx/apply', { method: 'POST' }); toast('Certificate issued for ' + domain, 'ok'); loadVhosts(); }
+        if (stt === 'done') { await api('/api/nginx/apply', { method: 'POST' }); toast('Certificate issued for ' + domain, 'ok'); loadVhosts(); }
         else { showCertError(domain, (s.data && s.data.error) || 'Issuance failed (no detail captured)'); }
       }, 5000);
     } else {
@@ -309,6 +357,11 @@
     '<div class="hint">Provider docs: <a href="' + docs + '" target="_blank" rel="noopener">' + docs + '</a></div>';
   }
   var _dnsConfigured = false;
+  var _certs = [];
+  async function loadCerts() {
+    var r = await api('/api/nginx/certs');
+    _certs = (r.ok && r.data && r.data.certs) || [];
+  }
   async function loadDns() {
     var d = (await api('/api/nginx/acme/dns')).data;
     _dnsConfigured = !!(d && d.configured);
@@ -388,6 +441,6 @@
     var rs = $('#raw-save'); if (rs) rs.onclick = saveRaw;
     renderProviderSelect();
     var dsel = $('#dns-select'); if (dsel) dsel.onchange = function () { renderFields(this.value); };
-    loadVhosts(); loadDns(); loadRaw();
+    loadVhosts(); loadDns(); loadRaw(); loadCerts();
   });
 })();

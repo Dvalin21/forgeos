@@ -114,6 +114,20 @@ class NginxVhost(BaseModel):
     deny_ips: list[str] = Field(default_factory=list)    # blocklist (ignored if allow_ips set)
     custom_snippet: str = ""                  # raw nginx, inside server{} (admin escape hatch)
     auth: bool = False
+    # "" = use a cert named after `domain` (per-host, back-compat). Set to a
+    # cert directory name under /etc/letsencrypt/live/ to SHARE one cert
+    # across vhosts — e.g. a "*.example.com" wildcard issued once, stored at
+    # live/example.com/, selected here as "example.com" by every subdomain.
+    cert_name: str = ""
+
+    @field_validator("cert_name")
+    @classmethod
+    def _valid_cert_name(cls, v: str) -> str:
+        # Becomes a filesystem path segment — reject traversal/separators.
+        v = v.strip()
+        if v and (v in (".", "..") or any(c in v for c in "/\\\0")):
+            raise ValueError(f"invalid cert_name: {v!r}")
+        return v
 
     @field_validator("name")
     @classmethod

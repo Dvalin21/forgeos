@@ -60,10 +60,11 @@
     rows.innerHTML = "";
     jobs.forEach(function (j) {
       var st = j.last_status;
-      var pill = st === "success" ? '<span class="pill ok">success</span>'
-               : st === "failed"  ? '<span class="pill err">failed</span>'
-               : st               ? '<span class="pill mut">' + esc(st) + "</span>"
-                                  : '<span class="pill mut">never ran</span>';
+      // runner writes "done"/"failed" (see _run_background); show "done" green
+      var pill = st === "done"   ? '<span class="pill ok">done</span>'
+               : st === "failed" ? '<span class="pill err">failed</span>'
+               : st              ? '<span class="pill mut">' + esc(st) + "</span>"
+                                 : '<span class="pill mut">never ran</span>';
       var tr = document.createElement("tr");
       tr.innerHTML =
         '<td style="font-weight:700">' + esc(j.name) +
@@ -189,7 +190,7 @@
     var running = false;
     tasks.forEach(function (t) {
       if (t.status === "running" || t.status === "pending") running = true;
-      var pill = t.status === "success" ? "ok" : t.status === "failed" ? "err" : "mut";
+      var pill = t.status === "done" ? "ok" : t.status === "failed" ? "err" : "mut";
       var tr = document.createElement("tr");
       tr.innerHTML =
         "<td>" + esc(t.tool) + "</td><td>" + esc(t.action) + "</td>" +

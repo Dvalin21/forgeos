@@ -191,3 +191,20 @@ class TestVhostCertState:
         assert test_client.post("/api/nginx/apply", headers=user_headers).status_code == 403
         r = test_client.post("/api/nginx/apply", headers=auth_headers)
         assert r.status_code == 200 and called
+
+
+class TestCertsEndpoint:
+    def test_lists_issued_certs_with_sans(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import nginx_api
+        live = tmp_path / "example.com"; live.mkdir()
+        (live / "fullchain.pem").write_text("x")
+        monkeypatch.setattr(nginx_api, "Path", lambda p: tmp_path if str(p) == "/etc/letsencrypt/live" else __import__("pathlib").Path(p))
+        monkeypatch.setattr(nginx_api, "_cert_sans", lambda fc: ["example.com", "*.example.com"])
+        r = test_client.get("/api/nginx/certs", headers=auth_headers)
+        assert r.status_code == 200
+        certs = r.json()["certs"]
+        assert certs and certs[0]["name"] == "example.com"
+        assert "*.example.com" in certs[0]["covers"]
+
+    def test_certs_requires_auth(self, test_client):
+        assert test_client.get("/api/nginx/certs").status_code in (401, 403)

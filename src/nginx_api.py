@@ -11,6 +11,7 @@ Routes (/api/nginx/*): vhosts (CRUD), raw config (GET/PUT), reload, test, certbo
 from __future__ import annotations
 
 import re
+import subprocess
 import logging
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -116,6 +117,39 @@ async def nginx_vhosts(user=Depends(verify_token)):
     cfg = fc.load()
     return {"vhosts": [{**v.model_dump(), "cert": _cert_state(v.domain)}
                        for v in cfg.nginx.vhosts]}
+
+
+@router.get("/api/nginx/certs")
+async def list_certs(user=Depends(verify_token)):
+    """Issued certs under /etc/letsencrypt/live/, with the SANs each covers —
+    lets a vhost SELECT an existing/wildcard cert instead of issuing its own.
+    Reads the cert to report real coverage (wildcards included)."""
+    live = Path("/etc/letsencrypt/live")
+    out = []
+    if live.is_dir():
+        for d in sorted(live.iterdir()):
+            fc_pem = d / "fullchain.pem"
+            if not d.is_dir() or not fc_pem.exists():
+                continue
+            names = _cert_sans(fc_pem)
+            out.append({"name": d.name, "covers": names})
+    return {"certs": out}
+
+
+def _cert_sans(fullchain: Path) -> list[str]:
+    """SAN list from a cert, via openssl (no python crypto dep). Best-effort:
+    empty on any failure — the dropdown still lists the cert by dir name."""
+    try:
+        r = subprocess.run(
+            ["openssl", "x509", "-in", str(fullchain), "-noout", "-ext", "subjectAltName"],
+            capture_output=True, text=True, timeout=5)
+        if r.returncode != 0:
+            return []
+        # output: "    DNS:example.com, DNS:*.example.com"
+        return [tok.strip()[4:] for tok in r.stdout.split(",")
+                if tok.strip().startswith("DNS:")]
+    except (OSError, subprocess.SubprocessError):
+        return []
 
 
 @router.post("/api/nginx/apply")
