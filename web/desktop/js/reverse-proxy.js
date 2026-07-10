@@ -79,8 +79,7 @@
     var back = document.createElement('div'); back.className = 'modal-back';
     back.innerHTML = '<div class="modal share-modal"><h3>' + (ed ? 'Edit host' : 'New host') + '</h3>' +
       '<p class="sub">' + (ed ? 'Change this host. Saving regenerates &amp; reloads nginx.' : 'Forward a domain to a service on your network. Everything has a safe default.') + '</p>' +
-      '<div class="fld"><label>Domain</label><input class="wz-input" id="v-domain" placeholder="test.example.com" autocomplete="off"><div class="hint">The hostname nginx answers on. If it is under a domain you added, its certificate is used automatically; otherwise it is self-signed.</div></div>' +
-      '<div class="fld"><label>Host name</label><input class="wz-input" id="v-name" placeholder="app" autocomplete="off"><div class="hint">Internal id / filename. Letters, numbers, - and _; no spaces.</div></div>' +
+      '<div class="fld"><label>Host</label><input class="wz-input" id="v-domain" placeholder="test.example.com" autocomplete="off"><div class="hint">The full hostname to serve, e.g. <code>test.example.com</code>. If it is under a domain you added, that certificate is used automatically; otherwise it is self-signed.</div></div>' +
       '<div class="fld"><label>Upstream</label><div class="wz-from"><input class="wz-input" id="v-uhost" placeholder="127.0.0.1"><input class="wz-input" id="v-uport" type="number" min="1" max="65535" placeholder="8080" style="max-width:150px"></div><div class="hint">Where to forward requests (host + port).</div></div>' +
       '<div class="fld"><label>Upstream scheme</label><div class="seg" id="scheme"><button data-s="http">http</button><button data-s="https">https</button></div></div>' +
       '<div class="fld"><label>Options</label>' +
@@ -101,6 +100,16 @@
       '</div>';
     document.body.appendChild(back);
     var go = $('[data-go]', back);
+    // Internal vhost id is derived from the hostname — the user only types the
+    // host. dots/wildcards -> safe filename chars; must match the model's
+    // ^[A-Za-z0-9_-]{1,80}$ and be unique.
+    function nameFromHost(host) {
+      return host.trim().toLowerCase()
+        .replace(/^\*\./, 'wildcard.')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80) || 'host';
+    }
 
     function setSw(k, on) { st[k] = !!on; var el = $('[data-sw="' + k + '"]', back); if (el) el.className = 'switch' + (on ? ' on' : ''); }
     $$('[data-sw]', back).forEach(function (el) { el.onclick = function () { var k = el.getAttribute('data-sw'); setSw(k, !st[k]); }; });
@@ -137,11 +146,11 @@
     $('#v-domain', back).addEventListener('input', updateCertNote);
 
     function update() {
-      var name = $('#v-name', back).value.trim(), dom = $('#v-domain', back).value.trim(), port = $('#v-uport', back).value.trim();
-      var ok = /^[A-Za-z0-9_-]{1,80}$/.test(name) && dom.length > 0 && /^[0-9]+$/.test(port);
+      var dom = $('#v-domain', back).value.trim(), port = $('#v-uport', back).value.trim();
+      var ok = dom.length > 2 && dom.indexOf('.') >= 0 && /^[0-9]+$/.test(port);
       go.disabled = !ok; go.style.opacity = ok ? 1 : .5;
     }
-    $$('#v-name,#v-domain,#v-uport', back).forEach(function (i) { i.oninput = update; });
+    $$('#v-domain,#v-uport', back).forEach(function (i) { i.oninput = update; });
 
     // defaults
     selScheme('http'); setSw('force_ssl', true); setSw('hsts', true); setSw('http2', true);
@@ -149,7 +158,6 @@
 
     if (ed) {
       $('#v-domain', back).value = ed.domain || '';
-      $('#v-name', back).value = ed.name || ''; $('#v-name', back).disabled = true;  // name is the key
       $('#v-uhost', back).value = ed.upstream_host || '127.0.0.1';
       $('#v-uport', back).value = ed.upstream_port || '';
       $('#v-body', back).value = ed.client_max_body_size || '';
@@ -169,7 +177,7 @@
     back.addEventListener('click', function (e) { if (e.target === back || e.target.hasAttribute('data-x')) close(); });
     go.onclick = async function () {
       var body = {
-        name: $('#v-name', back).value.trim(),
+        name: ed ? ed.name : nameFromHost($('#v-domain', back).value),
         domain: $('#v-domain', back).value.trim(),
         upstream_host: $('#v-uhost', back).value.trim() || '127.0.0.1',
         upstream_port: parseInt($('#v-uport', back).value, 10),
@@ -182,6 +190,14 @@
       var tmo = $('#v-timeout', back).value.trim(); if (tmo) body.proxy_read_timeout = parseInt(tmo, 10);
       var al = $('#v-allow', back).value.trim(); if (al) body.allow_ips = al.split(/\s+/);
       var dn = $('#v-deny', back).value.trim(); if (dn) body.deny_ips = dn.split(/\s+/);
+      // Duplicate-hostname guard (create only) — clearer than the backend's
+      // derived-id 409.
+      if (!ed) {
+        var host = $('#v-domain', back).value.trim().toLowerCase();
+        if (_vhosts.some(function (v) { return (v.domain || '').toLowerCase() === host; })) {
+          toast('A host for ' + host + ' already exists', 'err'); return;
+        }
+      }
       go.disabled = true; go.style.opacity = .5;
       var url = ed ? '/api/nginx/vhost/' + encodeURIComponent(ed.name) : '/api/nginx/vhost';
       var r = await api(url, { method: ed ? 'PUT' : 'POST', body: JSON.stringify(body) });
