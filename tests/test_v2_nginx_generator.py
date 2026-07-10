@@ -88,7 +88,9 @@ def test_websocket_emits_upgrade_headers():
     cfg = _cfg(fc.NginxVhost(name="ws", domain="ws.nas.local", upstream_port=8070, websocket=True))
     c = _first_vhost(cfg)
     assert "proxy_set_header Upgrade $http_upgrade;" in c
-    assert 'proxy_set_header Connection "upgrade";' in c
+    # Connection now follows the upgrade map (fixes keepalive hang on plain
+    # requests), not a hardcoded "upgrade".
+    assert "proxy_set_header Connection $forgeos_connection_upgrade;" in c
 
 
 def test_non_websocket_omits_upgrade_headers():
@@ -414,3 +416,33 @@ class TestExploitBlockRegexValid:
                                  upstream_port=8081, block_common_exploits=False))
         out = _vhost_files(NginxGenerator().render(cfg))[0].content
         assert "return 403" not in out
+
+
+class TestProxyKeepaliveHang:
+    """Upstream has `keepalive 32` but the location only set proxy_http_version
+    1.1 when websocket was on. Without it, keepalive on an HTTP/1.0 proxy hangs
+    (0 bytes back) against keepalive-capable backends (aiohttp/MeTube). Every
+    vhost must set http/1.1 + a correct Connection header."""
+
+    def test_non_ws_vhost_has_http11_and_cleared_connection(self):
+        cfg = _cfg(fc.NginxVhost(name="t", domain="t.example.com",
+                                 upstream_port=8081, websocket=False, force_ssl=False))
+        out = _vhost_files(NginxGenerator().render(cfg))[0].content
+        assert "proxy_http_version 1.1;" in out
+        assert 'proxy_set_header Connection "";' in out          # keepalive needs empty
+        assert 'Connection "upgrade"' not in out                  # not for plain vhost
+
+    def test_ws_vhost_uses_upgrade_map(self):
+        cfg = _cfg(fc.NginxVhost(name="w", domain="w.example.com",
+                                 upstream_port=8081, websocket=True, force_ssl=False))
+        out = _vhost_files(NginxGenerator().render(cfg))[0].content
+        assert "proxy_http_version 1.1;" in out
+        assert "proxy_set_header Connection $forgeos_connection_upgrade;" in out
+        assert "proxy_set_header Upgrade $http_upgrade;" in out
+
+    def test_connection_upgrade_map_defined_once_in_confd(self):
+        cfg = _cfg(fc.NginxVhost(name="t", domain="t.example.com", upstream_port=8081))
+        files = {f.path: f.content for f in NginxGenerator().render(cfg)}
+        confd = files[f"{CONFD_DIR}/forgeos.conf"]
+        assert "map $http_upgrade $forgeos_connection_upgrade" in confd
+        assert "default upgrade;" in confd

@@ -55,6 +55,13 @@ class NginxGenerator(ServiceGenerator):
                 path=f"{CONFD_DIR}/forgeos.conf",
                 content=(
                     "# ForgeOS — GENERATED. Pulls in ForgeOS-managed vhosts.\n"
+                    "# Connection-header map for proxied upstreams: \"upgrade\" only\n"
+                    "# for real WebSocket handshakes, \"\" otherwise so keepalive to\n"
+                    "# the backend works and plain requests don\'t stall.\n"
+                    "map $http_upgrade $forgeos_connection_upgrade {\n"
+                    "    default upgrade;\n"
+                    "    ''      '';\n"
+                    "}\n"
                     f"include {VHOST_DIR}/*.conf;\n"
                 ),
                 mode=0o644,

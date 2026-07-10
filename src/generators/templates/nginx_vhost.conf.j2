@@ -8,10 +8,20 @@
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout {{ v.proxy_read_timeout }}s;
-{% if v.websocket %}
+        # keepalive to the upstream REQUIRES HTTP/1.1 + a managed Connection
+        # header. Without this, `keepalive 32` on an HTTP/1.0 proxy hangs
+        # (0 bytes back) against keepalive-capable backends (aiohttp, etc.).
         proxy_http_version 1.1;
+{% if v.websocket %}
+        # WebSocket: pass Upgrade through; Connection follows the upgrade map
+        # (=="upgrade" for real WS handshakes, "" otherwise so plain requests
+        # don't stall the backend waiting for a handshake).
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection $forgeos_connection_upgrade;
+{% else %}
+        # No WebSocket: clear Connection so keepalive works (must be empty,
+        # not "close", to reuse the upstream connection).
+        proxy_set_header Connection "";
 {% endif %}
 {% if v.allow_ips %}
 {% for ip in v.allow_ips %}
