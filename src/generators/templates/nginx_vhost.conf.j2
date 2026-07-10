@@ -66,7 +66,7 @@ server {
 {% if v.block_common_exploits %}
     # Block common exploit patterns
     if ($request_uri ~* "(<|%3C).*script.*(>|%3E)") { return 403; }
-    if ($request_uri ~* "(\.\./|\.\.\\)") { return 403; }
+    if ($request_uri ~* "\.\./") { return 403; }
     if ($query_string ~* "(;|'|%22).*(union|select|insert|drop|update|benchmark)") { return 403; }
 {% endif %}
 

@@ -385,3 +385,32 @@ class TestDomainModel:
     def test_provider_rejects_bad_code(self):
         with pytest.raises(Exception):
             fc.DnsProvider(code="bad code!", creds_path="/x")
+
+
+class TestExploitBlockRegexValid:
+    """The block_common_exploits traversal regex was malformed
+    (\\.\\./|\\.\\.\\\\) -> nginx pcre2_compile() 'missing closing parenthesis',
+    which failed `nginx -t` and took down EVERY vhost. Guard the rendered
+    form so it can't regress."""
+
+    def test_traversal_regex_is_balanced(self):
+        cfg = _cfg(fc.NginxVhost(name="t", domain="t.example.com",
+                                 upstream_port=8081, block_common_exploits=True))
+        out = _vhost_files(NginxGenerator().render(cfg))[0].content
+        # the traversal rule is the one containing the escaped ".." dots
+        cand = [l for l in out.splitlines()
+                if "return 403" in l and r"\." in l]
+        assert cand, "traversal block rule missing"
+        rule = cand[0]
+        assert rule.count("(") == rule.count(")"), rule   # balanced (was the bug)
+        assert r"\)" not in rule.split("~*")[1], rule       # no stray escaped paren
+        import re
+        m = re.search(r'~\*\s+"(.*?)"\)\s*\{', rule)
+        assert m, "could not extract quoted pattern: " + rule
+        re.compile(m.group(1))                              # raises if malformed
+
+    def test_no_exploit_block_when_disabled(self):
+        cfg = _cfg(fc.NginxVhost(name="t", domain="t.example.com",
+                                 upstream_port=8081, block_common_exploits=False))
+        out = _vhost_files(NginxGenerator().render(cfg))[0].content
+        assert "return 403" not in out
