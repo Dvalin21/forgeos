@@ -73,8 +73,10 @@ class NginxGenerator(ServiceGenerator):
             v.name == "forgeos-ui" for v in nginx.vhosts) else nginx.vhosts[0].name
         ext = {c.name: (c.fullchain_path, c.privkey_path)
                for c in getattr(nginx, "external_certs", [])}
+        domains = [d.name for d in getattr(nginx, "domains", [])]
         for v in nginx.vhosts:
-            cert, key = self._cert_paths(v.cert_name or v.domain, ext)
+            cert_key = v.cert_name or self._match_domain(v.domain, domains) or v.domain
+            cert, key = self._cert_paths(cert_key, ext)
             content = tpl.render(v=v, cert_path=cert, key_path=key,
                                  is_default=(v.name == default_name))
             out.append(
@@ -117,6 +119,21 @@ class NginxGenerator(ServiceGenerator):
         if do_reload:
             self.reload()
         return written
+
+    @staticmethod
+    def _match_domain(hostname: str, domains: list[str]) -> str | None:
+        """Return the managed domain whose cert covers `hostname` — the domain
+        itself, or a parent it's a subdomain of. Longest match wins so
+        a.b.example.com prefers b.example.com over example.com if both exist.
+        The cert lineage is named after the domain, so returning the domain
+        name selects its cert dir."""
+        h = hostname.lower().lstrip("*.")
+        best = None
+        for d in domains:
+            if h == d or h.endswith("." + d):
+                if best is None or len(d) > len(best):
+                    best = d
+        return best
 
     @staticmethod
     def _cert_paths(cert_name: str, external: dict | None = None) -> tuple[str, str]:

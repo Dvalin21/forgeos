@@ -49,7 +49,12 @@ _start_task: Callable[..., str] | None = None
 
 # certbot-dns-multi credential store. A 0600 ini the API owns; certbot reads it
 # for DNS-01 challenges. Module-level so tests can isolate it.
-DNS_CREDS_FILE = Path("/etc/letsencrypt/dns-multi.ini")
+DNS_CREDS_FILE = Path("/etc/letsencrypt/dns-multi.ini")   # legacy single-provider path
+
+
+def _provider_creds_path(code: str) -> Path:
+    """One creds file PER PROVIDER — same provider + many domains share it."""
+    return Path(f"/etc/letsencrypt/dns-{code}.ini")
 _DNS_PROVIDER_RE = re.compile(r"^[a-z0-9_]+$")          # lego provider codes
 _DNS_CRED_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")     # env-var names
 
@@ -441,6 +446,110 @@ async def delete_dns_provider(user=Depends(verify_token)):
     assert _audit is not None
     _audit(user["sub"], "nginx.acme.dns.delete", "success", "DNS provider removed")
     return {"ok": True, "removed": existed}
+
+
+@router.get("/api/nginx/domains")
+async def list_domains(user=Depends(verify_token)):
+    """Managed domains + their cert state. A domain's cert is named after the
+    domain; vhosts under it inherit that cert automatically."""
+    cfg = fc.load()
+    out = []
+    for d in cfg.nginx.domains:
+        live = Path(f"/etc/letsencrypt/live/{d.name}/fullchain.pem")
+        out.append({"name": d.name, "provider": d.provider, "wildcard": d.wildcard,
+                    "cert_present": live.exists(), "covers": _cert_sans(live),
+                    "expires": _cert_expiry(live)})
+    providers = [{"code": p.code} for p in cfg.nginx.dns_providers]
+    return {"domains": out, "providers": providers}
+
+
+@router.post("/api/nginx/domains")
+async def add_domain(body: dict, user=Depends(verify_token)):
+    """Add a domain: store the provider creds (shared per provider), record the
+    domain, and ISSUE its cert now. wildcard -> name + *.name; else just name.
+
+    NOTE: ForgeOS issues the CERT. The A/CNAME record that makes the name
+    resolve must already exist at the DNS provider — ForgeOS cannot create it.
+    """
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    name = str(body.get("name", "")).strip().lower()
+    provider = str(body.get("provider", "")).strip().lower()
+    wildcard = bool(body.get("wildcard", True))
+    creds = body.get("credentials")            # {ENV: value}; optional if provider already saved
+    email = str(body.get("email", "")).strip()
+    if not name or not provider:
+        raise HTTPException(400, "name and provider required")
+    if not _DNS_PROVIDER_RE.match(provider):
+        raise HTTPException(400, "invalid provider code")
+
+    cfg = fc.load()
+
+    # 1. provider creds: write if given, else must already exist (shared reuse)
+    creds_path = _provider_creds_path(provider)
+    if creds:
+        lines = [f"dns_multi_provider = {provider}"]
+        for k, v in creds.items():
+            if not _DNS_CRED_KEY_RE.match(str(k)):
+                raise HTTPException(400, f"invalid credential key: {k}")
+            lines.append(f"{k} = {v}")
+        _atomic_write_0600(creds_path, "\n".join(lines) + "\n")
+        if not any(pp.code == provider for pp in cfg.nginx.dns_providers):
+            cfg.nginx.dns_providers.append(
+                fc.DnsProvider(code=provider, creds_path=str(creds_path)))
+    elif not creds_path.exists():
+        raise HTTPException(400, f"no saved credentials for '{provider}' — provide them")
+
+    # 2. record the domain (replace if re-adding)
+    cfg.nginx.domains = [d for d in cfg.nginx.domains if d.name != name]
+    try:
+        cfg.nginx.domains.append(fc.Domain(name=name, provider=provider, wildcard=wildcard))
+    except Exception as e:
+        raise HTTPException(400, f"invalid: {e}")
+    fc.save(cfg)
+
+    # 3. issue the cert now (background task; propagation can take minutes)
+    if not re.match(r"^[a-zA-Z0-9][a-zA-Z0-9.\-]{0,253}[a-zA-Z0-9]$", name):
+        raise HTTPException(400, "Invalid domain name")
+    cmd = ["certbot", "certonly", "-a", "dns-multi",
+           "--dns-multi-credentials", str(creds_path),
+           "--non-interactive", "--agree-tos",
+           "--email", email or f"admin@{name}",
+           "--cert-name", name, "-d", name]
+    if wildcard:
+        cmd += ["-d", f"*.{name}"]
+    assert _start_task is not None
+    task_id = _start_task(cmd, "certbot", "domain-add", timeout=3900)
+    assert _audit is not None
+    _audit(user["sub"], "nginx.domain.add", "success",
+           f"added {name} ({provider}, {'wildcard' if wildcard else 'single'})")
+    return {"ok": True, "task_id": task_id,
+            "note": "Cert issuing in the background. Ensure the domain's A/CNAME "
+                    "record points to this server at your DNS provider."}
+
+
+@router.delete("/api/nginx/domains/{name}")
+async def remove_domain(name: str, user=Depends(verify_token)):
+    """Forget a domain (and delete its LE cert). Refuses if a vhost is under it
+    — those vhosts would silently drop to self-signed otherwise."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    cfg = fc.load()
+    name = name.strip().lower()
+    users = [v.name for v in cfg.nginx.vhosts
+             if v.domain.lower() == name or v.domain.lower().endswith("." + name)]
+    if users:
+        raise HTTPException(409, f"domain in use by vhost(s): {', '.join(users)}")
+    if not any(d.name == name for d in cfg.nginx.domains):
+        raise HTTPException(404, f"no such domain: {name}")
+    cfg.nginx.domains = [d for d in cfg.nginx.domains if d.name != name]
+    fc.save(cfg)
+    if Path(f"/etc/letsencrypt/live/{name}").exists():
+        assert _run_args is not None
+        _run_args(["certbot", "delete", "--cert-name", name, "--non-interactive"], timeout=60)
+    assert _audit is not None
+    _audit(user["sub"], "nginx.domain.delete", "success", f"removed domain {name}")
+    return {"ok": True}
 
 
 @router.post("/api/nginx/cert/dns")

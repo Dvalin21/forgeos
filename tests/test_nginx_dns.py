@@ -297,3 +297,78 @@ class TestDns01ApexWildcard:
         r = test_client.post("/api/nginx/cert/dns", headers=auth_headers,
                              json={"domain": "example.com", "apex": False, "wildcard": False})
         assert r.status_code == 400
+
+
+class TestDomainsAPI:
+    def _cap_task(self, monkeypatch):
+        import nginx_api
+        calls = []
+        monkeypatch.setattr(nginx_api, "_start_task",
+                            lambda cmd, tool, action, timeout=600: (calls.append(cmd), "tid")[1])
+        return calls
+
+    def test_add_domain_writes_creds_records_and_issues(self, test_client, auth_headers, monkeypatch, tmp_path):
+        import nginx_api, forgeos_config as fcfg
+        monkeypatch.setattr(nginx_api, "_provider_creds_path",
+                            lambda code: tmp_path / f"dns-{code}.ini")
+        calls = self._cap_task(monkeypatch)
+        r = test_client.post("/api/nginx/domains", headers=auth_headers, json={
+            "name": "example.com", "provider": "porkbun", "wildcard": True,
+            "credentials": {"PORKBUN_API_KEY": "k", "PORKBUN_SECRET_API_KEY": "s"}})
+        assert r.status_code == 200, r.text
+        assert r.json()["task_id"] == "tid"
+        # domain + provider recorded
+        cfg = fcfg.load()
+        assert any(d.name == "example.com" for d in cfg.nginx.domains)
+        assert any(p.code == "porkbun" for p in cfg.nginx.dns_providers)
+        # creds file written 0600
+        cp = tmp_path / "dns-porkbun.ini"
+        assert cp.exists() and (cp.stat().st_mode & 0o777) == 0o600
+        # issue command: wildcard adds *.example.com, cert-name is the domain
+        cmd = calls[0]
+        assert "--cert-name" in cmd and "example.com" in cmd and "*.example.com" in cmd
+
+    def test_add_second_domain_reuses_saved_provider(self, test_client, auth_headers, monkeypatch, tmp_path):
+        import nginx_api, forgeos_config as fcfg
+        cp = tmp_path / "dns-porkbun.ini"; cp.write_text("dns_multi_provider = porkbun\n")
+        monkeypatch.setattr(nginx_api, "_provider_creds_path", lambda code: cp)
+        self._cap_task(monkeypatch)
+        cfg = fcfg.load()
+        cfg.nginx.dns_providers.append(fcfg.DnsProvider(code="porkbun", creds_path=str(cp)))
+        fcfg.save(cfg)
+        # no credentials passed -> must reuse
+        r = test_client.post("/api/nginx/domains", headers=auth_headers, json={
+            "name": "keithtechco.com", "provider": "porkbun", "wildcard": True})
+        assert r.status_code == 200, r.text
+
+    def test_add_domain_new_provider_without_creds_400(self, test_client, auth_headers, monkeypatch, tmp_path):
+        import nginx_api
+        monkeypatch.setattr(nginx_api, "_provider_creds_path",
+                            lambda code: tmp_path / f"dns-{code}.ini")
+        r = test_client.post("/api/nginx/domains", headers=auth_headers, json={
+            "name": "example.com", "provider": "cloudflare", "wildcard": True})
+        assert r.status_code == 400
+
+    def test_add_domain_requires_admin(self, test_client, user_headers):
+        r = test_client.post("/api/nginx/domains", headers=user_headers, json={
+            "name": "example.com", "provider": "porkbun"})
+        assert r.status_code == 403
+
+    def test_delete_domain_refuses_if_vhost_under_it(self, test_client, auth_headers):
+        import forgeos_config as fcfg
+        cfg = fcfg.load()
+        cfg.nginx.domains.append(fcfg.Domain(name="example.com", provider="porkbun"))
+        cfg.nginx.vhosts.append(fcfg.NginxVhost(name="t", domain="test.example.com", upstream_port=80))
+        fcfg.save(cfg)
+        r = test_client.delete("/api/nginx/domains/example.com", headers=auth_headers)
+        assert r.status_code == 409
+
+    def test_list_domains(self, test_client, auth_headers):
+        import forgeos_config as fcfg
+        cfg = fcfg.load()
+        cfg.nginx.domains.append(fcfg.Domain(name="example.com", provider="porkbun", wildcard=True))
+        fcfg.save(cfg)
+        r = test_client.get("/api/nginx/domains", headers=auth_headers)
+        assert r.status_code == 200
+        d = r.json()
+        assert any(x["name"] == "example.com" for x in d["domains"])

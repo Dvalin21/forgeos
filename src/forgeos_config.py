@@ -197,6 +197,42 @@ class NginxVhost(BaseModel):
         return out
 
 
+class DnsProvider(BaseModel):
+    """DNS-01 credentials for ONE provider, shared by every domain on it.
+    code = a lego provider code (porkbun, cloudflare, ...). creds_path points
+    at a 0600 ini the API owns. Same provider + more domains = reuse this, no
+    re-entry; a different provider = a separate entry (separate creds file)."""
+    code: str
+    creds_path: str
+
+    @field_validator("code")
+    @classmethod
+    def _valid_code(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not v or not __import__("re").fullmatch(r"[a-z0-9]+", v):
+            raise ValueError(f"invalid provider code: {v!r}")
+        return v
+
+
+class Domain(BaseModel):
+    """A domain ForgeOS manages a cert for. Adding it issues the cert; vhosts
+    whose hostname is at or under `name` inherit this cert automatically.
+      wildcard=True  -> cert covers name + *.name (every subdomain)
+      wildcard=False -> cert covers just name (the bare domain)
+    provider is a DnsProvider.code (which holds the creds)."""
+    name: str
+    provider: str                              # DnsProvider.code
+    wildcard: bool = True
+
+    @field_validator("name")
+    @classmethod
+    def _valid_domain(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not __import__("re").fullmatch(r"[a-z0-9][a-z0-9.\-]{0,251}[a-z0-9]", v):
+            raise ValueError(f"invalid domain: {v!r}")
+        return v
+
+
 class ExternalCert(BaseModel):
     """A cert ForgeOS did NOT issue — points at PEM files an external tool
     (e.g. a porkbun-certbot container) drops in. Recorded so it appears in
@@ -218,6 +254,8 @@ class NginxConfig(BaseModel):
     enabled: bool = True
     vhosts: list[NginxVhost] = Field(default_factory=list)
     external_certs: list[ExternalCert] = Field(default_factory=list)
+    dns_providers: list[DnsProvider] = Field(default_factory=list)
+    domains: list[Domain] = Field(default_factory=list)
 
     @field_validator("vhosts")
     @classmethod

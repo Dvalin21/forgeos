@@ -25,29 +25,9 @@
     </section>
 
     <section class="panel pad" style="margin-bottom:18px">
-      <div class="section-head"><div><h3>Certificates</h3><p>Issue a certificate once (wildcards via DNS-01), then select it per host below. You can also register a certificate managed by an external tool.</p></div>
-        <div style="display:flex;gap:8px"><button class="button ghost" id="cert-register" type="button">Register external</button><button class="button" style="background:var(--primary-soft);color:var(--primary)" id="cert-issue" type="button"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Issue certificate</button></div></div>
-      <div id="cert-list"><p style="color:var(--muted)">Loading certificates&hellip;</p></div>
-    </section>
-
-    <section class="panel pad" style="margin-bottom:18px">
-      <div class="section-head"><div><h3>DNS provider (for DNS-01 certificates)</h3><p>Configure your DNS provider once so DNS-01 issuance (including wildcards) can prove domain ownership without exposing port 80.</p></div><span class="chip" id="dns-chip">&mdash;</span></div>
-
-      <div class="fld"><label>DNS provider (for DNS-01)</label>
-        <div class="wz-from">
-          <select class="wz-input" id="dns-select" style="max-width:240px"></select>
-          <input class="wz-input" id="dns-provider" placeholder="lego provider code" autocomplete="off" style="max-width:200px;display:none">
-          <button class="btn-ghost" id="dns-clear" type="button">Remove</button>
-        </div>
-        <div class="hint" id="dns-docs">Pick your provider &mdash; the credential fields it needs appear below, write-only. Not listed? Choose Other and use any <a href="https://go-acme.github.io/lego/dns/" target="_blank" rel="noopener">lego provider code</a>.</div>
-      </div>
-      <div class="fld"><label>Provider credentials</label>
-        <div id="dns-fields"></div>
-        <textarea id="dns-creds" class="raw-conf" style="min-height:96px;display:none" spellcheck="false" placeholder="One per line, ENV_VAR = value&#10;MYPROVIDER_API_TOKEN = abc123"></textarea>
-        <div class="hint">Saved to a 0600 file the API owns &mdash; never shown again after saving.</div>
-      </div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-bottom:8px"><button class="btn-pri" id="dns-save">Save provider</button></div>
-
+      <div class="section-head"><div><h3>Domains</h3><p>Add a domain to issue its certificate. Hosts you create under it use that certificate automatically. <b>The A/CNAME record must already point to this server at your DNS provider</b> &mdash; ForgeOS issues the certificate, not the DNS record.</p></div>
+        <button class="button" style="background:var(--primary-soft);color:var(--primary)" id="domain-add" type="button"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add domain</button></div>
+      <div id="domain-list"><p style="color:var(--muted)">Loading domains&hellip;</p></div>
     </section>
 
     <section class="panel pad">

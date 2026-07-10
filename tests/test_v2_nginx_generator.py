@@ -335,3 +335,53 @@ class TestExternalCertModel:
     def test_valid(self):
         c = fc.ExternalCert(name="example.com", fullchain_path="/a/fc.pem", privkey_path="/a/pk.pem")
         assert c.name == "example.com"
+
+
+class TestDomainCertMatching:
+    def test_vhost_inherits_matching_domain_cert(self, monkeypatch):
+        import generators.nginx as ng
+        # domain example.com managed; vhost test.example.com should use
+        # the example.com cert dir (named after the domain).
+        def fake_paths(cert_name, external=None):
+            return (f"/etc/letsencrypt/live/{cert_name}/fullchain.pem",
+                    f"/etc/letsencrypt/live/{cert_name}/privkey.pem")
+        monkeypatch.setattr(ng.NginxGenerator, "_cert_paths", staticmethod(fake_paths))
+        cfg = _cfg(fc.NginxVhost(name="t", domain="test.example.com",
+                                 upstream_port=8081, force_ssl=True))
+        cfg.nginx.domains = [fc.Domain(name="example.com", provider="porkbun", wildcard=True)]
+        out = _vhost_files(ng.NginxGenerator().render(cfg))[0].content
+        assert "/live/example.com/fullchain.pem" in out
+        assert "/live/test.example.com/" not in out
+
+    def test_longest_domain_wins(self):
+        import generators.nginx as ng
+        m = ng.NginxGenerator._match_domain(
+            "a.sub.example.com", ["example.com", "sub.example.com"])
+        assert m == "sub.example.com"
+
+    def test_no_match_returns_none(self):
+        import generators.nginx as ng
+        assert ng.NginxGenerator._match_domain("nas.local", ["example.com"]) is None
+
+    def test_exact_domain_matches(self):
+        import generators.nginx as ng
+        assert ng.NginxGenerator._match_domain("example.com", ["example.com"]) == "example.com"
+
+
+class TestDomainModel:
+    def test_valid(self):
+        d = fc.Domain(name="example.com", provider="porkbun", wildcard=True)
+        assert d.name == "example.com" and d.wildcard
+
+    def test_rejects_bad_domain(self):
+        for bad in ("not a domain", "-bad.com", "x"):
+            with pytest.raises(Exception):
+                fc.Domain(name=bad, provider="porkbun")
+
+    def test_provider_code_normalized(self):
+        p = fc.DnsProvider(code="PorkBun", creds_path="/x")
+        assert p.code == "porkbun"
+
+    def test_provider_rejects_bad_code(self):
+        with pytest.raises(Exception):
+            fc.DnsProvider(code="bad code!", creds_path="/x")
