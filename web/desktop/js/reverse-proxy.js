@@ -278,7 +278,14 @@
         '</div>';
     }).join('');
     box.querySelectorAll('[data-dom-del]').forEach(function (b) { b.onclick = function () { deleteDomain(b.getAttribute('data-dom-del')); }; });
+    // Self-heal: if any domain's cert isn't on disk yet, re-check in 10s so a
+    // background issuance flips it to "ready" without a manual refresh.
+    if (_domains.some(function (d) { return !d.cert_present; })) {
+      clearTimeout(_domainHeal);
+      _domainHeal = setTimeout(loadDomains, 10000);
+    }
   }
+  var _domainHeal = null;
   async function deleteDomain(name) {
     if (!confirm('Remove domain "' + name + '" and delete its certificate? Refused if any host is under it.')) return;
     var r = await api('/api/nginx/domains/' + encodeURIComponent(name), { method: 'DELETE' });
@@ -339,14 +346,20 @@
       if (!r.ok || !r.data || !r.data.task_id) { out.style.display = ''; out.textContent = (r.data && r.data.detail) || 'Could not add domain'; this.disabled = false; this.style.opacity = 1; return; }
       toast('Issuing certificate \u2014 DNS propagation can take minutes\u2026', 'info');
       back.remove(); loadDomains();
+      // Poll the task. Do NOT skip on hidden tab (that stranded the list in
+      // "not ready" when issuance finished in the background). Cap at ~66min
+      // (well past the 3900s certbot ceiling) so it can't poll forever; the
+      // list itself reflects disk truth on every loadDomains() regardless.
+      var tries = 0, MAX = 800;
       var t = setInterval(async function () {
-        if (document.hidden) return;
+        if (++tries > MAX) { clearInterval(t); loadDomains(); return; }
         var s = await api('/api/backup/tasks/' + r.data.task_id);
         var stt = s.ok && s.data && s.data.status;
-        if (stt === 'running' || stt === 'pending') return;
+        if (stt === 'running' || stt === 'pending') { loadDomains(); return; }
         clearInterval(t);
-        if (stt === 'done') { toast('Certificate issued for ' + name, 'ok'); await api('/api/nginx/apply', { method: 'POST' }); loadDomains(); loadVhosts(); }
-        else toast('Certificate failed for ' + name + ' \u2014 check the Activity Log', 'err');
+        if (stt === 'done') { toast('Certificate issued for ' + name, 'ok'); await api('/api/nginx/apply', { method: 'POST' }); }
+        else toast('Certificate failed for ' + name + ' \u2014 ' + ((s.data && s.data.error) ? String(s.data.error).slice(0, 160) : 'check the Activity Log'), 'err');
+        loadDomains(); loadVhosts();
       }, 5000);
     };
   }
