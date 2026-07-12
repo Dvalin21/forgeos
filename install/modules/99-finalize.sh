@@ -24,7 +24,6 @@ install_api_backend() {
         fastapi \
         uvicorn[standard] \
         python-jose[cryptography] \
-        passlib[bcrypt] \
         psutil \
         pydantic \
         python-multipart \
@@ -65,10 +64,9 @@ install_api_backend() {
     # Create initial admin user
     local admin_pass; admin_pass=$(openssl rand -base64 12 | tr -d '/')
     python3 << PYINIT
-from passlib.context import CryptContext, json
-ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
-users = {"admin": {"hash": ctx.hash("${admin_pass}"), "role": "admin"}}
-import json
+import bcrypt, json
+hash = bcrypt.hashpw("${admin_pass}".encode(), bcrypt.gensalt()).decode()
+users = {"admin": {"hash": hash, "role": "admin"}}
 open('/etc/forgeos/api-users.json','w').write(json.dumps(users, indent=2))
 PYINIT
     chmod 600 /etc/forgeos/api-users.json
@@ -180,7 +178,7 @@ logs)
     ;;
 update)
     apt update -qq && apt upgrade -y
-    /opt/forgeos/venv/bin/pip install --quiet --upgrade fastapi uvicorn python-jose passlib psutil
+    /opt/forgeos/venv/bin/pip install --quiet --upgrade fastapi uvicorn python-jose psutil
     systemctl restart forgeos-api
     echo "ForgeOS updated"
     ;;

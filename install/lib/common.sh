@@ -177,6 +177,10 @@ forgenas_set() {
     else
         echo "${key}=\"${val}\"" >> "$FORGENAS_CONFIG"
     fi
+    # Secrets (JWT secret, DB passwords, admin creds) are written here.
+    # Keep it root-only so they are never world/group-readable at rest,
+    # including the window before 99-finalize tightens perms.
+    chmod 600 "$FORGENAS_CONFIG"
 }
 
 forgenas_get() {
