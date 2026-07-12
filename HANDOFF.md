@@ -163,4 +163,42 @@ and `v2-rearchitect` were not touched.
 | 5 (C4) | auth / privilege gap | RESOLVED — `backup_api` + `docker_lxc_api` routers admin-gated; `docker_api` install mutation admin-gated | `b874f31` |
 | 5 (H8) | `firewall_api` | N/A — module does not exist | — |
 | 5 (M10–M13) | nginx/samba CLI escaping | RE-VERIFIED SAFE — list-form args, no shell | — |
-| 6.6 | deep installer module audit | **NOT DONE** — explicit follow-up (`10*`, `14`, `15`, `17`, `22`) | — |
+| 6.6 | deep installer module audit | **DONE** — see §9 (2026-07-12) | `68e046b` |
+
+---
+
+## 9. Deep installer audit (2026-07-12)
+
+Scope: `install/` — `install.sh`, `lib/*.sh`, modules `01`–`22` (emphasis on
+`10*`, `14`, `15`, `17`, `22`). Method: ShellCheck across all 25 scripts
+(error-level **clean**) + manual line read of the heavy modules and core
+helpers.
+
+### Fixed this session
+- **C2 closed fully:** `lib/common.sh::forgenas_set` now `chmod 600` the
+  config on every write, so the JWT secret / DB passwords / admin creds are
+  never world-readable at rest — including the window before `99-finalize`
+  tightened perms. (`01-base.sh` already stopped persisting the OS admin
+  password; `99-finalize.sh` still persists `WEBUI_ADMIN_PASS` because
+  `test-forgeos.sh` reads it, but it is now `0600`-protected.)
+- **passlib dropped from installer:** `99-finalize.sh` no longer installs
+  `passlib`, and the initial admin hash is generated with `bcrypt` directly
+  (consistent with the §3.2 src migration). A fresh install no longer pulls
+  the EOL shim.
+
+### Findings (documented — not auto-fixed)
+- **MEDIUM — supply chain:** `10-fileshare.sh` (filebrowser `get.sh`) and
+  `15-backup.sh` (rclone `install.sh`) run `curl … | bash` as root. Upstream-
+  recommended, but executes remote code unchecked. Recommend download-to-temp
+  + checksum pin, or vendoring the binaries.
+- **LOW — default creds:** `10b-samba-db.sh` Firebird `ISC_PASSWORD` defaults
+  to `changeme` when `FIREBIRD_PASSWORD` is unset (MSSQL correctly requires
+  `MSSQL_SA_PASSWORD`). Make Firebird require the env var too.
+- **LOW — secret on cmdline:** `14-mail.sh` creates the SOGo PG user with
+  `psql -c "… PASSWORD '${sogo_pass}'"` (briefly visible in `ps`). Pipe the
+  password via stdin / `PGPASSWORD` instead.
+- **INFO — style:** 4 `SC2086` unquoted sysfs reads in `03c-drive-types.sh`
+  and `02-network.sh` (kernel device names; low risk). Left as-is.
+- **Verified safe:** `17-hipaa.sh::check_compliance` `eval "$cmd"` — `$cmd` is
+  always a hardcoded literal from `check "label" "cmd"` calls; no user input
+  reaches it. No `rm -rf` / `os.system` anywhere in `install/`.
