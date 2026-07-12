@@ -24,6 +24,11 @@ dependencies = [
     "pydantic>=2.5",
     "python-multipart>=0.0.6",
     "pyotp>=2.9",
+    # Rate limiting (Limiter) — imported by forgeos-api.py. Was previously
+    # undeclared; the app guards the import, so it silently no-ops if absent,
+    # but the rate-limiting feature requires it. Declared explicitly so a
+    # clean install actually gets the dependency.
+    "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]
