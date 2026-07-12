@@ -282,8 +282,10 @@ setup_admin_user() {
         useradd -m -s /bin/bash -G sudo,adm "$user"
         local pass; pass=$(gen_password 20)
         echo "${user}:${pass}" | chpasswd
-        forgenas_set "ADMIN_PASS" "$pass"
-        info "Created user: $user (password saved to forgeos.conf)"
+        echo ""
+        echo -e "  ${BOLD}${ORANGE}OS admin password for '${user}' (generated, NOT stored):${NC} ${pass}"
+        echo -e "  ${DIM}Record it now — it is shown only once. To reset later: sudo passwd ${user}${NC}"
+        echo ""
     else
         # Ensure in right groups
         usermod -aG sudo,adm "$user" 2>/dev/null || true

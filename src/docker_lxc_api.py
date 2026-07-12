@@ -18,9 +18,17 @@ from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from forgeos_auth import verify_token
 
+# ── Admin gate ──
+def require_admin(user=Depends(verify_token)):
+    """All Docker/LXC operations are admin-only (start/stop/exec/prune/compose)."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin required")
+    return user
+
+
 # ── Router ──
 router = APIRouter(prefix="/api/docker", tags=["Docker & LXC Management"],
-                   dependencies=[Depends(verify_token)])
+                   dependencies=[Depends(require_admin)])
 
 # ── Configuration ──
 COMPOSE_PROJECT_NAME = os.environ.get("FORGEOS_COMPOSE_PROJECT", "forgeos")

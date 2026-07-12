@@ -40,7 +40,14 @@ from forgeos_auth import verify_token
 
 logger = logging.getLogger("forgeos-api")
 
-router = APIRouter()
+def require_admin(user=Depends(verify_token)):
+    """All backup operations are admin-only."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin required")
+    return user
+
+
+router = APIRouter(dependencies=[Depends(require_admin)])
 
 # Injected by main module — see set_helpers().
 _start_task: Optional[Callable[..., str]] = None

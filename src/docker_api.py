@@ -24,6 +24,14 @@ logger = logging.getLogger("forgeos-api")
 
 router = APIRouter()
 
+# ── Admin gate ──
+def require_admin(user=Depends(verify_token)):
+    """Installing a container runs `docker run` as root — admin only."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin required")
+    return user
+
+
 # Injected by main module — see set_helpers().
 _run_args: Optional[Callable[..., str]] = None
 _audit: Optional[Callable[..., None]] = None
@@ -61,7 +69,7 @@ async def docker_apps(user=Depends(verify_token)):
 
 
 @router.post("/api/docker/install")
-async def docker_install(app: str, image: str = None, ports: List[str] = None, user=Depends(verify_token)):
+async def docker_install(app: str, image: str = None, ports: List[str] = None, user=Depends(require_admin)):
     """Install Docker app from curated list"""
     app_info = next((a for a in DOCKER_APPS if a["name"] == app), None)
     if not app_info:
