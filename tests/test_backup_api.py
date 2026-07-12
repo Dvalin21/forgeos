@@ -187,3 +187,13 @@ def test_run_missing_404(client, auth_headers):
 def test_task_status_404(client, auth_headers):
     assert client.get("/api/backup/task/does-not-exist",
                       headers=auth_headers).status_code == 404
+
+
+# ── admin gate (regression for C4: backup was open to any authed user) ──
+def test_create_requires_admin(client, user_headers):
+    r = client.post(
+        "/api/backup/jobs",
+        json={"tool": "borg", "source": ["/home"], "destination": "/backup"},
+        headers=user_headers,
+    )
+    assert r.status_code == 403

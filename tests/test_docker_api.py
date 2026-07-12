@@ -5,6 +5,8 @@ Validates:
   1. Auth enforcement (401 without proper token)
   2. App catalog listing
   3. System service status
+  4. Admin gate: only admin tokens may reach docker routes (non-admin -> 403)
+     (router-level require_admin added after review found verify_token-only gate)
 """
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from fastapi.testclient import TestClient
 
 
 def _mock_subprocess_run(returncode=0, stdout="", stderr=""):
@@ -87,3 +90,31 @@ class TestNetwork:
                             lambda *a, **kw: _mock_subprocess_run(stdout="eth0    192.168.1.100"))
         r = test_client.get("/api/network", headers=auth_headers)
         assert r.status_code == 200
+
+
+# ──────────────────────────────────────────────────────────
+# Admin gate (router-level require_admin)
+# ──────────────────────────────────────────────────────────
+
+
+class TestAdminGate:
+
+    def test_non_admin_forbidden(self, test_client: TestClient, user_headers):
+        # Both docker routers are admin-gated; non-admin must be rejected (403)
+        # before any docker/lxc command runs.
+        # install runs `docker run` as root (docker_api.py)
+        assert test_client.post("/api/docker/install?app=nginx",
+                                headers=user_headers).status_code == 403
+        # prune / container / compose mutations (docker_lxc_api.py)
+        assert test_client.post("/api/docker/prune/system",
+                                headers=user_headers).status_code == 403
+        assert test_client.post("/api/docker/containers/c/start",
+                                headers=user_headers).status_code == 403
+        assert test_client.put("/api/docker/compose-file", json={"content": "x"},
+                               headers=user_headers).status_code == 403
+
+    def test_admin_passes_gate(self, test_client: TestClient, auth_headers):
+        # Admin reaches the handler; without docker installed the call may fail
+        # for a tooling reason, but it must NOT be rejected at the auth gate.
+        r = test_client.post("/api/docker/prune/system", headers=auth_headers)
+        assert r.status_code not in (401, 403)
