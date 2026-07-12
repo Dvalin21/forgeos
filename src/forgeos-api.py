@@ -1288,6 +1288,7 @@ try:
         task_lock=_task_lock,
         persist_jobs=_persist_jobs,
         update_job_from_task=_update_job_from_task,
+        execute_job=_execute_backup_job,
     )
     app.include_router(backup_router)
     logger.info("Backup API loaded")

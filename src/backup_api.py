@@ -51,6 +51,9 @@ _background_tasks: Optional[dict] = None
 _task_lock: Any = None
 _persist_jobs: Optional[Callable[[], None]] = None
 _update_job_from_task: Optional[Callable[..., None]] = None
+# Defined in the main module (it needs main's job state + _start_task);
+# injected here so run_backup_job_now() can dispatch without a circular import.
+_execute_backup_job: Optional[Callable[[str], None]] = None
 
 
 def set_helpers(
@@ -62,9 +65,11 @@ def set_helpers(
     task_lock: Any,
     persist_jobs: Callable[[], None],
     update_job_from_task: Callable[..., None],
+    execute_job: Callable[[str], None],
 ) -> None:
     global _start_task, _audit, _backup_jobs, _jobs_lock
     global _background_tasks, _task_lock, _persist_jobs, _update_job_from_task
+    global _execute_backup_job
     _start_task = start_task
     _audit = audit
     _backup_jobs = backup_jobs
@@ -73,6 +78,7 @@ def set_helpers(
     _task_lock = task_lock
     _persist_jobs = persist_jobs
     _update_job_from_task = update_job_from_task
+    _execute_backup_job = execute_job
 
 
 # ────────────────────────────────────────────────────────────
