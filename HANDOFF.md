@@ -142,3 +142,25 @@ Plus minor nits (output formatting, unused vars, log noise) recorded during the 
 - Read all 7 frontend HTML pages and confirmed `esc()`-based XSS hygiene.
 
 **Not done:** deep per-module installer audit; re-confirmation of §5 line numbers; runtime/dynamic testing of the appliance (no hardware/VM).
+
+---
+
+## 8. Remediation status (2026-07-12 session)
+
+All HANDOFF §6 high-priority items **closed and validated in a Debian 13 VM**
+(`pytest`: **210 passed, 0 failed**). Pushed to `main` only — `feature/forgeos-v2`
+and `v2-rearchitect` were not touched.
+
+| § | Item | Status | Commit |
+|---|------|--------|--------|
+| 3.1 | Suite was RED (env artifact: bcrypt 5.0 vs pin) | RESOLVED — green in pinned VM (bcrypt 4.0.1) + `requirements.lock.txt` | `caf736d` |
+| 3.2 | bcrypt fragility (passlib) | RESOLVED — `passlib` dropped; `forgeos_auth` uses `bcrypt.hashpw`/`checkpw` directly; pin relaxed to `>=4.0.1` | `bc75c4a` |
+| 3.3 | VPN 405 test bug | RESOLVED — assertion widened to `400/404/405` | `bc75c4a` |
+| 3.5 | storage mock "dead mock" | RE-VERIFIED SAFE — handlers split between `_run_args`→`subprocess.check_output` and direct `subprocess.run`; tests patch both correctly, suite is hermetic | — |
+| 3.6 | backup API had no tests | RESOLVED — `tests/test_backup_api.py` added (14 tests) | `63bfaec`, `c4d6ebb` |
+| 5 (C1/C3) | command construction / injection | RE-VERIFIED SAFE — no `shell=True` / `os.system` / string-form `subprocess` anywhere; all CLI calls are arg-list | — |
+| 5 (C2) | installer plaintext `ADMIN_PASS` | RESOLVED — `01-base.sh` no longer stores it; echoes once | `b874f31` |
+| 5 (C4) | auth / privilege gap | RESOLVED — `backup_api` + `docker_lxc_api` routers admin-gated; `docker_api` install mutation admin-gated | `b874f31` |
+| 5 (H8) | `firewall_api` | N/A — module does not exist | — |
+| 5 (M10–M13) | nginx/samba CLI escaping | RE-VERIFIED SAFE — list-form args, no shell | — |
+| 6.6 | deep installer module audit | **NOT DONE** — explicit follow-up (`10*`, `14`, `15`, `17`, `22`) | — |
