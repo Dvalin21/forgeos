@@ -26,9 +26,10 @@ from forgeos_auth import (
     JWT_EXPIRE,
     LoginRequest,
     create_token,
+    hash_password,
     load_users,
-    pwd_ctx,
     save_users,
+    verify_password,
     verify_token,
 )
 
@@ -68,7 +69,7 @@ async def login(body: LoginRequest, request: Request):
             detail="No users configured. Run forgeos-install to set up admin user.",
         )
     user = users.get(body.username)
-    if not user or not pwd_ctx.verify(body.password, user["hash"]):
+    if not user or not verify_password(body.password, user["hash"]):
         logger.warning("FAILED LOGIN user=%s from=%s", body.username, request.client.host)
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_token(body.username, user["role"])
@@ -96,9 +97,9 @@ async def logout():
 async def change_password(body: dict, user=Depends(verify_token)):
     users = load_users()
     u = users.get(user["sub"])
-    if not u or not pwd_ctx.verify(body.get("current", ""), u["hash"]):
+    if not u or not verify_password(body.get("current", ""), u["hash"]):
         raise HTTPException(status_code=401, detail="Current password incorrect")
-    users[user["sub"]]["hash"] = pwd_ctx.hash(body["new"])
+    users[user["sub"]]["hash"] = hash_password(body["new"])
     save_users(users)
     if _audit is not None:
         _audit(user["sub"], "auth.password.change", "success", "Password changed")

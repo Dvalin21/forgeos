@@ -31,7 +31,7 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from forgeos_auth import load_users, save_users, pwd_ctx, verify_token
+from forgeos_auth import load_users, save_users, hash_password, verify_token
 
 logger = logging.getLogger("forgeos-api")
 
@@ -103,7 +103,7 @@ async def create_user(body: dict, user=Depends(verify_token)):
     if username in users:
         raise HTTPException(409, f"User '{username}' already exists")
 
-    users[username] = {"hash": pwd_ctx.hash(password), "role": role}
+    users[username] = {"hash": hash_password(password), "role": role}
     save_users(users)
     assert _audit is not None
     _audit(user["sub"], "users.create", "success", f"User '{username}' ({role})")
@@ -175,7 +175,7 @@ async def admin_reset_password(username: str, body: dict, user=Depends(verify_to
     if username not in users:
         raise HTTPException(404, f"User '{username}' not found")
 
-    users[username]["hash"] = pwd_ctx.hash(new_password)
+    users[username]["hash"] = hash_password(new_password)
     save_users(users)
     assert _audit is not None
     _audit(user["sub"], "users.password.reset", "success", f"Password reset for '{username}'")

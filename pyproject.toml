@@ -11,14 +11,10 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.25",
     "python-jose>=3.3",
-    "passlib[bcrypt]>=1.7",
-    # passlib 1.7.x's bundled bcrypt handler is incompatible with bcrypt
-    # 4.1+ (the __about__.__version__ attribute was removed AND the hashpw
-    # config-string API changed, so every hash/verify raises ValueError).
-    # Pin below 4.1 until passlib ships a release that supports modern
-    # bcrypt. Without this, a fresh install pulls bcrypt 5.x and the entire
-    # auth system breaks — nobody can log in. (Found via dual-env testing.)
-    "bcrypt<4.1",
+    # Password hashing uses bcrypt directly (no passlib shim) via
+    # forgeos_auth.hash_password/verify_password. Direct bcrypt calls work
+    # on any bcrypt >=4.0.1, so no upper pin is required.
+    "bcrypt>=4.0.1",
     "httpx>=0.27",
     "psutil>=5.9",
     "pydantic>=2.5",

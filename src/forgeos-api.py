@@ -53,7 +53,7 @@ from fastapi.staticfiles import StaticFiles
 from jose import JWTError, jwt
 from forgeos_auth import (
     JWT_SECRET, JWT_ALGO, JWT_EXPIRE,
-    pwd_ctx, LoginRequest,
+    LoginRequest,
     load_users, save_users, create_token, verify_token,
 )
 
@@ -69,7 +69,7 @@ except ImportError:
 # ────────────────────────────────────────────────────────────
 CONFIG_FILE = Path("/etc/forgeos/forgeos.conf")
 USERS_FILE  = Path("/etc/forgeos/api-users.json")
-# JWT config lives in forgeos_auth.py — JWT_SECRET, JWT_ALGO, JWT_EXPIRE, pwd_ctx
+# JWT config lives in forgeos_auth.py — JWT_SECRET, JWT_ALGO, JWT_EXPIRE
 WEB_ROOT    = Path(os.environ.get("FORGEOS_WEB_ROOT", "/opt/forgeos/web"))
 
 # Load config from forgeos.conf
@@ -643,7 +643,7 @@ app = FastAPI(
 )
 
 # Auth types + functions imported from forgeos_auth:
-#   JWT_SECRET, JWT_ALGO, JWT_EXPIRE, pwd_ctx, LoginRequest,
+#   JWT_SECRET, JWT_ALGO, JWT_EXPIRE, LoginRequest,
 #   load_users, save_users, create_token, verify_token
 
 

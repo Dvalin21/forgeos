@@ -15,7 +15,7 @@ from pathlib import Path
 
 from fastapi import HTTPException, Request, WebSocket
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel, Field
 
 # ── Config ──
@@ -93,7 +93,22 @@ JWT_SECRET  = _load_jwt_secret()
 JWT_ALGO    = "HS256"
 JWT_EXPIRE  = 12  # hours
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def hash_password(password: str) -> str:
+    """Hash a plaintext password with bcrypt (no passlib shim)."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify a plaintext password against a bcrypt hash.
+
+    Returns False (fail-closed) instead of raising on a bad/missing hash.
+    """
+    if not hashed:
+        return False
+    try:
+        return bcrypt.checkpw(password.encode(), hashed.encode())
+    except (ValueError, TypeError):
+        return False
 
 
 class LoginRequest(BaseModel):

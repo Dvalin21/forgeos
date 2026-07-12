@@ -1,14 +1,15 @@
 # ForgeOS API — pinned dependency lock.
 #
 # Generated from a known-good test environment (Debian 13, Python 3.13,
-# full suite: 194 + 11 backup tests passing). Reproduces the exact set of
+# full suite: 210 tests passing). Reproduces the exact set of
 # packages used by CI and the in-VM test run.
 #
 # Why this exists: pyproject.toml keeps LOOSE version ranges. A fresh
-# `pip install -e .` can resolve an incompatible bcrypt (5.x, which breaks
-# passlib's hash/verify -> nobody can log in) or a Starlette whose path
-# handling changes API behaviour. This file pins the resolved set so the
-# suite is reproducible and cannot silently regress.
+# `pip install -e .` can resolve a Starlette whose path handling changes API
+# behaviour, or a bcrypt that drifts from the pinned set. This file pins the
+# resolved set so the suite is reproducible and cannot silently regress.
+# Password hashing uses bcrypt directly (no passlib), so no special bcrypt
+# upper bound is required.
 #
 # Usage (recommended for CI / clean machines):
 #   python -m venv .venv && . .venv/bin/activate
@@ -38,7 +39,6 @@ iniconfig==2.3.0
 jmespath==1.1.0
 limits==5.8.0
 packaging==26.2
-passlib==1.7.4
 pluggy==1.6.0
 psutil==7.2.2
 pyasn1==0.6.4

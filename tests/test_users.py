@@ -11,14 +11,14 @@ from __future__ import annotations
 
 import pytest
 
-from forgeos_auth import save_users, load_users, pwd_ctx, create_token
+from forgeos_auth import save_users, load_users, hash_password, verify_password, create_token
 
 
 def _seed(users: dict):
     """Write a user store with bcrypt-hashed passwords."""
     out = {}
     for name, (pw, role) in users.items():
-        out[name] = {"hash": pwd_ctx.hash(pw), "role": role}
+        out[name] = {"hash": hash_password(pw), "role": role}
     save_users(out)
 
 
@@ -180,7 +180,7 @@ class TestAdminResetPassword:
                                 headers=_hdr("alice", "admin"))
         assert resp.status_code == 200
         # New password verifies against the stored hash
-        assert pwd_ctx.verify("newpassword123", load_users()["bob"]["hash"])
+        assert verify_password("newpassword123", load_users()["bob"]["hash"])
 
     def test_requires_admin(self, test_client):
         _seed({"bob": ("password1", "user")})
