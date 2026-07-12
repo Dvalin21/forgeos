@@ -21,8 +21,6 @@ if _src_path not in sys.path:
     sys.path.insert(0, _src_path)
 
 
-# Ensure filedb_api loads in mock mode — must be set before any module import
-os.environ.setdefault("MOCK_FILEDB", "true")
 
 # Provide a JWT secret BEFORE forgeos_auth is imported anywhere.
 # forgeos_auth loads its secret at import time (module-level
@@ -57,13 +55,6 @@ def _isolate_forgeos_config(monkeypatch: pytest.MonkeyPatch) -> Generator[None, 
 
         # Create empty api-users.json
         (etc / "api-users.json").write_text("{}")
-
-        # Create filedb subdirectory
-        (etc / "filedb").mkdir(parents=True, exist_ok=True)
-        (etc / "filedb" / "filedb.conf").write_text(
-            'SNAPSHOT_DEBOUNCE="30"\nMAX_SNAPSHOTS="48"\nWRITE_THRESHOLD="100"\n'
-            'WATCH_ROOT="/tmp/test-srv-nas"\nAPI_PORT="12010"\n'
-        )
 
         # Replace the module-level Path constants directly
         monkeypatch.setattr(forgeos_auth, "CONFIG_FILE", etc / "forgeos.conf")

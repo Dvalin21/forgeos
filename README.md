@@ -49,12 +49,13 @@ The Python modules in `src/` are installed as a systemd service at `/opt/forgeos
 - **WebDAV** — nginx-backed, Windows network drive compatible
 - **FileBrowser** — web-based file manager
 
-### File-Based Database (ForgeFileDB)
-- **Oplock coordination** — inotify-based file access tracking on Samba shares. When a client opens a DB file, ForgeFileDB registers the access and serializes conflicting writes via fcntl advisory locks. No client-side changes needed — the app continues using its standard file/session mode.
-- **Supported formats** — file extension detection for ElevateDB (.edb/.edbt/.edbi), DBISAM/Paradox (.db/.px/.mb/.val), NexusDB (.nxd/.nxi/.nxl), dBase/FoxPro (.dbf/.cdx/.fpt/.idx), MS Access (.mdb/.accdb), SQLite (.sqlite/.sqlite3), Firebird (.fdb/.gdb)
+### Data Connect
+- **File-based databases** — track a DB directory shared by multiple clients; corruption protection comes from Samba **share modes** (oplocks off, strict locking on) applied per-share, which the client apps honour because access goes through SMB. File-family auto-detection for ElevateDB, DBISAM/Paradox, NexusDB, dBase/FoxPro, MS Access, SQLite, Firebird, TurboDB.
+- **Server databases** — PostgreSQL / MySQL managed as services; data dir stays local (never on a share), clients connect over the native port (5432/3306), and the engine's own MVCC/ACID handles concurrency.
+- **Per-app tagging** — each tracked database records its directory/data path and the owning app.
 - **Lock registry** — tracks which client has each file open, distinguishes shared (read) vs exclusive (write) access, queues conflicting writes
 - **Versioned snapshots** — point-in-time copies on btrfs subvolumes (instant, copy-on-write) or rsync fallback for non-btrfs volumes. Auto-snapshot on write threshold, configurable debounce
-- **mDNS discovery** — broadcasts on `_forgeos-filedb._tcp` and `_edb-server._tcp` for LAN discovery
+- **mDNS discovery** — broadcasts on `_data-connect._tcp` (and `_edb-server._tcp` for compatibility) for LAN discovery
 
 ### Containers
 - **Docker CE** — official repo, overlay2 storage, Compose v2
@@ -110,7 +111,7 @@ The backend lives in `src/` and is a **FastAPI application** serving REST + WebS
 src/
 ├── forgeos-api.py          # Main app: mounts sub-routers, hosts system endpoints + WebSockets
 ├── forgeos_auth.py         # Shared auth: JWT create/verify, bcrypt, LoginRequest model
-├── filedb_api.py           # ForgeFileDB REST + WebSocket API
+├── data_connect_api.py     # Data Connect REST API
 ├── docker_lxc_api.py       # Docker + LXC container management
 ├── rustfs_api.py           # RustFS S3-compatible storage API
 └── __init__.py             # Package marker
@@ -135,13 +136,12 @@ The `forgeos_auth.verify_token()` function is wired as a **router-level dependen
 | `/api/storage/*` | `forgeos-api.py` (inline) | Header / cookie |
 | `/api/docker/*` | `docker_lxc_api.py` | Router-level |
 | `/api/lxc/*` | `docker_lxc_api.py` | Router-level |
-| `/api/filedb/*` | `filedb_api.py` | Router-level |
+| `/api/data-connect/*` | `data_connect_api.py` | Router-level |
 | `/api/rustfs/*` | `rustfs_api.py` | Router-level |
 | `/ws/metrics` | `forgeos-api.py` (inline) | Query token |
 | `/ws/logs` | `forgeos-api.py` (inline) | Query token |
 | `/ws/docker/exec` | `forgeos-api.py` (inline) | Query token |
 | `/ws/lxc/exec` | `forgeos-api.py` (inline) | Query token |
-| `/ws/filedb` | `filedb_api.py` | Query token via `verify_ws_token()` |
 
 ---
 
@@ -153,7 +153,7 @@ The frontend is a **client-side SPA** served from `web/desktop/`. No framework �
 web/desktop/
 ├── index.html                  # Main desktop shell — login overlay, taskbar, desktop area
 ├── docker.html                 # Docker container management page
-├── filedb.html                 # ForgeFileDB management page
+├── data-connect.html           # Data Connect management page
 ├── filestation.html            # File browser (local)
 ├── filestation-rustfs.html     # File browser (RustFS S3)
 │
@@ -171,7 +171,6 @@ web/desktop/
 │   ├── forge-widget.js         # Base widget class
 │   ├── forge-terminal.js       # Terminal component
 │   ├── widget-alerts.js        # Alerts/notifications widget
-│   ├── widget-filedb.js        # FileDB status widget
 │   ├── widget-network.js       # Network stats widget
 │   ├── widget-storage.js       # Storage pool widget
 │   └── widget-system.js        # System info widget
@@ -261,7 +260,7 @@ cd forgeos
 sudo bash install/v2/bootstrap.sh
 ```
 
-The interactive installer prompts for hostname, timezone, LAN name, security profile, and optional services (WireGuard, NFS, ForgeFileDB, Coral, GPU). The admin password is generated and shown once at the end — save it.
+The interactive installer prompts for hostname, timezone, LAN name, security profile, and optional services (WireGuard, NFS, Data Connect, Coral, GPU). The admin password is generated and shown once at the end — save it.
 
 ### Unattended Install (CI / Automated)
 
@@ -282,7 +281,7 @@ sudo bash install/v2/bootstrap.sh --unattended \
 | Grafana | `https://grafana.nas.local` |
 | OnlyOffice | `https://office.nas.local` |
 | Immich | `https://photos.nas.local` |
-| ForgeFileDB | `https://filedb.nas.local` |
+| Data Connect | `https://data-connect.nas.local` |
 | MinIO Console | `https://console.s3.nas.local` |
 | Gotify | `https://push.nas.local` |
 | SOGo Mail | `https://mail.nas.local/SOGo` |
@@ -315,8 +314,7 @@ forgeos-cache        # bcache cache drive setup and monitoring
 forgeos-drives       # Drive type detection and registry
 forgeos-samba        # SMB share management
 forgeos-fileshare    # NFS/FTP/WebDAV/FileBrowser management
-forgeos-filedb       # ForgeFileDB coordinator
-forgeos-db           # MariaDB/PostgreSQL/Firebird/ElevateDB
+forgeos-db           # PostgreSQL/MySQL (Data Connect)
 forgeos-nginx        # Reverse proxy vhost management
 forgeos-vpn          # WireGuard peer management + QR codes
 forgeos-backup       # Restic backup management
@@ -361,19 +359,20 @@ forgeos-coral fix-aspm   # Adds pcie_aspm=off to GRUB, then reboot
 
 ---
 
-## ElevateDB / Atrex / File-Based Database Notes
+## Data Connect — Multi-Client Database Notes
 
-ForgeFileDB coordinates concurrent SMB access to file-based database engines. No client-side changes needed.
+**File-based databases** (Access, DBISAM, SQLite, etc.) shared over SMB: protection
+comes from Samba **share modes** — `oplocks = no`, `level2 oplocks = no`,
+`kernel oplocks = yes`, `locking = yes`, `strict locking = yes`, plus
+`veto oplock files` for the DB extensions. This is the correct, working mechanism:
+the client apps honour it because access goes through smbd. The one rule: **all
+access must go through the share** — a local process editing the same files
+out-of-band defeats the coordination.
 
-```bash
-# Create a share with all oplocks disabled
-forgeos-samba create myapp /srv/nas/myapp elevatedb
-
-# Supports 20-30 concurrent users; beyond that, consider MariaDB
-forgeos-filedb status
-```
-
-See [docs/elevatedb.md](docs/elevatedb.md) for full details.
+**Server databases** (PostgreSQL / MySQL): never place their data directory on an
+SMB/NFS share — that corrupts them. Data Connect runs them as local services;
+clients connect over the native port (5432/3306); the engine's own MVCC/ACID
+provides concurrency. This is strictly safer than any file-share approach.
 
 ---
 

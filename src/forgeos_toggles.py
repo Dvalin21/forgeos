@@ -1,4 +1,4 @@
-"""ForgeOS base-feature toggles: ForgeFileDB, Coral TPU, GPU.
+"""ForgeOS base-feature toggles: Data Connect, Coral TPU, GPU.
 
 These are base features that are install/uninstall TOGGLES rather than
 always-on services. Coral + GPU are also HARDWARE-GATED: enabling them only
@@ -88,10 +88,10 @@ class Feature:
 
 
 FEATURES: dict[str, dict] = {
-    "forgefiledb": {
+    "data_connect": {
         "hardware_gated": False,
         "detect": None,
-        "marker": "/opt/forgeos/filedb/forgeos-filedb.py",
+        "marker": None,
     },
     "coral": {
         "hardware_gated": True,
@@ -127,7 +127,7 @@ class ToggleManager:
         """Plan all three toggles from the config DB. Pure given injected deps."""
         out: list[TogglePlan] = []
         desired = {
-            "forgefiledb": cfg.toggles.forgefiledb,
+            "data_connect": cfg.toggles.data_connect,
             "coral": cfg.toggles.coral,
             "gpu": cfg.toggles.gpu,
         }

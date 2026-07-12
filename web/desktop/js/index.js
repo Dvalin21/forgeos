@@ -371,7 +371,7 @@
         { id: "path", label: "Path", placeholder: "/srv/nas/clients" },
         { id: "type", label: "Template", type: "select", options: [
           { value: "standard", label: "Standard" }, { value: "timemachine", label: "Time Machine" },
-          { value: "elevatedb", label: "ForgeFileDB / ElevateDB" }, { value: "media", label: "Media" }, { value: "private", label: "Private" }
+          { value: "data-connect", label: "Data Connect (database share)" }, { value: "media", label: "Media" }, { value: "private", label: "Private" }
         ] }
       ],
       onSubmit: async function (v) {

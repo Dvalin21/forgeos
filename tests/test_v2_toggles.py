@@ -37,14 +37,14 @@ def test_disable_installed_uninstalls():
 
 
 def test_disable_not_installed_noop():
-    p = tg.plan_toggle("forgefiledb", desired_enabled=False, hardware_present=True,
+    p = tg.plan_toggle("data_connect", desired_enabled=False, hardware_present=True,
                        currently_installed=False, hardware_gated=False)
     assert p.action == Action.NOOP
 
 
 def test_non_hw_gated_enable_installs_without_hardware():
-    # forgefiledb is not hardware-gated; hardware_present irrelevant
-    p = tg.plan_toggle("forgefiledb", desired_enabled=True, hardware_present=False,
+    # data_connect is not hardware-gated; hardware_present irrelevant
+    p = tg.plan_toggle("data_connect", desired_enabled=True, hardware_present=False,
                        currently_installed=False, hardware_gated=False)
     assert p.action == Action.INSTALL
 
@@ -81,7 +81,7 @@ def test_detect_gpu_none():
 
 def test_manager_plans_all_three():
     cfg = fc.ForgeOSConfig()
-    cfg.toggles.forgefiledb = True
+    cfg.toggles.data_connect = True
     cfg.toggles.coral = True
     cfg.toggles.gpu = False
 
@@ -91,7 +91,7 @@ def test_manager_plans_all_three():
         is_installed=lambda f: False,
     )
     plans = {p.feature: p.action for p in mgr.plan(cfg)}
-    assert plans["forgefiledb"] == Action.INSTALL
+    assert plans["data_connect"] == Action.INSTALL
     assert plans["coral"] == Action.INSTALL
     assert plans["gpu"] == Action.NOOP          # disabled + not installed
 
@@ -120,4 +120,4 @@ def test_manager_uninstalls_when_disabled_but_installed():
 
 def test_toggles_default_all_off():
     t = fc.TogglesConfig()
-    assert t.forgefiledb is False and t.coral is False and t.gpu is False
+    assert t.data_connect is False and t.coral is False and t.gpu is False

@@ -656,10 +656,11 @@ app = FastAPI(
 
 # Import routers — these reference verify_token which is now defined
 try:
-    from filedb_api import router as filedb_router
-    app.include_router(filedb_router)
+    from data_connect_api import router as data_connect_router, set_audit as _dc_set_audit
+    _dc_set_audit(_audit)
+    app.include_router(data_connect_router)
 except ImportError as e:
-    logger.warning("ForgeFileDB API not available: %s", e)
+    logger.warning("Data Connect API not available: %s", e)
 
 try:
     from rustfs_api import router as rustfs_router
@@ -687,7 +688,7 @@ try:
     from forgeos_pages_api import router as pages_router, set_audit
     set_audit(_audit)
     app.include_router(pages_router)
-    logger.info("ForgeOS Pages API loaded (file station, firewall, storage drives, docker compose, nginx, ForgeDB extensions)")
+    logger.info("ForgeOS Pages API loaded (file station, firewall, storage drives, docker compose, nginx, data connect)")
 except ImportError as e:
     logger.warning("ForgeOS Pages API not available: %s", e)
 

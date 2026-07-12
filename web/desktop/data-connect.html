@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>Data Connect · ForgeNAS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+</head>
+
+<body>
+
+  <div class="app"><main class="main" style="grid-column:1/-1">
+    <header class="topbar" style="grid-template-columns:1fr auto">
+      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Data Connect</h3><p>Manage databases shared by multiple clients &mdash; file-based DBs (protected via the share) and Postgres/MySQL servers</p></div></div>
+      <div class="top-actions">
+        <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
+        <button class="button" style="background:var(--primary-soft);color:var(--primary)" id="db-import"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Import database</button>
+      </div>
+    </header>
+
+    <section class="panel pad" style="margin-bottom:18px">
+      <div class="section-head"><div><h3>Broadcast</h3><p>Announce Data Connect on the local network (mDNS) so clients can discover it.</p></div>
+        <div class="switch" id="dc-broadcast"><i></i></div></div>
+    </section>
+
+    <section class="panel pad" style="margin-bottom:18px">
+      <div class="section-head"><div><h3>Databases</h3><p>Each database shows its directory / data path and the app that owns it.</p></div><span class="chip" id="db-chip">&mdash;</span></div>
+      <div id="db-list"><p style="color:var(--muted)">Loading databases&hellip;</p></div>
+    </section>
+
+  </main></div>
+
+<script src="/js/data-connect.js"></script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

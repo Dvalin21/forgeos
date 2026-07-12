@@ -9,7 +9,7 @@ Phases:
   2. seed config DB  — write initial /etc/forgeos/config.json from choices
   3. keystores       — wireguard server key, smtp password placeholder
   4. generate        — forgeos-generate all (renders configs, starts services)
-  5. toggles         — ForgeFileDB/Coral/GPU per config (hardware-gated)
+  5. toggles         — Data Connect/Coral/GPU per config (hardware-gated)
 
 Each phase is a method with its side effects injected (run-command, config
 save, generator apply), so the orchestration is unit-testable without root,
@@ -117,7 +117,7 @@ class InstallChoices:
     enable_wireguard: bool = False
     enable_nfs: bool = False
     # base toggles
-    enable_forgefiledb: bool = False
+    enable_data_connect: bool = False
     enable_coral: bool = False
     enable_gpu: bool = False
 
@@ -354,7 +354,7 @@ class Installer:
         cfg.wireguard.enabled = c.enable_wireguard
         cfg.nfs.enabled = c.enable_nfs
         cfg.nfs.lan_cidr = c.lan_cidr
-        cfg.toggles.forgefiledb = c.enable_forgefiledb
+        cfg.toggles.data_connect = c.enable_data_connect
         cfg.toggles.coral = c.enable_coral
         cfg.toggles.gpu = c.enable_gpu
         cfg.nginx.vhosts.append(

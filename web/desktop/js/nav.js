@@ -46,7 +46,7 @@
   var ICON = {
     dashboard: '<path d="M4 13h7V4H4zM13 20h7V4h-7zM4 20h7v-5H4z"/>',
     storage:   '<path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
-    filedb:    '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
+    dataconnect: '<ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/>',
     files:     '<path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/><path d="M3.8 8.5V5.7c0-1.1.9-2 2-2h4.1l1.7 1.8h5.2c1.1 0 2 .9 2 2v1"/>',
     shares:    '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.3 10.8l7.4-3.6M8.3 13.2l7.4 3.6"/>',
     apps:      '<path d="M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5zM13 13h6v6h-6z"/>',
@@ -69,7 +69,7 @@
     ]},
     { title: "Storage", items: [
       { id: "storage",  label: "Storage",       icon: "storage", page: "storage.html" },
-      { id: "forgedb",  label: "ForgeFileDB",   icon: "filedb",  page: "forgedb.html" },
+      { id: "data-connect", label: "Data Connect", icon: "dataconnect", page: "data-connect.html" },
       { id: "files",    label: "File Manager",  icon: "files",   page: "files.html" },
       { id: "shares",   label: "Shares (SMB)",  icon: "shares",  page: "shares.html" }
     ]},
@@ -125,7 +125,7 @@
       if (g.title) html += '<div class="nav-title">' + g.title + "</div>";
       html += '<nav class="nav">';
       g.items.forEach(function (it) {
-        var TILE = { dashboard:"t-dash", storage:"t-store", forgedb:"t-db", files:"t-files",
+        var TILE = { dashboard:"t-dash", storage:"t-store", "data-connect":"t-db", files:"t-files",
                  shares:"t-share", apps:"t-apps", proxy:"t-proxy", firewall:"t-fw", security:"t-fw",
                  vpn:"t-vpn", users:"t-users" };
         var icon = '<span class="tile ' + (TILE[it.id] || "t-sys") + '">' + svg(it.icon) + "</span>";

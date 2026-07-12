@@ -47,14 +47,14 @@ def collect_choices_interactive() -> fi.InstallChoices:
         profile = _prompt("  please enter low, medium, or high", "medium")
     wg = _prompt_bool("Enable WireGuard VPN", False)
     nfs = _prompt_bool("Enable NFS exports", False)
-    filedb = _prompt_bool("Enable ForgeFileDB", False)
+    data_connect = _prompt_bool("Enable Data Connect", False)
     coral = _prompt_bool("Enable Coral TPU (if present)", False)
     gpu = _prompt_bool("Enable GPU drivers (if present)", False)
     return fi.InstallChoices(
         domain=domain, hostname=hostname, timezone=timezone,
         lan_cidr=lan_cidr, security_profile=profile,
         enable_wireguard=wg, enable_nfs=nfs,
-        enable_forgefiledb=filedb, enable_coral=coral, enable_gpu=gpu,
+        enable_data_connect=data_connect, enable_coral=coral, enable_gpu=gpu,
     )
 
 
@@ -72,7 +72,7 @@ def main(argv=None) -> int:
     ap.add_argument("--profile", default="medium", choices=["low", "medium", "high"])
     ap.add_argument("--wireguard", action="store_true")
     ap.add_argument("--nfs", action="store_true")
-    ap.add_argument("--forgefiledb", action="store_true")
+    ap.add_argument("--data-connect", action="store_true")
     ap.add_argument("--coral", action="store_true")
     ap.add_argument("--gpu", action="store_true")
     args = ap.parse_args(argv)
@@ -83,7 +83,7 @@ def main(argv=None) -> int:
             lan_cidr=args.lan_cidr,
             security_profile=args.profile,
             enable_wireguard=args.wireguard, enable_nfs=args.nfs,
-            enable_forgefiledb=args.forgefiledb,
+            enable_data_connect=args.data_connect,
             enable_coral=args.coral, enable_gpu=args.gpu,
         )
     else:

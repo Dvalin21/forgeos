@@ -564,14 +564,63 @@ class InstalledApp(BaseModel):
         return v
 
 
+# ── Data Connect ────────────────────────────────────────────────────────────
+# Manages databases for multiple clients. Two kinds:
+#   file-based (ElevateDB/Access/SQLite/... — files on a Samba share, protected
+#     by SMB share modes: oplocks off, strict locking on)
+#   server (postgres/mysql — run locally on native ports, own MVCC concurrency;
+#     data dir MUST be local, never on a share)
+DataConnectKind = Literal["file", "postgres", "mysql"]
+
+
+class ManagedDatabase(BaseModel):
+    name: str                                  # unique id / share or db name
+    kind: DataConnectKind
+    data_path: str                             # dir (file) or data dir (server)
+    app: str = ""                              # which app owns it (free tag)
+    db_type: str = ""                          # detected file family, or engine
+    port: int = 0                              # server DBs: 5432/3306; 0 = file
+    comment: str = ""
+
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        v = v.strip()
+        if not v or any(c in v for c in ' \t\n\r"\\[]/'):
+            raise ValueError(f"invalid database name: {v!r}")
+        return v
+
+    @field_validator("data_path")
+    @classmethod
+    def _abs(cls, v: str) -> str:
+        if not v.startswith("/"):
+            raise ValueError(f"data path must be absolute: {v!r}")
+        return v
+
+
+class DataConnectConfig(BaseModel):
+    enabled: bool = False
+    broadcast: bool = True                     # mDNS/Avahi announce
+    databases: list[ManagedDatabase] = Field(default_factory=list)
+
+    @field_validator("databases")
+    @classmethod
+    def _unique(cls, v: list[ManagedDatabase]) -> list[ManagedDatabase]:
+        names = [d.name.lower() for d in v]
+        dupes = {n for n in names if names.count(n) > 1}
+        if dupes:
+            raise ValueError(f"duplicate database names: {sorted(dupes)}")
+        return v
+
+
 class TogglesConfig(BaseModel):
     """Base features that are install/uninstall toggles (not always-on).
 
     Coral + GPU are also hardware-gated: enabling them only does anything if
-    the hardware is present. ForgeFileDB is a pure software toggle.
+    the hardware is present. Data Connect is a pure software toggle.
     """
 
-    forgefiledb: bool = False
+    data_connect: bool = False
     coral: bool = False
     gpu: bool = False
 
@@ -691,7 +740,7 @@ class AuthConfig(BaseModel):
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
-    version: int = 8
+    version: int = 9
     # `domain` is the legacy single-name field, kept for compatibility with
     # existing call sites (installer, nginx generator, CLI). The authoritative
     # model is `naming` (three-names). `domain` mirrors naming.lan_name for the
@@ -702,6 +751,7 @@ class ForgeOSConfig(BaseModel):
     storage: StorageConfig = Field(default_factory=StorageConfig)
     samba: SambaConfig = Field(default_factory=SambaConfig)
     nginx: NginxConfig = Field(default_factory=NginxConfig)
+    data_connect: DataConnectConfig = Field(default_factory=DataConnectConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     updates: UpdatesConfig = Field(default_factory=UpdatesConfig)
@@ -723,7 +773,7 @@ class ForgeOSConfig(BaseModel):
         return v
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 def _migrate_v1_to_v2(data: dict) -> dict:
@@ -786,6 +836,18 @@ def _migrate_v6_to_v7(data: dict) -> dict:
     data["version"] = 7
     return data
 
+def _migrate_v8_to_v9(data: dict) -> dict:
+    """v9: ForgeFileDB became Data Connect. Rename the toggle; the old
+    file-locking daemon is gone (its advisory locks never worked
+    cross-protocol). Existing tracked dirs, if any, are not auto-migrated —
+    the model changed shape — but the toggle carries over."""
+    tog = data.setdefault("toggles", {})
+    if "forgefiledb" in tog:
+        tog["data_connect"] = tog.pop("forgefiledb")
+    data["version"] = 9
+    return data
+
+
 def _migrate_v7_to_v8(data: dict) -> dict:
     """v8: egress_nic "eth0" was a blind default, never a user choice — reset
     to "" (auto-detect default-route NIC at render time)."""
@@ -804,6 +866,7 @@ _MIGRATIONS = {
     5: _migrate_v5_to_v6,
     6: _migrate_v6_to_v7,
     7: _migrate_v7_to_v8,
+    8: _migrate_v8_to_v9,
 }
 
 

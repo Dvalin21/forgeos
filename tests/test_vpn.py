@@ -230,7 +230,7 @@ class TestV8Migration:
     def test_eth0_default_reset_to_auto(self):
         d = fc.migrate({"version": 7, "wireguard": {"egress_nic": "eth0"}})
         assert d["wireguard"]["egress_nic"] == ""
-        assert d["version"] == 8
+        assert d["version"] == fc.SCHEMA_VERSION
 
     def test_user_pinned_nic_preserved(self):
         d = fc.migrate({"version": 7, "wireguard": {"egress_nic": "bond0"}})

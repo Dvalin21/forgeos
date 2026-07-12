@@ -10,7 +10,7 @@ from generators import registry  # noqa: E402
 
 
 def test_registry_lists_all_three():
-    assert set(registry.names()) == {"security", "samba", "nginx", "wireguard", "nfs", "osbackup", "ufw", "updates"}
+    assert set(registry.names()) == {"security", "samba", "nginx", "wireguard", "nfs", "osbackup", "ufw", "updates", "avahi"}
 
 
 def test_get_unknown_raises():

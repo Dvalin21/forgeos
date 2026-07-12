@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 import forgeos_config as fc
 from generators import GeneratorError, ServiceGenerator
+from generators.avahi import AvahiGenerator
 from generators.nfs import NfsGenerator
 from generators.nginx import NginxGenerator
 from generators.rear import RearGenerator
@@ -34,6 +35,7 @@ _REGISTRY: dict[str, ServiceGenerator] = {
     "osbackup": RearGenerator(),
     "ufw": UfwGenerator(),
     "updates": UpdatesGenerator(),
+    "avahi": AvahiGenerator(),
 }
 
 
