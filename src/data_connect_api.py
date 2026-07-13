@@ -35,18 +35,9 @@ router = APIRouter()
 # Root under which file-based DB directories are tracked (mirrors the NAS pool).
 WATCH_ROOT = Path(os.environ.get("DATA_CONNECT_ROOT", "/srv/nas"))
 
-# File-DB extensions -> the app/engine family they belong to. Used to auto-tag
-# an imported directory. Ported from the old daemon's detection table.
-DB_FAMILIES: dict[str, str] = {
-    ".edb": "ElevateDB", ".edbt": "ElevateDB", ".edbi": "ElevateDB", ".edbl": "ElevateDB",
-    ".db": "DBISAM", ".px": "Paradox", ".mb": "Paradox", ".val": "Paradox",
-    ".nxd": "NexusDB", ".nxi": "NexusDB", ".nxl": "NexusDB",
-    ".dbf": "dBase/FoxPro", ".cdx": "dBase/FoxPro", ".fpt": "dBase/FoxPro", ".idx": "dBase/FoxPro",
-    ".mdb": "Access", ".accdb": "Access", ".ldb": "Access", ".laccdb": "Access",
-    ".sqlite": "SQLite", ".sqlite3": "SQLite", ".sqlite-wal": "SQLite",
-    ".fdb": "Firebird", ".gdb": "Firebird",
-    ".dat": "TurboDB", ".tdb": "TurboDB", ".tdx": "TurboDB",
-}
+# File-DB extension -> family table lives in forgeos_config (the Samba
+# generator builds veto patterns from it). Re-exported here for callers/tests.
+DB_FAMILIES = fc.DB_FAMILIES
 
 # ── audit injection (same pattern as forgeos_pages_api) ──────────────────────
 __audit_impl__ = None
@@ -63,6 +54,28 @@ def _audit(who: str, action: str, status: str, detail: str | None = None) -> Non
             __audit_impl__(who, action, status, detail)
         except Exception:
             pass
+
+
+# Save the config-DB then regenerate the services that render from
+# data_connect: samba (protected DB shares) and avahi (mDNS broadcast).
+# Overridable in tests so they don't write /etc or touch systemctl.
+_apply = None
+
+
+def _apply_data_connect(cfg) -> None:
+    if _apply is not None:
+        _apply(cfg)
+        return
+    from generators import registry
+    fc.save(cfg)
+    registry.apply_one("samba", cfg=cfg)
+    registry.apply_one("avahi", cfg=cfg)
+
+
+def set_apply(fn) -> None:
+    """Test seam: inject a fake apply (save+generate+reload)."""
+    global _apply
+    _apply = fn
 
 
 def _safe_under_root(path: str) -> Path:
@@ -102,8 +115,12 @@ async def list_databases(user=Depends(verify_token)):
             "name": d.name, "kind": d.kind, "data_path": d.data_path,
             "app": d.app, "db_type": d.db_type, "port": d.port,
             "comment": d.comment, "exists": p.exists(),
+            # file DBs: share-mode protection is live iff samba renders the
+            # share. Server DBs are protected by the engine itself.
+            "protected": (cfg.samba.enabled and dc.enabled) if d.kind == "file" else True,
         })
-    return {"enabled": dc.enabled, "broadcast": dc.broadcast, "databases": out}
+    return {"enabled": dc.enabled, "broadcast": dc.broadcast,
+            "samba_enabled": cfg.samba.enabled, "databases": out}
 
 
 @router.post("/api/data-connect/import")
@@ -125,8 +142,18 @@ async def import_database(body: dict, user=Depends(verify_token)):
     family = str(body.get("db_type", "")).strip() or detect_family(directory)
 
     cfg = fc.load()
+    # A file DB IS a Samba share — its whole protection model is SMB share
+    # modes. Without smbd there is no access path at all, so refuse loudly
+    # instead of tracking a database nobody can reach.
+    if not cfg.samba.enabled:
+        raise HTTPException(409, "File sharing (Samba) is disabled — enable it "
+                                 "before importing file-based databases")
     if any(d.name.lower() == name.lower() for d in cfg.data_connect.databases):
         raise HTTPException(409, f"a database named {name!r} already exists")
+    if any(sh.name.lower() == name.lower() for sh in cfg.samba.shares):
+        raise HTTPException(409, f"{name!r} collides with an existing Samba share")
+    if name.lower() in ("global", "homes", "printers"):
+        raise HTTPException(400, f"{name!r} is a reserved Samba section name")
     try:
         cfg.data_connect.databases.append(fc.ManagedDatabase(
             name=name, kind="file", data_path=str(directory),
@@ -134,7 +161,7 @@ async def import_database(body: dict, user=Depends(verify_token)):
     except Exception as e:
         raise HTTPException(400, f"invalid: {e}")
     cfg.data_connect.enabled = True
-    fc.save(cfg)
+    _apply_data_connect(cfg)
     _audit(user["sub"], "data_connect.import", "success",
            f"{name} ({family or 'unknown'}) at {directory}")
     return {"ok": True, "db_type": family}
@@ -150,7 +177,7 @@ async def remove_database(name: str, user=Depends(verify_token)):
     if not any(d.name == name for d in cfg.data_connect.databases):
         raise HTTPException(404, f"no such database: {name}")
     cfg.data_connect.databases = [d for d in cfg.data_connect.databases if d.name != name]
-    fc.save(cfg)
+    _apply_data_connect(cfg)
     _audit(user["sub"], "data_connect.remove", "success", name)
     return {"ok": True}
 
@@ -163,7 +190,7 @@ async def set_broadcast(body: dict, user=Depends(verify_token)):
         raise HTTPException(403, "Admin required")
     cfg = fc.load()
     cfg.data_connect.broadcast = bool(body.get("broadcast", True))
-    fc.save(cfg)
+    _apply_data_connect(cfg)
     _audit(user["sub"], "data_connect.broadcast", "success",
            "on" if cfg.data_connect.broadcast else "off")
     return {"ok": True, "broadcast": cfg.data_connect.broadcast}

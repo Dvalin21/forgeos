@@ -49,7 +49,17 @@ class SambaGenerator(ServiceGenerator):
             shares_file=SHARES_FILE,
             custom_file=CUSTOM_FILE,
         )
-        shares_conf = shares_tpl.render(shares=samba.shares)
+        db_shares = _data_connect_shares(cfg)
+        # Section names must be unique across managed shares + DB shares. The
+        # import API rejects collisions, but the config-DB is hand-editable —
+        # a duplicate [section] silently merges directives, so fail loud here.
+        seen = {s.name.lower() for s in samba.shares}
+        dupes = [d["name"] for d in db_shares if d["name"].lower() in seen]
+        if dupes:
+            raise GeneratorError(
+                f"data-connect share name collides with a samba share: {dupes}"
+            )
+        shares_conf = shares_tpl.render(shares=samba.shares, db_shares=db_shares)
 
         return [
             RenderedFile(path=SMB_CONF, content=smb_conf, mode=0o644),
@@ -118,6 +128,35 @@ class SambaGenerator(ServiceGenerator):
         if not _have("systemctl"):
             return
         self._run(["systemctl", "reload", "smbd"], check=False)
+
+
+def _data_connect_shares(cfg) -> list[dict]:
+    """Protected share sections derived from Data Connect file DBs.
+
+    cfg.data_connect is the single source of truth — nothing is mirrored into
+    cfg.samba.shares, so tracked DBs and their shares can never drift apart.
+    Server DBs (postgres/mysql) are excluded: their data dir must NEVER be on
+    a share (SMB caching breaks their write ordering — corruption).
+    """
+    import forgeos_config as fc
+
+    dc = getattr(cfg, "data_connect", None)
+    if dc is None or not dc.enabled:
+        return []
+    out: list[dict] = []
+    for db in dc.databases:
+        if db.kind != "file":
+            continue
+        exts = fc.db_family_extensions(db.db_type)
+        veto = "/" + "/".join(f"*{e}" for e in exts) + "/" if exts else ""
+        comment = " — ".join(x for x in (db.app, db.db_type) if x) or db.name
+        out.append({
+            "name": db.name,
+            "path": db.data_path,
+            "comment": f"Data Connect: {comment}",
+            "veto_pattern": veto,
+        })
+    return out
 
 
 def _have(cmd: str) -> bool:

@@ -47,11 +47,14 @@
     }
     box.innerHTML = _dc.databases.map(function (d) {
       var missing = d.exists === false ? ' <span class="tag" style="background:var(--danger-soft);color:var(--danger)">path missing</span>' : '';
+      var prot = d.protected
+        ? ' <span class="tag" style="background:var(--ok-soft,rgba(0,160,90,.12));color:var(--ok,#0a8a52)" title="SMB share modes: oplocks off, strict locking, write-through">protected</span>'
+        : ' <span class="tag" style="background:var(--danger-soft);color:var(--danger)" title="Samba is disabled — no share, no protection">UNPROTECTED</span>';
       var app = d.app ? '<span class="tag">' + esc(d.app) + '</span>' : '<span class="tag" style="color:var(--muted)">unassigned</span>';
       var typ = d.db_type ? ' <span class="hint">' + esc(d.db_type) + '</span>' : '';
       var portLine = d.port ? '<div class="hint" style="margin:2px 0 0">port ' + d.port + '</div>' : '';
       return '<div class="rule-row" style="align-items:flex-start">' +
-        '<div style="flex:1"><div style="font-weight:700">' + esc(d.name) + ' ' + kindBadge(d.kind) + ' ' + app + typ + missing + '</div>' +
+        '<div style="flex:1"><div style="font-weight:700">' + esc(d.name) + ' ' + kindBadge(d.kind) + ' ' + app + typ + prot + missing + '</div>' +
         '<div class="hint" style="margin:2px 0 0">path: <code>' + esc(d.data_path) + '</code></div>' + portLine +
         (d.comment ? '<div class="hint" style="margin:2px 0 0">' + esc(d.comment) + '</div>' : '') + '</div>' +
         '<button class="icon-btn danger" data-del="' + esc(d.name) + '" title="Stop tracking"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-9 0v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7"/></svg></button>' +

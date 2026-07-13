@@ -1,3 +1,14 @@
+{% macro db_protection(veto_pattern) %}
+   oplocks = no
+   level2 oplocks = no
+   locking = yes
+   strict locking = yes
+   strict sync = yes
+   sync always = yes
+{% if veto_pattern %}
+   veto oplock files = {{ veto_pattern }}
+{% endif %}
+{% endmacro %}
 # ForgeOS Samba shares — GENERATED from /etc/forgeos/config.json. Do not edit
 # by hand. For custom directives that survive regeneration, use the raw editor
 # (writes a separate include the generator never overwrites).
@@ -44,9 +55,7 @@
    fruit:metadata = stream
 {% endif %}
 {% if s.type == "database" %}
-   oplocks = no
-   level2 oplocks = no
-   kernel oplocks = no
+{{ db_protection("").rstrip() }}
 {% endif %}
 {% if s.permissions == "private" %}
    create mask = 0600
@@ -58,4 +67,19 @@
    create mask = 0660
    directory mask = 0770
 {% endif %}
+{% endfor %}
+{% for db in db_shares %}
+
+[{{ db.name }}]
+   comment = {{ db.comment }}
+   path = {{ db.path }}
+   # Data Connect managed share — visible so DB client apps can find it
+   browseable = yes
+   guest ok = no
+   read only = no
+   valid users = @users
+   hide dot files = yes
+{{ db_protection(db.veto_pattern).rstrip() }}
+   create mask = 0660
+   directory mask = 0770
 {% endfor %}

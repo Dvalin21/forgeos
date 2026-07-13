@@ -573,6 +573,26 @@ class InstalledApp(BaseModel):
 DataConnectKind = Literal["file", "postgres", "mysql"]
 
 
+# File-DB extensions -> the app/engine family they belong to. Single source of
+# truth for (a) auto-tagging an imported directory and (b) building the per-share
+# `veto oplock files` pattern in the Samba generator.
+DB_FAMILIES: dict[str, str] = {
+    ".edb": "ElevateDB", ".edbt": "ElevateDB", ".edbi": "ElevateDB", ".edbl": "ElevateDB",
+    ".db": "DBISAM", ".px": "Paradox", ".mb": "Paradox", ".val": "Paradox",
+    ".nxd": "NexusDB", ".nxi": "NexusDB", ".nxl": "NexusDB",
+    ".dbf": "dBase/FoxPro", ".cdx": "dBase/FoxPro", ".fpt": "dBase/FoxPro", ".idx": "dBase/FoxPro",
+    ".mdb": "Access", ".accdb": "Access", ".ldb": "Access", ".laccdb": "Access",
+    ".sqlite": "SQLite", ".sqlite3": "SQLite", ".sqlite-wal": "SQLite",
+    ".fdb": "Firebird", ".gdb": "Firebird",
+    ".dat": "TurboDB", ".tdb": "TurboDB", ".tdx": "TurboDB",
+}
+
+
+def db_family_extensions(family: str) -> list[str]:
+    """Extensions for a DB family, sorted. [] for unknown/empty family."""
+    return sorted(ext for ext, fam in DB_FAMILIES.items() if fam == family)
+
+
 class ManagedDatabase(BaseModel):
     name: str                                  # unique id / share or db name
     kind: DataConnectKind
