@@ -185,18 +185,23 @@ helpers.
   `passlib`, and the initial admin hash is generated with `bcrypt` directly
   (consistent with the §3.2 src migration). A fresh install no longer pulls
   the EOL shim.
+- **Supply-chain `curl|bash` (6 sites, MEDIUM):** every `curl … | bash` pipe
+  (filebrowser `10-fileshare.sh`, rclone in `15-backup.sh` **and**
+  `16-cloud-storage.sh`, crowdsec `07-security.sh`, netbird `11-vpn.sh`,
+  acme.sh `12-reverse-proxy.sh`) now downloads to a temp file first, then runs
+  it — no blind pipe (a truncated/failed download can't execute a partial
+  script, and `curl` failure short-circuits before `bash`). Residual risk:
+  still root-executes the downloaded code; the full production control is to
+  vendor a pinned release + checksum. (First pass `ab9c17d` caught 2 sites;
+  the broader scan caught the other 4 in `968533e`.)
+- **Firebird default creds (LOW):** `10b-samba-db.sh` `ISC_PASSWORD` now uses
+  compose-native `${FIREBIRD_PASSWORD:?…}` and fails the container start if
+  unset — matching MSSQL's `MSSQL_SA_PASSWORD` requirement.
+- **SOGo password on cmdline (LOW):** `14-mail.sh` now creates the SOGo PG
+  user via a `psql` stdin heredoc instead of `-c "...PASSWORD 'x'"`, so the
+  secret is no longer visible in the process list.
 
-### Findings (documented — not auto-fixed)
-- **MEDIUM — supply chain:** `10-fileshare.sh` (filebrowser `get.sh`) and
-  `15-backup.sh` (rclone `install.sh`) run `curl … | bash` as root. Upstream-
-  recommended, but executes remote code unchecked. Recommend download-to-temp
-  + checksum pin, or vendoring the binaries.
-- **LOW — default creds:** `10b-samba-db.sh` Firebird `ISC_PASSWORD` defaults
-  to `changeme` when `FIREBIRD_PASSWORD` is unset (MSSQL correctly requires
-  `MSSQL_SA_PASSWORD`). Make Firebird require the env var too.
-- **LOW — secret on cmdline:** `14-mail.sh` creates the SOGo PG user with
-  `psql -c "… PASSWORD '${sogo_pass}'"` (briefly visible in `ps`). Pipe the
-  password via stdin / `PGPASSWORD` instead.
+### Findings (verified, no action needed)
 - **INFO — style:** 4 `SC2086` unquoted sysfs reads in `03c-drive-types.sh`
   and `02-network.sh` (kernel device names; low risk). Left as-is.
 - **Verified safe:** `17-hipaa.sh::check_compliance` `eval "$cmd"` — `$cmd` is
