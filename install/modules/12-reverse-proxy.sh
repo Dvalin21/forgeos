@@ -88,9 +88,17 @@ install_certbot() {
 
     # Also install acme.sh as fallback / Cloudflare DNS challenge support
     if [[ ! -f ~/.acme.sh/acme.sh ]]; then
-        curl -s https://get.acme.sh 2>/dev/null | bash -s email="${ACME_EMAIL:-admin@example.com}" \
-            >> "$FORGENAS_LOG" 2>&1 \
-            || warn "acme.sh install failed (certbot still available)"
+        # ponytail: download-then-run instead of curl|bash; still root-executes
+        # the downloaded code — vendor a pinned release checksum for production.
+        local acme_installer; acme_installer="$(mktemp)"
+        if curl -fsSL https://get.acme.sh -o "$acme_installer" 2>/dev/null; then
+            bash "$acme_installer" email="${ACME_EMAIL:-admin@example.com}" \
+                >> "$FORGENAS_LOG" 2>&1 \
+                || warn "acme.sh install failed (certbot still available)"
+        else
+            warn "acme.sh install download failed (certbot still available)"
+        fi
+        rm -f "$acme_installer"
     fi
 
     # Auto-renew hook: reload nginx after renewal

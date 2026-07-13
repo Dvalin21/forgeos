@@ -169,8 +169,16 @@ FILTER
 configure_crowdsec() {
     step "Installing CrowdSec"
 
-    curl -fsSL https://install.crowdsec.net | bash >> "$FORGENAS_LOG" 2>&1 \
-        || { warn "CrowdSec install script failed — skipping"; return 0; }
+    # ponytail: download-then-run instead of curl|bash; still root-executes
+    # the downloaded code — vendor a pinned release checksum for production.
+    local cs_installer; cs_installer="$(mktemp)"
+    if curl -fsSL https://install.crowdsec.net -o "$cs_installer"; then
+        bash "$cs_installer" >> "$FORGENAS_LOG" 2>&1 \
+            || { rm -f "$cs_installer"; warn "CrowdSec install script failed — skipping"; return 0; }
+    else
+        rm -f "$cs_installer"; warn "CrowdSec install script download failed — skipping"; return 0
+    fi
+    rm -f "$cs_installer"
 
     apt_install crowdsec crowdsec-firewall-bouncer-nftables 2>/dev/null \
         || apt_install_optional crowdsec

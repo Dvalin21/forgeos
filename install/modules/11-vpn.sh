@@ -321,8 +321,16 @@ install_netbird() {
 
     step "Installing Netbird mesh VPN"
 
-    curl -fsSL https://pkgs.netbird.io/install.sh | bash >> "$FORGENAS_LOG" 2>&1 \
-        || { warn "Netbird install failed"; return 0; }
+    # ponytail: download-then-run instead of curl|bash; still root-executes
+    # the downloaded code — vendor a pinned release checksum for production.
+    local nb_installer; nb_installer="$(mktemp)"
+    if curl -fsSL https://pkgs.netbird.io/install.sh -o "$nb_installer"; then
+        bash "$nb_installer" >> "$FORGENAS_LOG" 2>&1 \
+            || { rm -f "$nb_installer"; warn "Netbird install failed"; return 0; }
+    else
+        rm -f "$nb_installer"; warn "Netbird install failed"; return 0
+    fi
+    rm -f "$nb_installer"
 
     local nb_key="${NETBIRD_SETUP_KEY:-}"
     local nb_mgmt="${NETBIRD_MGMT_URL:-https://api.wiretrustee.com}"
