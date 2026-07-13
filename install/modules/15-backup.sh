@@ -169,8 +169,15 @@ install_rclone() {
     step "Installing Rclone"
 
     if ! command -v rclone &>/dev/null; then
-        curl -sf https://rclone.org/install.sh | bash >> "$FORGENAS_LOG" 2>&1 \
-            || apt_install rclone
+        # ponytail: download-then-run instead of curl|bash; still root-executes
+        # the downloaded code — vendor a pinned release checksum for production.
+        local rc_installer; rc_installer="$(mktemp)"
+        if curl -fsSL https://rclone.org/install.sh -o "$rc_installer"; then
+            bash "$rc_installer" >> "$FORGENAS_LOG" 2>&1 || apt_install rclone
+        else
+            apt_install rclone
+        fi
+        rm -f "$rc_installer"
     fi
 
     info "Rclone $(rclone --version 2>/dev/null | head -1)"

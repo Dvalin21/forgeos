@@ -298,9 +298,17 @@ install_filebrowser() {
 
     # Install FileBrowser binary
     if ! command -v filebrowser &>/dev/null; then
-        curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh \
-            | bash >> "$FORGENAS_LOG" 2>&1 \
-            || _install_filebrowser_manual
+        # ponytail: download-then-run instead of curl|bash; still root-executes
+        # the downloaded code — vendor a pinned release checksum for production.
+        local fb_installer; fb_installer="$(mktemp)"
+        if curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh \
+                -o "$fb_installer"; then
+            bash "$fb_installer" >> "$FORGENAS_LOG" 2>&1 \
+                || _install_filebrowser_manual
+        else
+            _install_filebrowser_manual
+        fi
+        rm -f "$fb_installer"
     fi
 
     _domain=$(forgenas_get "DOMAIN" "nas.local")

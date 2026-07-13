@@ -461,7 +461,10 @@ https://packages.inverse.ca/SOGo/nightly/5/ubuntu/ ${codename} ${codename}" \
     enable_service postgresql
 
     local sogo_pass; sogo_pass=$(gen_password 24)
-    sudo -u postgres psql -c "CREATE USER sogo WITH PASSWORD '${sogo_pass}';" 2>/dev/null || true
+    # password via stdin heredoc, not -c argv (keeps it out of `ps`)
+    sudo -u postgres psql << PSQL 2>/dev/null || true
+CREATE USER sogo WITH PASSWORD '${sogo_pass}';
+PSQL
     sudo -u postgres psql -c "CREATE DATABASE sogo OWNER sogo;" 2>/dev/null || true
     forgenas_set "SOGO_DB_PASS" "$sogo_pass"
 

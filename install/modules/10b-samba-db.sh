@@ -589,7 +589,7 @@ services:
     container_name: forgeos-firebird
     restart: unless-stopped
     environment:
-      ISC_PASSWORD: "${FIREBIRD_PASSWORD:-changeme}"
+      ISC_PASSWORD: "${FIREBIRD_PASSWORD:?Set FIREBIRD_PASSWORD to a strong password}"
     volumes:
       - /srv/forgeos/databases/firebird:/firebird/data
       - /srv/nas:/srv/nas:ro
