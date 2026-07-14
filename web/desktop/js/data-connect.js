@@ -129,12 +129,25 @@
     $('#s-go', back).onclick = async function () {
       var name = $('#s-name', back).value.trim();
       if (!name) { toast('Name required', 'err'); return; }
-      this.disabled = true; this.style.opacity = .5; this.textContent = 'Working…';
-      var r = await api('/api/data-connect/register-server', { method: 'POST', body: JSON.stringify({
-        name: name, engine: $('#s-engine', back).value, app: $('#s-app', back).value.trim(),
-        install: $('#s-install', back).checked }) });
-      if (r.ok) { toast('Server database added', 'ok'); back.remove(); load(); }
-      else { var o = $('#s-out', back); o.style.display = ''; o.textContent = (r.data && r.data.detail) || 'Could not add'; this.disabled = false; this.style.opacity = 1; this.textContent = 'Add'; }
+      var btn = this;
+      btn.disabled = true; btn.style.opacity = .5; btn.textContent = 'Working…';
+      var payload = { name: name, engine: $('#s-engine', back).value,
+                      app: $('#s-app', back).value.trim(),
+                      install: $('#s-install', back).checked };
+      var attempt = 0;
+      async function go() {
+        var r = await api('/api/data-connect/register-server', { method: 'POST', body: JSON.stringify(payload) });
+        if (r.ok) { toast('Server database added', 'ok'); back.remove(); load(); return; }
+        // 202: engine install runs as a background unit — poll until done.
+        if (r.status === 202 && attempt++ < 120) {
+          btn.textContent = 'Installing engine…';
+          setTimeout(go, 5000); return;
+        }
+        var o = $('#s-out', back); o.style.display = '';
+        o.textContent = (r.data && r.data.detail) || 'Could not add';
+        btn.disabled = false; btn.style.opacity = 1; btn.textContent = 'Add';
+      }
+      go();
     };
   }
 

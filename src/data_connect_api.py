@@ -23,9 +23,11 @@ Dependencies injected by the main app at include time:
 from __future__ import annotations
 
 import os
+import logging
 import subprocess
 from pathlib import Path
 
+from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Depends, HTTPException
 
 from forgeos_auth import verify_token  # type: ignore
@@ -34,6 +36,8 @@ import forgeos_config as fc
 router = APIRouter()
 
 # Root under which file-based DB directories are tracked (mirrors the NAS pool).
+logger = logging.getLogger("forgeos.data_connect")
+
 WATCH_ROOT = Path(os.environ.get("DATA_CONNECT_ROOT", "/srv/nas"))
 
 # File-DB extension -> family table lives in forgeos_config (the Samba
@@ -69,11 +73,12 @@ def _apply_data_connect(cfg) -> None:
         return
     from generators import registry
     fc.save(cfg)
-    registry.apply_one("samba", cfg=cfg)
-    registry.apply_one("avahi", cfg=cfg)
-    registry.apply_one("dbserver", cfg=cfg)
-    if cfg.firewall.enabled:
-        registry.apply_one("ufw", cfg=cfg)
+    names = ["samba", "avahi", "dbserver"] + (
+        ["ufw"] if cfg.firewall.enabled else [])
+    for n in names:
+        r = registry.apply_one(n, cfg=cfg)
+        if not r.ok:
+            logger.error("data-connect apply failed: %s: %s", n, r.error)
 
 
 def set_apply(fn) -> None:
@@ -227,18 +232,28 @@ async def register_server(body: dict, user=Depends(verify_token)):
                 409, f"{eng['label']} is not installed. Re-submit with "
                      f"install=true, or run: apt-get install -y {eng['pkg']}")
         # apt writes /usr and /var/lib/dpkg — impossible inside this
-        # service's ProtectSystem=strict sandbox. systemd-run executes the
-        # install as a transient unit under the system manager, outside the
-        # sandbox, and --wait surfaces its exit status here.
-        _audit(user["sub"], "data_connect.install", "started", eng["pkg"])
-        res = _run(["systemd-run", "--wait", "--collect", "--quiet",
-                    "--setenv=DEBIAN_FRONTEND=noninteractive",
-                    "apt-get", "install", "-y", eng["pkg"]], timeout=900)
-        if res.returncode != 0:
-            _audit(user["sub"], "data_connect.install", "failed", eng["pkg"])
-            raise HTTPException(502, f"install failed: "
-                                     f"{(res.stderr or res.stdout or '')[-300:]}")
-        _audit(user["sub"], "data_connect.install", "success", eng["pkg"])
+        # service's ProtectSystem=strict sandbox. systemd-run executes it as
+        # a transient unit under the system manager, outside the sandbox.
+        # NEVER block this request on apt: nginx's proxy_read_timeout would
+        # 504 long before a package install finishes. Start a NAMED unit,
+        # return 202, and let the client poll this same endpoint — the retry
+        # completes registration once dpkg sees the package. Idempotent:
+        # while the named unit is active, repeat calls just report 202.
+        unit = f"forgeos-engine-install-{engine}"
+        if _run(["systemctl", "is-active", "--quiet", unit]).returncode != 0:
+            _audit(user["sub"], "data_connect.install", "started", eng["pkg"])
+            res = _run(["systemd-run", "--collect", "--quiet",
+                        f"--unit={unit}",
+                        "--setenv=DEBIAN_FRONTEND=noninteractive",
+                        "apt-get", "install", "-y", eng["pkg"]], timeout=60)
+            if res.returncode != 0:
+                _audit(user["sub"], "data_connect.install", "failed", eng["pkg"])
+                raise HTTPException(502, f"could not start install: "
+                                         f"{(res.stderr or res.stdout or '')[-300:]}")
+        return JSONResponse(status_code=202, content={
+            "installing": True, "engine": engine,
+            "detail": f"Installing {eng['label']} — poll this endpoint until "
+                      f"it returns 200"})
 
     # Registering means managing: the engine must be running and survive boot.
     res = _run(["systemctl", "enable", "--now", eng["svc"]], timeout=120)

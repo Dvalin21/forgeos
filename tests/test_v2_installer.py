@@ -500,3 +500,11 @@ def test_render_survives_unreadable_secret_paths(monkeypatch):
 
     fcert, _ = NginxGenerator._cert_paths("app.lan")
     assert fcert == SNAKEOIL_CERT
+
+
+def test_runtime_dirs_cover_late_installed_generator_targets():
+    """Regression: ReadWritePaths bind mounts are set up at service start; a
+    '-' entry whose dir appears LATER (engine installed mid-request) stays
+    read-only forever. The installer must pre-create every generator target."""
+    for d in ("/etc/avahi/services", "/etc/postgresql", "/etc/mysql"):
+        assert d in fi.RUNTIME_DIRS, d

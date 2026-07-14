@@ -439,29 +439,71 @@ class TestRegisterServerApi:
         assert r.status_code == 409
         assert "mariadb-server" in r.json()["detail"]
 
-    def test_install_flag_uses_systemd_run(self, test_client, auth_headers):
+    def test_install_is_async_202_then_completes(self, test_client, auth_headers):
+        """Install must NEVER block the request (nginx would 504). First call
+        starts a named transient unit and returns 202; the poll retry
+        completes registration once dpkg sees the package."""
         import data_connect_api, types
-        installed = {"done": False}
+        state = {"installed": False, "unit_active": False}
         def fake(cmd, timeout):
             self.cmds.append(cmd)
             if cmd[:2] == ["dpkg", "-s"]:
-                return types.SimpleNamespace(returncode=0 if installed["done"] else 1,
-                                             stdout="", stderr="")
+                return types.SimpleNamespace(
+                    returncode=0 if state["installed"] else 1, stdout="", stderr="")
+            if cmd[:2] == ["systemctl", "is-active"]:
+                return types.SimpleNamespace(
+                    returncode=0 if state["unit_active"] else 1, stdout="", stderr="")
             if cmd[0] == "systemd-run":
-                installed["done"] = True
+                state["unit_active"] = True
             return types.SimpleNamespace(returncode=0, stdout="", stderr="")
         data_connect_api.set_run(fake)
-        r = test_client.post("/api/data-connect/register-server",
-                             headers=auth_headers,
-                             json={"name": "m2", "engine": "mysql",
-                                   "install": True})
-        assert r.status_code == 200, r.text
+        body = {"name": "m2", "engine": "mysql", "install": True}
+        r1 = test_client.post("/api/data-connect/register-server",
+                              headers=auth_headers, json=body)
+        assert r1.status_code == 202 and r1.json()["installing"] is True
+        sd = next(c for c in self.cmds if c[0] == "systemd-run")
+        # apt runs OUTSIDE the API sandbox, as a NAMED unit, WITHOUT --wait
+        assert "apt-get" in sd and "mariadb-server" in sd
+        assert "--wait" not in sd and any(a.startswith("--unit=") for a in sd)
+        # poll while install still running: 202 again, and NO second unit
+        r2 = test_client.post("/api/data-connect/register-server",
+                              headers=auth_headers, json=body)
+        assert r2.status_code == 202
+        assert sum(1 for c in self.cmds if c[0] == "systemd-run") == 1
+        # install finishes -> retry completes registration
+        state["installed"] = True
+        r3 = test_client.post("/api/data-connect/register-server",
+                              headers=auth_headers, json=body)
+        assert r3.status_code == 200, r3.text
         try:
-            sd = next(c for c in self.cmds if c[0] == "systemd-run")
-            # apt runs OUTSIDE the API sandbox (ProtectSystem=strict blocks /usr)
-            assert "apt-get" in sd and "mariadb-server" in sd and "--wait" in sd
+            assert ["systemctl", "enable", "--now", "mariadb"] in self.cmds
         finally:
             test_client.delete("/api/data-connect/m2", headers=auth_headers)
+
+    def test_apply_failures_are_logged(self, test_client, auth_headers,
+                                       tmp_path, monkeypatch, caplog):
+        """Regression: a failed generator apply must leave a log line, not
+        vanish (the read-only /etc/postgresql bug was invisible for exactly
+        this reason)."""
+        import logging
+        import data_connect_api
+        monkeypatch.setattr(data_connect_api, "WATCH_ROOT", tmp_path)
+        d = tmp_path / "ldb"; d.mkdir()
+        # real _apply_data_connect, but with the registry faked to fail
+        data_connect_api.set_apply(None)
+        from generators import registry as reg
+
+        class FakeResult:
+            ok = False
+            error = "read-only file system"
+        monkeypatch.setattr(reg, "apply_one",
+                            lambda n, cfg=None, do_reload=True: FakeResult())
+        monkeypatch.setattr(data_connect_api.fc, "save", lambda cfg: None)
+        with caplog.at_level(logging.ERROR):
+            r = test_client.post("/api/data-connect/import", headers=auth_headers,
+                                 json={"name": "ldb", "data_path": str(d)})
+        assert r.status_code == 200
+        assert any("read-only" in rec.message for rec in caplog.records)
 
     def test_duplicate_name_409(self, test_client, auth_headers):
         test_client.post("/api/data-connect/register-server", headers=auth_headers,

@@ -76,6 +76,15 @@ RUNTIME_DIRS = [
     "/etc/forgeos",
     "/var/log/forgeos",
     "/var/lib/forgeos",
+    # ReadWritePaths bind mounts are set up ONCE, at service start; a '-'
+    # entry whose dir is missing then is skipped and stays read-only for the
+    # service's whole lifetime — even if a package creates it later (the
+    # dbserver bug: postgres installed mid-request, drop-in write hit a
+    # read-only /etc). Pre-create every dir a generator may write so the
+    # mounts always bind. Empty dirs are harmless to the owning packages.
+    "/etc/avahi/services",
+    "/etc/postgresql",
+    "/etc/mysql",
 ]
 
 DBCHECK_SERVICE_UNIT = """# ForgeOS Data Connect integrity check — GENERATED
