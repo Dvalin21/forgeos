@@ -95,8 +95,14 @@ class WireGuardGenerator(ServiceGenerator):
 
     def _read_server_key(self) -> str:
         p = self._server_key_path()
-        if p.exists():
-            return p.read_text().strip()
+        try:
+            if p.exists():
+                return p.read_text().strip()
+        except OSError:
+            # EACCES: key dir is root-only 0700; an unprivileged render (e.g.
+            # dev-box pytest) must degrade to the missing-key placeholder,
+            # never crash. Real applies run as root and read normally.
+            pass
         return "__FORGEOS_WG_SERVER_KEY_MISSING__"
 
     def ensure_server_key(self) -> str:

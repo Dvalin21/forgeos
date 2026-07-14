@@ -147,12 +147,21 @@ class NginxGenerator(ServiceGenerator):
         # Resolution order: a registered EXTERNAL cert by that name, then a
         # Let's Encrypt live dir, else snakeoil. cert_name defaults to the
         # vhost domain (per-host), or names a shared/wildcard/external cert.
+        def _readable(path: Path) -> bool:
+            # EACCES-tolerant: /etc/letsencrypt/live is root-only 0700, and
+            # render must stay pure for unprivileged callers (dev-box pytest).
+            # Root (the real apply context) is unaffected.
+            try:
+                return path.exists()
+            except OSError:
+                return False
+
         if external and cert_name in external:
             fc, pk = external[cert_name]
-            if Path(fc).exists() and Path(pk).exists():
+            if _readable(Path(fc)) and _readable(Path(pk)):
                 return fc, pk
         le_dir = Path(f"/etc/letsencrypt/live/{cert_name}")
-        if (le_dir / "fullchain.pem").exists():
+        if _readable(le_dir / "fullchain.pem"):
             return str(le_dir / "fullchain.pem"), str(le_dir / "privkey.pem")
         return SNAKEOIL_CERT, SNAKEOIL_KEY
 

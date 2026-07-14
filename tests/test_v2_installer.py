@@ -478,3 +478,25 @@ def test_every_console_script_module_is_in_py_modules():
     for script, target in data["project"]["scripts"].items():
         mod = target.split(":")[0]
         assert mod in mods, f"{script} -> {mod} missing from py-modules"
+
+
+def test_render_survives_unreadable_secret_paths(monkeypatch):
+    """Regression (Keith's dev box): render() must stay pure — an EACCES on a
+    root-only secret path (/etc/forgeos/wireguard, /etc/letsencrypt/live) must
+    degrade to the missing-file behavior, never crash an unprivileged render."""
+    import forgeos_config as fc
+    from pathlib import Path
+    from generators.nginx import NginxGenerator, SNAKEOIL_CERT
+    from generators.wireguard import WireGuardGenerator
+
+    def denied(self, *a, **k):
+        raise PermissionError(13, "Permission denied", str(self))
+    monkeypatch.setattr(Path, "stat", denied)
+
+    cfg = fc.ForgeOSConfig()
+    cfg.wireguard.enabled = True
+    files = WireGuardGenerator().render(cfg)
+    assert any("__FORGEOS_WG_SERVER_KEY_MISSING__" in f.content for f in files)
+
+    fcert, _ = NginxGenerator._cert_paths("app.lan")
+    assert fcert == SNAKEOIL_CERT
