@@ -241,9 +241,6 @@
       var upFile = fileSvc.filter(function (s) { return s.status === "running"; }).length;
       setLive("hc-svc", upFile + "/" + fileSvc.length + " file services up"); setLive("hc-svc-b", upFile === fileSvc.length ? "OK" : "CHECK");
     } else { grid.innerHTML = "<div class='vol-empty'>Service status unavailable.</div>"; }
-    // running container count
-    var c = (await api("/api/docker/containers")).data;
-    if (c && c.containers) setLive("net-chip", "");  // noop placeholder
   }
 
   async function loadBackups() {

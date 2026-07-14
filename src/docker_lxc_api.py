@@ -103,24 +103,44 @@ def _run_compose(args: list, timeout: int = 60) -> dict:
 
 @router.get("/containers")
 async def list_containers(all: bool = Query(default=False)):
-    """List Docker containers."""
+    """List Docker containers.
+
+    Docker being absent or its daemon being down is a truthful STATE, not a
+    server error — returning 500 for it produced a permanent log storm on
+    boxes without Docker. Those states are 200 with available=false so the
+    UI can render them; only unexpected failures stay 500.
+    """
     args = ["ps", "--format", "json"]
     if all:
         args.append("-a")
-    
+
     result = _run_docker(args)
     if not result["success"]:
-        raise HTTPException(status_code=500, detail=result.get("error", "Failed to list containers"))
-    
-    try:
-        containers = json.loads(result["stdout"]) if result["stdout"] else []
-        if isinstance(containers, dict):
-            containers = [containers]
-        return {"containers": containers}
-    except json.JSONDecodeError:
-        # Parse non-JSON output
-        lines = result["stdout"].splitlines()
-        return {"containers": [], "raw": lines}
+        err = result.get("error", "")
+        stderr = result.get("stderr", "")
+        if "No such file or directory" in err:
+            return {"containers": [], "available": False,
+                    "reason": "Docker is not installed"}
+        if "Cannot connect to the Docker daemon" in stderr:
+            return {"containers": [], "available": False,
+                    "reason": "Docker daemon is not running"}
+        # genuine failure — keep the 500 but stop dropping the evidence
+        raise HTTPException(status_code=500,
+                            detail=err or stderr or "Failed to list containers")
+
+    # `docker ps --format json` emits NDJSON: one JSON object PER LINE.
+    # json.loads on the whole blob only worked for 0 or 1 containers; with
+    # two or more it raised and the list silently rendered empty.
+    containers = []
+    for line in result["stdout"].splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            containers.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass                    # ponytail: skip malformed line, keep rest
+    return {"containers": containers, "available": True}
 
 @router.post("/containers/{container}/start")
 async def start_container(container: str, user=Depends(verify_token)):
