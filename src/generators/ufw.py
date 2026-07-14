@@ -72,6 +72,23 @@ class UfwGenerator(ServiceGenerator):
                       "comment", "ForgeOS WireGuard VPN"])
         return g
 
+    def _data_connect_rules(self, cfg) -> list[list[str]]:
+        """LAN-scoped allows for tracked server-DB ports (Data Connect).
+        Derived from config like the WireGuard guard — no mirrored rule
+        entries the user could delete out from under a tracked database."""
+        dc = getattr(cfg, "data_connect", None)
+        if dc is None or not dc.enabled:
+            return []
+        lan = getattr(cfg.security, "lan_cidr", "") or "any"
+        src = ["from", lan] if lan != "any" else []
+        g = []
+        for d in dc.databases:
+            if d.kind in ("postgres", "mysql") and d.port:
+                g.append(["allow"] + src + ["to", "any", "port", str(d.port),
+                          "proto", "tcp",
+                          "comment", f"ForgeOS Data Connect {d.name}"])
+        return g
+
     # ── converge ─────────────────────────────────────────────────
     def apply(self, cfg, *, do_reload: bool = True) -> list[str]:
         fw = cfg.firewall
@@ -81,6 +98,8 @@ class UfwGenerator(ServiceGenerator):
         cmds.append(["ufw", "logging", fw.logging])
         if fw.enabled and fw.default_incoming != "allow":
             cmds += [["ufw"] + g for g in self._guard_rules(cfg)]
+        if fw.enabled and fw.default_incoming != "allow":
+            cmds += [["ufw"] + g for g in self._data_connect_rules(cfg)]
         cmds += [["ufw"] + self._rule_args(r) for r in fw.rules]
         cmds.append(["ufw", "--force", "enable" if fw.enabled else "disable"])
 

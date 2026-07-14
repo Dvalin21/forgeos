@@ -78,6 +78,31 @@ RUNTIME_DIRS = [
     "/var/lib/forgeos",
 ]
 
+DBCHECK_SERVICE_UNIT = """# ForgeOS Data Connect integrity check — GENERATED
+[Unit]
+Description=ForgeOS weekly database integrity check
+
+[Service]
+Type=oneshot
+# Engine-guarded: each line silently skips when its engine is absent, so one
+# static unit serves every box; the dbserver generator enables the timer.
+ExecStart=/bin/sh -c 'command -v pg_amcheck >/dev/null && runuser -u postgres -- pg_amcheck --all --install-missing || true'
+ExecStart=/bin/sh -c 'command -v mysqlcheck >/dev/null && mysqlcheck --all-databases || true'
+"""
+
+DBCHECK_TIMER_UNIT = """# ForgeOS Data Connect integrity check — GENERATED
+[Unit]
+Description=Weekly ForgeOS database integrity check
+
+[Timer]
+OnCalendar=weekly
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target
+"""
+
 _API_SERVICE_UNIT = """# ForgeOS Web UI API — GENERATED
 [Unit]
 Description=ForgeOS Web UI API Backend
@@ -98,7 +123,7 @@ SyslogIdentifier=forgeos-api
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-ReadWritePaths=/etc/forgeos /var/log/forgeos /var/lib/forgeos {opt} /srv -/etc/samba -/etc/nginx -/etc/fail2ban -/etc/letsencrypt -/var/log/letsencrypt -/var/lib/letsencrypt -/etc/exports.d -/etc/wireguard -/etc/rear -/etc/ufw -/etc/default/ufw -/etc/snapper -/etc/apt/apt.conf.d -/run
+ReadWritePaths=/etc/forgeos /var/log/forgeos /var/lib/forgeos {opt} /srv -/etc/samba -/etc/nginx -/etc/fail2ban -/etc/letsencrypt -/var/log/letsencrypt -/var/lib/letsencrypt -/etc/exports.d -/etc/wireguard -/etc/rear -/etc/ufw -/etc/default/ufw -/etc/snapper -/etc/apt/apt.conf.d -/etc/avahi/services -/etc/postgresql -/etc/mysql -/run
 
 [Install]
 WantedBy=multi-user.target
@@ -219,6 +244,12 @@ class Installer:
                 _API_SERVICE_UNIT.format(opt=FORGEOS_OPT, env=env_path),
                 0o644,
             )
+            # Data Connect integrity-check units (timer stays disabled until
+            # a server DB is tracked — the dbserver generator flips it).
+            self._write_file("/etc/systemd/system/forgeos-dbcheck.service",
+                             DBCHECK_SERVICE_UNIT, 0o644)
+            self._write_file("/etc/systemd/system/forgeos-dbcheck.timer",
+                             DBCHECK_TIMER_UNIT, 0o644)
 
             # 4. enable + start
             self.run(["systemctl", "daemon-reload"])

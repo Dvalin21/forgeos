@@ -42,8 +42,22 @@ class AvahiGenerator(ServiceGenerator):
             f"    <port>{EDB_COMPAT_PORT}</port>\n"
             "    <txt-record>product=ForgeOS Data Connect</txt-record>\n"
             "  </service>\n"
-            "</service-group>\n"
         )
+        # Standard mDNS service types per tracked server DB, so DB-aware
+        # clients discover the real engine + port (not just the umbrella).
+        _MDNS_TYPE = {"postgres": "_postgresql._tcp", "mysql": "_mysql._tcp"}
+        for db in dc.databases:
+            t = _MDNS_TYPE.get(db.kind)
+            if t and db.port:
+                xml += (
+                    "  <service>\n"
+                    f"    <type>{t}</type>\n"
+                    f"    <port>{db.port}</port>\n"
+                    f"    <txt-record>name={db.name}</txt-record>\n"
+                    "    <txt-record>vendor=ForgeOS</txt-record>\n"
+                    "  </service>\n"
+                )
+        xml += "</service-group>\n"
         return [RenderedFile(path=AVAHI_SERVICE, content=xml, mode=0o644)]
 
     def apply(self, cfg, *, do_reload: bool = True) -> list[str]:

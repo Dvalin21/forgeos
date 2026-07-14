@@ -23,6 +23,7 @@ Dependencies injected by the main app at include time:
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -70,6 +71,9 @@ def _apply_data_connect(cfg) -> None:
     fc.save(cfg)
     registry.apply_one("samba", cfg=cfg)
     registry.apply_one("avahi", cfg=cfg)
+    registry.apply_one("dbserver", cfg=cfg)
+    if cfg.firewall.enabled:
+        registry.apply_one("ufw", cfg=cfg)
 
 
 def set_apply(fn) -> None:
@@ -165,6 +169,96 @@ async def import_database(body: dict, user=Depends(verify_token)):
     _audit(user["sub"], "data_connect.import", "success",
            f"{name} ({family or 'unknown'}) at {directory}")
     return {"ok": True, "db_type": family}
+
+
+# ── server databases (patch 3) ──────────────────────────────────────────────
+# Debian 13 facts, not guesses: package/service names, default ports, data
+# dirs. MariaDB is Debian's "mysql"; kind stays "mysql" for client familiarity.
+ENGINES = {
+    "postgres": {"pkg": "postgresql", "svc": "postgresql", "port": 5432,
+                 "data": "/var/lib/postgresql", "label": "PostgreSQL"},
+    "mysql":    {"pkg": "mariadb-server", "svc": "mariadb", "port": 3306,
+                 "data": "/var/lib/mysql", "label": "MariaDB"},
+}
+
+# Subprocess seam for tests (dpkg / systemd-run / systemctl).
+_run_cmd = None
+
+
+def _run(cmd: list[str], timeout: int = 30) -> subprocess.CompletedProcess:
+    if _run_cmd is not None:
+        return _run_cmd(cmd, timeout)
+    return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+
+
+def set_run(fn) -> None:
+    """Test seam: fake out dpkg/systemctl/systemd-run."""
+    global _run_cmd
+    _run_cmd = fn
+
+
+def _engine_installed(pkg: str) -> bool:
+    return _run(["dpkg", "-s", pkg]).returncode == 0
+
+
+@router.post("/api/data-connect/register-server")
+async def register_server(body: dict, user=Depends(verify_token)):
+    """Track (and optionally install) a local Postgres/MariaDB instance.
+
+    Data dir stays local — server DBs never render a Samba share (SMB
+    caching breaks their write ordering). Clients use the native port.
+    """
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    name = str(body.get("name", "")).strip()
+    engine = str(body.get("engine", "")).strip()
+    install = bool(body.get("install", False))
+    if engine not in ENGINES:
+        raise HTTPException(400, f"unknown engine {engine!r} — expected one of "
+                                 f"{sorted(ENGINES)}")
+    eng = ENGINES[engine]
+    cfg = fc.load()
+    if any(d.name.lower() == name.lower() for d in cfg.data_connect.databases):
+        raise HTTPException(409, f"a database named {name!r} already exists")
+
+    if not _engine_installed(eng["pkg"]):
+        if not install:
+            raise HTTPException(
+                409, f"{eng['label']} is not installed. Re-submit with "
+                     f"install=true, or run: apt-get install -y {eng['pkg']}")
+        # apt writes /usr and /var/lib/dpkg — impossible inside this
+        # service's ProtectSystem=strict sandbox. systemd-run executes the
+        # install as a transient unit under the system manager, outside the
+        # sandbox, and --wait surfaces its exit status here.
+        _audit(user["sub"], "data_connect.install", "started", eng["pkg"])
+        res = _run(["systemd-run", "--wait", "--collect", "--quiet",
+                    "--setenv=DEBIAN_FRONTEND=noninteractive",
+                    "apt-get", "install", "-y", eng["pkg"]], timeout=900)
+        if res.returncode != 0:
+            _audit(user["sub"], "data_connect.install", "failed", eng["pkg"])
+            raise HTTPException(502, f"install failed: "
+                                     f"{(res.stderr or res.stdout or '')[-300:]}")
+        _audit(user["sub"], "data_connect.install", "success", eng["pkg"])
+
+    # Registering means managing: the engine must be running and survive boot.
+    res = _run(["systemctl", "enable", "--now", eng["svc"]], timeout=120)
+    if res.returncode != 0:
+        raise HTTPException(502, f"could not start {eng['svc']}: "
+                                 f"{(res.stderr or res.stdout or '')[-300:]}")
+
+    try:
+        cfg.data_connect.databases.append(fc.ManagedDatabase(
+            name=name, kind=engine, data_path=eng["data"],
+            app=str(body.get("app", "")).strip(), db_type=eng["label"],
+            port=int(body.get("port", 0)) or eng["port"],
+            comment=str(body.get("comment", "")).strip()))
+    except Exception as e:
+        raise HTTPException(400, f"invalid: {e}")
+    cfg.data_connect.enabled = True
+    _apply_data_connect(cfg)
+    _audit(user["sub"], "data_connect.register_server", "success",
+           f"{name} ({engine})")
+    return {"ok": True, "engine": engine, "port": eng["port"]}
 
 
 @router.delete("/api/data-connect/{name}")

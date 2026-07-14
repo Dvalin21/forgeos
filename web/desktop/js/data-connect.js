@@ -110,8 +110,37 @@
     };
   }
 
+  function serverModal() {
+    var back = document.createElement('div'); back.className = 'backdrop show';
+    back.innerHTML =
+      '<div class="modal" style="max-width:520px">' +
+      '<h3>Add a server database</h3>' +
+      '<p class="hint">Run PostgreSQL or MariaDB on this NAS. Clients connect over the native port; the data directory stays local (never on a share). ForgeOS pins durability settings and schedules weekly integrity checks.</p>' +
+      '<div class="fld"><label>Engine</label><select class="wz-input" id="s-engine"><option value="postgres">PostgreSQL (port 5432)</option><option value="mysql">MariaDB (port 3306)</option></select></div>' +
+      '<div class="fld"><label>Name</label><input class="wz-input" id="s-name" placeholder="main-db" autocomplete="off"></div>' +
+      '<div class="fld"><label>App (owner)</label><input class="wz-input" id="s-app" autocomplete="off"></div>' +
+      '<div class="fld"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="s-install"> Install the engine if missing</label></div>' +
+      '<div id="s-out" class="raw-err" style="display:none"></div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
+        '<button class="button ghost" id="s-cancel">Cancel</button><button class="button" id="s-go">Add</button></div>' +
+      '</div>';
+    document.body.appendChild(back);
+    $('#s-cancel', back).onclick = function () { back.remove(); };
+    $('#s-go', back).onclick = async function () {
+      var name = $('#s-name', back).value.trim();
+      if (!name) { toast('Name required', 'err'); return; }
+      this.disabled = true; this.style.opacity = .5; this.textContent = 'Working…';
+      var r = await api('/api/data-connect/register-server', { method: 'POST', body: JSON.stringify({
+        name: name, engine: $('#s-engine', back).value, app: $('#s-app', back).value.trim(),
+        install: $('#s-install', back).checked }) });
+      if (r.ok) { toast('Server database added', 'ok'); back.remove(); load(); }
+      else { var o = $('#s-out', back); o.style.display = ''; o.textContent = (r.data && r.data.detail) || 'Could not add'; this.disabled = false; this.style.opacity = 1; this.textContent = 'Add'; }
+    };
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     var imp = $('#db-import'); if (imp) imp.onclick = importModal;
+    var srv = $('#db-server'); if (srv) srv.onclick = serverModal;
     var rf = $('#refresh'); if (rf) rf.onclick = function () { load(); toast('Refreshed', 'info'); };
     var sw = $('#dc-broadcast'); if (sw) sw.onclick = async function () {
       var next = !(_dc.broadcast);

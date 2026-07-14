@@ -413,12 +413,32 @@ def test_generator_writes_stay_within_readwritepaths():
     cfg.security.profile = "high"          # widest tool set
     cfg.nginx.enabled = True
     cfg.nginx.vhosts = [fc.NginxVhost(name="app", domain="app.lan", upstream_port=8080)]
-
-    uncovered = []
-    for name in registry.names():
-        for rf in registry.get(name).render(cfg):
-            if not covered(rf.path):
-                uncovered.append((name, rf.path))
+    # Data Connect: broadcast + a file DB + both server engines, so the
+    # avahi/samba/dbserver outputs are all rendered and checked. This was the
+    # blind spot that let the /etc/avahi/services gap ship in patch 1.
+    cfg.data_connect.enabled = True
+    cfg.data_connect.broadcast = True
+    cfg.data_connect.databases = [
+        fc.ManagedDatabase(name="posdb", kind="file", data_path="/srv/nas/posdb",
+                           db_type="ElevateDB"),
+        fc.ManagedDatabase(name="pg", kind="postgres",
+                           data_path="/var/lib/postgresql", port=5432),
+        fc.ManagedDatabase(name="mdb", kind="mysql",
+                           data_path="/var/lib/mysql", port=3306),
+    ]
+    # dbserver's PG paths come from a live-system glob; pin the seam so the
+    # invariant is deterministic and actually exercises the PG drop-in path.
+    from generators import dbserver as _dbs
+    _orig = _dbs._pg_confdirs
+    _dbs._pg_confdirs = lambda: ["/etc/postgresql/17/main/conf.d"]
+    try:
+        uncovered = []
+        for name in registry.names():
+            for rf in registry.get(name).render(cfg):
+                if not covered(rf.path):
+                    uncovered.append((name, rf.path))
+    finally:
+        _dbs._pg_confdirs = _orig
     assert not uncovered, f"generator writes escape ReadWritePaths: {uncovered}"
 
 

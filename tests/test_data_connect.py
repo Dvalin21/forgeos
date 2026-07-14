@@ -266,3 +266,210 @@ class TestApiProtectionGuards:
             assert row["protected"] is True and lst["samba_enabled"] is True
         finally:
             test_client.delete("/api/data-connect/pdb", headers=auth_headers)
+
+
+class TestDbServerGenerator:
+    """Patch 3: durability drop-ins + integrity-timer management."""
+
+    def _cfg(self, *kinds):
+        cfg = fc.ForgeOSConfig()
+        cfg.data_connect.enabled = True
+        for i, k in enumerate(kinds):
+            cfg.data_connect.databases.append(fc.ManagedDatabase(
+                name=f"db{i}", kind=k,
+                data_path="/var/lib/x" if k != "file" else "/srv/nas/x",
+                port={"postgres": 5432, "mysql": 3306}.get(k, 0)))
+        return cfg
+
+    def test_postgres_dropin_per_cluster(self, monkeypatch):
+        from generators import dbserver
+        monkeypatch.setattr(dbserver, "_pg_confdirs",
+                            lambda: ["/etc/postgresql/17/main/conf.d"])
+        files = dbserver.DbServerGenerator().render(self._cfg("postgres"))
+        assert [f.path for f in files] == ["/etc/postgresql/17/main/conf.d/forgeos.conf"]
+        for directive in ("fsync = on", "synchronous_commit = on",
+                          "full_page_writes = on"):
+            assert directive in files[0].content, directive
+
+    def test_mysql_dropin(self, monkeypatch):
+        from generators import dbserver
+        monkeypatch.setattr(dbserver, "_pg_confdirs", lambda: [])
+        files = dbserver.DbServerGenerator().render(self._cfg("mysql"))
+        assert [f.path for f in files] == [dbserver.MYSQL_DROPIN]
+        assert "innodb_flush_log_at_trx_commit = 1" in files[0].content
+        assert "[mysqld]" in files[0].content
+
+    def test_file_dbs_render_nothing(self, monkeypatch):
+        from generators import dbserver
+        monkeypatch.setattr(dbserver, "_pg_confdirs",
+                            lambda: ["/etc/postgresql/17/main/conf.d"])
+        assert dbserver.DbServerGenerator().render(self._cfg("file")) == []
+        assert dbserver.DbServerGenerator().render(fc.ForgeOSConfig()) == []
+
+    def test_apply_enables_timer_and_reloads_pg(self, monkeypatch, tmp_path):
+        from generators import dbserver
+        confd = tmp_path / "17" / "main" / "conf.d"
+        monkeypatch.setattr(dbserver, "_pg_confdirs", lambda: [str(confd)])
+        monkeypatch.setattr(dbserver, "MYSQL_DROPIN", str(tmp_path / "99-forgeos.cnf"))
+        calls = []
+        gen = dbserver.DbServerGenerator()
+        monkeypatch.setattr(gen, "_run",
+                            lambda cmd, check=True: calls.append(cmd) or
+                            __import__("types").SimpleNamespace(returncode=0))
+        gen.apply(self._cfg("postgres", "mysql"))
+        assert (confd / "forgeos.conf").exists()
+        assert ["systemctl", "reload", "postgresql"] in calls
+        assert ["systemctl", "enable", "--now", dbserver.DBCHECK_TIMER] in calls
+
+    def test_apply_removes_stale_and_disables_timer(self, monkeypatch, tmp_path):
+        from generators import dbserver
+        confd = tmp_path / "17" / "main" / "conf.d"
+        confd.mkdir(parents=True)
+        stale = confd / "forgeos.conf"; stale.write_text("old")
+        monkeypatch.setattr(dbserver, "_pg_confdirs", lambda: [str(confd)])
+        monkeypatch.setattr(dbserver, "MYSQL_DROPIN", str(tmp_path / "99-forgeos.cnf"))
+        calls = []
+        gen = dbserver.DbServerGenerator()
+        monkeypatch.setattr(gen, "_run",
+                            lambda cmd, check=True: calls.append(cmd) or
+                            __import__("types").SimpleNamespace(returncode=0))
+        gen.apply(fc.ForgeOSConfig())      # nothing tracked -> cleanup
+        assert not stale.exists()
+        assert ["systemctl", "disable", "--now", dbserver.DBCHECK_TIMER] in calls
+
+
+class TestUfwDataConnectRules:
+    def test_server_db_ports_allowed_lan_scoped(self):
+        from generators.ufw import UfwGenerator
+        cfg = fc.ForgeOSConfig()
+        cfg.security.lan_cidr = "10.0.0.0/24"
+        cfg.data_connect.enabled = True
+        cfg.data_connect.databases.append(fc.ManagedDatabase(
+            name="pg", kind="postgres", data_path="/var/lib/postgresql", port=5432))
+        cfg.data_connect.databases.append(fc.ManagedDatabase(
+            name="files", kind="file", data_path="/srv/nas/f"))
+        rules = UfwGenerator()._data_connect_rules(cfg)
+        assert len(rules) == 1
+        r = rules[0]
+        assert "5432" in r and "10.0.0.0/24" in r and "allow" in r
+
+    def test_no_rules_when_disabled(self):
+        from generators.ufw import UfwGenerator
+        assert UfwGenerator()._data_connect_rules(fc.ForgeOSConfig()) == []
+
+
+class TestAvahiServerRecords:
+    def test_engine_records_broadcast(self):
+        cfg = fc.ForgeOSConfig()
+        cfg.data_connect.enabled = True
+        cfg.data_connect.broadcast = True
+        cfg.data_connect.databases.append(fc.ManagedDatabase(
+            name="pg", kind="postgres", data_path="/var/lib/postgresql", port=5432))
+        cfg.data_connect.databases.append(fc.ManagedDatabase(
+            name="m", kind="mysql", data_path="/var/lib/mysql", port=3306))
+        xml = AvahiGenerator().render(cfg)[0].content
+        assert "_postgresql._tcp" in xml and "<port>5432</port>" in xml
+        assert "_mysql._tcp" in xml and "<port>3306</port>" in xml
+        assert xml.rstrip().endswith("</service-group>")
+
+    def test_file_only_no_engine_records(self):
+        cfg = fc.ForgeOSConfig()
+        cfg.data_connect.enabled = True
+        cfg.data_connect.broadcast = True
+        cfg.data_connect.databases.append(fc.ManagedDatabase(
+            name="f", kind="file", data_path="/srv/nas/f"))
+        xml = AvahiGenerator().render(cfg)[0].content
+        assert "_postgresql._tcp" not in xml and "_mysql._tcp" not in xml
+
+
+class TestRegisterServerApi:
+    @pytest.fixture(autouse=True)
+    def _run_seam(self):
+        import data_connect_api
+        self.cmds = []
+        def fake(cmd, timeout):
+            self.cmds.append(cmd)
+            import types
+            # dpkg -s: engine "installed" by default in these tests
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        data_connect_api.set_run(fake)
+        yield
+        data_connect_api.set_run(None)
+
+    def test_unknown_engine_400(self, test_client, auth_headers):
+        r = test_client.post("/api/data-connect/register-server",
+                             headers=auth_headers,
+                             json={"name": "x", "engine": "oracle"})
+        assert r.status_code == 400
+
+    def test_requires_admin(self, test_client, user_headers):
+        r = test_client.post("/api/data-connect/register-server",
+                             headers=user_headers,
+                             json={"name": "x", "engine": "postgres"})
+        assert r.status_code == 403
+
+    def test_register_tracks_and_starts_engine(self, test_client, auth_headers):
+        r = test_client.post("/api/data-connect/register-server",
+                             headers=auth_headers,
+                             json={"name": "pgmain", "engine": "postgres",
+                                   "app": "Inventory"})
+        assert r.status_code == 200, r.text
+        assert r.json()["port"] == 5432
+        try:
+            assert ["systemctl", "enable", "--now", "postgresql"] in self.cmds
+            # no apt when engine already installed
+            assert not any("apt-get" in c for c in self.cmds)
+            lst = test_client.get("/api/data-connect", headers=auth_headers).json()
+            row = next(d for d in lst["databases"] if d["name"] == "pgmain")
+            assert row["kind"] == "postgres" and row["protected"] is True
+            assert row["data_path"] == "/var/lib/postgresql"
+        finally:
+            test_client.delete("/api/data-connect/pgmain", headers=auth_headers)
+
+    def test_not_installed_409_without_install_flag(self, test_client, auth_headers):
+        import data_connect_api, types
+        def fake(cmd, timeout):
+            self.cmds.append(cmd)
+            rc = 1 if cmd[:2] == ["dpkg", "-s"] else 0
+            return types.SimpleNamespace(returncode=rc, stdout="", stderr="")
+        data_connect_api.set_run(fake)
+        r = test_client.post("/api/data-connect/register-server",
+                             headers=auth_headers,
+                             json={"name": "m1", "engine": "mysql"})
+        assert r.status_code == 409
+        assert "mariadb-server" in r.json()["detail"]
+
+    def test_install_flag_uses_systemd_run(self, test_client, auth_headers):
+        import data_connect_api, types
+        installed = {"done": False}
+        def fake(cmd, timeout):
+            self.cmds.append(cmd)
+            if cmd[:2] == ["dpkg", "-s"]:
+                return types.SimpleNamespace(returncode=0 if installed["done"] else 1,
+                                             stdout="", stderr="")
+            if cmd[0] == "systemd-run":
+                installed["done"] = True
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        data_connect_api.set_run(fake)
+        r = test_client.post("/api/data-connect/register-server",
+                             headers=auth_headers,
+                             json={"name": "m2", "engine": "mysql",
+                                   "install": True})
+        assert r.status_code == 200, r.text
+        try:
+            sd = next(c for c in self.cmds if c[0] == "systemd-run")
+            # apt runs OUTSIDE the API sandbox (ProtectSystem=strict blocks /usr)
+            assert "apt-get" in sd and "mariadb-server" in sd and "--wait" in sd
+        finally:
+            test_client.delete("/api/data-connect/m2", headers=auth_headers)
+
+    def test_duplicate_name_409(self, test_client, auth_headers):
+        test_client.post("/api/data-connect/register-server", headers=auth_headers,
+                         json={"name": "dup", "engine": "postgres"})
+        try:
+            r = test_client.post("/api/data-connect/register-server",
+                                 headers=auth_headers,
+                                 json={"name": "DUP", "engine": "mysql"})
+            assert r.status_code == 409
+        finally:
+            test_client.delete("/api/data-connect/dup", headers=auth_headers)
