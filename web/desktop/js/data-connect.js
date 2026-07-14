@@ -17,7 +17,7 @@
     try {
       var r = await fetch(p, o);
       var data = null; try { data = await r.json(); } catch (e) {}
-      if (r.status === 401) { localStorage.removeItem('forgeos_token'); location.href = '/login.html'; }
+      if (r.status === 401) { localStorage.removeItem('forgeos_token'); location.href = '/index.html'; }
       return { ok: r.ok, status: r.status, data: data };
     } catch (e) { return { ok: false, status: 0, data: null }; }
   }
