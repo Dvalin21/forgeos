@@ -137,12 +137,14 @@
       var attempt = 0;
       async function go() {
         var r = await api('/api/data-connect/register-server', { method: 'POST', body: JSON.stringify(payload) });
-        if (r.ok) { toast('Server database added', 'ok'); back.remove(); load(); return; }
-        // 202: engine install runs as a background unit — poll until done.
+        // 202 FIRST: fetch's Response.ok is true for ANY 2xx, so checking
+        // r.ok first would treat "still installing" as success (bug: modal
+        // closed, polling never started, registration never completed).
         if (r.status === 202 && attempt++ < 120) {
           btn.textContent = 'Installing engine…';
           setTimeout(go, 5000); return;
         }
+        if (r.ok) { toast('Server database added', 'ok'); back.remove(); load(); return; }
         var o = $('#s-out', back); o.style.display = '';
         o.textContent = (r.data && r.data.detail) || 'Could not add';
         btn.disabled = false; btn.style.opacity = 1; btn.textContent = 'Add';
