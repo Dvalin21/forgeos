@@ -43,18 +43,22 @@
   }
 
   // ── catalog ──
+  // vols are functions of the app-data root so "Default app folder" applies.
   var CATALOG=[
-    {id:'jellyfin',name:'Jellyfin',cat:'Media',icon:'🎬',desc:'Free media server for movies, TV, music.',image:'jellyfin/jellyfin:latest',ports:['8096:8096'],vols:['/srv/nas/main/Media:/media:ro']},
-    {id:'plex',name:'Plex',cat:'Media',icon:'▶',desc:'Personal media library with mobile/TV apps.',image:'plexinc/pms-docker:latest',ports:['32400:32400']},
-    {id:'immich',name:'Immich',cat:'Photos',icon:'📷',desc:'Photo and video backup with mobile apps.',image:'ghcr.io/immich-app/immich-server:release',ports:['2283:3001'],compose:true},
-    {id:'nextcloud',name:'Nextcloud',cat:'Productivity',icon:'☁',desc:'Files, calendar, contacts, collaboration.',image:'nextcloud:latest',ports:['8080:80']},
-    {id:'vaultwarden',name:'Vaultwarden',cat:'Security',icon:'🔐',desc:'Bitwarden-compatible password manager.',image:'vaultwarden/server:latest',ports:['8200:80']},
-    {id:'pihole',name:'Pi-hole',cat:'Network',icon:'🛡',desc:'Network-wide ad blocking via DNS.',image:'pihole/pihole:latest',ports:['53:53/udp','53:53/tcp','8181:80']},
-    {id:'homeassistant',name:'Home Assistant',cat:'Automation',icon:'🏠',desc:'Open-source home automation.',image:'homeassistant/home-assistant:stable',ports:['8123:8123']},
-    {id:'portainer',name:'Portainer',cat:'Tools',icon:'⚓',desc:'Advanced container management UI.',image:'portainer/portainer-ce:latest',ports:['9000:9000']},
-    {id:'nginx-pm',name:'Nginx Proxy Manager',cat:'Network',icon:'🌐',desc:'Reverse proxy with cert UI.',image:'jc21/nginx-proxy-manager:latest',ports:['80:80','443:443','81:81']},
-    {id:'code-server',name:'Code Server',cat:'Tools',icon:'💻',desc:'VS Code in the browser on your NAS.',image:'codercom/code-server:latest',ports:['8443:8080']}
+    {id:'jellyfin',name:'Jellyfin',cat:'Media',icon:'🎬',desc:'Free media server for movies, TV, music.',image:'jellyfin/jellyfin:latest',ports:['8096:8096'],vols:function(r){return [r+'/jellyfin/config:/config',r+'/jellyfin/cache:/cache','/srv/nas:/media:ro']}},
+    {id:'plex',name:'Plex',cat:'Media',icon:'▶',desc:'Personal media library with mobile/TV apps.',image:'plexinc/pms-docker:latest',ports:['32400:32400'],vols:function(r){return [r+'/plex:/config','/srv/nas:/media:ro']}},
+    {id:'nextcloud',name:'Nextcloud',cat:'Productivity',icon:'☁',desc:'Files, calendar, contacts, collaboration.',image:'nextcloud:latest',ports:['8080:80'],vols:function(r){return [r+'/nextcloud:/var/www/html']}},
+    {id:'vaultwarden',name:'Vaultwarden',cat:'Security',icon:'🔐',desc:'Bitwarden-compatible password manager.',image:'vaultwarden/server:latest',ports:['8200:80'],vols:function(r){return [r+'/vaultwarden:/data']}},
+    {id:'uptime-kuma',name:'Uptime Kuma',cat:'Monitoring',icon:'📈',desc:'Self-hosted uptime monitoring with alerts.',image:'louislam/uptime-kuma:1',ports:['3001:3001'],vols:function(r){return [r+'/uptime-kuma:/app/data']}},
+    {id:'adguardhome',name:'AdGuard Home',cat:'Network',icon:'🛡',desc:'Network-wide ad blocking. Add 53:53 in the wizard only if THIS box should serve DNS.',image:'adguard/adguardhome:latest',ports:['3000:3000'],vols:function(r){return [r+'/adguard/work:/opt/adguardhome/work',r+'/adguard/conf:/opt/adguardhome/conf']}},
+    {id:'pihole',name:'Pi-hole',cat:'Network',icon:'🕳',desc:'DNS ad blocking. Add 53:53 in the wizard only if THIS box should serve DNS.',image:'pihole/pihole:latest',ports:['8181:80'],vols:function(r){return [r+'/pihole/etc:/etc/pihole']}},
+    {id:'homeassistant',name:'Home Assistant',cat:'Automation',icon:'🏠',desc:'Open-source home automation.',image:'ghcr.io/home-assistant/home-assistant:stable',ports:['8123:8123'],vols:function(r){return [r+'/homeassistant:/config']}},
+    {id:'syncthing',name:'Syncthing',cat:'Sync',icon:'🔄',desc:'Continuous folder sync between devices.',image:'syncthing/syncthing:latest',ports:['8384:8384','22000:22000'],vols:function(r){return [r+'/syncthing:/var/syncthing']}},
+    {id:'grafana',name:'Grafana',cat:'Monitoring',icon:'📊',desc:'Dashboards and metrics visualization.',image:'grafana/grafana:latest',ports:['3002:3000'],vols:function(r){return [r+'/grafana:/var/lib/grafana']}},
+    {id:'portainer',name:'Portainer',cat:'Tools',icon:'⚓',desc:'Advanced container management UI.',image:'portainer/portainer-ce:latest',ports:['9443:9443'],vols:function(r){return [r+'/portainer:/data','/var/run/docker.sock:/var/run/docker.sock']}},
+    {id:'code-server',name:'Code Server',cat:'Tools',icon:'💻',desc:'VS Code in the browser on your NAS.',image:'codercom/code-server:latest',ports:['8443:8080'],vols:function(r){return [r+'/code-server:/home/coder']}}
   ];
+
 
   var NATIVE_SERVICES=[
     {key:'nginx',name:'nginx',unit:'nginx',desc:'Web server and reverse proxy.',icon:'svc',configure:'nginx'},
@@ -67,15 +71,13 @@
     {key:'smartd',name:'SMART monitoring',unit:'smartd',desc:'Drive SMART monitoring.',icon:'svc'}
   ];
 
-  var STATE={containers:[],services:[],compose:[],updateMap:{}};
+  var STATE={containers:[],services:[],updateMap:{},appsRoot:'/srv/apps'};
   function recalc(){
     var svcUp=STATE.services.filter(function(s){return s.status==='running'}).length;
     var ctrUp=STATE.containers.filter(function(c){return c.running}).length;
-    var cmpUp=STATE.compose.filter(function(p){return /running/i.test(p.status||'')}).length;
     var upd=Object.values(STATE.updateMap).filter(function(x){return x===true}).length;
     $('#ov-svc').innerHTML=svcUp+' <small>/ '+STATE.services.length+'</small>';
     $('#ov-ctr').innerHTML=ctrUp+' <small>/ '+STATE.containers.length+'</small>';
-    $('#ov-cmp').innerHTML=cmpUp+' <small>/ '+STATE.compose.length+'</small>';
     $('#ov-up').innerHTML=upd?upd+' <small>ready</small>':'<span style="color:var(--muted)">none</span>';
     $('#b-ctr').textContent=STATE.containers.length;$('#b-svc').textContent=STATE.services.length;
   }
@@ -95,16 +97,23 @@
     $$('[data-install]').forEach(function(b){b.onclick=function(){installApp(b.getAttribute('data-install'))}});
     $$('[data-uninstall]').forEach(function(b){b.onclick=function(){wipeContainer(b.getAttribute('data-uninstall'))}});
   }
-  function installApp(id){
+  async function installApp(id){
     var a=CATALOG.filter(function(x){return x.id===id})[0];if(!a)return;
-    if(a.compose){
-      // Compose templates: prefill the compose wizard
-      composeWizard({name:a.id,content:composeTemplateFor(a)});return;
+    // Ask the server for conflict-free host ports so defaults never collide
+    // with ForgeOS services (80/443/445/5432…) or other containers.
+    var ports=(a.ports||[]).slice();
+    var want=ports.map(function(p){return p.split(':')[0]}).join(',');
+    if(want){
+      var f=await api('/api/docker/ports/free?ports='+encodeURIComponent(want));
+      if(f.ok&&f.data&&f.data.ports){
+        var moved=[];
+        ports=ports.map(function(p){var seg=p.split(':'),got=f.data.ports[seg[0]];
+          if(got&&String(got)!==seg[0]){moved.push(seg[0]+'→'+got);seg[0]=String(got)}return seg.join(':')});
+        if(moved.length)toast('Port in use — moved '+moved.join(', '),'warn');
+      }
     }
-    containerWizard({name:a.id,image:a.image,ports:(a.ports||[]).map(function(p){return p}),volumes:a.vols||[],env:a.env||[],labels:[['forgeos.catalog',id]]});
-  }
-  function composeTemplateFor(a){
-    return 'name: '+a.id+'\nservices:\n  app:\n    image: '+a.image+'\n    restart: unless-stopped\n    ports:\n      - "'+(a.ports&&a.ports[0]||'80:80')+'"\n    labels:\n      forgeos.catalog: '+a.id+'\n';
+    var vols=typeof a.vols==='function'?a.vols(STATE.appsRoot):(a.vols||[]);
+    containerWizard({name:a.id,image:a.image,restart:'unless-stopped',ports:ports,volumes:vols,env:a.env||[],labels:[['forgeos.catalog',id]]});
   }
 
   // ══════════ CONTAINER CREATE WIZARD ══════════
@@ -176,32 +185,6 @@
     $('#cw-add-label',m.el).onclick=function(){plLabels.add('','')};
   }
 
-  // ══════════ COMPOSE WIZARD ══════════
-  function composeWizard(prefill){
-    prefill=prefill||{};
-    var html=
-      '<div class="field"><label>Project name</label><input id="cmp-name" placeholder="my-stack" value="'+esc(prefill.name||'')+'"></div>'+
-      '<div class="file-drop" id="cmp-drop"><b>Drop a docker-compose.yml here</b>or click to browse · or paste below<input type="file" id="cmp-file" accept=".yml,.yaml" style="display:none"></div>'+
-      '<div class="field"><label>docker-compose.yml</label><textarea id="cmp-content" style="min-height:280px">'+esc(prefill.content||'services:\n  web:\n    image: nginx:latest\n    ports:\n      - "8080:80"\n    restart: unless-stopped\n')+'</textarea></div>'+
-      '<label class="checkbox-field"><input type="checkbox" id="cmp-deploy" checked>Deploy immediately (docker compose up -d)</label>';
-    var m=modal({title:prefill.name?'Edit compose project':'New compose project',sub:'Paste, upload, or write a compose file. Validated before save.',size:'big',html:html,cta:'Save',
-      onSubmit:async function(back){
-        var b={name:$('#cmp-name',back).value.trim(),content:$('#cmp-content',back).value,deploy:$('#cmp-deploy',back).checked};
-        if(!b.name){toast('Project name required','warn');return false}
-        if(!/services:/.test(b.content)){toast('Compose file must have a services: block','warn');return false}
-        if(b.deploy)toast('Validating + deploying…','info');
-        var r=await api('/api/compose/project',{method:'POST',body:JSON.stringify(b)});
-        toast(r.ok?b.name+(b.deploy?' deployed':' saved'):(r.data&&r.data.detail)||'Save failed',r.ok?'ok':'err');
-        if(r.ok)refresh();return r.ok}});
-    // file drop/browse
-    var drop=$('#cmp-drop',m.el),file=$('#cmp-file',m.el),ta=$('#cmp-content',m.el);
-    drop.onclick=function(){file.click()};
-    file.onchange=function(){var f=file.files[0];if(!f)return;var r=new FileReader();r.onload=function(){ta.value=r.result;if(!$('#cmp-name',m.el).value)$('#cmp-name',m.el).value=f.name.replace(/\.(ya?ml)$/i,'')};r.readAsText(f)};
-    ['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('over')})});
-    ['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('over')})});
-    drop.addEventListener('drop',function(e){var f=e.dataTransfer.files[0];if(!f)return;var r=new FileReader();r.onload=function(){ta.value=r.result;if(!$('#cmp-name',m.el).value)$('#cmp-name',m.el).value=f.name.replace(/\.(ya?ml)$/i,'')};r.readAsText(f)});
-  }
-
   // ══════════ CONTAINERS LIST ══════════
   function renderContainers(){
     var box=$('#containers-grid');if(!STATE.containers.length){box.innerHTML='<div class="empty">No containers. Use <b>+ New container</b> or install from the Catalog.</div>';return}
@@ -217,7 +200,9 @@
           (c.running?'<button data-stop="'+esc(c.name)+'"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg>Stop</button><button data-restart="'+esc(c.name)+'"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4"/></svg>Restart</button>':'<button data-start="'+esc(c.name)+'"><svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>Start</button>')+
           '<button data-logs="'+esc(c.name)+'"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h12"/></svg>Logs</button>'+
           '<button data-update-one="'+esc(c.name)+'"'+(c.composeProject?' disabled title="Use compose to update"':'')+'><svg viewBox="0 0 24 24"><path d="M12 4v8M9 9l3-3 3 3M5 16a8 8 0 0 0 14 0"/></svg>Update</button>'+
-          '<button class="danger" data-wipe="'+esc(c.name)+'" title="Remove container + image + volumes"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13"/></svg>Wipe</button>'+
+          '<button data-term="'+esc(c.name)+'" title="Run a command inside the container"><svg viewBox="0 0 24 24"><path d="M4 17l6-5-6-5M12 19h8"/></svg>Terminal</button>'+
+          '<button data-remove="'+esc(c.name)+'" title="Remove container only — image and volumes are kept"><svg viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>Remove</button>'+
+          '<button class="danger" data-wipe="'+esc(c.name)+'" title="Remove container + image + anonymous volumes"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13"/></svg>Wipe</button>'+
         '</div></div>'}).join('');
     $$('[data-start]').forEach(function(b){b.onclick=function(){ctrAction(b.getAttribute('data-start'),'start')}});
     $$('[data-stop]').forEach(function(b){b.onclick=function(){ctrAction(b.getAttribute('data-stop'),'stop')}});
@@ -226,6 +211,8 @@
     $$('[data-update-one]').forEach(function(b){b.onclick=function(){updateContainer(b.getAttribute('data-update-one'))}});
     $$('[data-update]').forEach(function(b){b.onclick=function(){updateContainer(b.getAttribute('data-update'))}});
     $$('[data-wipe]').forEach(function(b){b.onclick=function(){wipeContainer(b.getAttribute('data-wipe'))}});
+    $$('[data-term]').forEach(function(b){b.onclick=function(){execModal(b.getAttribute('data-term'))}});
+    $$('[data-remove]').forEach(function(b){b.onclick=function(){removeContainer(b.getAttribute('data-remove'))}});
   }
   async function ctrAction(name,act){var r=await api('/api/docker/containers/'+name+'/'+act,{method:'POST'});toast(r.ok?name+' '+act+'ed':(r.data&&r.data.detail)||(act+' failed'),r.ok?'ok':'err');if(r.ok)refresh()}
   async function showLogs(name){
@@ -251,6 +238,44 @@
       onSubmit:async function(){var r=await api('/api/docker/wipe',{method:'POST',body:JSON.stringify({name:name})});
         toast(r.ok?name+' wiped':(r.data&&r.data.detail)||'Wipe failed',r.ok?'ok':'err');if(r.ok)refresh();return r.ok}});
   }
+  function removeContainer(name){
+    modal({title:'Remove '+name,sub:'Removes the container only.',
+      warn:'The image and all volumes are kept — reinstalling or recreating brings it back with its data.',
+      danger:true,cta:'Remove container',
+      onSubmit:async function(){var r=await api('/api/docker/containers/'+encodeURIComponent(name)+'?force=true',{method:'DELETE'});
+        toast(r.ok?name+' removed':(r.data&&r.data.detail)||'Remove failed',r.ok?'ok':'err');if(r.ok)refresh();return r.ok}});
+  }
+  function execModal(name){
+    var html='<div class="fld"><label>Command (runs via sh -c inside '+esc(name)+')</label><input id="ex-cmd" class="wz-input" placeholder="ls -la /" autocomplete="off"></div>'+
+      '<pre id="ex-out" style="background:var(--surface-3);padding:14px;border-radius:12px;font:500 11px JetBrains Mono,monospace;max-height:45vh;overflow:auto;white-space:pre-wrap;margin:10px 0 0;min-height:60px">(output)</pre>';
+    var m=modal({title:'Terminal · '+name,sub:'One command at a time; output appears below.',html:html,cta:'Run',
+      onSubmit:async function(back){
+        var cmd=$('#ex-cmd',back).value.trim();if(!cmd){toast('Command required','warn');return false}
+        var r=await api('/api/docker/containers/'+encodeURIComponent(name)+'/exec',{method:'POST',body:JSON.stringify({command:cmd})});
+        var out=(r.data&&((r.data.stdout||'')+(r.data.stderr?'\n'+r.data.stderr:'')))||((r.data&&r.data.detail)||'exec failed');
+        $('#ex-out',back).textContent=out||'(no output)';return false}}); // stay open for more commands
+    $('#ex-cmd',m.el).focus();
+  }
+  var PRUNES={containers:{t:'Prune stopped containers',w:'Removes ALL stopped containers. Their images and volumes are kept.'},
+    images:{t:'Prune unused images',w:'Removes images not used by any container.'},
+    volumes:{t:'Prune unused volumes',w:'Removes volumes not attached to any container. This DELETES their data.'},
+    networks:{t:'Prune unused networks',w:'Removes networks not used by any container.'},
+    system:{t:'Prune system',w:'Stopped containers, unused images, networks and build cache — the big cleanup.'}};
+  function pruneModal(kind){
+    var p=PRUNES[kind];if(!p)return;
+    modal({title:p.t,warn:p.w+' This cannot be undone.',danger:true,cta:'Prune',
+      onSubmit:async function(){var r=await api('/api/docker/prune/'+kind,{method:'POST'});
+        toast(r.ok?'Pruned':(r.data&&r.data.detail)||'Prune failed',r.ok?'ok':'err');if(r.ok)refresh();return r.ok}});
+  }
+  function appFolderModal(){
+    var html='<div class="fld"><label>Default app data folder</label><input id="af-root" class="wz-input" value="'+esc(STATE.appsRoot)+'"></div>'+
+      '<p class="sub" style="margin-top:8px">New catalog installs store their data under this folder ({folder}/{app}). Existing containers are not moved.</p>';
+    modal({title:'Default app folder',html:html,cta:'Save',
+      onSubmit:async function(back){
+        var r=await api('/api/docker/settings',{method:'PUT',body:JSON.stringify({apps_root:$('#af-root',back).value.trim()})});
+        toast(r.ok?'App folder updated':(r.data&&r.data.detail)||'Save failed',r.ok?'ok':'err');
+        if(r.ok){STATE.appsRoot=r.data.apps_root;}return r.ok}});
+  }
   async function checkAllUpdates(){
     toast('Checking for updates…','info');
     var d=(await api('/api/docker/update-check')).data;
@@ -259,31 +284,6 @@
     var n=Object.values(STATE.updateMap).filter(function(x){return x===true}).length;
     toast(n?n+' update(s) available':'Everything up to date',n?'warn':'ok');recalc();renderContainers();
   }
-
-  // ══════════ COMPOSE LIST ══════════
-  function renderCompose(){
-    var box=$('#compose-grid');if(!STATE.compose.length){box.innerHTML='<div class="empty">No compose stacks yet. Use <b>+ New compose</b> to import or write one.</div>';return}
-    box.innerHTML=STATE.compose.map(function(p){
-      var on=/running/i.test(p.status||'');
-      return '<div class="card"><div class="card-head"><div class="card-icon ic-compose"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h12"/></svg></div>'+
-        '<div style="min-width:0"><h4>'+esc(p.name)+'</h4><p class="meta">'+esc(p.status||'down')+'</p></div></div>'+
-        '<div class="badge-row"><span class="pill '+(on?'ok':'idle')+'">'+(on?'Up':'Down')+'</span></div>'+
-        '<div class="card-actions">'+
-          (on?'<button data-cmp-down="'+esc(p.name)+'"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg>Down</button>':'<button data-cmp-up="'+esc(p.name)+'"><svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>Up</button>')+
-          '<button data-cmp-edit="'+esc(p.name)+'"><svg viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Edit</button>'+
-          '<button data-cmp-pull="'+esc(p.name)+'"><svg viewBox="0 0 24 24"><path d="M12 4v12M6 14l6 6 6-6"/></svg>Pull</button>'+
-          '<button class="danger" data-cmp-del="'+esc(p.name)+'"><svg viewBox="0 0 24 24"><path d="M5 7h14M10 11v6M14 11v6M6 7l1 13h10l1-13"/></svg>Remove</button>'+
-        '</div></div>'}).join('');
-    $$('[data-cmp-up]').forEach(function(b){b.onclick=function(){composeAct(b.getAttribute('data-cmp-up'),'up')}});
-    $$('[data-cmp-down]').forEach(function(b){b.onclick=function(){composeAct(b.getAttribute('data-cmp-down'),'down')}});
-    $$('[data-cmp-pull]').forEach(function(b){b.onclick=function(){composeAct(b.getAttribute('data-cmp-pull'),'pull')}});
-    $$('[data-cmp-edit]').forEach(function(b){b.onclick=function(){composeEdit(b.getAttribute('data-cmp-edit'))}});
-    $$('[data-cmp-del]').forEach(function(b){b.onclick=function(){composeDelete(b.getAttribute('data-cmp-del'))}});
-  }
-  async function composeAct(name,act){var r=await api('/api/docker/compose/'+act,{method:'POST',body:JSON.stringify({project:name})});toast(r.ok?name+' '+act:(r.data&&r.data.detail)||(act+' failed'),r.ok?'ok':'err');if(r.ok)refresh()}
-  async function composeEdit(name){var d=(await api('/api/compose/project/'+name)).data;if(!d){toast('Cannot load project','err');return}composeWizard({name:name,content:d.content})}
-  function composeDelete(name){modal({title:'Remove '+name,sub:'Brings the stack down (with -v) and deletes the project files.',warn:'Volumes declared in the compose file are also removed.',danger:true,cta:'Remove',
-    onSubmit:async function(){var r=await api('/api/compose/project/'+name,{method:'DELETE'});toast(r.ok?name+' removed':(r.data&&r.data.detail)||'Remove failed',r.ok?'ok':'err');if(r.ok)refresh();return r.ok}})}
 
   // ══════════ SERVICES TAB ══════════
   function renderServices(){
@@ -422,15 +422,18 @@
 
   // ══════════ TABS + REFRESH ══════════
   function switchTab(t){$$('.tab').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-t')===t)});['catalog','containers','services'].forEach(function(x){$('#tab-'+x).classList.toggle('hidden',x!==t)})}
-  function switchSub(st){$$('.subtab').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-st')===st)});$('#sub-ctrs').classList.toggle('hidden',st!=='ctrs');$('#sub-compose').classList.toggle('hidden',st!=='compose')}
+  function switchSub(st){$$('.subtab').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-st')===st)});$('#sub-ctrs').classList.toggle('hidden',st!=='ctrs')}
+  function parseLabels(raw){ // docker ps --format json emits Labels as "k=v,k=v"
+    if(!raw)return{};if(typeof raw==='object')return raw;
+    var o={};String(raw).split(',').forEach(function(kv){var i=kv.indexOf('=');if(i>0)o[kv.slice(0,i)]=kv.slice(i+1)});return o}
   async function refresh(){
-    var [svc,docker,lxc,cmp]=await Promise.all([api('/api/services'),api('/api/docker/containers'),api('/api/lxc/containers'),api('/api/compose/projects')]);
+    var [svc,docker,lxc,st]=await Promise.all([api('/api/services'),api('/api/docker/containers?all=true'),api('/api/lxc/containers'),api('/api/docker/settings')]);
     STATE.services=(svc.data&&svc.data.services)||[];
-    var docks=((docker.data&&docker.data.containers)||[]).map(function(c){var labels=c.Labels||c.labels||{};return {name:(c.Names&&c.Names.replace(/^\//,''))||c.name,image:c.Image||c.image,running:(c.State||c.state||'').toLowerCase()==='running',status:c.Status||c.state,runtime:'docker',composeProject:labels['com.docker.compose.project'],fromCatalog:labels['forgeos.catalog']}});
+    STATE.appsRoot=(st.data&&st.data.apps_root)||'/srv/apps';
+    var docks=((docker.data&&docker.data.containers)||[]).map(function(c){var labels=parseLabels(c.Labels||c.labels);return {name:(c.Names&&c.Names.replace(/^\//,''))||c.name,image:c.Image||c.image,running:(c.State||c.state||'').toLowerCase()==='running',status:c.Status||c.state,runtime:'docker',composeProject:labels['com.docker.compose.project'],fromCatalog:labels['forgeos.catalog']}});
     var incs=((lxc.data&&lxc.data.containers)||[]).map(function(c){return {name:c.name,image:c.image||c.type||'container',running:c.status==='Running',status:c.status,runtime:'container'}});
     STATE.containers=docks.concat(incs);
-    STATE.compose=(cmp.data&&cmp.data.projects)||[];
-    recalc();renderCatalog();renderContainers();renderCompose();renderServices();
+    recalc();renderCatalog();renderContainers();renderServices();
   }
 
   document.addEventListener('DOMContentLoaded',function(){
@@ -439,7 +442,8 @@
     $('#refresh').onclick=function(){refresh();toast('Refreshed','info')};
     $('#check-updates').onclick=checkAllUpdates;
     $('#new-ctr').onclick=function(){containerWizard()};
-    $('#new-compose').onclick=function(){composeWizard()};
+    var af=$('#app-folder');if(af)af.onclick=appFolderModal;
+    $$('[data-prune]').forEach(function(b){b.onclick=function(){pruneModal(b.getAttribute('data-prune'))}});
     refresh();
   });
 })();

@@ -97,14 +97,13 @@ details.adv > .body{padding:0 16px 14px}
       <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Apps &amp; Services</h3><p>System services, containers, compose stacks, and the app catalog</p></div></div>
       <div class="top-actions">
         <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
-        <button class="button" id="check-updates" style="background:var(--primary-soft);color:var(--primary)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2v8M9 7l3 3 3-3M5 16a8 8 0 0 0 14 0"/></svg>Check updates</button>
+        <button class="btn-ghost" id="app-folder" style="height:38px;padding:0 14px;font-size:12px;margin-right:6px">App folder</button><button class="button" id="check-updates" style="background:var(--primary-soft);color:var(--primary)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2v8M9 7l3 3 3-3M5 16a8 8 0 0 0 14 0"/></svg>Check updates</button>
       </div>
     </header>
 
     <div class="ov-strip">
       <div class="ov-card"><div class="lbl">Services</div><div class="val" id="ov-svc">—</div></div>
       <div class="ov-card"><div class="lbl">Containers</div><div class="val" id="ov-ctr">—</div></div>
-      <div class="ov-card"><div class="lbl">Compose stacks</div><div class="val" id="ov-cmp">—</div></div>
       <div class="ov-card"><div class="lbl">Updates available</div><div class="val" id="ov-up">—</div></div>
     </div>
 
@@ -119,13 +118,18 @@ details.adv > .body{padding:0 16px 14px}
     <section id="tab-containers" class="hidden">
       <div class="subtabs">
         <button class="subtab active" data-st="ctrs">Containers</button>
-        <button class="subtab" data-st="compose">Compose Stacks</button>
+        
         <div style="flex:1"></div>
         <button class="btn-pri" id="new-ctr" style="height:36px;padding:0 14px;font-size:12px;margin-bottom:6px">+ New container</button>
-        <button class="btn-ghost" id="new-compose" style="height:36px;padding:0 14px;font-size:12px;margin-bottom:6px;margin-left:6px">+ New compose</button>
       </div>
-      <div id="sub-ctrs"><div class="grid-cards" id="containers-grid"><div class="empty">Loading containers…</div></div></div>
-      <div id="sub-compose" class="hidden"><div class="grid-cards" id="compose-grid"><div class="empty">Loading stacks…</div></div></div>
+      <div id="sub-ctrs"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px">
+        <span style="font-size:12px;color:var(--muted)">Maintenance:</span>
+        <button class="btn-ghost" data-prune="containers" style="height:32px;padding:0 12px;font-size:12px">Prune stopped containers</button>
+        <button class="btn-ghost" data-prune="images" style="height:32px;padding:0 12px;font-size:12px">Prune images</button>
+        <button class="btn-ghost" data-prune="volumes" style="height:32px;padding:0 12px;font-size:12px">Prune volumes</button>
+        <button class="btn-ghost" data-prune="networks" style="height:32px;padding:0 12px;font-size:12px">Prune networks</button>
+        <button class="btn-ghost" data-prune="system" style="height:32px;padding:0 12px;font-size:12px">Prune system</button>
+      </div><div class="grid-cards" id="containers-grid"><div class="empty">Loading containers…</div></div></div>
     </section>
 
     <section id="tab-services" class="hidden">

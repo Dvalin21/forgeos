@@ -27,68 +27,6 @@ def _mock_subprocess_run(returncode=0, stdout="", stderr=""):
 # ──────────────────────────────────────────────────────────
 
 
-class TestDockerApps:
-
-    def test_auth_required(self, test_client):
-        r = test_client.get("/api/docker/apps")
-        assert r.status_code == 401
-
-    def test_returns_app_list(self, test_client, auth_headers):
-        r = test_client.get("/api/docker/apps", headers=auth_headers)
-        assert r.status_code == 200
-        data = r.json()
-        assert "apps" in data
-        assert len(data["apps"]) > 0
-        # Verify well-known apps exist
-        names = [a["name"] for a in data["apps"]]
-        assert "nginx" in names
-        assert "jellyfin" in names
-        assert "portainer" in names
-        assert all("image" in a for a in data["apps"])
-
-
-# ──────────────────────────────────────────────────────────
-# GET /api/services
-# ──────────────────────────────────────────────────────────
-
-
-class TestServices:
-
-    def test_auth_required(self, test_client):
-        r = test_client.get("/api/services")
-        assert r.status_code == 401
-
-    def test_returns_service_list(self, test_client, auth_headers, monkeypatch):
-        monkeypatch.setattr("subprocess.run",
-                            lambda *a, **kw: _mock_subprocess_run(stdout="active\n"))
-        r = test_client.get("/api/services", headers=auth_headers)
-        assert r.status_code == 200
-        data = r.json()
-        assert "services" in data
-        # Should have at least the key services
-        svc_names = [s["name"] for s in data["services"]]
-        assert "Docker" in svc_names
-        assert "nginx" in svc_names
-
-
-# ──────────────────────────────────────────────────────────
-# GET /api/network
-# ──────────────────────────────────────────────────────────
-
-
-class TestNetwork:
-
-    def test_auth_required(self, test_client):
-        r = test_client.get("/api/network")
-        assert r.status_code == 401
-
-    def test_returns_network_info(self, test_client, auth_headers, monkeypatch):
-        monkeypatch.setattr("subprocess.run",
-                            lambda *a, **kw: _mock_subprocess_run(stdout="eth0    192.168.1.100"))
-        r = test_client.get("/api/network", headers=auth_headers)
-        assert r.status_code == 200
-
-
 # ──────────────────────────────────────────────────────────
 # GET /api/docker/containers — truthful states + NDJSON
 # ──────────────────────────────────────────────────────────
@@ -485,3 +423,100 @@ class TestRun:
         for frag in ("--restart always", "-p 8080:80", "-v /srv/w:/data:ro",
                      "-e A=1", "nginx:1 nginx -g daemon off;"):
             assert frag in joined, (frag, joined)
+
+
+# ──────────────────────────────────────────────────────────
+# 0041 — apps_root settings, port intelligence, prunes
+# ──────────────────────────────────────────────────────────
+
+
+class TestDockerSettings:
+    def test_get_returns_default(self, test_client, auth_headers):
+        r = test_client.get("/api/docker/settings", headers=auth_headers)
+        assert r.status_code == 200 and r.json()["apps_root"] == "/srv/apps"
+
+    def test_put_validates_and_persists(self, test_client, auth_headers,
+                                        monkeypatch, tmp_path):
+        import docker_lxc_api as d
+        for bad in ("relative/path", "/", "/etc", ""):
+            r = test_client.put("/api/docker/settings", headers=auth_headers,
+                                json={"apps_root": bad})
+            assert r.status_code == 400, bad
+        root = str(tmp_path / "apps")
+        r = test_client.put("/api/docker/settings", headers=auth_headers,
+                            json={"apps_root": root})
+        assert r.status_code == 200
+        try:
+            assert (tmp_path / "apps").is_dir()          # mkdir'd
+            g = test_client.get("/api/docker/settings", headers=auth_headers)
+            assert g.json()["apps_root"] == root         # persisted
+        finally:
+            test_client.put("/api/docker/settings", headers=auth_headers,
+                            json={"apps_root": "/srv/apps"})
+
+    def test_put_admin_only(self, test_client, user_headers):
+        r = test_client.put("/api/docker/settings", headers=user_headers,
+                            json={"apps_root": "/srv/x"})
+        assert r.status_code == 403
+
+    def test_migration_v9_to_v10(self):
+        import forgeos_config as fc
+        d = fc.migrate({"version": 9})
+        assert d["version"] == 10 and "docker" in d
+
+
+class TestPortIntelligence:
+    def test_free_ports_skip_used(self, test_client, auth_headers, monkeypatch):
+        import docker_lxc_api as d
+        monkeypatch.setattr(d, "_used_host_ports", lambda: {8080, 8081, 9000})
+        r = test_client.get("/api/docker/ports/free?ports=8080,9000,7000",
+                            headers=auth_headers)
+        assert r.json()["ports"] == {"8080": 8082, "9000": 9001, "7000": 7000}
+
+    def test_free_ports_no_duplicate_suggestions(self, test_client, auth_headers,
+                                                 monkeypatch):
+        import docker_lxc_api as d
+        monkeypatch.setattr(d, "_used_host_ports", lambda: {8080})
+        r = test_client.get("/api/docker/ports/free?ports=8080,8081",
+                            headers=auth_headers)
+        got = r.json()["ports"]
+        # 8080 -> 8081 would collide with the second request; must not
+        assert len(set(got.values())) == 2
+
+    def test_run_rejects_conflicting_port_with_suggestion(self, test_client,
+                                                          auth_headers, monkeypatch):
+        import docker_lxc_api as d
+        _docker_fake(monkeypatch,
+                     images={"nginx:1": {"Id": "sha256:x", "Config": {}}})
+        monkeypatch.setattr(d, "_used_host_ports", lambda: {8080, 8081})
+        r = test_client.post("/api/docker/run", headers=auth_headers,
+                             json={"name": "w2", "image": "nginx:1",
+                                   "ports": ["8080:80"]})
+        assert r.status_code == 409
+        assert "8082" in r.json()["detail"]      # concrete suggestion
+
+    def test_used_ports_include_stopped_containers(self, monkeypatch):
+        """A stopped container's ports return the moment it starts — they are
+        NOT free."""
+        import docker_lxc_api as d
+        rows = ('{"Names":"a","Ports":"0.0.0.0:8080->80/tcp"}\n'
+                '{"Names":"b","Ports":"[::]:9090->90/tcp"}')
+        def fake(args, timeout=30):
+            assert "-a" in args                   # must list stopped ones too
+            return {"success": True, "stdout": rows, "stderr": "", "returncode": 0}
+        monkeypatch.setattr(d, "_run_docker", fake)
+        monkeypatch.setattr(d.subprocess, "run",
+                            lambda *a, **k: type("R", (), {"stdout": ""})())
+        used = d._used_host_ports()
+        assert {8080, 9090} <= used
+
+
+class TestPruneContainers:
+    def test_route_and_gate(self, test_client, auth_headers, user_headers,
+                            monkeypatch):
+        calls = _docker_fake(monkeypatch)
+        assert test_client.post("/api/docker/prune/containers",
+                                headers=user_headers).status_code == 403
+        r = test_client.post("/api/docker/prune/containers", headers=auth_headers)
+        assert r.status_code == 200
+        assert ["container", "prune", "-f"] in calls

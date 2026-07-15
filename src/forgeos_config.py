@@ -570,6 +570,22 @@ class InstalledApp(BaseModel):
 #     by SMB share modes: oplocks off, strict locking on)
 #   server (postgres/mysql — run locally on native ports, own MVCC concurrency;
 #     data dir MUST be local, never on a share)
+class DockerConfig(BaseModel):
+    """Docker-surface settings. apps_root is the default host directory for
+    per-app bind mounts ({apps_root}/{app}/...) — the appdata convention."""
+    apps_root: str = "/srv/apps"
+
+    @field_validator("apps_root")
+    @classmethod
+    def _abs_root(cls, v: str) -> str:
+        v = (v or "").rstrip("/")
+        if not v.startswith("/") or v == "":
+            raise ValueError("apps_root must be an absolute path")
+        if v == "/" or v in ("/etc", "/usr", "/boot", "/root", "/var"):
+            raise ValueError(f"{v} is not a sane app-data location")
+        return v
+
+
 DataConnectKind = Literal["file", "postgres", "mysql"]
 
 
@@ -757,10 +773,13 @@ class AuthConfig(BaseModel):
     require_totp_new_users: bool = False
 
 
+SCHEMA_VERSION = 10
+
+
 class ForgeOSConfig(BaseModel):
     """Root config document. Grows one section per service as v2 expands."""
 
-    version: int = 9
+    version: int = SCHEMA_VERSION
     # `domain` is the legacy single-name field, kept for compatibility with
     # existing call sites (installer, nginx generator, CLI). The authoritative
     # model is `naming` (three-names). `domain` mirrors naming.lan_name for the
@@ -772,6 +791,7 @@ class ForgeOSConfig(BaseModel):
     samba: SambaConfig = Field(default_factory=SambaConfig)
     nginx: NginxConfig = Field(default_factory=NginxConfig)
     data_connect: DataConnectConfig = Field(default_factory=DataConnectConfig)
+    docker: DockerConfig = Field(default_factory=DockerConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     updates: UpdatesConfig = Field(default_factory=UpdatesConfig)
@@ -793,7 +813,6 @@ class ForgeOSConfig(BaseModel):
         return v
 
 
-SCHEMA_VERSION = 9
 
 
 def _migrate_v1_to_v2(data: dict) -> dict:
@@ -868,6 +887,13 @@ def _migrate_v8_to_v9(data: dict) -> dict:
     return data
 
 
+def _migrate_v9_to_v10(data: dict) -> dict:
+    """v10: docker block (apps_root for per-app bind mounts). Additive."""
+    data.setdefault("docker", {})
+    data["version"] = 10
+    return data
+
+
 def _migrate_v7_to_v8(data: dict) -> dict:
     """v8: egress_nic "eth0" was a blind default, never a user choice — reset
     to "" (auto-detect default-route NIC at render time)."""
@@ -887,6 +913,7 @@ _MIGRATIONS = {
     6: _migrate_v6_to_v7,
     7: _migrate_v7_to_v8,
     8: _migrate_v8_to_v9,
+    9: _migrate_v9_to_v10,
 }
 
 

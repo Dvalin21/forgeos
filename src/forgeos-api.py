@@ -965,19 +965,6 @@ except ImportError as e:
     raise
 
 
-# ────────────────────────────────────────────────────────────
-# DOCKER — extracted to docker_api.py (Sprint 1, commit 6)
-# Note: separate from existing docker_lxc_api.py (lifecycle ops).
-# This is just the simple app-browser + install endpoints.
-# ────────────────────────────────────────────────────────────
-try:
-    from docker_api import router as docker_simple_router, set_helpers as set_docker_helpers
-    set_docker_helpers(run_args=_run_args, audit=_audit)
-    app.include_router(docker_simple_router)
-    logger.info("Docker (simple) API loaded")
-except ImportError as e:
-    logger.error("Docker (simple) API failed to load: %s", e)
-    raise
 
 
 # ────────────────────────────────────────────────────────────
@@ -1036,10 +1023,6 @@ except ImportError as e:
 # ────────────────────────────────────────────────────────────
 # SAMBA — extracted to samba_api.py (Sprint 1, commit 5)
 # Routes: shares (CRUD), raw config (GET/PUT), connections
-# ────────────────────────────────────────────────────────────
-# ────────────────────────────────────────────────────────────
-# DOCKER — extracted to docker_api.py (Sprint 1, commit 6)
-# Routes: apps list, install
 # ────────────────────────────────────────────────────────────
 # ────────────────────────────────────────────────────────────
 # DOCKER / INCUS — full lifecycle via docker_lxc_api.py router

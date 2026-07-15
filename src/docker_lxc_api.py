@@ -249,6 +249,76 @@ async def exec_in_container(container: str, body: dict, user=Depends(verify_toke
 # DOCKER IMAGES
 # ═══════════════════════════════════════════════════════
 
+# ── settings + port intelligence (0041) ─────────────────────────────────────
+import forgeos_config as fc
+
+
+@router.get("/settings")
+async def get_docker_settings(user=Depends(verify_token)):
+    return {"apps_root": fc.load().docker.apps_root}
+
+
+@router.put("/settings")
+async def put_docker_settings(body: dict, user=Depends(verify_token)):
+    """Change the default app-data folder (admin, audited). Existing
+    containers keep their current mounts; this only changes the default
+    offered for NEW installs."""
+    _require_admin(user)
+    root = str(body.get("apps_root", "")).strip()
+    cfg = fc.load()
+    try:
+        # pydantic v2 does NOT validate plain attribute assignment — construct
+        # the sub-model so the apps_root validator actually runs.
+        cfg.docker = fc.DockerConfig(apps_root=root)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)[:300])
+    Path(cfg.docker.apps_root).mkdir(parents=True, exist_ok=True)
+    fc.save(cfg)
+    _audit(user["sub"], "docker.settings", "success", f"apps_root={root}")
+    return {"ok": True, "apps_root": cfg.docker.apps_root}
+
+
+def _used_host_ports() -> set:
+    """Host TCP/UDP ports already spoken for: live listeners (ss) plus port
+    bindings of ALL containers including stopped ones — a stopped container's
+    ports come back the moment it starts, so they are not free."""
+    used = set()
+    try:
+        r = subprocess.run(["ss", "-tulnH"], capture_output=True, text=True,
+                           timeout=10)
+        for m in re.finditer(r":(\d+)\s", r.stdout):
+            used.add(int(m.group(1)))
+    except Exception:
+        pass
+    ps = _run_docker(["ps", "-a", "--format", "json"])
+    if ps["success"]:
+        for row in _parse_ndjson(ps["stdout"]):
+            for m in re.finditer(r"[:.](\d+)->", row.get("Ports", "") or ""):
+                used.add(int(m.group(1)))
+    return used
+
+
+@router.get("/ports/free")
+async def free_ports(ports: str = Query(default=""), user=Depends(verify_token)):
+    """For each wanted host port, return it if free or the next free port
+    above it. The create wizard and catalog installs use this so defaults
+    never collide with ForgeOS services or other containers."""
+    used = _used_host_ports()
+    out = {}
+    for raw in [p for p in ports.split(",") if p.strip()]:
+        try:
+            want = int(raw)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"invalid port {raw!r}")
+        got = want
+        while got in used or got in out.values():
+            got += 1
+            if got > 65535:
+                raise HTTPException(status_code=409, detail="no free ports left")
+        out[str(want)] = got
+    return {"ports": out}
+
+
 # ── update / run / wipe lifecycle (0040) ────────────────────────────────────
 # In-flight image pulls. In-memory is correct here: forgeos-api is a single
 # uvicorn process by design; a pull surviving an API restart just means the
@@ -522,9 +592,18 @@ async def run_container(body: dict, background_tasks: BackgroundTasks,
         if restart not in ("always", "unless-stopped", "on-failure"):
             raise HTTPException(status_code=400, detail=f"invalid restart policy {restart!r}")
         args += ["--restart", restart]
+    used_ports = _used_host_ports() if body.get("ports") else set()
     for p in body.get("ports") or []:
         if not re.fullmatch(r"\d{1,5}:\d{1,5}(/(tcp|udp))?", str(p)):
             raise HTTPException(status_code=400, detail=f"invalid port mapping {p!r}")
+        hp = int(str(p).split(":")[0])
+        if hp in used_ports:
+            free = hp
+            while free in used_ports:
+                free += 1
+            raise HTTPException(status_code=409,
+                                detail=f"host port {hp} is already in use — "
+                                       f"try {free}")
         args += ["-p", str(p)]
     for v in body.get("volumes") or []:
         parts = str(v).split(":")
@@ -612,6 +691,18 @@ async def remove_image(image: str, force: bool = Query(default=False), user=Depe
 # DOCKER PRUNE
 # ═══════════════════════════════════════════════════════
 
+@router.post("/prune/containers")
+async def prune_containers(user=Depends(verify_token)):
+    """Remove all STOPPED containers (admin, audited)."""
+    _require_admin(user)
+    result = _run_docker(["container", "prune", "-f"], timeout=120)
+    if not result["success"]:
+        raise HTTPException(status_code=500,
+                            detail=(result.get("stderr") or result.get("error", ""))[:300])
+    _audit(user["sub"], "docker.prune_containers", "success")
+    return {"ok": True, "output": result["stdout"]}
+
+
 @router.post("/prune/system")
 async def prune_system(user=Depends(verify_token)):
     """Prune all unused Docker objects (containers, networks, images, volumes)."""
@@ -619,6 +710,7 @@ async def prune_system(user=Depends(verify_token)):
     result = _run_docker(["system", "prune", "-f"])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Prune failed"))
+    _audit(user["sub"], "docker.prune_system", "success")
     return {"ok": True, "output": result["stdout"]}
 
 @router.post("/prune/volumes")
@@ -628,6 +720,7 @@ async def prune_volumes(user=Depends(verify_token)):
     result = _run_docker(["volume", "prune", "-f"])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Prune failed"))
+    _audit(user["sub"], "docker.prune_volumes", "success")
     return {"ok": True, "output": result["stdout"]}
 
 @router.post("/prune/images")
@@ -637,6 +730,7 @@ async def prune_images(user=Depends(verify_token)):
     result = _run_docker(["image", "prune", "-f"])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Prune failed"))
+    _audit(user["sub"], "docker.prune_images", "success")
     return {"ok": True, "output": result["stdout"]}
 
 @router.post("/prune/networks")
@@ -646,6 +740,7 @@ async def prune_networks(user=Depends(verify_token)):
     result = _run_docker(["network", "prune", "-f"])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Prune failed"))
+    _audit(user["sub"], "docker.prune_networks", "success")
     return {"ok": True, "output": result["stdout"]}
 
 # ═══════════════════════════════════════════════════════
