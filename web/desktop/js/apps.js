@@ -226,7 +226,7 @@
   async function ctrAction(name,act){var r=await api('/api/docker/containers/'+name+'/'+act,{method:'POST'});toast(r.ok?name+' '+act+'ed':(r.data&&r.data.detail)||(act+' failed'),r.ok?'ok':'err');if(r.ok)refresh()}
   async function showLogs(name){
     var d=(await api('/api/docker/containers/'+name+'/logs?tail=200')).data;
-    var html='<pre style="background:var(--surface-3);padding:14px;border-radius:12px;font:500 11px JetBrains Mono,monospace;max-height:60vh;overflow:auto;white-space:pre-wrap;margin:0">'+esc((d&&d.output||'(no logs)').slice(-15000))+'</pre>';
+    var html='<pre style="background:var(--surface-3);padding:14px;border-radius:12px;font:500 11px JetBrains Mono,monospace;max-height:60vh;overflow:auto;white-space:pre-wrap;margin:0">'+esc((d&&d.logs||'(no logs)').slice(-15000))+'</pre>';
     modal({title:'Logs · '+name,sub:'Last 200 lines',size:'big',html:html,cta:null});
   }
   async function updateContainer(name){

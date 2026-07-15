@@ -9,6 +9,7 @@ Provides:
 - Prune: system prune, volume prune, network prune, image prune
 """
 
+import logging
 import subprocess
 import json
 import os
@@ -21,6 +22,8 @@ from forgeos_auth import verify_token
 import re
 
 # ── Router ──
+logger = logging.getLogger("forgeos-api")
+
 router = APIRouter(prefix="/api/docker", tags=["Docker Management"],
                    dependencies=[Depends(verify_token)])
 
@@ -40,6 +43,22 @@ def _valid_ref(ref: str, what: str = "name") -> str:
 def _require_admin(user: dict) -> None:
     if user.get("role") != "admin":
         raise HTTPException(403, detail="admin required")
+
+# ── audit injection (same pattern as data_connect_api) ──
+__audit_impl__ = None
+
+
+def set_audit(fn) -> None:
+    global __audit_impl__
+    __audit_impl__ = fn
+
+
+def _audit(who: str, action: str, status: str, detail: str | None = None) -> None:
+    if __audit_impl__:
+        try:
+            __audit_impl__(who, action, status, detail)
+        except Exception:
+            pass
 
 # ── Configuration ──
 COMPOSE_PROJECT_NAME = os.environ.get("FORGEOS_COMPOSE_PROJECT", "forgeos")
@@ -69,14 +88,33 @@ def _run_docker(args: list, timeout: int = 30) -> dict:
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-def _run_compose(args: list, timeout: int = 60) -> dict:
-    """Run docker-compose command safely."""
+def _parse_ndjson(stdout: str) -> list:
+    """docker/compose `--format json` emit NDJSON: one object PER LINE.
+    Whole-blob json.loads only parses 0 or 1 objects — the bug class that
+    made /containers silently render empty at >=2 (fixed there in 0036;
+    /images and compose ps had the identical latent bug)."""
+    out = []
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            out.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass                    # ponytail: skip malformed line, keep rest
+    return out
+
+
+def _run_compose(args: list, timeout: int = 60, compose_file: str | None = None) -> dict:
+    """Run docker compose against the ForgeOS compose file (or an explicit one)."""
     try:
         # Try docker compose (v2) first, fallback to docker-compose (v1)
+        # -f is mandatory: the service's cwd has no compose file, so without
+        # it every compose op silently targeted an empty project.
         for cmd in [["docker", "compose"], ["docker-compose"]]:
             try:
                 result = subprocess.run(
-                    cmd + args,
+                    cmd + ["-f", compose_file or DOCKER_COMPOSE_FILE] + args,
                     capture_output=True,
                     text=True,
                     timeout=timeout,
@@ -128,24 +166,13 @@ async def list_containers(all: bool = Query(default=False)):
         raise HTTPException(status_code=500,
                             detail=err or stderr or "Failed to list containers")
 
-    # `docker ps --format json` emits NDJSON: one JSON object PER LINE.
-    # json.loads on the whole blob only worked for 0 or 1 containers; with
-    # two or more it raised and the list silently rendered empty.
-    containers = []
-    for line in result["stdout"].splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            containers.append(json.loads(line))
-        except json.JSONDecodeError:
-            pass                    # ponytail: skip malformed line, keep rest
-    return {"containers": containers, "available": True}
+    return {"containers": _parse_ndjson(result["stdout"]), "available": True}
 
 @router.post("/containers/{container}/start")
 async def start_container(container: str, user=Depends(verify_token)):
+    """Start a container (admin — mutates docker state)."""
+    _require_admin(user)
     _valid_ref(container, "container")
-    """Start a container."""
     result = _run_docker(["start", container])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
@@ -153,8 +180,9 @@ async def start_container(container: str, user=Depends(verify_token)):
 
 @router.post("/containers/{container}/stop")
 async def stop_container(container: str, user=Depends(verify_token)):
+    """Stop a container (admin — mutates docker state)."""
+    _require_admin(user)
     _valid_ref(container, "container")
-    """Stop a container."""
     result = _run_docker(["stop", container])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
@@ -162,8 +190,9 @@ async def stop_container(container: str, user=Depends(verify_token)):
 
 @router.post("/containers/{container}/restart")
 async def restart_container(container: str, user=Depends(verify_token)):
+    """Restart a container (admin — mutates docker state)."""
+    _require_admin(user)
     _valid_ref(container, "container")
-    """Restart a container."""
     result = _run_docker(["restart", container])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
@@ -171,36 +200,42 @@ async def restart_container(container: str, user=Depends(verify_token)):
 
 @router.delete("/containers/{container}")
 async def remove_container(container: str, force: bool = Query(default=False), user=Depends(verify_token)):
+    """Remove a container (admin, audited)."""
     _require_admin(user)
     _valid_ref(container, "container")
-    """Remove a container."""
     args = ["rm", container]
     if force:
         args.insert(1, "-f")
     result = _run_docker(args)
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
+    _audit(user["sub"], "docker.rm", "success", container)
     return {"ok": True, "container": container, "action": "removed"}
 
 @router.get("/containers/{container}/logs")
 async def get_container_logs(container: str, tail: int = Query(default=100), user=Depends(verify_token)):
+    """Get container logs (read — any authenticated user). Docker writes
+    container logs to BOTH streams; without stderr half the output vanished."""
     _valid_ref(container, "container")
-    """Get container logs."""
+    tail = max(1, min(tail, 5000))
     result = _run_docker(["logs", f"--tail={tail}", container])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
-    return {"container": container, "logs": result["stdout"]}
+    logs = "\n".join(x for x in (result["stdout"], result["stderr"]) if x)
+    return {"container": container, "logs": logs}
 
 @router.post("/containers/{container}/exec")
 async def exec_in_container(container: str, body: dict, user=Depends(verify_token)):
+    """Execute a command in a container (admin, audited)."""
     _require_admin(user)
     _valid_ref(container, "container")
-    """Execute command in container."""
     cmd = body.get("command", "")
     if not cmd:
         raise HTTPException(status_code=400, detail="No command provided")
     
     result = _run_docker(["exec", container, "sh", "-c", cmd])
+    _audit(user["sub"], "docker.exec", "success" if result["success"] else "failure",
+           f"{container}: {cmd[:120]}")
     return {
         "container": container,
         "command": cmd,
@@ -220,19 +255,13 @@ async def list_images():
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Failed to list images"))
     
-    try:
-        images = json.loads(result["stdout"]) if result["stdout"] else []
-        if isinstance(images, dict):
-            images = [images]
-        return {"images": images}
-    except json.JSONDecodeError:
-        return {"images": [], "raw": result["stdout"]}
+    return {"images": _parse_ndjson(result["stdout"])}
 
 @router.delete("/images/{image}")
 async def remove_image(image: str, force: bool = Query(default=False), user=Depends(verify_token)):
+    """Remove a Docker image (admin, audited)."""
     _require_admin(user)
     _valid_ref(image, "image")
-    """Remove a Docker image."""
     args = ["rmi"]
     if force:
         args.append("-f")
@@ -241,6 +270,7 @@ async def remove_image(image: str, force: bool = Query(default=False), user=Depe
     result = _run_docker(args)
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result["stderr"] or result.get("error"))
+    _audit(user["sub"], "docker.rmi", "success", image)
     return {"ok": True, "image": image, "action": "removed"}
 
 # ═══════════════════════════════════════════════════════
@@ -249,8 +279,8 @@ async def remove_image(image: str, force: bool = Query(default=False), user=Depe
 
 @router.post("/prune/system")
 async def prune_system(user=Depends(verify_token)):
-    _require_admin(user)
     """Prune all unused Docker objects (containers, networks, images, volumes)."""
+    _require_admin(user)
     result = _run_docker(["system", "prune", "-f"])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Prune failed"))
@@ -258,8 +288,8 @@ async def prune_system(user=Depends(verify_token)):
 
 @router.post("/prune/volumes")
 async def prune_volumes(user=Depends(verify_token)):
-    _require_admin(user)
     """Remove unused local volumes."""
+    _require_admin(user)
     result = _run_docker(["volume", "prune", "-f"])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Prune failed"))
@@ -267,8 +297,8 @@ async def prune_volumes(user=Depends(verify_token)):
 
 @router.post("/prune/images")
 async def prune_images(user=Depends(verify_token)):
-    _require_admin(user)
     """Remove unused images."""
+    _require_admin(user)
     result = _run_docker(["image", "prune", "-f"])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Prune failed"))
@@ -276,8 +306,8 @@ async def prune_images(user=Depends(verify_token)):
 
 @router.post("/prune/networks")
 async def prune_networks(user=Depends(verify_token)):
-    _require_admin(user)
     """Remove unused networks."""
+    _require_admin(user)
     result = _run_docker(["network", "prune", "-f"])
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Prune failed"))
@@ -294,28 +324,33 @@ async def compose_ps():
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Compose ps failed"))
     
-    try:
-        services = json.loads(result["stdout"]) if result["stdout"] else []
-        return {"services": services, "project": COMPOSE_PROJECT_NAME}
-    except json.JSONDecodeError:
-        return {"services": [], "raw": result["stdout"]}
+    return {"services": _parse_ndjson(result["stdout"]),
+            "project": COMPOSE_PROJECT_NAME}
 
 @router.post("/compose/up")
-async def compose_up(background_tasks: BackgroundTasks, detach: bool = Query(default=True)):
-    """Start all services in docker-compose.yml."""
+async def compose_up(background_tasks: BackgroundTasks,
+                     detach: bool = Query(default=True),
+                     user=Depends(verify_token)):
+    """Start all services (admin). Runs in the background — a first `up`
+    pulls images and would blow any proxy timeout — but the result is now
+    LOGGED instead of discarded (the silent-failure class)."""
+    _require_admin(user)
     args = ["up"]
     if detach:
         args.append("-d")
-    
-    # Run in background to avoid timeout
+
     def _up_task():
-        _run_compose(args, timeout=300)
-    
+        r = _run_compose(args, timeout=600)
+        if not r["success"]:
+            logger.error("compose up failed: %s",
+                         r.get("stderr") or r.get("error", ""))
+
     background_tasks.add_task(_up_task)
     return {"ok": True, "action": "up", "detach": detach, "status": "starting"}
 
 @router.post("/compose/down")
-async def compose_down(volumes: bool = Query(default=False)):
+async def compose_down(volumes: bool = Query(default=False), user=Depends(verify_token)):
+    _require_admin(user)
     """Stop and remove containers, networks."""
     args = ["down"]
     if volumes:
@@ -324,10 +359,13 @@ async def compose_down(volumes: bool = Query(default=False)):
     result = _run_compose(args, timeout=120)
     if not result["success"]:
         raise HTTPException(status_code=500, detail=result.get("error", "Compose down failed"))
+    _audit(user["sub"], "docker.compose_down", "success",
+           "volumes removed" if volumes else "")
     return {"ok": True, "action": "down", "output": result["stdout"]}
 
 @router.post("/compose/stop")
-async def compose_stop():
+async def compose_stop(user=Depends(verify_token)):
+    _require_admin(user)
     """Stop all services."""
     result = _run_compose(["stop"], timeout=120)
     if not result["success"]:
@@ -335,7 +373,8 @@ async def compose_stop():
     return {"ok": True, "action": "stop"}
 
 @router.post("/compose/start")
-async def compose_start():
+async def compose_start(user=Depends(verify_token)):
+    _require_admin(user)
     """Start all stopped services."""
     result = _run_compose(["start"])
     if not result["success"]:
@@ -343,7 +382,8 @@ async def compose_start():
     return {"ok": True, "action": "start"}
 
 @router.post("/compose/restart")
-async def compose_restart():
+async def compose_restart(user=Depends(verify_token)):
+    _require_admin(user)
     """Restart all services."""
     result = _run_compose(["restart"])
     if not result["success"]:
@@ -363,7 +403,8 @@ async def compose_logs(service: Optional[str] = Query(default=None), tail: int =
     return {"logs": result["stdout"], "service": service}
 
 @router.post("/compose/pull")
-async def compose_pull():
+async def compose_pull(user=Depends(verify_token)):
+    _require_admin(user)
     """Pull latest images."""
     result = _run_compose(["pull"], timeout=300)
     if not result["success"]:
@@ -371,7 +412,8 @@ async def compose_pull():
     return {"ok": True, "action": "pull"}
 
 @router.post("/compose/build")
-async def compose_build():
+async def compose_build(user=Depends(verify_token)):
+    _require_admin(user)
     """Build or rebuild services."""
     result = _run_compose(["build"], timeout=600)
     if not result["success"]:
@@ -383,28 +425,46 @@ async def compose_build():
 # ═══════════════════════════════════════════════════════
 
 @router.get("/compose-file")
-async def get_compose_file():
-    """Get current docker-compose.yml content."""
+async def get_compose_file(user=Depends(verify_token)):
+    """Get current docker-compose.yml content (admin — may contain secrets)."""
+    _require_admin(user)
     path = Path(DOCKER_COMPOSE_FILE)
     if not path.exists():
         raise HTTPException(status_code=404, detail="docker-compose.yml not found")
     return {"content": path.read_text(), "path": DOCKER_COMPOSE_FILE}
 
 @router.put("/compose-file")
-async def update_compose_file(body: dict):
-    """Update docker-compose.yml and optionally reload."""
+async def update_compose_file(body: dict, user=Depends(verify_token)):
+    """Update docker-compose.yml (admin, validated, atomic, audited).
+
+    The old version wrote whatever it was sent straight over the live file —
+    one bad paste and every compose op breaks with no way back."""
+    _require_admin(user)
     content = body.get("content", "")
     reload = body.get("reload", False)
-    
+
     if not content:
         raise HTTPException(status_code=400, detail="No content provided")
-    
+
     path = Path(DOCKER_COMPOSE_FILE)
-    path.write_text(content)
-    
+    tmp = path.with_suffix(".yml.new")
+    tmp.write_text(content)
+    check = _run_compose(["config", "-q"], compose_file=str(tmp))
+    if not check["success"]:
+        tmp.unlink(missing_ok=True)
+        raise HTTPException(status_code=400,
+                            detail=f"compose file invalid: "
+                                   f"{check.get('stderr') or check.get('error','')}"[:400])
+    tmp.replace(path)                      # atomic on same filesystem
+    _audit(user["sub"], "docker.compose_file", "success",
+           f"{len(content)} bytes" + (", reloaded" if reload else ""))
+
     if reload:
-        _run_compose(["up", "-d", "--force-recreate"])
-    
+        r = _run_compose(["up", "-d", "--force-recreate"], timeout=600)
+        if not r["success"]:
+            raise HTTPException(status_code=500,
+                                detail=(r.get("stderr") or r.get("error",""))[:400])
+
     return {"ok": True, "path": DOCKER_COMPOSE_FILE, "reloaded": reload}
 
 # ═══════════════════════════════════════════════════════

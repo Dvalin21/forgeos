@@ -154,3 +154,114 @@ class TestListContainers:
                                   "stdout": '{"Names": "solo"}'})
         r = test_client.get("/api/docker/containers", headers=auth_headers)
         assert [c["Names"] for c in r.json()["containers"]] == ["solo"]
+
+
+# ──────────────────────────────────────────────────────────
+# 0039 — truthful surface: compose -f, NDJSON class, gates
+# ──────────────────────────────────────────────────────────
+
+
+class TestComposeWiring:
+    def test_compose_always_passes_file(self, monkeypatch):
+        """Regression: _run_compose never passed -f; the service's cwd has no
+        compose file, so every compose op silently targeted an empty project."""
+        import docker_lxc_api as d
+        seen = {}
+        def fake_run(cmd, **kw):
+            seen["cmd"] = cmd
+            import types
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        monkeypatch.setattr(d.subprocess, "run", fake_run)
+        d._run_compose(["ps"])
+        assert "-f" in seen["cmd"]
+        assert d.DOCKER_COMPOSE_FILE in seen["cmd"]
+        i = seen["cmd"].index("-f")
+        assert seen["cmd"][i + 1] == d.DOCKER_COMPOSE_FILE
+        # explicit file overrides (used by the PUT validator)
+        d._run_compose(["config", "-q"], compose_file="/tmp/x.yml")
+        assert seen["cmd"][seen["cmd"].index("-f") + 1] == "/tmp/x.yml"
+
+    def test_images_ndjson(self, test_client, auth_headers, monkeypatch):
+        import docker_lxc_api as d
+        nd = '{"Repository":"nginx","Tag":"latest"}\n{"Repository":"redis","Tag":"7"}'
+        monkeypatch.setattr(d, "_run_docker",
+                            lambda a, timeout=30: {"success": True, "stdout": nd,
+                                                   "stderr": "", "returncode": 0})
+        r = test_client.get("/api/docker/images", headers=auth_headers)
+        assert [i["Repository"] for i in r.json()["images"]] == ["nginx", "redis"]
+
+
+class TestAdminGates:
+    """Every docker-state mutation is admin; reads stay open to any
+    authenticated user."""
+
+    MUTATIONS = [
+        ("POST", "/api/docker/containers/x/start"),
+        ("POST", "/api/docker/containers/x/stop"),
+        ("POST", "/api/docker/containers/x/restart"),
+        ("POST", "/api/docker/compose/up"),
+        ("POST", "/api/docker/compose/down"),
+        ("POST", "/api/docker/compose/pull"),
+        ("POST", "/api/docker/compose/build"),
+        ("PUT",  "/api/docker/compose-file"),
+    ]
+
+    def test_non_admin_403_on_all_mutations(self, test_client, user_headers):
+        for method, path in self.MUTATIONS:
+            r = test_client.request(method, path, headers=user_headers,
+                                    json={"content": "x"} if method == "PUT" else None)
+            assert r.status_code == 403, f"{method} {path} -> {r.status_code}"
+
+    def test_reads_stay_open(self, test_client, user_headers, monkeypatch):
+        import docker_lxc_api as d
+        monkeypatch.setattr(d, "_run_docker",
+                            lambda a, timeout=30: {"success": True, "stdout": "",
+                                                   "stderr": "", "returncode": 0})
+        assert test_client.get("/api/docker/containers",
+                               headers=user_headers).status_code == 200
+
+    def test_logs_merge_both_streams(self, test_client, auth_headers, monkeypatch):
+        """Docker writes container output to stdout AND stderr; the endpoint
+        used to drop stderr — half the logs vanished."""
+        import docker_lxc_api as d
+        monkeypatch.setattr(d, "_run_docker",
+                            lambda a, timeout=30: {"success": True,
+                                                   "stdout": "out-line",
+                                                   "stderr": "err-line",
+                                                   "returncode": 0})
+        r = test_client.get("/api/docker/containers/x/logs", headers=auth_headers)
+        assert "out-line" in r.json()["logs"] and "err-line" in r.json()["logs"]
+
+
+class TestComposeFilePut:
+    def test_invalid_compose_rejected_live_file_untouched(self, test_client,
+                                                          auth_headers,
+                                                          monkeypatch, tmp_path):
+        import docker_lxc_api as d
+        live = tmp_path / "docker-compose.yml"
+        live.write_text("services: {}\n")
+        monkeypatch.setattr(d, "DOCKER_COMPOSE_FILE", str(live))
+        monkeypatch.setattr(d, "_run_compose",
+                            lambda a, timeout=60, compose_file=None:
+                            {"success": False, "stderr": "yaml: mapping error",
+                             "returncode": 1})
+        r = test_client.put("/api/docker/compose-file", headers=auth_headers,
+                            json={"content": "not: [valid"})
+        assert r.status_code == 400 and "invalid" in r.json()["detail"]
+        assert live.read_text() == "services: {}\n"      # untouched
+        assert not live.with_suffix(".yml.new").exists()  # temp cleaned
+
+    def test_valid_compose_written_atomically(self, test_client, auth_headers,
+                                              monkeypatch, tmp_path):
+        import docker_lxc_api as d
+        live = tmp_path / "docker-compose.yml"
+        live.write_text("old")
+        monkeypatch.setattr(d, "DOCKER_COMPOSE_FILE", str(live))
+        monkeypatch.setattr(d, "_run_compose",
+                            lambda a, timeout=60, compose_file=None:
+                            {"success": True, "stdout": "", "stderr": "",
+                             "returncode": 0})
+        r = test_client.put("/api/docker/compose-file", headers=auth_headers,
+                            json={"content": "services: {web: {image: nginx}}"})
+        assert r.status_code == 200
+        assert "web" in live.read_text()

@@ -670,7 +670,8 @@ except ImportError as e:
     logger.warning("RustFS API not available: %s", e)
 
 try:
-    from docker_lxc_api import router as docker_lxc_router
+    from docker_lxc_api import router as docker_lxc_router, set_audit as _docker_set_audit
+    _docker_set_audit(_audit)
     app.include_router(docker_lxc_router)
     logger.info("Docker Management API loaded")
 except ImportError as e:
