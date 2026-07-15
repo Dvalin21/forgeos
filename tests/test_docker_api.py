@@ -265,3 +265,223 @@ class TestComposeFilePut:
                             json={"content": "services: {web: {image: nginx}}"})
         assert r.status_code == 200
         assert "web" in live.read_text()
+
+
+# ──────────────────────────────────────────────────────────
+# 0040 — update-check / update / wipe / run lifecycle
+# ──────────────────────────────────────────────────────────
+
+
+def _docker_fake(monkeypatch, containers=None, images=None, fail=()):
+    """Command-dispatching fake for _run_docker. `containers`/`images` map
+    name -> inspect dict. Records every call in the returned list."""
+    import docker_lxc_api as d
+    calls = []
+    containers = containers or {}
+    images = images or {}
+
+    def fake(args, timeout=30):
+        calls.append(args)
+        key = args[0]
+        if tuple(args[:2]) in fail or key in fail:
+            return {"success": False, "stdout": "", "stderr": "boom", "returncode": 1}
+        if key == "ps":
+            rows = "\n".join(json.dumps({"Names": n, "Image":
+                             c.get("Config", {}).get("Image", "")})
+                             for n, c in containers.items())
+            return {"success": True, "stdout": rows, "stderr": "", "returncode": 0}
+        if key == "container" and args[1] == "inspect":
+            c = containers.get(args[2])
+            return ({"success": True, "stdout": json.dumps([c]), "stderr": "",
+                     "returncode": 0} if c else
+                    {"success": False, "stdout": "", "stderr": "no such", "returncode": 1})
+        if key == "image" and args[1] == "inspect":
+            i = images.get(args[2])
+            return ({"success": True, "stdout": json.dumps([i]), "stderr": "",
+                     "returncode": 0} if i else
+                    {"success": False, "stdout": "", "stderr": "no such", "returncode": 1})
+        return {"success": True, "stdout": "", "stderr": "", "returncode": 0}
+
+    monkeypatch.setattr(d, "_run_docker", fake)
+    return calls
+
+
+import json
+
+
+class TestUpdateCheck:
+    def test_reports_stale_and_current(self, test_client, auth_headers, monkeypatch):
+        import docker_lxc_api as d
+        containers = {
+            "fresh": {"Image": "sha256:aaa", "Config": {"Image": "nginx:1"}},
+            "stale": {"Image": "sha256:bbb", "Config": {"Image": "redis:7"}},
+        }
+        _docker_fake(monkeypatch, containers=containers)
+        monkeypatch.setattr(d, "_remote_config_digest",
+                            lambda img: {"nginx:1": "sha256:aaa",
+                                         "redis:7": "sha256:ccc"}.get(img))
+        r = test_client.get("/api/docker/update-check", headers=auth_headers)
+        got = {c["name"]: c["update_available"] for c in r.json()["containers"]}
+        assert got == {"fresh": False, "stale": True}
+
+    def test_unknown_remote_is_null_not_guess(self, test_client, auth_headers,
+                                              monkeypatch):
+        import docker_lxc_api as d
+        _docker_fake(monkeypatch, containers={
+            "priv": {"Image": "sha256:aaa", "Config": {"Image": "private/img:1"}}})
+        monkeypatch.setattr(d, "_remote_config_digest", lambda img: None)
+        r = test_client.get("/api/docker/update-check", headers=auth_headers)
+        assert r.json()["containers"][0]["update_available"] is None
+
+
+class TestUpdate:
+    def test_compose_managed_refused_with_hint(self, test_client, auth_headers,
+                                               monkeypatch):
+        _docker_fake(monkeypatch, containers={"web": {
+            "Image": "sha256:aaa",
+            "Config": {"Image": "nginx:1",
+                       "Labels": {"com.docker.compose.project": "p"}}}})
+        r = test_client.post("/api/docker/containers/web/update",
+                             headers=auth_headers)
+        assert r.status_code == 200 and r.json()["compose_managed"] is True
+
+    def test_already_current_no_recreate(self, test_client, auth_headers,
+                                         monkeypatch):
+        import docker_lxc_api as d
+        calls = _docker_fake(
+            monkeypatch,
+            containers={"web": {"Image": "sha256:aaa",
+                                "Config": {"Image": "nginx:1", "Labels": {}}}},
+            images={"nginx:1": {"Id": "sha256:aaa", "Config": {}}})
+        monkeypatch.setattr(d, "_remote_config_digest", lambda img: "sha256:aaa")
+        r = test_client.post("/api/docker/containers/web/update",
+                             headers=auth_headers)
+        assert r.status_code == 200 and r.json()["updated"] is False
+        assert not any(c[0] == "rename" for c in calls)
+
+    def test_recreate_preserves_config_and_removes_old(self, test_client,
+                                                       auth_headers, monkeypatch):
+        import docker_lxc_api as d
+        info = {
+            "Image": "sha256:OLD",
+            "State": {"Running": True},
+            "Config": {"Image": "nginx:1", "Labels": {},
+                       "Env": ["A=1"], "Cmd": None, "Entrypoint": None},
+            "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"},
+                           "NetworkMode": "bridge",
+                           "PortBindings": {"80/tcp": [{"HostPort": "8080"}]},
+                           "Binds": ["/srv/data:/data"]},
+            "Mounts": [{"Type": "volume", "Name": "webvol",
+                        "Destination": "/var/lib/web"}],
+        }
+        calls = _docker_fake(monkeypatch,
+                             containers={"web": info},
+                             images={"nginx:1": {"Id": "sha256:NEW", "Config": {}}})
+        monkeypatch.setattr(d, "_remote_config_digest", lambda img: "sha256:NEW")
+        r = test_client.post("/api/docker/containers/web/update",
+                             headers=auth_headers)
+        assert r.status_code == 200 and r.json()["updated"] is True, r.text
+        run = next(c for c in calls if c[0] == "run")
+        joined = " ".join(run)
+        for frag in ("--restart unless-stopped", "-e A=1", "-p 8080:80/tcp",
+                     "-v /srv/data:/data", "-v webvol:/var/lib/web"):
+            assert frag in joined, frag
+        assert ["rename", "web", "web-forgeos-old"] in calls
+        assert ["rm", "web-forgeos-old"] in calls
+
+    def test_recreate_failure_rolls_back(self, test_client, auth_headers,
+                                         monkeypatch):
+        import docker_lxc_api as d
+        info = {"Image": "sha256:OLD", "State": {"Running": True},
+                "Config": {"Image": "nginx:1", "Labels": {}, "Env": [],
+                           "Cmd": None, "Entrypoint": None},
+                "HostConfig": {}, "Mounts": []}
+        calls = _docker_fake(monkeypatch, containers={"web": info},
+                             images={"nginx:1": {"Id": "sha256:NEW", "Config": {}}},
+                             fail=("run",))
+        monkeypatch.setattr(d, "_remote_config_digest", lambda img: "sha256:NEW")
+        r = test_client.post("/api/docker/containers/web/update",
+                             headers=auth_headers)
+        assert r.status_code == 500 and "rolled back" in r.json()["detail"]
+        assert ["rename", "web-forgeos-old", "web"] in calls   # restored
+        assert ["start", "web"] in calls                       # restarted
+
+    def test_missing_image_202_and_pull_started(self, test_client, auth_headers,
+                                                monkeypatch):
+        import docker_lxc_api as d
+        info = {"Image": "sha256:OLD", "State": {"Running": True},
+                "Config": {"Image": "nginx:1", "Labels": {}}, "HostConfig": {},
+                "Mounts": []}
+        _docker_fake(monkeypatch, containers={"web": info})   # image absent
+        monkeypatch.setattr(d, "_remote_config_digest", lambda img: "sha256:NEW")
+        started = []
+        monkeypatch.setattr(d, "_start_pull", lambda img, bt: started.append(img))
+        r = test_client.post("/api/docker/containers/web/update",
+                             headers=auth_headers)
+        assert r.status_code == 202 and r.json()["pulling"] is True
+        assert started == ["nginx:1"]
+
+
+class TestWipe:
+    def test_wipe_sequence(self, test_client, auth_headers, monkeypatch):
+        calls = _docker_fake(monkeypatch, containers={"web": {
+            "Image": "sha256:aaa", "Config": {"Image": "nginx:1", "Labels": {}}}})
+        r = test_client.post("/api/docker/wipe", headers=auth_headers,
+                             json={"name": "web"})
+        assert r.status_code == 200 and r.json()["image_removed"] is True
+        assert ["rm", "-v", "web"] in calls
+        assert ["rmi", "sha256:aaa"] in calls
+
+    def test_wipe_unknown_404(self, test_client, auth_headers, monkeypatch):
+        _docker_fake(monkeypatch)
+        r = test_client.post("/api/docker/wipe", headers=auth_headers,
+                             json={"name": "ghost"})
+        assert r.status_code == 404
+
+
+class TestRun:
+    def test_validation_rejects_garbage(self, test_client, auth_headers,
+                                        monkeypatch):
+        _docker_fake(monkeypatch)
+        bad = [
+            {"name": "x", "image": "-rm"},
+            {"name": "x", "image": "nginx", "ports": ["80;rm -rf /:80"]},
+            {"name": "x", "image": "nginx", "env": ["1BAD=v"]},
+            # ../etc is neither an absolute path nor a valid volume name
+            {"name": "x", "image": "nginx", "volumes": ["../etc:/x"]},
+            {"name": "x", "image": "nginx", "volumes": ["/srv/a:/b:rwx"]},
+            {"name": "x", "image": "nginx", "restart": "sometimes"},
+        ]
+        for b in bad:
+            r = test_client.post("/api/docker/run", headers=auth_headers, json=b)
+            assert r.status_code == 400, b
+
+    def test_duplicate_name_409(self, test_client, auth_headers, monkeypatch):
+        _docker_fake(monkeypatch, containers={"web": {"Config": {}}})
+        r = test_client.post("/api/docker/run", headers=auth_headers,
+                             json={"name": "web", "image": "nginx:1"})
+        assert r.status_code == 409
+
+    def test_missing_image_202(self, test_client, auth_headers, monkeypatch):
+        import docker_lxc_api as d
+        _docker_fake(monkeypatch)
+        started = []
+        monkeypatch.setattr(d, "_start_pull", lambda img, bt: started.append(img))
+        r = test_client.post("/api/docker/run", headers=auth_headers,
+                             json={"name": "new", "image": "nginx:1"})
+        assert r.status_code == 202 and started == ["nginx:1"]
+
+    def test_create_builds_correct_args(self, test_client, auth_headers,
+                                        monkeypatch):
+        calls = _docker_fake(monkeypatch,
+                             images={"nginx:1": {"Id": "sha256:x", "Config": {}}})
+        r = test_client.post("/api/docker/run", headers=auth_headers, json={
+            "name": "web", "image": "nginx:1", "restart": "always",
+            "ports": ["8080:80"], "volumes": ["/srv/w:/data:ro"],
+            "env": ["A=1"], "command": "nginx -g 'daemon off;'"})
+        assert r.status_code == 200, r.text
+        run = next(c for c in calls if c[0] == "run")
+        joined = " ".join(run)
+        for frag in ("--restart always", "-p 8080:80", "-v /srv/w:/data:ro",
+                     "-e A=1", "nginx:1 nginx -g daemon off;"):
+            assert frag in joined, (frag, joined)

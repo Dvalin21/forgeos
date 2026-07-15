@@ -141,10 +141,14 @@
         plLabels.values().forEach(function(p){b.labels[p[0]]=p[1]});
         var hcCmd=$('#cw-hc',back).value.trim();if(hcCmd)b.healthcheck={test:hcCmd,interval:$('#cw-hci',back).value.trim()||'30s',retries:parseInt($('#cw-hcr',back).value||'3',10)};
         if(!b.name||!b.image){toast('Name and image required','warn');return false}
-        toast('Pulling image…','info');
-        var r=await api('/api/docker/run',{method:'POST',body:JSON.stringify(b)});
-        toast(r.ok?b.name+' created':(r.data&&r.data.detail)||'Create failed',r.ok?'ok':'err');
-        if(r.ok)refresh();return r.ok}});
+        toast('Creating…','info');
+        async function attempt(n){
+          var r=await api('/api/docker/run',{method:'POST',body:JSON.stringify(b)});
+          if(r.status===202&&n<240){if(!n)toast('Pulling image…','info');
+            return new Promise(function(res){setTimeout(function(){res(attempt(n+1))},5000)})}
+          toast(r.ok?b.name+' created':(r.data&&r.data.detail)||'Create failed',r.ok?'ok':'err');
+          if(r.ok)refresh();return r.ok}
+        return attempt(0)}});
     // Wire repeating lists. Ports use 3-field rows for host:container[/proto].
     function portList(el,initial){
       function add(host,ctr,proto){var row=document.createElement('div');row.className='pair-row';row.style.gridTemplateColumns='1fr 1fr 80px auto';
@@ -229,11 +233,15 @@
     var html='<pre style="background:var(--surface-3);padding:14px;border-radius:12px;font:500 11px JetBrains Mono,monospace;max-height:60vh;overflow:auto;white-space:pre-wrap;margin:0">'+esc((d&&d.logs||'(no logs)').slice(-15000))+'</pre>';
     modal({title:'Logs · '+name,sub:'Last 200 lines',size:'big',html:html,cta:null});
   }
-  async function updateContainer(name){
-    toast('Pulling image…','info');
-    var r=await api('/api/docker/update',{method:'POST',body:JSON.stringify({name:name})});
+  async function updateContainer(name,attempt){
+    attempt=attempt||0;
+    if(!attempt)toast('Updating '+name+'…','info');
+    var r=await api('/api/docker/containers/'+encodeURIComponent(name)+'/update',{method:'POST'});
+    if(r.status===202&&attempt<240){ // image pulling in background — poll
+      if(!attempt)toast('Pulling image…','info');
+      setTimeout(function(){updateContainer(name,attempt+1)},5000);return}
     if(r.data&&r.data.compose_managed){toast('Compose-managed: '+r.data.hint,'warn');return}
-    toast(r.ok?name+' updated':(r.data&&r.data.detail)||'Update failed',r.ok?'ok':'err');
+    toast(r.ok?((r.data&&r.data.updated===false)?name+' already up to date':name+' updated'):(r.data&&r.data.detail)||'Update failed',r.ok?'ok':'err');
     if(r.ok){delete STATE.updateMap[name];refresh()}
   }
   function wipeContainer(name){
@@ -416,7 +424,7 @@
   function switchTab(t){$$('.tab').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-t')===t)});['catalog','containers','services'].forEach(function(x){$('#tab-'+x).classList.toggle('hidden',x!==t)})}
   function switchSub(st){$$('.subtab').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-st')===st)});$('#sub-ctrs').classList.toggle('hidden',st!=='ctrs');$('#sub-compose').classList.toggle('hidden',st!=='compose')}
   async function refresh(){
-    var [svc,docker,lxc,cmp]=await Promise.all([api('/api/services'),api('/api/docker/containers'),api('/api/docker/lxc/containers'),api('/api/compose/projects')]);
+    var [svc,docker,lxc,cmp]=await Promise.all([api('/api/services'),api('/api/docker/containers'),api('/api/lxc/containers'),api('/api/compose/projects')]);
     STATE.services=(svc.data&&svc.data.services)||[];
     var docks=((docker.data&&docker.data.containers)||[]).map(function(c){var labels=c.Labels||c.labels||{};return {name:(c.Names&&c.Names.replace(/^\//,''))||c.name,image:c.Image||c.image,running:(c.State||c.state||'').toLowerCase()==='running',status:c.Status||c.state,runtime:'docker',composeProject:labels['com.docker.compose.project'],fromCatalog:labels['forgeos.catalog']}});
     var incs=((lxc.data&&lxc.data.containers)||[]).map(function(c){return {name:c.name,image:c.image||c.type||'container',running:c.status==='Running',status:c.status,runtime:'container'}});

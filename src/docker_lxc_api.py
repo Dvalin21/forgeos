@@ -11,6 +11,7 @@ Provides:
 
 import logging
 import subprocess
+import threading
 import json
 import os
 from pathlib import Path
@@ -247,6 +248,340 @@ async def exec_in_container(container: str, body: dict, user=Depends(verify_toke
 # ═══════════════════════════════════════════════════════
 # DOCKER IMAGES
 # ═══════════════════════════════════════════════════════
+
+# ── update / run / wipe lifecycle (0040) ────────────────────────────────────
+# In-flight image pulls. In-memory is correct here: forgeos-api is a single
+# uvicorn process by design; a pull surviving an API restart just means the
+# next poll re-checks the image and finds it present or re-pulls.
+_PULLING: set = set()
+_PULL_LOCK = threading.Lock()
+
+
+def _image_ref_valid(ref: str) -> bool:
+    """Registry refs only; blocks argument injection (leading '-') and shell
+    metacharacters. Admin+audit is the trust boundary; this stops mistakes."""
+    return bool(re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9._\-/:@]*", ref or ""))
+
+
+def _inspect(kind: str, ref: str) -> dict | None:
+    """docker {container|image} inspect -> first object, or None."""
+    r = _run_docker([kind, "inspect", ref])
+    if not r["success"]:
+        return None
+    try:
+        out = json.loads(r["stdout"])
+        return out[0] if out else None
+    except (json.JSONDecodeError, IndexError):
+        return None
+
+
+def _host_arch() -> str:
+    import platform
+    return {"x86_64": "amd64", "aarch64": "arm64"}.get(
+        platform.machine(), platform.machine())
+
+
+def _remote_config_digest(image: str) -> str | None:
+    """Remote image's CONFIG digest via `docker manifest inspect -v` — no
+    pull. A local docker image ID IS its config digest, so equality with
+    `docker image inspect .Id` means up-to-date. Experimental-CLI is enabled
+    by default since Docker 20.10 (Debian 13 ships 26.x+)."""
+    r = _run_docker(["manifest", "inspect", "-v", image], timeout=20)
+    if not r["success"]:
+        return None
+    try:
+        data = json.loads(r["stdout"])
+    except json.JSONDecodeError:
+        return None
+    entries = data if isinstance(data, list) else [data]
+    arch = _host_arch()
+
+    def cfg_digest(entry: dict) -> str | None:
+        # key differs by manifest flavor (SchemaV2Manifest / OCIManifest…);
+        # hunt for any sub-object shaped like {config: {digest: ...}}
+        for v in entry.values():
+            if isinstance(v, dict) and isinstance(v.get("config"), dict):
+                return v["config"].get("digest")
+        return None
+
+    match = None
+    for e in entries:
+        plat = e.get("Descriptor", {}).get("platform") or e.get("Platform") or {}
+        if plat.get("os") == "linux" and plat.get("architecture") == arch:
+            match = e
+            break
+    return cfg_digest(match or entries[0])
+
+
+def _image_local_id(image: str) -> str | None:
+    info = _inspect("image", image)
+    return info.get("Id") if info else None
+
+
+def _start_pull(image: str, background_tasks: BackgroundTasks) -> None:
+    with _PULL_LOCK:
+        if image in _PULLING:
+            return
+        _PULLING.add(image)
+
+    def _task():
+        try:
+            r = _run_docker(["pull", image], timeout=1800)
+            if not r["success"]:
+                logger.error("docker pull %s failed: %s", image,
+                             r.get("stderr") or r.get("error", ""))
+        finally:
+            with _PULL_LOCK:
+                _PULLING.discard(image)
+
+    background_tasks.add_task(_task)
+
+
+def _pull_202(image: str) -> JSONResponse:
+    return JSONResponse(status_code=202, content={
+        "pulling": True, "image": image,
+        "detail": f"Pulling {image} — poll this endpoint until it returns 200"})
+
+
+@router.get("/update-check")
+async def update_check(user=Depends(verify_token)):
+    """Compare each running container's image (its ID == config digest)
+    against the registry's current config digest. No pulls; one small
+    manifest fetch per unique image, fetched concurrently."""
+    ps = _run_docker(["ps", "--format", "json"])
+    if not ps["success"]:
+        raise HTTPException(status_code=500,
+                            detail=ps.get("error") or ps.get("stderr", ""))
+    rows = _parse_ndjson(ps["stdout"])
+
+    import asyncio
+    loop = asyncio.get_event_loop()
+    images = sorted({r.get("Image", "") for r in rows if r.get("Image")})
+    digests = dict(zip(images, await asyncio.gather(
+        *(loop.run_in_executor(None, _remote_config_digest, i) for i in images))))
+
+    out = []
+    for r in rows:
+        name, image = r.get("Names", ""), r.get("Image", "")
+        info = _inspect("container", name)
+        running_id = (info or {}).get("Image")
+        remote = digests.get(image)
+        out.append({
+            "name": name, "image": image,
+            # None = could not determine (private image, rate limit, offline)
+            "update_available": (None if not remote or not running_id
+                                 else remote != running_id),
+        })
+    return {"containers": out}
+
+
+@router.post("/containers/{container}/update")
+async def update_container(container: str, background_tasks: BackgroundTasks,
+                           user=Depends(verify_token)):
+    """Pull the container's image and recreate it with its existing config
+    (admin, audited). 202 while the pull runs — poll to completion. Rollback:
+    the old container is renamed, not removed, until the new one starts."""
+    _require_admin(user)
+    _valid_ref(container, "container")
+    info = _inspect("container", container)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"no container {container!r}")
+    labels = (info.get("Config", {}) or {}).get("Labels") or {}
+    if "com.docker.compose.project" in labels:
+        return {"ok": False, "compose_managed": True,
+                "hint": "manage via `docker compose pull && docker compose up -d`"}
+
+    image = (info.get("Config", {}) or {}).get("Image", "")
+    if not image or image.startswith("sha256:"):
+        raise HTTPException(status_code=409,
+                            detail="container runs a pinned image ID — nothing to update to")
+
+    with _PULL_LOCK:
+        pulling = image in _PULLING
+    if pulling:
+        return _pull_202(image)
+
+    local_id = _image_local_id(image)
+    remote = _remote_config_digest(image)
+    if remote and local_id != remote:
+        _start_pull(image, background_tasks)
+        return _pull_202(image)
+
+    if local_id is None:
+        _start_pull(image, background_tasks)
+        return _pull_202(image)
+
+    if info.get("Image") == local_id:
+        return {"ok": True, "updated": False, "detail": "already up to date"}
+
+    _recreate_from(info, container, image)
+    _audit(user["sub"], "docker.update", "success", f"{container} -> {image}")
+    return {"ok": True, "updated": True, "container": container}
+
+
+def _recreate_from(info: dict, container: str, image: str) -> None:
+    """Stop + rename old, run new from `info`'s config; rollback on failure.
+    Preserves env, ports, binds, named-volume mounts, restart policy and
+    network mode. Exotic HostConfig (devices, caps) is NOT carried — the
+    rollback path exists precisely so that failure is non-destructive."""
+    cfg = info.get("Config", {}) or {}
+    host = info.get("HostConfig", {}) or {}
+    img = _inspect("image", image) or {}
+    img_cfg = img.get("Config", {}) or {}
+
+    args = ["run", "-d", "--name", container]
+    rp = (host.get("RestartPolicy") or {}).get("Name") or ""
+    if rp and rp != "no":
+        mrc = (host.get("RestartPolicy") or {}).get("MaximumRetryCount") or 0
+        args += ["--restart", rp + (f":{mrc}" if rp == "on-failure" and mrc else "")]
+    nm = host.get("NetworkMode", "")
+    if nm and nm not in ("default", "bridge"):
+        args += ["--network", nm]
+    for env in cfg.get("Env") or []:
+        args += ["-e", env]
+    for cport, bindings in (host.get("PortBindings") or {}).items():
+        for b in bindings or []:
+            hp = b.get("HostPort", "")
+            hip = b.get("HostIp", "")
+            if hp:
+                args += ["-p", (f"{hip}:" if hip else "") + f"{hp}:{cport}"]
+    for bind in host.get("Binds") or []:
+        args += ["-v", bind]
+    for m in info.get("Mounts") or []:
+        if m.get("Type") == "volume" and m.get("Name") and m.get("Destination"):
+            spec = f"{m['Name']}:{m['Destination']}"
+            if not any(a.startswith(f"{m['Name']}:") for a in args):
+                args += ["-v", spec]
+    if cfg.get("Entrypoint") and cfg.get("Entrypoint") != img_cfg.get("Entrypoint"):
+        ep = cfg["Entrypoint"]
+        args += ["--entrypoint", ep[0] if isinstance(ep, list) else str(ep)]
+    args.append(image)
+    if cfg.get("Cmd") and cfg.get("Cmd") != img_cfg.get("Cmd"):
+        cmd = cfg["Cmd"]
+        args += cmd if isinstance(cmd, list) else [str(cmd)]
+
+    was_running = (info.get("State") or {}).get("Running", False)
+    old = f"{container}-forgeos-old"
+    _run_docker(["stop", container], timeout=60)
+    r = _run_docker(["rename", container, old])
+    if not r["success"]:
+        raise HTTPException(status_code=500, detail=f"rename failed: {r.get('stderr','')}"[:300])
+    r = _run_docker(args, timeout=120)
+    if not r["success"]:
+        _run_docker(["rm", "-f", container])          # partial new, if any
+        _run_docker(["rename", old, container])
+        if was_running:
+            _run_docker(["start", container])
+        raise HTTPException(status_code=500,
+                            detail=f"recreate failed, rolled back: "
+                                   f"{r.get('stderr') or r.get('error','')}"[:300])
+    _run_docker(["rm", old])
+
+
+@router.post("/wipe")
+async def wipe_container(body: dict, user=Depends(verify_token)):
+    """Remove a container, its anonymous volumes (`rm -v`), and its image
+    (best effort — a shared image stays). Admin, audited."""
+    _require_admin(user)
+    name = str(body.get("name", "")).strip()
+    _valid_ref(name, "container")
+    info = _inspect("container", name)
+    if info is None:
+        raise HTTPException(status_code=404, detail=f"no container {name!r}")
+    image_id = info.get("Image", "")
+    _run_docker(["stop", name], timeout=60)
+    r = _run_docker(["rm", "-v", name])
+    if not r["success"]:
+        raise HTTPException(status_code=500,
+                            detail=(r.get("stderr") or r.get("error", ""))[:300])
+    img_removed = False
+    if image_id:
+        img_removed = _run_docker(["rmi", image_id])["success"]
+    _audit(user["sub"], "docker.wipe", "success",
+           f"{name} (image {'removed' if img_removed else 'kept'})")
+    return {"ok": True, "container": name, "image_removed": img_removed}
+
+
+@router.post("/run")
+async def run_container(body: dict, background_tasks: BackgroundTasks,
+                        user=Depends(verify_token)):
+    """Create a container (admin, audited, validated). 202 while the image
+    pulls — poll to completion, then the retry creates the container."""
+    _require_admin(user)
+    name = str(body.get("name", "")).strip()
+    image = str(body.get("image", "")).strip()
+    _valid_ref(name, "container")
+    if not _image_ref_valid(image):
+        raise HTTPException(status_code=400, detail=f"invalid image reference {image!r}")
+    if _inspect("container", name) is not None:
+        raise HTTPException(status_code=409, detail=f"container {name!r} already exists")
+
+    args = ["run", "-d", "--name", name]
+    restart = str(body.get("restart", "")).strip()
+    if restart and restart != "no":
+        if restart not in ("always", "unless-stopped", "on-failure"):
+            raise HTTPException(status_code=400, detail=f"invalid restart policy {restart!r}")
+        args += ["--restart", restart]
+    for p in body.get("ports") or []:
+        if not re.fullmatch(r"\d{1,5}:\d{1,5}(/(tcp|udp))?", str(p)):
+            raise HTTPException(status_code=400, detail=f"invalid port mapping {p!r}")
+        args += ["-p", str(p)]
+    for v in body.get("volumes") or []:
+        parts = str(v).split(":")
+        if len(parts) < 2 or not (parts[0].startswith("/")
+                                  or re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.\-]*", parts[0])) \
+                or not parts[1].startswith("/") \
+                or (len(parts) > 2 and parts[2] not in ("ro", "rw")):
+            raise HTTPException(status_code=400, detail=f"invalid volume {v!r}")
+        args += ["-v", str(v)]
+    for e in body.get("env") or []:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", str(e), re.S):
+            raise HTTPException(status_code=400, detail=f"invalid env entry {e!r}")
+        args += ["-e", str(e)]
+    for n in body.get("networks") or []:
+        if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.\-]*", str(n)):
+            raise HTTPException(status_code=400, detail=f"invalid network {n!r}")
+        args += ["--network", str(n)]
+    for k, v in (body.get("labels") or {}).items():
+        if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.\-]*", str(k)):
+            raise HTTPException(status_code=400, detail=f"invalid label key {k!r}")
+        args += ["--label", f"{k}={v}"]
+    if body.get("workdir"):
+        wd = str(body["workdir"])
+        if not wd.startswith("/"):
+            raise HTTPException(status_code=400, detail="workdir must be absolute")
+        args += ["-w", wd]
+    if body.get("cpu_limit"):
+        args += ["--cpus", str(body["cpu_limit"])]
+    if body.get("mem_limit"):
+        args += ["--memory", str(body["mem_limit"])]
+    hc = body.get("healthcheck") or {}
+    if hc.get("test"):
+        args += ["--health-cmd", str(hc["test"]),
+                 "--health-interval", str(hc.get("interval", "30s")),
+                 "--health-retries", str(int(hc.get("retries", 3)))]
+    if body.get("entrypoint"):
+        args += ["--entrypoint", str(body["entrypoint"])]
+    args.append(image)
+    if body.get("command"):
+        import shlex
+        args += shlex.split(str(body["command"]))
+
+    with _PULL_LOCK:
+        pulling = image in _PULLING
+    if pulling:
+        return _pull_202(image)
+    if _image_local_id(image) is None:
+        _start_pull(image, background_tasks)
+        return _pull_202(image)
+
+    r = _run_docker(args, timeout=120)
+    if not r["success"]:
+        raise HTTPException(status_code=500,
+                            detail=(r.get("stderr") or r.get("error", ""))[:300])
+    _audit(user["sub"], "docker.run", "success", f"{name} ({image})")
+    return {"ok": True, "container": name}
+
 
 @router.get("/images")
 async def list_images():
