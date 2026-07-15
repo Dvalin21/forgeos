@@ -508,3 +508,10 @@ def test_runtime_dirs_cover_late_installed_generator_targets():
     read-only forever. The installer must pre-create every generator target."""
     for d in ("/etc/avahi/services", "/etc/postgresql", "/etc/mysql"):
         assert d in fi.RUNTIME_DIRS, d
+
+
+def test_docker_in_base_packages():
+    """Regression: the scope comment claimed docker for months while nothing
+    installed it — app store dead on every spec-compliant box. The package
+    list is the contract now."""
+    assert "docker.io" in fi.BASE_PACKAGES

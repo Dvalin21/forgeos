@@ -24,7 +24,10 @@ from dataclasses import dataclass, field
 import forgeos_config as fc
 
 # The always-installed base. Grounded in the base services:
-# samba, nginx, wireguard, nfs, security tools, docker, incus, restic, rustfs.
+# Everything the base install delivers, one apt transaction. (Incus and
+# RustFS are future scope — do not list components here that the code below
+# does not actually install; this comment claimed docker for months while
+# nothing installed it, leaving the app store dead on spec-compliant boxes.)
 BASE_PACKAGES: list[str] = [
     # file sharing
     "samba", "samba-common-bin", "nfs-kernel-server", "nfs-common",
@@ -50,6 +53,9 @@ BASE_PACKAGES: list[str] = [
     # (the default domain is .local, which IS mDNS — without avahi it resolves
     # nowhere). V-011.
     "avahi-daemon", "libnss-mdns",
+    # container runtime for the app store. Debian's docker.io, NOT upstream
+    # docker-ce: no third-party apt source, security updates ride Debian.
+    "docker.io",
     # base utilities
     "curl", "ca-certificates", "jq",
 ]
@@ -363,6 +369,9 @@ class Installer:
     def phase_base_packages(self) -> PhaseResult:
         r = self.run(["apt-get", "install", "-y", *BASE_PACKAGES])
         ok = getattr(r, "returncode", 1) == 0
+        if ok:
+            # boot-persistent explicitly; don't rely on the postinst default
+            self.run(["systemctl", "enable", "--now", "docker"])
         return PhaseResult("base_packages", ok,
                           "" if ok else getattr(r, "stderr", "").strip())
 
