@@ -29,7 +29,7 @@
 .subtab{padding:10px 16px;cursor:pointer;font-size:13px;font-weight:700;color:var(--muted);border:0;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px}
 .subtab.active{color:var(--primary);border-bottom-color:var(--primary)}
 /* unified card grid */
-    .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
+    .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px}
 .card{position:relative;display:flex;flex-direction:column;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--surface);box-shadow:var(--shadow-soft);transition:.15s}
 .card:hover{transform:translateY(-2px);box-shadow:var(--shadow)}
 .card-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
@@ -51,8 +51,8 @@
 .pill.update{background:rgba(216,138,0,.16);color:var(--warn);position:absolute;top:14px;right:14px;cursor:pointer}
 .pill.update svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2.4}
 .badge-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.card-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
-.card-actions button{flex:1;min-width:0;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font:800 11px var(--font);color:#3a495f;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:.15s;padding:0 8px}
+.card-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px;margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
+.card-actions button{height:34px;white-space:nowrap;overflow:hidden;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font:800 11px var(--font);color:#3a495f;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:.15s;padding:0 8px}
 .card-actions button:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
 .card-actions button.danger:hover:not(:disabled){border-color:var(--danger);color:var(--danger)}
 .card-actions button:disabled{opacity:.4;cursor:default}
