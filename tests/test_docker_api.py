@@ -451,8 +451,22 @@ class TestDockerSettings:
             g = test_client.get("/api/docker/settings", headers=auth_headers)
             assert g.json()["apps_root"] == root         # persisted
         finally:
-            test_client.put("/api/docker/settings", headers=auth_headers,
-                            json={"apps_root": "/srv/apps"})
+            # reset via the config layer — the endpoint mkdirs its target,
+            # and tests must never write privileged paths like /srv
+            import forgeos_config as fc
+            cfg = fc.load(); cfg.docker = fc.DockerConfig(); fc.save(cfg)
+
+    def test_put_mkdir_denied_is_clean_400(self, test_client, auth_headers,
+                                           monkeypatch):
+        """Regression (dev-box): PUT to a root-owned target 500'd with a raw
+        PermissionError traceback when run unprivileged."""
+        from pathlib import Path
+        def denied(self, *a, **k):
+            raise PermissionError(13, "Permission denied", str(self))
+        monkeypatch.setattr(Path, "mkdir", denied)
+        r = test_client.put("/api/docker/settings", headers=auth_headers,
+                            json={"apps_root": "/srv/apps2"})
+        assert r.status_code == 400 and "cannot create" in r.json()["detail"]
 
     def test_put_admin_only(self, test_client, user_headers):
         r = test_client.put("/api/docker/settings", headers=user_headers,

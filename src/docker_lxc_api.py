@@ -272,7 +272,11 @@ async def put_docker_settings(body: dict, user=Depends(verify_token)):
         cfg.docker = fc.DockerConfig(apps_root=root)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)[:300])
-    Path(cfg.docker.apps_root).mkdir(parents=True, exist_ok=True)
+    try:
+        Path(cfg.docker.apps_root).mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise HTTPException(status_code=400,
+                            detail=f"cannot create {cfg.docker.apps_root}: {e}")
     fc.save(cfg)
     _audit(user["sub"], "docker.settings", "success", f"apps_root={root}")
     return {"ok": True, "apps_root": cfg.docker.apps_root}
