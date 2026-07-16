@@ -627,9 +627,9 @@ class Installer:
                 pass  # corrupt/unreadable — recreate
 
         password = secrets.token_urlsafe(12)
-        from passlib.context import CryptContext
-        pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        users = {"admin": {"hash": pwd_ctx.hash(password), "role": "admin"}}
+        import bcrypt  # passlib retired repo-wide (unmaintained since 2020)
+        pw_hash = bcrypt.hashpw(password.encode()[:72], bcrypt.gensalt()).decode()
+        users = {"admin": {"hash": pw_hash, "role": "admin"}}
         self._write_file(str(users_file), json.dumps(users, indent=2), 0o600)
         return password
 

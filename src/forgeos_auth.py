@@ -19,7 +19,7 @@ from pathlib import Path
 
 from fastapi import HTTPException, Request, WebSocket
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import BaseModel, Field
 import pyotp
 
@@ -112,7 +112,26 @@ JWT_EXPIRE_MFA_MIN  = 5   # minutes
 MFA_ENROLL_SCOPE      = "mfa_enroll"
 JWT_EXPIRE_ENROLL_MIN = 15  # minutes (enough to scan a QR + enter a code)
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+class _BcryptCtx:
+    """Drop-in for the retired passlib CryptContext (passlib is unmaintained
+    since 2020 and forced the bcrypt<4.1 pin). Same $2b$ hashes, same
+    hash/verify interface, zero call-site churn. bcrypt's hard limit is 72
+    bytes; truncate exactly as passlib did so existing long passwords keep
+    verifying."""
+
+    @staticmethod
+    def hash(password: str) -> str:
+        return bcrypt.hashpw(password.encode()[:72], bcrypt.gensalt()).decode()
+
+    @staticmethod
+    def verify(password: str, hashed: str) -> bool:
+        try:
+            return bcrypt.checkpw(password.encode()[:72], hashed.encode())
+        except (ValueError, TypeError):
+            return False               # malformed/foreign hash never verifies
+
+
+pwd_ctx = _BcryptCtx()
 
 
 class LoginRequest(BaseModel):

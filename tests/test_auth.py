@@ -264,3 +264,27 @@ class TestJwtSecretLoading:
             "this is the race-prone path C-001 was meant to remove."
         )
 
+
+
+class TestBcryptShim:
+    """passlib deleted (unmaintained since 2020; forced the bcrypt<4.1 pin).
+    The shim must verify hashes passlib created — no user re-hash migration."""
+
+    def test_existing_2b_hashes_verify(self):
+        import bcrypt
+        from forgeos_auth import pwd_ctx
+        legacy = bcrypt.hashpw(b"hunter22", bcrypt.gensalt()).decode()
+        assert pwd_ctx.verify("hunter22", legacy)
+        assert not pwd_ctx.verify("hunter23", legacy)
+
+    def test_malformed_hash_returns_false_not_raise(self):
+        from forgeos_auth import pwd_ctx
+        assert pwd_ctx.verify("x", "") is False
+        assert pwd_ctx.verify("x", "garbage") is False
+
+    def test_72_byte_truncation_matches_passlib(self):
+        from forgeos_auth import pwd_ctx
+        long = "p" * 100
+        h = pwd_ctx.hash(long)
+        assert pwd_ctx.verify(long, h)
+        assert pwd_ctx.verify("p" * 72, h)     # bytes beyond 72 never counted
