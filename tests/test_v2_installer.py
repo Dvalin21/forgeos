@@ -515,3 +515,16 @@ def test_docker_in_base_packages():
     installed it — app store dead on every spec-compliant box. The package
     list is the contract now."""
     assert "docker.io" in fi.BASE_PACKAGES
+
+
+def test_cache_headers(test_client, auth_headers):
+    """Regression: no Cache-Control on the UI meant browsers ran stale JS for
+    days after deploys (ghost /login.html redirect; invisible new buttons).
+    UI revalidates every load (no-cache + ETag 304s); API is never cached."""
+    r = test_client.get("/api/system/info", headers=auth_headers)
+    assert r.headers.get("cache-control") == "no-store"
+    r = test_client.get("/api/auth/login")   # any /api path, even 405s
+    assert r.headers.get("cache-control") == "no-store"
+    # non-API paths (the UI) revalidate — branch applies even to 404s
+    r = test_client.get("/index.html")
+    assert r.headers.get("cache-control") == "no-cache"

@@ -733,6 +733,8 @@ class SecurityHeadersMiddleware:
             await self.app(scope, receive, send)
             return
 
+        path = scope.get("path", "")
+
         async def send_with_headers(message):
             if message["type"] == "http.response.start":
                 headers = message.get("headers", [])
@@ -740,6 +742,19 @@ class SecurityHeadersMiddleware:
                 headers.append((b"x-content-type-options", b"nosniff"))
                 headers.append((b"x-frame-options", b"DENY"))
                 headers.append((b"referrer-policy", b"strict-origin-when-cross-origin"))
+                # Cache policy. Without explicit headers browsers cache the UI
+                # heuristically off Last-Modified — every deploy then serves a
+                # mix of old JS and new API until each user hard-refreshes
+                # (this bit twice in one day: a ghost 401 redirect and an
+                # "Add server database" button that didn't exist client-side).
+                # no-cache forces revalidation; StaticFiles sends ETag +
+                # Last-Modified, so unchanged files are cheap 304s and changed
+                # files land immediately. API responses are no-store outright.
+                if not any(k.lower() == b"cache-control" for k, _ in headers):
+                    if path.startswith("/api/"):
+                        headers.append((b"cache-control", b"no-store"))
+                    else:
+                        headers.append((b"cache-control", b"no-cache"))
                 message["headers"] = headers
             await send(message)
 
