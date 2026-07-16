@@ -44,20 +44,49 @@
 
   // ── catalog ──
   // vols are functions of the app-data root so "Default app folder" applies.
+  // 30 curated, single-container apps. Image refs verified; per-app data
+  // under the configurable app folder ({r}); icons vendored from
+  // homarr-labs/dashboard-icons at /img/apps/{id}.png (emoji = fallback).
   var CATALOG=[
+    // ── Media ──
     {id:'jellyfin',name:'Jellyfin',cat:'Media',icon:'🎬',desc:'Free media server for movies, TV, music.',image:'jellyfin/jellyfin:latest',ports:['8096:8096'],vols:function(r){return [r+'/jellyfin/config:/config',r+'/jellyfin/cache:/cache','/srv/nas:/media:ro']}},
     {id:'plex',name:'Plex',cat:'Media',icon:'▶',desc:'Personal media library with mobile/TV apps.',image:'plexinc/pms-docker:latest',ports:['32400:32400'],vols:function(r){return [r+'/plex:/config','/srv/nas:/media:ro']}},
+    {id:'navidrome',name:'Navidrome',cat:'Media',icon:'🎵',desc:'Modern music server & streamer (Subsonic-compatible).',image:'deluan/navidrome:latest',ports:['4533:4533'],vols:function(r){return [r+'/navidrome:/data','/srv/nas/music:/music:ro']}},
+    {id:'audiobookshelf',name:'Audiobookshelf',cat:'Media',icon:'🎧',desc:'Audiobook & podcast server with apps.',image:'ghcr.io/advplyr/audiobookshelf:latest',ports:['13378:80'],vols:function(r){return [r+'/audiobookshelf/config:/config',r+'/audiobookshelf/metadata:/metadata','/srv/nas/audiobooks:/audiobooks']}},
+    {id:'photoprism',name:'PhotoPrism',cat:'Media',icon:'📷',desc:'AI-powered photo library. Set the admin password before first run.',image:'photoprism/photoprism:latest',ports:['2342:2342'],env:['PHOTOPRISM_ADMIN_PASSWORD=change-me-now'],vols:function(r){return [r+'/photoprism:/photoprism/storage','/srv/nas/photos:/photoprism/originals']}},
+    // ── *arr / downloads ──
+    {id:'sonarr',name:'Sonarr',cat:'Downloads',icon:'📺',desc:'TV series management and automation.',image:'lscr.io/linuxserver/sonarr:latest',ports:['8989:8989'],vols:function(r){return [r+'/sonarr:/config','/srv/nas:/data']}},
+    {id:'radarr',name:'Radarr',cat:'Downloads',icon:'🎥',desc:'Movie collection management and automation.',image:'lscr.io/linuxserver/radarr:latest',ports:['7878:7878'],vols:function(r){return [r+'/radarr:/config','/srv/nas:/data']}},
+    {id:'prowlarr',name:'Prowlarr',cat:'Downloads',icon:'🔎',desc:'Indexer manager for the *arr stack.',image:'lscr.io/linuxserver/prowlarr:latest',ports:['9696:9696'],vols:function(r){return [r+'/prowlarr:/config']}},
+    {id:'qbittorrent',name:'qBittorrent',cat:'Downloads',icon:'⬇',desc:'BitTorrent client with web UI.',image:'lscr.io/linuxserver/qbittorrent:latest',ports:['8090:8080'],vols:function(r){return [r+'/qbittorrent:/config','/srv/nas/downloads:/downloads']}},
+    {id:'jellyseerr',name:'Jellyseerr',cat:'Downloads',icon:'🍿',desc:'Media requests for Jellyfin/Plex users.',image:'fallenbagel/jellyseerr:latest',ports:['5055:5055'],vols:function(r){return [r+'/jellyseerr:/app/config']}},
+    // ── Productivity ──
     {id:'nextcloud',name:'Nextcloud',cat:'Productivity',icon:'☁',desc:'Files, calendar, contacts, collaboration.',image:'nextcloud:latest',ports:['8080:80'],vols:function(r){return [r+'/nextcloud:/var/www/html']}},
+    {id:'gitea',name:'Gitea',cat:'Productivity',icon:'🍵',desc:'Lightweight self-hosted Git service.',image:'gitea/gitea:latest',ports:['3003:3000'],vols:function(r){return [r+'/gitea:/data']}},
+    {id:'n8n',name:'n8n',cat:'Productivity',icon:'🔗',desc:'Workflow automation (self-hosted Zapier).',image:'n8nio/n8n:latest',ports:['5678:5678'],vols:function(r){return [r+'/n8n:/home/node/.n8n']}},
+    {id:'freshrss',name:'FreshRSS',cat:'Productivity',icon:'📰',desc:'Self-hosted RSS reader.',image:'freshrss/freshrss:latest',ports:['8083:80'],vols:function(r){return [r+'/freshrss:/var/www/FreshRSS/data']}},
+    {id:'mealie',name:'Mealie',cat:'Productivity',icon:'🍲',desc:'Recipe manager and meal planner.',image:'ghcr.io/mealie-recipes/mealie:latest',ports:['9925:9000'],vols:function(r){return [r+'/mealie:/app/data']}},
+    {id:'stirling-pdf',name:'Stirling PDF',cat:'Productivity',icon:'📄',desc:'Web-based PDF toolbox: merge, split, convert.',image:'stirlingtools/stirling-pdf:latest',ports:['8084:8080'],vols:function(r){return [r+'/stirling-pdf/configs:/configs',r+'/stirling-pdf/data:/usr/share/tessdata']}},
+    {id:'code-server',name:'Code Server',cat:'Productivity',icon:'💻',desc:'VS Code in the browser on your NAS.',image:'codercom/code-server:latest',ports:['8443:8080'],vols:function(r){return [r+'/code-server:/home/coder']}},
+    // ── Security & network ──
     {id:'vaultwarden',name:'Vaultwarden',cat:'Security',icon:'🔐',desc:'Bitwarden-compatible password manager.',image:'vaultwarden/server:latest',ports:['8200:80'],vols:function(r){return [r+'/vaultwarden:/data']}},
-    {id:'uptime-kuma',name:'Uptime Kuma',cat:'Monitoring',icon:'📈',desc:'Self-hosted uptime monitoring with alerts.',image:'louislam/uptime-kuma:1',ports:['3001:3001'],vols:function(r){return [r+'/uptime-kuma:/app/data']}},
     {id:'adguardhome',name:'AdGuard Home',cat:'Network',icon:'🛡',desc:'Network-wide ad blocking. Add 53:53 in the wizard only if THIS box should serve DNS.',image:'adguard/adguardhome:latest',ports:['3000:3000'],vols:function(r){return [r+'/adguard/work:/opt/adguardhome/work',r+'/adguard/conf:/opt/adguardhome/conf']}},
     {id:'pihole',name:'Pi-hole',cat:'Network',icon:'🕳',desc:'DNS ad blocking. Add 53:53 in the wizard only if THIS box should serve DNS.',image:'pihole/pihole:latest',ports:['8181:80'],vols:function(r){return [r+'/pihole/etc:/etc/pihole']}},
+    // ── Home & dashboards ──
     {id:'homeassistant',name:'Home Assistant',cat:'Automation',icon:'🏠',desc:'Open-source home automation.',image:'ghcr.io/home-assistant/home-assistant:stable',ports:['8123:8123'],vols:function(r){return [r+'/homeassistant:/config']}},
+    {id:'homepage',name:'Homepage',cat:'Dashboards',icon:'🗂',desc:'Fast, static-feeling services dashboard.',image:'ghcr.io/gethomepage/homepage:latest',ports:['3004:3000'],vols:function(r){return [r+'/homepage:/app/config']}},
+    {id:'homarr',name:'Homarr',cat:'Dashboards',icon:'🧭',desc:'Drag-and-drop dashboard for your services.',image:'ghcr.io/homarr-labs/homarr:latest',ports:['7575:7575'],vols:function(r){return [r+'/homarr:/appdata']}},
+    // ── Files, sync, backup ──
     {id:'syncthing',name:'Syncthing',cat:'Sync',icon:'🔄',desc:'Continuous folder sync between devices.',image:'syncthing/syncthing:latest',ports:['8384:8384','22000:22000'],vols:function(r){return [r+'/syncthing:/var/syncthing']}},
+    {id:'filebrowser',name:'File Browser',cat:'Files',icon:'📁',desc:'Web file manager over your NAS shares.',image:'filebrowser/filebrowser:latest',ports:['8082:80'],vols:function(r){return [r+'/filebrowser:/database','/srv/nas:/srv']}},
+    {id:'duplicati',name:'Duplicati',cat:'Backup',icon:'💾',desc:'Encrypted backups to cloud or local targets.',image:'lscr.io/linuxserver/duplicati:latest',ports:['8201:8200'],vols:function(r){return [r+'/duplicati:/config','/srv/nas:/source:ro']}},
+    // ── Monitoring & tools ──
+    {id:'uptime-kuma',name:'Uptime Kuma',cat:'Monitoring',icon:'📈',desc:'Self-hosted uptime monitoring with alerts.',image:'louislam/uptime-kuma:1',ports:['3001:3001'],vols:function(r){return [r+'/uptime-kuma:/app/data']}},
     {id:'grafana',name:'Grafana',cat:'Monitoring',icon:'📊',desc:'Dashboards and metrics visualization.',image:'grafana/grafana:latest',ports:['3002:3000'],vols:function(r){return [r+'/grafana:/var/lib/grafana']}},
-    {id:'portainer',name:'Portainer',cat:'Tools',icon:'⚓',desc:'Advanced container management UI.',image:'portainer/portainer-ce:latest',ports:['9443:9443'],vols:function(r){return [r+'/portainer:/data','/var/run/docker.sock:/var/run/docker.sock']}},
-    {id:'code-server',name:'Code Server',cat:'Tools',icon:'💻',desc:'VS Code in the browser on your NAS.',image:'codercom/code-server:latest',ports:['8443:8080'],vols:function(r){return [r+'/code-server:/home/coder']}}
+    {id:'dozzle',name:'Dozzle',cat:'Monitoring',icon:'🪵',desc:'Live container log viewer.',image:'amir20/dozzle:latest',ports:['8085:8080'],vols:function(r){return ['/var/run/docker.sock:/var/run/docker.sock:ro']}},
+    {id:'portainer',name:'Portainer',cat:'Tools',icon:'⚓',desc:'Advanced container management UI.',image:'portainer/portainer-ce:latest',ports:['9443:9443'],vols:function(r){return [r+'/portainer:/data','/var/run/docker.sock:/var/run/docker.sock']}}
   ];
+
 
 
   var NATIVE_SERVICES=[
@@ -83,11 +112,19 @@
   }
 
   // ══════════ CATALOG ══════════
+  function appIcon(id, fallback){
+    // vendored logos at /img/apps/{id}.png (homarr-labs/dashboard-icons,
+    // see img/apps/LICENSE.md); emoji fallback if a file is ever missing.
+    return '<img src="/img/apps/'+esc(id)+'.png" alt="" loading="lazy" '+
+      'style="width:30px;height:30px;object-fit:contain" '+
+      'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'\'">'+
+      '<span style="display:none">'+(fallback||'📦')+'</span>';
+  }
   function renderCatalog(){
     var installed={};STATE.containers.forEach(function(c){if(c.fromCatalog)installed[c.fromCatalog]=c.name});
     $('#catalog-grid').innerHTML=CATALOG.map(function(a){
       var is=installed[a.id];
-      return '<div class="card"><div class="card-head"><div class="card-icon ic-app">'+a.icon+'</div>'+
+      return '<div class="card"><div class="card-head"><div class="card-icon" style="background:var(--surface-2);border:1px solid var(--line)">'+appIcon(a.id,a.icon)+'</div>'+
         '<div style="min-width:0"><h4>'+esc(a.name)+'</h4><p class="meta">'+esc(a.cat)+(a.compose?' · Compose':'')+'</p></div></div>'+
         '<p class="desc">'+esc(a.desc)+'</p>'+
         '<div class="badge-row"><span class="pill '+(is?'ok':'idle')+'">'+(is?'Installed':'Available')+'</span></div>'+
@@ -193,7 +230,7 @@
       var upd=STATE.updateMap[c.name]===true;
       return '<div class="card" data-card-ctr="'+esc(c.name)+'">'+
         (upd?'<span class="pill update" data-update="'+esc(c.name)+'" title="Update available"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7-7 7 7"/></svg>Update</span>':'')+
-        '<div class="card-head"><div class="card-icon '+(c.runtime==='container'?'ic-ctr':'ic-app')+'"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h2M11 10h2M15 10h2"/></svg></div>'+
+        '<div class="card-head"><div class="card-icon" style="background:var(--surface-2);border:1px solid var(--line)">'+(c.fromCatalog?appIcon(c.fromCatalog,''):'<svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.9"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h2M11 10h2M15 10h2"/></svg>')+'</div>'+
         '<div style="min-width:0"><h4>'+esc(c.name)+'</h4><p class="meta">'+esc(c.image||c.runtime||'container')+'</p></div></div>'+
         '<div class="badge-row"><span class="pill '+st+'">'+stText+'</span>'+(c.runtime?'<span class="pill idle">'+esc(c.runtime)+'</span>':'')+(c.composeProject?'<span class="pill idle">compose: '+esc(c.composeProject)+'</span>':'')+'</div>'+
         '<div class="card-actions">'+
