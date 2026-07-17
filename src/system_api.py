@@ -402,7 +402,7 @@ async def get_settings(user=Depends(verify_token)):
             "lan_name": sysc.lan_name or ((sysc.system_hostname or real_hostname) + ".local"),
             "public_fqdn": sysc.public_fqdn,
             "timezone": tz,
-            "version": _conf_get("FORGEOS_VERSION", "") if _conf_get else ""}
+            "version": _conf_get("FORGEOS_VERSION", "1.0") if _conf_get else "1.0"}
 
 
 @router.put("/api/settings")

@@ -87,6 +87,62 @@ a.am-item { text-decoration: none; color: inherit; }
 .net-legend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
 .conn-list { display:grid; gap:8px; max-height: 220px; overflow:auto; }
 .vol-empty { color: var(--muted); font-size: 13px; padding: 8px 0; }
+
+/* ── dashboard 0047 ─────────────────────────────────────────── */
+.dhero{display:flex;align-items:center;gap:20px;padding:24px 28px;border-radius:20px;color:#fff;
+  background:linear-gradient(115deg,#1d4ed8 0%,#2563eb 45%,#0ea5b7 100%);box-shadow:var(--shadow-soft);margin-bottom:18px}
+.dhero .grow{flex:1}
+.dpill{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.16);padding:6px 13px;border-radius:999px;font:800 12px var(--font)}
+.dpill i{width:8px;height:8px;border-radius:50%;background:#5eead4;box-shadow:0 0 8px #5eead4}
+.dpill i.warn{background:#fbbf24;box-shadow:0 0 8px #fbbf24}
+.dhero h1{font-size:30px;letter-spacing:-.03em;margin:6px 0 2px}
+.dhero p{font-size:13px;font-weight:700;opacity:.85}
+.dbtn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 18px;border-radius:12px;font:800 13px var(--font);border:0;cursor:pointer;transition:.15s}
+.dbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.dbtn.light{background:#fff;color:#1d4ed8}.dbtn.glass{background:rgba(255,255,255,.16);color:#fff}
+.dbtn:hover{transform:translateY(-1px)}
+.vitals{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px}
+.vital{display:flex;align-items:center;gap:16px;padding:16px 18px}
+.vital label{display:block;font:800 11px var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.vital .cap{font-size:12px;font-weight:700;color:var(--muted);margin-top:2px}
+.ringwrap{position:relative;width:64px;height:64px;flex:none}
+.ringwrap b{position:absolute;inset:0;display:grid;place-items:center;font-size:14px}
+.ring{transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:7}
+.ring .track{stroke:var(--surface-2,#f1f5fb)}
+.ring .rval{stroke:var(--primary);stroke-linecap:round;transition:stroke-dashoffset .8s ease,stroke .3s}
+.ring .rval.g{stroke:#0a8a52}.ring .rval.w{stroke:#b45309}.ring .rval.b{stroke:#b91c1c}
+.spark{width:100%;height:44px;margin-top:6px}
+.spark path{fill:none;stroke-width:2.4;stroke-linejoin:round}
+#sp-rx{stroke:var(--primary)}#sp-tx{stroke:#0ea5b7}
+.dcols{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;align-items:start}
+.dstack>*+*{margin-top:18px}
+.hrow{display:flex;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2,#f6f9fd)}
+.hrow+.hrow{margin-top:9px}
+.hico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:#fff;border:1px solid var(--line);flex:none}
+.hico svg{width:19px;height:19px;fill:none;stroke:var(--primary);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.hrow h4{font-size:13.5px;margin:0}.hrow p{font-size:12px;font-weight:600;color:var(--muted);margin:0}
+.hrow .grow{flex:1}
+.hst{font:800 12px var(--font);padding:4px 12px;border-radius:999px;flex:none}
+.hst.ok{background:#e2f6ec;color:#0a8a52}.hst.warn{background:#fdf0dd;color:#b45309}.hst.bad{background:#fde2e2;color:#b91c1c}
+.apps-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:12px}
+.appt{display:flex;flex-direction:column;align-items:center;gap:9px;padding:16px 8px 13px;border:1px solid var(--line);border-radius:16px;background:var(--surface-2,#f6f9fd);cursor:pointer;text-decoration:none;color:inherit;position:relative;transition:.15s}
+.appt:hover{transform:translateY(-3px);border-color:var(--primary);box-shadow:var(--shadow-soft)}
+.appt img{width:42px;height:42px;object-fit:contain}
+.appt svg{width:42px;height:42px;fill:none;stroke:var(--muted);stroke-width:1.7}
+.appt span{font:800 12px var(--font);text-align:center;word-break:break-word}
+.appt i{position:absolute;top:10px;right:10px;width:9px;height:9px;border-radius:50%;background:#0a8a52;box-shadow:0 0 6px rgba(10,138,82,.6)}
+.appt.off i{background:#cbd5e1;box-shadow:none}
+.appt.add{border-style:dashed;color:var(--muted);justify-content:center}
+.vrow .top{display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:6px}
+.vrow .top span{color:var(--muted);font-weight:600;font-size:12px}
+.vrow+.vrow{margin-top:14px}
+.vbar{height:10px;border-radius:999px;background:var(--surface-2,#f1f5fb);overflow:hidden}
+.vbar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary),#0ea5b7);transition:width .9s ease}
+.actrow{display:flex;gap:12px;padding:10px 4px;border-bottom:1px dashed var(--line);font-size:13px;font-weight:600}
+.actrow:last-child{border:0}
+.actrow time{color:var(--muted);font-size:11.5px;font-weight:700;flex:none;width:70px;padding-top:1px}
+@media(max-width:1000px){.vitals{grid-template-columns:repeat(2,1fr)}.dcols{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -163,8 +219,6 @@ a.am-item { text-decoration: none; color: inherit; }
           <input placeholder="Search shares, jobs, audit events, services…" id="search-input">
         </div>
         <div class="top-actions">
-          <button class="circle-btn" id="refresh-btn" aria-label="Refresh"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></button>
-          <button class="circle-btn" id="customize-btn" aria-label="Customize dashboard" title="Customize dashboard"><svg viewBox="0 0 24 24"><path d="M4 8h10M18 8h2M4 16h4M12 16h8"/><circle cx="16" cy="8" r="2"/><circle cx="10" cy="16" r="2"/></svg></button>
           <div class="profile" id="profile-btn" role="button" tabindex="0" aria-haspopup="menu" aria-expanded="false">
             <div class="avatar" id="avatar">A</div>
             <div><strong id="profile-user">admin</strong><span id="profile-role">—</span></div>
@@ -178,148 +232,67 @@ a.am-item { text-decoration: none; color: inherit; }
       </header>
 
       <!-- HERO: repurposed from the marketing block into a live system-identity + status panel -->
-      <section class="hero">
-        <div class="panel hero-card" data-widget="hero">
-          <span class="eyebrow"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/><path d="M9.5 12l1.8 1.8 3.7-4"/></svg><span data-live="hero-state">System healthy</span></span>
-          <h2 data-live="hero-host">forgenas</h2>
-          <p data-live="hero-sub">Reading appliance identity…</p>
-          <div class="hero-actions">
-            <a class="button primary" id="act-snapshot" role="button"><svg viewBox="0 0 24 24"><path d="M12 5v8l4 2"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/></svg>Create Snapshot</a>
-            <a class="button ghost" id="act-share" role="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New Share</a>
-          </div>
-          <div class="status-grid">
-            <div class="status-pill"><span>Uptime</span><strong data-live="uptime">—</strong></div>
-            <div class="status-pill"><span>Protected data</span><strong data-live="protected">—</strong></div>
-            <div class="status-pill"><span>Load average</span><strong data-live="load">—</strong></div>
-            <div class="status-pill"><span>Active sessions</span><strong data-live="sessions">—</strong></div>
-          </div>
+      <!-- 1 · HERO: who am I, am I OK, two actions -->
+      <header class="dhero" data-live-root="hero">
+        <div>
+          <span class="dpill"><i data-live-dot="hero"></i><span data-live="hero-state">Checking…</span></span>
+          <h1 data-live="hero-host">forgeos</h1>
+          <p data-live="hero-sub">—</p>
+        </div>
+        <div class="grow"></div>
+        <button class="dbtn light" id="act-snapshot"><svg viewBox="0 0 24 24"><path d="M12 5v8l4 2"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4v5h-5"/></svg>Create Snapshot</button>
+        <button class="dbtn glass" id="act-share"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New Share</button>
+      </header>
+
+      <!-- 2 · VITALS: gauges for capacity, words for state -->
+      <section class="vitals">
+        <article class="panel vital"><div class="ringwrap"><svg class="ring" width="64" height="64" data-ring="cpu"><circle class="track" cx="32" cy="32" r="26"/><circle class="rval" cx="32" cy="32" r="26"/></svg><b data-live="r-cpu">—</b></div>
+          <div><label>Processor</label><div class="cap" data-live="r-cpu-c">—</div></div></article>
+        <article class="panel vital"><div class="ringwrap"><svg class="ring" width="64" height="64" data-ring="mem"><circle class="track" cx="32" cy="32" r="26"/><circle class="rval" cx="32" cy="32" r="26"/></svg><b data-live="r-mem">—</b></div>
+          <div><label>Memory</label><div class="cap" data-live="r-mem-c">—</div></div></article>
+        <article class="panel vital"><div class="ringwrap"><svg class="ring" width="64" height="64" data-ring="disk"><circle class="track" cx="32" cy="32" r="26"/><circle class="rval" cx="32" cy="32" r="26"/></svg><b data-live="r-disk">—</b></div>
+          <div><label>Storage</label><div class="cap" data-live="r-disk-c">—</div></div></article>
+        <article class="panel vital" style="display:block">
+          <label>Network</label>
+          <div class="cap"><span data-live="net-cap">—</span></div>
+          <svg class="spark" viewBox="0 0 200 44" preserveAspectRatio="none"><path id="sp-rx"/><path id="sp-tx"/></svg>
+        </article>
+      </section>
+
+      <div class="dcols">
+        <div class="dstack">
+          <!-- 3 · HEALTH: every worry in plain words -->
+          <section class="panel pad">
+            <div class="section-head"><div><h3>Health</h3><p>Everything ForgeOS watches for you</p></div><span class="chip" data-live="health-chip">—</span></div>
+            <div id="health-rows"></div>
+          </section>
+
+          <!-- 5 · STORAGE: per-volume bars -->
+          <section class="panel pad">
+            <div class="section-head"><div><h3>Storage</h3><p data-live="st-sub">—</p></div><span class="chip" data-live="st-chip">—</span></div>
+            <div id="vol-list"></div>
+          </section>
         </div>
 
-        <aside class="panel pad" data-widget="health">
-          <div class="section-head"><div><h3>Health Center</h3><p>Critical system state at a glance</p></div><span class="chip" data-live="health-chip">—</span></div>
-          <div class="health-stack" id="health-stack">
-            <div class="mini-card"><div class="mini-icon tile t-store"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/><path d="M9 15.5l2 2 4-4.5"/></svg></div><div><h4>Drive health</h4><p data-live="hc-smart">—</p></div><b data-live="hc-smart-b">—</b></div>
-            <div class="mini-card"><div class="mini-icon tile t-db"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></div><div><h4>Storage pool</h4><p data-live="hc-pool">—</p></div><b data-live="hc-pool-b">—</b></div>
-            <div class="mini-card"><div class="mini-icon tile t-files"><svg viewBox="0 0 24 24"><path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/></svg></div><div><h4>File services</h4><p data-live="hc-svc">—</p></div><b data-live="hc-svc-b">—</b></div>
-            <div class="mini-card"><div class="mini-icon tile t-sys"><svg viewBox="0 0 24 24"><path d="M12 5v8l4 2"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/></svg></div><div><h4>Last snapshot</h4><p data-live="hc-snap">—</p></div><b data-live="hc-snap-b">—</b></div>
-          </div>
-        </aside>
-      </section>
+        <div class="dstack">
+          <!-- 4 · MY APPS: launcher grid -->
+          <section class="panel pad">
+            <div class="section-head"><div><h3>My Apps</h3><p>Click to open · green dot = running</p></div></div>
+            <div class="apps-grid" id="apps-grid"><div class="vol-empty">Loading apps…</div></div>
+          </section>
 
-      <!-- METRICS -->
-      <section class="grid-4" aria-label="Metrics" data-widget="metrics">
-        <article class="panel metric">
-          <div class="metric-top"><div><label>CPU Load</label><strong data-live="m-cpu">—</strong></div><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M9 9h6v6H9zM9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></div></div>
-          <div class="trend" data-live="m-cpu-t">—</div><div class="bar good"><i style="width:0%" data-bar="cpu"></i></div>
-        </article>
-        <article class="panel metric">
-          <div class="metric-top"><div><label>Memory</label><strong data-live="m-mem">—</strong></div><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M7 8h10M7 12h10M7 16h6"/><path d="M5 4h14v16H5z"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2"/></svg></div></div>
-          <div class="trend" data-live="m-mem-t">—</div><div class="bar"><i style="width:0%" data-bar="mem"></i></div>
-        </article>
-        <article class="panel metric">
-          <div class="metric-top"><div><label>Volume Use</label><strong data-live="m-vol">—</strong></div><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/></svg></div></div>
-          <div class="trend" data-live="m-vol-t">—</div><div class="bar warn"><i style="width:0%" data-bar="vol"></i></div>
-        </article>
-        <article class="panel metric">
-          <div class="metric-top"><div><label>Network</label><strong data-live="m-net">—</strong></div><div class="metric-icon"><svg viewBox="0 0 24 24"><path d="M12 4v5M5 20v-4.5A3.5 3.5 0 0 1 8.5 12h7A3.5 3.5 0 0 1 19 15.5V20"/><rect x="9" y="3" width="6" height="6" rx="1.5"/></svg></div></div>
-          <div class="trend" data-live="m-net-t">—</div><div class="bar good"><i style="width:0%" data-bar="net"></i></div>
-        </article>
-      </section>
-
-      <section class="content-grid">
-        <div class="left-stack">
-          <article id="storage" class="panel pad" data-widget="storage">
-            <div class="section-head"><div><h3>Storage Manager</h3><p>ForgeRAID (mdadm + LVM + btrfs) capacity, volumes, and array health</p></div><span class="chip" data-live="st-chip">—</span></div>
-            <div class="storage-layout">
-              <div class="donut" style="--pct:0%" id="st-donut"><div class="donut-inner"><div><strong data-live="st-pct">—</strong><span>Pool used</span></div></div></div>
-              <div class="volume-list" id="volume-list"><div class="vol-empty">Loading volumes…</div></div>
-            </div>
-          </article>
-
-          <article id="files" class="panel pad" data-widget="files" style="margin-top:22px;">
-            <div class="section-head"><div><h3>File Station</h3><p>Samba shares and recent administrative file activity</p></div><a class="button" id="act-share2" role="button" style="background:var(--primary-soft); color:var(--primary);"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>New Share</a></div>
-            <div class="table-wrap">
-              <table>
-                <thead><tr><th>Share</th><th>Path</th><th>Access</th><th>Type</th><th>Status</th></tr></thead>
-                <tbody id="share-rows"><tr><td colspan="5" class="vol-empty">Loading shares…</td></tr></tbody>
-              </table>
-            </div>
-          </article>
-
-          <article id="services" class="panel pad" data-widget="services" style="margin-top:22px;">
-            <div class="section-head"><div><h3>Apps &amp; Services</h3><p>System services and Docker / Incus workloads</p></div><span class="chip" data-live="svc-chip">—</span></div>
-            <div class="app-grid" id="app-grid"><div class="vol-empty">Loading services…</div></div>
-          </article>
+          <!-- 6 · RECENT ACTIVITY -->
+          <section class="panel pad">
+            <div class="section-head"><div><h3>Recent activity</h3><p>What changed lately</p></div></div>
+            <div id="activity"></div>
+          </section>
         </div>
-
-        <aside class="right-stack">
-          <section class="panel pad" data-widget="quick">
-            <div class="section-head"><div><h3>Quick Actions</h3><p>Common NAS operations</p></div></div>
-            <div class="quick-actions">
-              <div class="quick" id="qa-share"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div><h4>Create share</h4><p>Provision path, ACLs, access.</p></div>
-              <div class="quick" id="qa-snap"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M12 5v8l4 2"/><path d="M20 12a8 8 0 1 1-2.4-5.7"/></svg></div><h4>Snapshot</h4><p>Create a Snapper recovery point.</p></div>
-              <div class="quick" id="qa-proxy"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 17l5-5 4 4 7-9"/><path d="M20 7v6h-6"/></svg></div><h4>Reload proxy</h4><p>Apply nginx vhost changes.</p></div>
-              <div class="quick" id="qa-refresh"><div class="icon-badge"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/></svg></div><h4>Refresh</h4><p>Re-poll all live data.</p></div>
-            </div>
-          </section>
-
-          <section id="backup" class="panel pad" data-widget="backup" style="margin-top:22px;">
-            <div class="section-head"><div><h3>Backup Jobs</h3><p>Restic / Rclone / Borg job status</p></div><span class="chip" data-live="bk-chip">—</span></div>
-            <div class="tasks" id="backup-tasks"><div class="vol-empty">Loading jobs…</div></div>
-          </section>
-
-          <section class="panel pad" style="margin-top:22px;" data-widget="activity">
-            <div class="section-head"><div><h3>Activity Log</h3><p>Most recent administrative events</p></div></div>
-            <div class="activity" id="activity"><div class="vol-empty">Loading audit log…</div></div>
-          </section>
-        </aside>
-      </section>
-
-      <section class="two-col">
-        <article id="network" class="panel pad">
-          <div class="section-head"><div><h3>Network Monitor</h3><p>Live throughput across all interfaces</p></div><span class="chip" data-live="net-chip">—</span></div>
-          <div class="network-chart" aria-label="Network graph">
-            <svg preserveAspectRatio="none" viewBox="0 0 680 180" aria-hidden="true" id="net-svg">
-              <line class="grid-line" x1="0" y1="45" x2="680" y2="45"/><line class="grid-line" x1="0" y1="90" x2="680" y2="90"/><line class="grid-line" x1="0" y1="135" x2="680" y2="135"/>
-              <path class="rx" id="net-rx" d="M0 170 L680 170"/>
-              <path class="tx" id="net-tx" d="M0 175 L680 175"/>
-            </svg>
-          </div>
-          <div class="net-legend"><span><i style="background:var(--primary)"></i>RX <span data-live="net-rx">—</span></span><span><i style="background:var(--primary-2)"></i>TX <span data-live="net-tx">—</span></span><span data-live="net-iface"></span></div>
-        </article>
-
-        <article id="sessions" class="panel pad">
-          <div class="section-head"><div><h3>Sessions &amp; Access</h3><p>Current account and live Samba client connections</p></div><span class="chip" data-live="sess-chip">—</span></div>
-          <div class="conn-list" id="conn-list"><div class="vol-empty">Reading smbstatus…</div></div>
-        </article>
-      </section>
-
-      <section class="two-col">
-        <article id="security" class="panel pad">
-          <div class="section-head"><div><h3>Security Center</h3><p>Firewall, intrusion prevention, and update posture</p></div><span class="chip" data-live="sec-chip">—</span></div>
-          <div class="tasks" id="security-tasks">
-            <div class="task"><div><h4>UFW firewall</h4><p data-live="sec-ufw-p">—</p></div><span class="status" data-live="sec-ufw">—</span></div>
-            <div class="task"><div><h4>Fail2ban</h4><p data-live="sec-f2b-p">—</p></div><span class="status" data-live="sec-f2b">—</span></div>
-            <div class="task"><div><h4>Auto-updates</h4><p data-live="sec-up-p">—</p></div><span class="status" data-live="sec-up">—</span></div>
-          </div>
-        </article>
-
-        <article id="settings" class="panel pad">
-          <div class="section-head"><div><h3>System Settings</h3><p>Appliance identity, domain, and update channel</p></div><span class="chip" data-live="set-chip">—</span></div>
-          <div class="tasks" id="settings-tasks">
-            <div class="task"><div><h4>Hostname</h4><p data-live="set-host">—</p></div><span class="status ok">Identity</span></div>
-            <div class="task"><div><h4>Domain</h4><p data-live="set-domain">—</p></div><span class="status ok">Set</span></div>
-            <div class="task"><div><h4>Timezone</h4><p data-live="set-tz">—</p></div><span class="status ok">Set</span></div>
-            <div class="task"><div><h4>ForgeOS version</h4><p data-live="set-ver">—</p></div><span class="status ok" data-live="set-ver-s">—</span></div>
-          </div>
-        </article>
-      </section>
+      </div>
     </main>
   </div>
 
   <div id="toasts"></div>
 
-<script src="/js/widgets.js"></script>
 <script src="/js/index.js"></script>
   <script src="/js/nav.js"></script>
 </body>

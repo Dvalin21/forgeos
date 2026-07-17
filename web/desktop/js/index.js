@@ -86,260 +86,215 @@
   function lvl(ok) { return ok ? "ok" : "warn"; }
 
   // ════════════ LOADERS ════════════
+  // ════════════ RENDER HELPERS ════════════
+  var C = 2 * Math.PI * 26;
+  function setRing(name, pct, txt, cap) {
+    var el = $('[data-ring="' + name + '"] .rval'); if (!el) return;
+    pct = Math.max(0, Math.min(100, pct));
+    el.style.strokeDasharray = C;
+    el.style.strokeDashoffset = C * (1 - Math.max(pct, 2) / 100);
+    el.classList.remove("g", "w", "b");
+    el.classList.add(pct < 70 ? "g" : pct < 90 ? "w" : "b");
+    setLive("r-" + name, txt); if (cap != null) setLive("r-" + name + "-c", cap);
+  }
+  var ICONS = {
+    drive: '<path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/><path d="M9 15.5l2 2 4-4.5"/>',
+    pool:  '<path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+    files: '<path d="M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z"/>',
+    shield:'<path d="M12 3l7 3v5c0 4.8-2.9 8.2-7 10-4.1-1.8-7-5.2-7-10V6z"/><path d="M9.5 12l1.8 1.8 3.7-4"/>',
+    clock: '<path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="8.5"/>'
+  };
+  var HEALTH = {};                          // row-id -> {title, desc, state, icon}
+  function healthRow(id, icon, title, desc, state) {
+    HEALTH[id] = { icon: icon, title: title, desc: desc, state: state };
+    var order = ["drives", "pool", "files", "protect", "backup"];
+    $("#health-rows").innerHTML = order.filter(function (k) { return HEALTH[k]; }).map(function (k) {
+      var h = HEALTH[k];
+      var cls = h.state === "ok" ? "ok" : h.state === "bad" ? "bad" : "warn";
+      var lbl = h.state === "ok" ? "OK" : h.state === "bad" ? "Problem" : h.state === "setup" ? "Set up" : "Check";
+      return "<div class='hrow'><div class='hico'><svg viewBox='0 0 24 24'>" + ICONS[h.icon] + "</svg></div>" +
+        "<div class='grow'><h4>" + esc(h.title) + "</h4><p>" + esc(h.desc) + "</p></div>" +
+        "<span class='hst " + cls + "'>" + lbl + "</span></div>";
+    }).join("");
+    rollUp();
+  }
+  function rollUp() {
+    var vals = Object.keys(HEALTH).map(function (k) { return HEALTH[k].state; });
+    var bad = vals.indexOf("bad") >= 0, warn = vals.indexOf("warn") >= 0 || vals.indexOf("setup") >= 0;
+    setLive("hero-state", bad ? "Something needs attention" : warn ? "Mostly fine — one thing to look at" : "Everything is running normally");
+    setLive("health-chip", bad ? "Problem" : warn ? "Attention" : "All good");
+    var dot = $('[data-live-dot="hero"]'); if (dot) dot.className = bad || warn ? "warn" : "";
+  }
+
+  // ════════════ LOADERS ════════════
   async function loadIdentity() {
-    var r = await api("/api/system/info");
-    if (!r.data) return;
-    var d = r.data;
-    setLive("hero-host", d.hostname || "forgenas");
-    setLive("hero-sub", [d.os, "kernel " + (d.kernel || "?"), "ForgeOS " + (d.forgeos_ver || "?")].filter(Boolean).join("  ·  "));
-    setLive("set-host", d.hostname || "—");
-    setLive("set-ver", "ForgeOS " + (d.forgeos_ver || "?") + "  ·  " + (d.os || ""));
-    var u = ($("#profile-user")); var un = u ? u.textContent.trim() : "admin";
-    var av = $("#avatar"); if (av) av.textContent = (un[0] || "A").toUpperCase();
+    var d = (await api("/api/system/info")).data; if (!d) return;
+    setLive("hero-host", (d.hostname || "forgeos").split(".")[0]);
+    // uptime arrives as `uptime -p` text ("3 weeks, 5 days, ..."): the first
+    // segment is the honest human summary; the rest is noise on a dashboard.
+    var up = (d.uptime || "").split(",")[0].trim();
+    setLive("hero-sub", (up ? "Up " + up : "") + "  \u00b7  ForgeOS " + (d.forgeos_ver || "1.0"));
   }
 
+  var netHist = [], netPrev = null;
   async function loadStats() {
-    var r = await api("/api/system/stats");
-    if (!r.data) return;
-    var s = r.data;
-    // CPU
+    var s = (await api("/api/system/stats")).data; if (!s) return;
     if (s.cpu_pct != null) {
-      setLive("m-cpu", s.cpu_pct.toFixed(0) + "%");
-      setLive("m-cpu-t", (s.load ? "load " + s.load.join(" / ") : "—"));
-      setBar("cpu", s.cpu_pct); barClass($('[data-bar="cpu"]'), s.cpu_pct);
-      window._cpuTemp = s.temps && s.temps.cpu;
+      var c = Math.round(s.cpu_pct);
+      setRing("cpu", c, c + "%", c < 25 ? "Very light use" : c < 60 ? "Normal use" : c < 90 ? "Working hard" : "Maxed out");
     }
-    // Memory (API returns memory.pct — NOT percent)
-    if (s.memory) {
-      var m = s.memory, p = m.pct != null ? m.pct : 0;
-      setLive("m-mem", p.toFixed(0) + "%");
-      setLive("m-mem-t", (m.used_gb || 0).toFixed(1) + " GB of " + (m.total_gb || 0).toFixed(0) + " GB");
-      setBar("mem", p); barClass($('[data-bar="mem"]'), p);
+    if (s.memory && s.memory.total_gb) {
+      var mp = Math.round(s.memory.pct != null ? s.memory.pct : 100 * s.memory.used_gb / s.memory.total_gb);
+      setRing("mem", mp, mp + "%", s.memory.used_gb + " GB of " + s.memory.total_gb + " GB");
     }
-    // Uptime + load in hero
-    setLive("uptime", s.uptime || "—");
-    if (s.load) setLive("load", s.load.map(function (x) { return x.toFixed(2); }).join("  "));
-    // Network rate (delta vs previous sample)
-    if (s.network) netSample(s.network.bytes_recv, s.network.bytes_sent, s.timestamp);
-    // sidebar health summary roll-up
-    rollUpHealth();
-  }
-
-  // network sampling → live chart
-  var netHist = []; var netPrev = null;
-  function netSample(rx, tx, ts) {
-    if (rx == null || tx == null) return;
-    var now = ts || (Date.now() / 1000);
-    if (netPrev) {
-      var dt = Math.max(0.5, now - netPrev.ts);
-      var rxr = Math.max(0, (rx - netPrev.rx) * 8 / dt);  // bits/s
-      var txr = Math.max(0, (tx - netPrev.tx) * 8 / dt);
-      netHist.push({ rx: rxr, tx: txr });
-      if (netHist.length > 60) netHist.shift();
-      setLive("net-rx", fmtRate(rxr)); setLive("net-tx", fmtRate(txr));
-      setLive("m-net", fmtRate(rxr + txr)); setLive("m-net-t", "RX " + fmtRate(rxr) + " · TX " + fmtRate(txr));
-      var peak = netHist.reduce(function (a, b) { return Math.max(a, b.rx, b.tx); }, 1);
-      setBar("net", Math.min(100, (rxr + txr) / peak * 60));
-      drawNet(peak);
+    // network arrives as cumulative byte COUNTERS — rate is the delta
+    if (s.network && s.network.bytes_recv != null) {
+      var now = s.timestamp || (Date.now() / 1000);
+      if (netPrev && now > netPrev.ts) {
+        var dt = now - netPrev.ts;
+        var rx = Math.max(0, (s.network.bytes_recv - netPrev.recv) / dt) * 8;   // bits/s
+        var tx = Math.max(0, (s.network.bytes_sent - netPrev.sent) / dt) * 8;
+        netHist.push({ rx: rx, tx: tx });
+        if (netHist.length > 24) netHist.shift();
+        setLive("net-cap", "\u2193 " + fmtRate(rx) + "   \u2191 " + fmtRate(tx));
+        var peak = netHist.reduce(function (a, b) { return Math.max(a, b.rx, b.tx); }, 1);
+        ["rx", "tx"].forEach(function (k) {
+          var d = netHist.map(function (pt, i) {
+            return (i ? "L" : "M") + (i * (200 / Math.max(netHist.length - 1, 1))) + " " + (42 - (pt[k] / peak) * 38);
+          }).join(" ");
+          var el = $("#sp-" + k); if (el) el.setAttribute("d", d);
+        });
+      }
+      netPrev = { recv: s.network.bytes_recv, sent: s.network.bytes_sent, ts: now };
     }
-    netPrev = { rx: rx, tx: tx, ts: now };
-  }
-  function pathFrom(key, peak) {
-    var n = netHist.length; if (n < 2) return "M0 175 L680 175";
-    var W = 680, H = 180, pad = 8;
-    return netHist.map(function (pt, i) {
-      var x = (i / (n - 1)) * W;
-      var y = H - pad - (pt[key] / peak) * (H - pad * 2);
-      return (i === 0 ? "M" : "L") + x.toFixed(1) + " " + y.toFixed(1);
-    }).join(" ");
-  }
-  function drawNet(peak) {
-    var rx = $("#net-rx"), tx = $("#net-tx");
-    if (rx) rx.setAttribute("d", pathFrom("rx", peak));
-    if (tx) tx.setAttribute("d", pathFrom("tx", peak));
   }
 
   async function loadStorage() {
-    // capacity from df (btrfs mounts)
-    var df = (await api("/api/storage/df")).data;
-    var vl = $("#volume-list"); var total = 0, used = 0;
-    if (Array.isArray(df) && df.length) {
+    var dfr = (await api("/api/storage/df")).data;
+    var df = Array.isArray(dfr) ? dfr : (dfr && dfr.volumes) || [];
+    var pools = ((await api("/api/storage/pools")).data || {}).pools || [];
+    var vl = $("#vol-list");
+    if (df.length) {
+      var totUsed = 0, totSize = 0;
       vl.innerHTML = df.map(function (v) {
-        total += v.total || 0; used += v.used || 0;
-        var pct = v.total ? Math.round((v.used / v.total) * 100) : 0;
-        var cls = pct >= 90 ? "danger" : pct >= 75 ? "warn" : "good";
-        return '<div class="volume"><div class="volume-head"><div><h4>' + esc(v.mount) + "</h4><p>btrfs · " + esc(v.source) +
-          '</p></div><strong>' + fmtBytes(v.used) + " / " + fmtBytes(v.total) + '</strong></div><div class="bar ' + cls + '"><i style="width:' + pct + '%"></i></div></div>';
+        totUsed += v.used || 0; totSize += v.total || 0;
+        var pct = v.total ? Math.round(100 * v.used / v.total) : 0;
+        var nm = (v.mount || "").split("/").pop() || v.mount || "volume";
+        return "<div class='vrow'><div class='top'><b>" + esc(nm.charAt(0).toUpperCase() + nm.slice(1)) +
+          "</b><span>" + fmtBytes(v.used) + " used of " + fmtBytes(v.total) + "</span></div>" +
+          "<div class='vbar'><i style='width:" + Math.max(pct, 2) + "%'></i></div></div>";
       }).join("");
-    } else { vl.innerHTML = '<div class="vol-empty">No btrfs volumes mounted.</div>'; }
-    var poolPct = total ? Math.round((used / total) * 100) : 0;
-    setLive("st-pct", poolPct + "%");
-    var donut = $("#st-donut"); if (donut) donut.style.setProperty("--pct", poolPct + "%");
-    setLive("m-vol", poolPct + "%"); setLive("m-vol-t", fmtBytes(total - used) + " free"); setBar("vol", poolPct); barClass($('[data-bar="vol"]'), poolPct);
-    setLive("protected", fmtBytes(used));
-    window._stTotal = total; window._stUsed = used;
-
-    // RAID health from pools
-    var pools = (await api("/api/storage/pools")).data;
-    try {
-      var dd = (await api("/api/storage/drives")).data;
-      var drv = (dd && dd.drives) || [];
-      if (drv.length) {
-        var pass = drv.filter(function (x) { return x.health >= 90; }).length;
-        var worstD = drv.some(function (x) { return x.health < 60; }) ? "ERR"
-                   : (pass === drv.length ? "OK" : "CHECK");
-        setLive("hc-smart", pass + "/" + drv.length + " drives SMART passed");
-        setLive("hc-smart-b", worstD);
-      } else { setLive("hc-smart", "No drives detected"); setLive("hc-smart-b", "—"); }
-    } catch (e) { setLive("hc-smart", "SMART unavailable"); setLive("hc-smart-b", "—"); }
-    if (pools && pools.pools) {
-      var arr = pools.pools, ndrives = 0, worst = "ok";
-      var order = { ok: 0, predict: 1, warn: 2, rebuilding: 2, err: 3 };
-      arr.forEach(function (p) { ndrives += (p.devices || []).length; if ((order[p.health] || 0) > (order[worst] || 0)) worst = p.health; });
-      var lvlName = arr.length ? (arr[0].raid_level || "raid").toUpperCase().replace("RAID", "RAID ") : "—";
-      setLive("st-chip", arr.length ? (lvlName + " · " + (worst === "ok" ? "Online" : worst)) : "No array");
-      setLive("hc-pool", arr.length ? (lvlName + " · " + ndrives + " disks") : "No pool configured");
-      setLive("hc-pool-b", worst === "ok" ? "OK" : (worst === "err" ? "ERR" : worst.toUpperCase()));
-      var hb = $$('[data-live="hc-pool-b"]')[0]; if (hb) hb.closest(".mini-card").classList.toggle("warning", worst !== "ok" && worst !== "err");
-      window._poolHealth = worst;
-      if (!arr.length) {
-        // API responded but no pool is configured yet — say so plainly,
-        // don't show a bare "?" or a misleading "OK".
-        setLive("hc-pool-b", "—");
-        setLive("hc-pool", "No pool configured");
-        window._poolHealth = "ok";  // no pool isn't a fault
-      }
-    } else { setLive("st-chip", "—"); setLive("hc-pool", "Pool status unavailable"); setLive("hc-pool-b", "—"); }
+      var tp = totSize ? Math.round(100 * totUsed / totSize) : 0;
+      setRing("disk", tp, tp < 1 ? "<1%" : tp + "%", fmtBytes(totSize - totUsed) + " free");
+    } else { vl.innerHTML = "<div class='vol-empty'>No storage pools yet.</div>"; }
+    if (pools.length) {
+      var p = pools[0];
+      var bad = pools.some(function (x) { return x.health && x.health !== "ok"; });
+      var nd = (p.devices || []).length;
+      var raid = (p.raid_level || "").toUpperCase();
+      setLive("st-sub", raid === "RAID1" ? "Mirrored across " + nd + " disks"
+                       : raid ? raid + " across " + nd + " disks" : "Single-disk pool");
+      setLive("st-chip", bad ? "Attention" : "Online");
+      healthRow("pool", "pool", "Storage pool",
+        (raid ? raid + " \u00b7 " : "") + nd + " disk" + (nd === 1 ? "" : "s") +
+        (bad ? " \u2014 " + p.health : " online"),
+        bad ? "bad" : "ok");
+    } else { setLive("st-sub", "No pool configured"); setLive("st-chip", "—"); }
+    var drv = ((await api("/api/storage/drives")).data || {}).drives || [];
+    if (drv.length) {
+      var pass = drv.filter(function (x) { return x.health >= 90; }).length;
+      healthRow("drives", "drive", "Drives",
+        pass === drv.length ? "All " + drv.length + " drives passed their health checks"
+                            : pass + " of " + drv.length + " drives healthy — check Storage",
+        pass === drv.length ? "ok" : "bad");
+    }
   }
 
-  async function loadShares() {
-    var data = (await api("/api/samba/shares")).data;
-    var rows = $("#share-rows");
-    var shares = (data && data.shares) || [];
-    if (shares.length) {
-      rows.innerHTML = shares.map(function (s) {
-        var access = s.writable ? "Read/Write" : "Read-only";
-        return "<tr><td><div class='file-cell'><span class='icon-badge'><svg viewBox='0 0 24 24'><path d='M3.8 6.5h6.5l1.8 2h8.1v9.8c0 1.1-.9 2-2 2H5.8c-1.1 0-2-.9-2-2z'/></svg></span>" +
-          esc(s.name) + "</div></td><td>" + esc(s.path || "—") + "</td><td>" + esc(access) + "</td><td>" + esc(s.type || "standard") +
-          "</td><td class='status ok'>Active</td></tr>";
-      }).join("");
-    } else { rows.innerHTML = "<tr><td colspan='5' class='vol-empty'>No Samba shares configured.</td></tr>"; }
-  }
-
-  async function loadServices() {
+  async function loadHealthMisc() {
     var svc = (await api("/api/services")).data;
-    var grid = $("#app-grid");
+    var conns = (await api("/api/samba/connections")).data || {};
     if (svc && svc.services) {
-      var running = svc.services.filter(function (s) { return s.status === "running"; }).length;
-      setLive("svc-chip", running + " / " + svc.services.length + " running");
-      grid.innerHTML = svc.services.map(function (s) {
-        var on = s.status === "running";
-        return "<div class='app-card'><div class='icon-badge'><svg viewBox='0 0 24 24'><path d='M4 7h16v10H4z'/><path d='M8 11h8M8 14h5'/></svg></div><h4>" +
-          esc(s.name) + "</h4><p>" + esc(s.desc) + "</p><div class='switch" + (on ? " on" : "") + "'><i></i></div></div>";
-      }).join("");
-      var fileSvc = svc.services.filter(function (s) { return /samba|nfs|nginx/i.test(s.name); });
-      var upFile = fileSvc.filter(function (s) { return s.status === "running"; }).length;
-      setLive("hc-svc", upFile + "/" + fileSvc.length + " file services up"); setLive("hc-svc-b", upFile === fileSvc.length ? "OK" : "CHECK");
-    } else { grid.innerHTML = "<div class='vol-empty'>Service status unavailable.</div>"; }
+      var fs = svc.services.filter(function (x) { return /samba|smbd|nfs/i.test(x.name); });
+      var up = fs.filter(function (x) { return x.status === "running"; }).length;
+      var n = conns.count || 0;
+      healthRow("files", "files", "File sharing",
+        up === fs.length ? ("Working · " + n + " device" + (n === 1 ? "" : "s") + " connected right now")
+                         : "Some file services are stopped — check Shares",
+        up === fs.length ? "ok" : "bad");
+    }
+    var fw = (await api("/api/security/firewall")).data || {};
+    var f2b = (await api("/api/security/fail2ban")).data || {};
+    var up2 = (await api("/api/security/updates")).data || {};
+    var fwOn = /Status:\s*active/i.test(fw.ufw || "");
+    var f2bOn = !!f2b.enabled && (f2b.jails || []).some(function (j) { return j.enabled; });
+    var all = fwOn && f2bOn && !!up2.enabled;
+    var bits = [fwOn ? "firewall on" : "firewall OFF", f2bOn ? "intrusion guard on" : "intrusion guard OFF",
+                up2.enabled ? "security updates automatic" : "auto-updates OFF"];
+    healthRow("protect", "shield", "Protection",
+      bits.join(" \u00b7 ").replace(/^./, function (c) { return c.toUpperCase(); }),
+      all ? "ok" : "warn");
+    var jobs = ((await api("/api/backup/jobs")).data || {}).jobs || [];
+    var ran = jobs.filter(function (j) { return j.last_run; })
+                  .sort(function (a, b) { return String(b.last_run).localeCompare(String(a.last_run)); })[0];
+    if (ran) {
+      var okRun = /done|success|ok/i.test(ran.last_status || "");
+      healthRow("backup", "clock", "Last backup",
+        "\u201c" + ran.name + "\u201d " + (okRun ? "completed" : "had a problem") + " \u00b7 " + ran.last_run,
+        okRun ? "ok" : "bad");
+    } else if (jobs.length) {
+      healthRow("backup", "clock", "Last backup", jobs.length + " job(s) configured \u2014 none has run yet", "warn");
+    } else {
+      healthRow("backup", "clock", "Last backup", "No backup has run yet \u2014 set one up to protect your data", "setup");
+    }
   }
 
-  async function loadBackups() {
-    var r = (await api("/api/backup/jobs")).data;
-    var box = $("#backup-tasks");
-    if (r && r.jobs && r.jobs.length) {
-      setLive("bk-chip", r.jobs.length + " jobs");
-      box.innerHTML = r.jobs.slice(0, 6).map(function (j) {
-        var st = (j.last_status || (j.enabled ? "ready" : "paused"));
-        var cls = /done|success|ok/i.test(st) ? "ok" : /fail|error/i.test(st) ? "err" : "warn";
-        return "<div class='task'><div><h4>" + esc(j.name) + "</h4><p>" + esc(j.tool) + " · " + esc(j.schedule || "manual") +
-          (j.last_run ? " · last " + esc(j.last_run) : "") + "</p></div><span class='status " + cls + "' data-run='" + esc(j.id) + "' style='cursor:pointer'>" + esc(st) + "</span></div>";
-      }).join("");
-      $$("[data-run]", box).forEach(function (el) {
-        el.addEventListener("click", async function () {
-          var rr = await api("/api/backup/jobs/" + el.getAttribute("data-run") + "/run", { method: "POST" });
-          toast(rr.ok ? "Backup job triggered" : "Could not trigger job", rr.ok ? "ok" : "err");
-        });
-      });
-    } else { setLive("bk-chip", "0 jobs"); box.innerHTML = "<div class='vol-empty'>No backup jobs configured.</div>"; }
+  function parseLabels(raw) {
+    if (!raw) return {}; if (typeof raw === "object") return raw;
+    var o = {}; String(raw).split(",").forEach(function (kv) {
+      var i = kv.indexOf("="); if (i > 0) o[kv.slice(0, i)] = kv.slice(i + 1); });
+    return o;
+  }
+  async function loadApps() {
+    var r = (await api("/api/docker/containers?all=true")).data || {};
+    var grid = $("#apps-grid");
+    var addTile = "<a class='appt add' href='/apps.html'><svg viewBox='0 0 24 24'><path d='M12 5v14M5 12h14'/></svg><span>Add app</span></a>";
+    if (r.available === false) {
+      grid.innerHTML = addTile; return;
+    }
+    var tiles = (r.containers || []).map(function (c) {
+      var labels = parseLabels(c.Labels || c.labels);
+      var name = (c.Names || "").replace(/^\//, "");
+      var cat = labels["forgeos.catalog"];
+      var running = /running|up/i.test(c.State || "");
+      var m = /(?:0\.0\.0\.0|\[::\]|):(\d+)->/.exec(c.Ports || "");
+      var href = running && m ? "http://" + location.hostname + ":" + m[1] : "/apps.html";
+      var icon = cat
+        ? "<img src='/img/apps/" + esc(cat) + ".png' alt='' onerror=\"this.outerHTML='<svg viewBox=&quot;0 0 24 24&quot;><rect x=&quot;3&quot; y=&quot;6&quot; width=&quot;18&quot; height=&quot;12&quot; rx=&quot;2&quot;/></svg>'\">"
+        : "<svg viewBox='0 0 24 24'><rect x='3' y='6' width='18' height='12' rx='2'/><path d='M7 10h2M11 10h2'/></svg>";
+      return "<a class='appt" + (running ? "" : " off") + "' href='" + href + "'" +
+        (running && m ? " target='_blank' rel='noopener'" : "") + "><i></i>" + icon +
+        "<span>" + esc(cat ? cat.replace(/-/g, " ").replace(/\b\w/g, function (x) { return x.toUpperCase(); }) : name) + "</span></a>";
+    });
+    grid.innerHTML = tiles.join("") + addTile;
   }
 
+  var VERB = { "docker.run": "created container", "docker.rm": "removed container",
+    "docker.wipe": "wiped app", "docker.update": "updated", "docker.compose_down": "stopped compose stack",
+    "samba.share.create": "created share", "samba.share.delete": "removed share",
+    "data_connect.import": "imported database", "data_connect.register_server": "added server database",
+    "auth.login": "signed in", "storage.snapshot": "created snapshot", "docker.settings": "changed app folder" };
   async function loadActivity() {
     var r = (await api("/api/audit?limit=8")).data;
     var box = $("#activity");
     if (r && r.entries && r.entries.length) {
       box.innerHTML = r.entries.map(function (e) {
-        var when = e.timestamp ? new Date((String(e.timestamp).length > 12 ? e.timestamp : e.timestamp * 1000)).toLocaleString() : "";
-        return "<div class='event'><div class='icon-badge'><svg viewBox='0 0 24 24'><path d='M12 8v4l3 2'/><circle cx='12' cy='12' r='9'/></svg></div><div><h4>" +
-          esc(e.action) + "</h4><p>" + esc(e.detail || (e.who + " · " + e.status)) + "</p><time>" + esc(when) + "</time></div></div>";
+        var t = e.timestamp ? new Date((String(e.timestamp).length > 12 ? e.timestamp : e.timestamp * 1000)) : null;
+        var when = t ? t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+        var verb = VERB[e.action] || (e.action || "").replace(/[._]/g, " ");
+        return "<div class='actrow'><time>" + esc(when) + "</time><div><b>" + esc(e.who || "system") +
+          "</b> " + esc(verb) + (e.detail ? " \u2014 " + esc(String(e.detail).slice(0, 80)) : "") + "</div></div>";
       }).join("");
-    } else { box.innerHTML = "<div class='vol-empty'>No recent audit events.</div>"; }
-  }
-
-  async function loadSessions() {
-    var r = (await api("/api/samba/connections")).data;
-    var box = $("#conn-list");
-    var out = (r && r.output) || "";
-    var lines = out.split("\n").filter(function (l) { return /\b(connected|ipc|192\.|10\.|172\.)\b/i.test(l) && !/^\s*$/.test(l); });
-    var role = ($("#profile-role").textContent || "");
-    var head = "<div class='task'><div><h4>" + esc($("#profile-user").textContent) + "</h4><p>Signed-in admin · " + esc(role) + "</p></div><span class='status ok'>This session</span></div>";
-    if (lines.length) {
-      setLive("sess-chip", lines.length + " SMB");
-      setLive("sessions", lines.length);
-      box.innerHTML = head + lines.slice(0, 8).map(function (l) {
-        return "<div class='task'><div><h4>SMB client</h4><p>" + esc(l.trim().slice(0, 90)) + "</p></div><span class='status ok'>Connected</span></div>";
-      }).join("");
-    } else {
-      setLive("sess-chip", "1");
-      setLive("sessions", 1);
-      box.innerHTML = head + "<div class='vol-empty'>No active SMB client connections.</div>";
-    }
-  }
-
-  async function loadSecurity() {
-    var fw = (await api("/api/security/firewall")).data;
-    if (fw) {
-      var active = /Status:\s*active/i.test(fw.ufw || "");
-      setLive("sec-ufw", active ? "Active" : "Inactive"); $$('[data-live="sec-ufw"]')[0].className = "status " + lvl(active);
-      setLive("sec-ufw-p", active ? "Default deny inbound · " + (fw.iptables_count || "0") + " iptables rules" : "UFW not enabled");
-    }
-    var f2b = (await api("/api/security/fail2ban")).data;
-    if (f2b) {
-      var jl = f2b.jails || [];
-      var on = jl.filter(function (j) { return j.enabled; });
-      var banned = jl.reduce(function (n, j) { return n + (j.banned || []).length; }, 0);
-      var running = !!f2b.enabled && on.length > 0;
-      setLive("sec-f2b", running ? "Active" : "Off"); $$('[data-live="sec-f2b"]')[0].className = "status " + lvl(running);
-      setLive("sec-f2b-p", running ? ("Jails: " + on.map(function (j) { return j.name; }).join(", ") + " · banned " + banned) : "fail2ban not running");
-    }
-    var up = (await api("/api/security/updates")).data;
-    if (up) {
-      setLive("sec-up", up.enabled ? "Active" : "Off"); $$('[data-live="sec-up"]')[0].className = "status " + (up.enabled ? "ok" : "warn");
-      setLive("sec-up-p", up.enabled ? ("Security patches install automatically" + (up.auto_reboot ? " · reboot " + up.reboot_time : "")) : "Unattended upgrades disabled");
-    }
-    setLive("sec-chip", "Hardened");
-  }
-
-  async function loadSettings() {
-    var s = (await api("/api/settings")).data;
-    if (!s) { setLive("set-chip", "admin only"); return; }
-    setLive("set-chip", s.lan_name || "local");
-    setLive("set-domain", s.public_fqdn || s.lan_name || "local");
-    setLive("set-tz", s.timezone || "UTC");
-    setLive("set-ver", "ForgeOS " + (s.version || "?"));
-    setLive("set-ver-s", "Current");
-    if (s.PRIMARY_POOL) setLive("hc-pool", (s.PRIMARY_POOL_TYPE || "btrfs") + " · " + s.PRIMARY_POOL);
-  }
-
-  function rollUpHealth() {
-    var pool = window._poolHealth || "ok";
-    var ok = pool === "ok";
-    setLive("health", ok ? "Normal" : (pool === "err" ? "Attention" : "Watch"));
-    setLive("health-chip", ok ? "Normal" : (pool === "err" ? "Degraded" : "Watch"));
-    setLive("hero-state", ok ? "System healthy" : "Needs attention");
-    var sf = $("#sf-detail");
-    if (sf) sf.textContent = ok
-      ? "All volumes mounted. Array online, SMART nominal. " + (window._stUsed != null ? fmtBytes(window._stUsed) + " protected." : "")
-      : "Array health: " + pool + ". Review the Storage Manager.";
+    } else { box.innerHTML = "<div class='vol-empty'>Nothing has happened yet.</div>"; }
   }
 
   // ════════════ ACTIONS ════════════
@@ -375,18 +330,15 @@
         if (!v.name || !v.path) { toast("Name and path are required", "warn"); return false; }
         var r = await api("/api/samba/share", { method: "POST", body: JSON.stringify({ name: v.name, path: v.path, type: v.type, writable: true }) });
         toast(r.ok ? "Share created" : (r.data && r.data.detail) || "Share failed", r.ok ? "ok" : "err");
-        if (r.ok) { loadShares(); loadActivity(); }
+        if (r.ok) { refreshHeavy(); }
         return r.ok;
       }
     });
   }
-  async function doProxyReload() {
-    var r = await api("/api/nginx/reload", { method: "POST" });
-    toast(r.ok ? "Proxy reloaded" : (r.data && r.data.detail) || "Reload failed", r.ok ? "ok" : "err");
-  }
+  async function doProxyReload() {} // retired with the Quick Actions panel
 
   // ════════════ ORCHESTRATION ════════════
-  function refreshHeavy() { loadIdentity(); loadStorage(); loadShares(); loadServices(); loadBackups(); loadActivity(); loadSessions(); loadSecurity(); loadSettings(); }
+  function refreshHeavy() { loadIdentity(); loadStorage(); loadHealthMisc(); loadApps(); loadActivity(); }
   function refreshFast() { loadStats(); }
   var fastTimer, heavyTimer;
   function startPolling() {
@@ -399,7 +351,7 @@
 
   function tokenPayload() {
     try {
-      var t = getToken(); if (!t) return null;
+      var t = token(); if (!t) return null;
       return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
     } catch (e) { return null; }
   }
@@ -525,11 +477,17 @@
     var pl = tokenPayload();
     if (pl && pl.sub) setIdentity(pl.sub, pl.role || "user");
     $("#logout-btn").addEventListener("click", logout);
-    $("#refresh-btn").addEventListener("click", function () { refreshFast(); refreshHeavy(); toast("Refreshed", "info"); });
-    [["#act-snapshot", doSnapshot], ["#qa-snap", doSnapshot], ["#act-share", doShare], ["#act-share2", doShare], ["#qa-share", doShare], ["#qa-proxy", doProxyReload],
-     ["#qa-refresh", function () { refreshFast(); refreshHeavy(); }]].forEach(function (p) {
+    [["#act-snapshot", doSnapshot], ["#act-share", doShare]].forEach(function (p) {
       var el = $(p[0]); if (el) el.addEventListener("click", p[1]);
     });
+    // avatar menu (moved here from the deleted widgets.js)
+    var pb = $("#profile-btn"), menu = $("#avatar-menu");
+    if (pb && menu) {
+      var setOpen = function (open) { menu.classList.toggle("open", open); pb.setAttribute("aria-expanded", String(open)); };
+      pb.onclick = function (e) { if (e.target.closest("#logout-btn")) return; setOpen(!menu.classList.contains("open")); };
+      pb.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(true); } if (e.key === "Escape") setOpen(false); };
+      document.addEventListener("click", function (e) { if (!pb.contains(e.target)) setOpen(false); });
+    }
     // nav active-state + per-section refresh
     $$(".nav a").forEach(function (a) {
       a.addEventListener("click", function () {

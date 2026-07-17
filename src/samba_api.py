@@ -161,10 +161,38 @@ async def remove_share(name: str, user=Depends(verify_token)):
     return {"ok": True}
 
 
+def _parse_smbstatus(out: str) -> list[dict]:
+    """Structured client connections from smbstatus's share-connections
+    section. Parsing lives HERE, tested, because the old contract shipped raw
+    text and the dashboard's ad-hoc parse rendered the section HEADER as a
+    fake client ("Service pid Machine Connected at...")."""
+    conns: list[dict] = []
+    in_section = False
+    for line in (out or "").splitlines():
+        ls = line.strip()
+        if ls.startswith("Service") and "Machine" in ls:
+            in_section = True                 # header row — not a client
+            continue
+        if in_section:
+            if not ls or ls.startswith("-"):
+                if conns or ls.startswith("-"):
+                    # separator right under the header; blank line ends section
+                    if not ls:
+                        in_section = False
+                continue
+            parts = ls.split()
+            if len(parts) >= 3 and parts[1].isdigit():
+                conns.append({"share": parts[0], "pid": parts[1],
+                              "machine": parts[2]})
+    return conns
+
+
 @router.get("/api/samba/connections")
 async def samba_connections(user=Depends(verify_token)):
     out = _run_args(["smbstatus"])
-    return {"output": out or "No connections"}
+    conns = _parse_smbstatus(out)
+    return {"connections": conns, "count": len(conns),
+            "output": out or "No connections"}   # raw kept for the shares page
 
 
 @router.get("/api/samba/config")

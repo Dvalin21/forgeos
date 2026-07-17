@@ -247,3 +247,41 @@ class TestUpdateShare:
         r = test_client.put("/api/samba/share/a",
                             json={"name": "b", "path": "/srv/nas/a"}, headers=auth_headers)
         assert r.status_code == 409
+
+
+class TestSmbstatusParse:
+    """Regression: the dashboard rendered the share-section HEADER as a fake
+    client because parsing happened ad-hoc client-side on raw text."""
+
+    SAMPLE = """
+Samba version 4.22.0
+PID     Username     Group        Machine                                   Protocol Version
+----------------------------------------------------------------------------------------------
+1234    keith        users        10.0.0.59 (ipv4:10.0.0.59:54321)          SMB3_11
+
+Service      pid     Machine       Connected at                     Encryption   Signing
+---------------------------------------------------------------------------------------------
+myshare      1234    10.0.0.59     Wed Jul 16 18:02:11 2026 CDT     -            -
+
+No locked files
+"""
+
+    def test_header_never_becomes_a_client(self):
+        from samba_api import _parse_smbstatus
+        conns = _parse_smbstatus(self.SAMPLE)
+        assert conns == [{"share": "myshare", "pid": "1234",
+                          "machine": "10.0.0.59"}]
+
+    def test_empty_and_garbage_safe(self):
+        from samba_api import _parse_smbstatus
+        assert _parse_smbstatus("") == []
+        assert _parse_smbstatus("No connections") == []
+
+    def test_endpoint_returns_structured(self, test_client, auth_headers,
+                                         monkeypatch):
+        import samba_api
+        monkeypatch.setattr(samba_api, "_run_args", lambda a: self.SAMPLE)
+        r = test_client.get("/api/samba/connections", headers=auth_headers)
+        body = r.json()
+        assert body["count"] == 1
+        assert body["connections"][0]["share"] == "myshare"
