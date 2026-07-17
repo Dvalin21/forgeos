@@ -105,10 +105,13 @@
     clock: '<path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="8.5"/>'
   };
   var HEALTH = {};                          // row-id -> {title, desc, state, icon}
-  function healthRow(id, icon, title, desc, state) {
+  function setHealth(id, icon, title, desc, state) {
     HEALTH[id] = { icon: icon, title: title, desc: desc, state: state };
+  }
+  function paintHealth() {
     var order = ["drives", "pool", "files", "protect", "backup"];
-    $("#health-rows").innerHTML = order.filter(function (k) { return HEALTH[k]; }).map(function (k) {
+    var box = $("#health-rows"); if (!box) return;
+    box.innerHTML = order.filter(function (k) { return HEALTH[k]; }).map(function (k) {
       var h = HEALTH[k];
       var cls = h.state === "ok" ? "ok" : h.state === "bad" ? "bad" : "warn";
       var lbl = h.state === "ok" ? "OK" : h.state === "bad" ? "Problem" : h.state === "setup" ? "Set up" : "Check";
@@ -170,9 +173,14 @@
   }
 
   async function loadStorage() {
-    var dfr = (await api("/api/storage/df")).data;
+    // fire all three concurrently — serial awaits queued behind the browser's
+    // ~6-socket cap and made this card the last to populate on refresh
+    var res = await Promise.all([
+      api("/api/storage/df"), api("/api/storage/pools"), api("/api/storage/drives")]);
+    var dfr = res[0].data;
     var df = Array.isArray(dfr) ? dfr : (dfr && dfr.volumes) || [];
-    var pools = ((await api("/api/storage/pools")).data || {}).pools || [];
+    var pools = (res[1].data || {}).pools || [];
+    var drv = (res[2].data || {}).drives || [];
     var vl = $("#vol-list");
     if (df.length) {
       var totUsed = 0, totSize = 0;
@@ -195,57 +203,61 @@
       setLive("st-sub", raid === "RAID1" ? "Mirrored across " + nd + " disks"
                        : raid ? raid + " across " + nd + " disks" : "Single-disk pool");
       setLive("st-chip", bad ? "Attention" : "Online");
-      healthRow("pool", "pool", "Storage pool",
+      setHealth("pool", "pool", "Storage pool",
         (raid ? raid + " \u00b7 " : "") + nd + " disk" + (nd === 1 ? "" : "s") +
         (bad ? " \u2014 " + p.health : " online"),
         bad ? "bad" : "ok");
     } else { setLive("st-sub", "No pool configured"); setLive("st-chip", "—"); }
-    var drv = ((await api("/api/storage/drives")).data || {}).drives || [];
     if (drv.length) {
       var pass = drv.filter(function (x) { return x.health >= 90; }).length;
-      healthRow("drives", "drive", "Drives",
+      setHealth("drives", "drive", "Drives",
         pass === drv.length ? "All " + drv.length + " drives passed their health checks"
                             : pass + " of " + drv.length + " drives healthy — check Storage",
         pass === drv.length ? "ok" : "bad");
     }
+    paintHealth();
   }
 
   async function loadHealthMisc() {
-    var svc = (await api("/api/services")).data;
-    var conns = (await api("/api/samba/connections")).data || {};
+    var res = await Promise.all([
+      api("/api/services"), api("/api/samba/connections"), api("/api/security/firewall"),
+      api("/api/security/fail2ban"), api("/api/security/updates"), api("/api/backup/jobs")]);
+    var svc = res[0].data;
+    var conns = res[1].data || {};
     if (svc && svc.services) {
       var fs = svc.services.filter(function (x) { return /samba|smbd|nfs/i.test(x.name); });
       var up = fs.filter(function (x) { return x.status === "running"; }).length;
       var n = conns.count || 0;
-      healthRow("files", "files", "File sharing",
+      setHealth("files", "files", "File sharing",
         up === fs.length ? ("Working · " + n + " device" + (n === 1 ? "" : "s") + " connected right now")
                          : "Some file services are stopped — check Shares",
         up === fs.length ? "ok" : "bad");
     }
-    var fw = (await api("/api/security/firewall")).data || {};
-    var f2b = (await api("/api/security/fail2ban")).data || {};
-    var up2 = (await api("/api/security/updates")).data || {};
+    var fw = res[2].data || {};
+    var f2b = res[3].data || {};
+    var up2 = res[4].data || {};
     var fwOn = /Status:\s*active/i.test(fw.ufw || "");
     var f2bOn = !!f2b.enabled && (f2b.jails || []).some(function (j) { return j.enabled; });
     var all = fwOn && f2bOn && !!up2.enabled;
     var bits = [fwOn ? "firewall on" : "firewall OFF", f2bOn ? "intrusion guard on" : "intrusion guard OFF",
                 up2.enabled ? "security updates automatic" : "auto-updates OFF"];
-    healthRow("protect", "shield", "Protection",
+    setHealth("protect", "shield", "Protection",
       bits.join(" \u00b7 ").replace(/^./, function (c) { return c.toUpperCase(); }),
       all ? "ok" : "warn");
-    var jobs = ((await api("/api/backup/jobs")).data || {}).jobs || [];
+    var jobs = (res[5].data || {}).jobs || [];
     var ran = jobs.filter(function (j) { return j.last_run; })
                   .sort(function (a, b) { return String(b.last_run).localeCompare(String(a.last_run)); })[0];
     if (ran) {
       var okRun = /done|success|ok/i.test(ran.last_status || "");
-      healthRow("backup", "clock", "Last backup",
+      setHealth("backup", "clock", "Last backup",
         "\u201c" + ran.name + "\u201d " + (okRun ? "completed" : "had a problem") + " \u00b7 " + ran.last_run,
         okRun ? "ok" : "bad");
     } else if (jobs.length) {
-      healthRow("backup", "clock", "Last backup", jobs.length + " job(s) configured \u2014 none has run yet", "warn");
+      setHealth("backup", "clock", "Last backup", jobs.length + " job(s) configured \u2014 none has run yet", "warn");
     } else {
-      healthRow("backup", "clock", "Last backup", "No backup has run yet \u2014 set one up to protect your data", "setup");
+      setHealth("backup", "clock", "Last backup", "No backup has run yet \u2014 set one up to protect your data", "setup");
     }
+    paintHealth();
   }
 
   function parseLabels(raw) {
@@ -342,6 +354,14 @@
   function refreshFast() { loadStats(); }
   var fastTimer, heavyTimer;
   function startPolling() {
+    // seed the network baseline instantly so the sparkline has a delta on the
+    // NEXT tick instead of blanking for a full interval after every refresh
+    api("/api/system/stats").then(function (r) {
+      var s = r.data; if (s && s.network) {
+        netPrev = { recv: s.network.bytes_recv, sent: s.network.bytes_sent,
+                    ts: s.timestamp || (Date.now() / 1000) };
+      }
+    });
     refreshFast(); refreshHeavy();
     clearInterval(fastTimer); clearInterval(heavyTimer);
     fastTimer = setInterval(refreshFast, 5000);
