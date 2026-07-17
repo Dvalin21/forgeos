@@ -91,8 +91,12 @@
   function setRing(name, pct, txt, cap) {
     var el = $('[data-ring="' + name + '"] .rval'); if (!el) return;
     pct = Math.max(0, Math.min(100, pct));
-    el.style.strokeDasharray = C;
-    el.style.strokeDashoffset = C * (1 - Math.max(pct, 2) / 100);
+    // SVG geometry must be set as ATTRIBUTES — el.style.strokeDasharray is not
+    // reliably honored on an SVG <circle> across browsers (Firefox/WebKit drop
+    // it), which is why the arcs never drew while the sparkline's setAttribute
+    // path worked fine.
+    el.setAttribute("stroke-dasharray", C);
+    el.setAttribute("stroke-dashoffset", C * (1 - Math.max(pct, 2) / 100));
     el.classList.remove("g", "w", "b");
     el.classList.add(pct < 70 ? "g" : pct < 90 ? "w" : "b");
     setLive("r-" + name, txt); if (cap != null) setLive("r-" + name + "-c", cap);
