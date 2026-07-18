@@ -96,6 +96,13 @@
       tr.onclick=function(ev){if(ev.target.classList.contains('ck'))return;
         if(!ev.shiftKey&&!ev.ctrlKey&&!ev.metaKey)SELECTED.clear();
         SELECTED.has(e.path)?SELECTED.delete(e.path):SELECTED.add(e.path);refreshSel()};
+      tr.oncontextmenu=function(ev){
+        ev.preventDefault();
+        // right-click acts on the clicked row: if it isn't part of the current
+        // selection, make it the selection (standard file-manager behavior).
+        if(!SELECTED.has(e.path)){SELECTED.clear();SELECTED.add(e.path);refreshSel()}
+        showContextMenu(ev.clientX,ev.clientY,false);
+      };
     });
     $$('#rows .ck').forEach(function(c){c.onchange=function(){var i=+c.getAttribute('data-i'),e=ENTRIES[i];c.checked?SELECTED.add(e.path):SELECTED.delete(e.path);refreshSel()}});
     refreshSel();refreshToolbar();
@@ -108,9 +115,54 @@
     $('#btn-paste').disabled=!CLIPBOARD||!CLIPBOARD.items.length;
     if(one){var e=selEntries()[0];if(e&&e.type==='dir')$('#btn-download').disabled=true}
   }
-  function selEntries(){return ENTRIES.filter(function(e){return SELECTED.has(e.path)})}
+  // ── context menu (a second trigger for the toolbar's own handlers) ──
+  function closeContextMenu(){var m=$('#ctx-menu');if(m)m.remove();}
+  function showContextMenu(x,y,emptyArea){
+    closeContextMenu();
+    var n=SELECTED.size,one=n===1;
+    var e=one?selEntries()[0]:null;
+    var canDownload=one&&e&&e.type!=='dir';
+    var canPaste=!!(CLIPBOARD&&CLIPBOARD.items&&CLIPBOARD.items.length);
+    // [label, handler, enabled, danger?]  — null = separator
+    var items=emptyArea?[
+      ['New folder',newFolder,true],
+      ['Paste',doPaste,canPaste]
+    ]:[
+      ['Open',function(){e.type==='dir'?go(e.path):openPreview(e)},one],
+      ['Download',download,canDownload],
+      null,
+      ['Cut',doCut,n>=1],
+      ['Copy',doCopy,n>=1],
+      ['Paste',doPaste,canPaste],
+      null,
+      ['Rename',rename,one],
+      ['Permissions',editPerms,one],
+      null,
+      ['Delete',delSel,n>=1,true]
+    ];
+    var m=document.createElement('div');m.id='ctx-menu';m.className='ctx-menu';
+    m.innerHTML=items.map(function(it){
+      if(!it)return '<div class="ctx-sep"></div>';
+      return '<button class="ctx-item'+(it[3]?' danger':'')+'"'+(it[2]?'':' disabled')+'>'+esc(it[0])+'</button>';
+    }).join('');
+    document.body.appendChild(m);
+    // clamp to viewport so it never opens off-screen
+    var r=m.getBoundingClientRect();
+    var px=Math.min(x,window.innerWidth-r.width-6);
+    var py=Math.min(y,window.innerHeight-r.height-6);
+    m.style.left=Math.max(6,px)+'px';m.style.top=Math.max(6,py)+'px';
+    var btns=m.querySelectorAll('.ctx-item');var bi=0;
+    items.forEach(function(it){
+      if(!it)return;var btn=btns[bi++];
+      if(it[2])btn.onclick=function(){closeContextMenu();it[1]();};
+    });
+  }
+  // dismiss on any outside click / escape / scroll
+  document.addEventListener('click',function(e){if(!e.target.closest('#ctx-menu'))closeContextMenu();});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')closeContextMenu();});
+  window.addEventListener('resize',closeContextMenu);
 
-  // ── actions ──
+
   async function newFolder(){
     modal({title:'New folder',sub:'Create a folder in '+CWD,fields:[{id:'name',label:'Folder name',ph:'documents'}],cta:'Create',
       onSubmit:async function(v){if(!v.name){toast('Name required','warn');return false}
@@ -222,6 +274,12 @@
       if((e.ctrlKey||e.metaKey)&&e.key==='c'){e.preventDefault();if(SELECTED.size)doCopy()}
       if((e.ctrlKey||e.metaKey)&&e.key==='v'){e.preventDefault();doPaste()}
       if(e.key==='F2'&&SELECTED.size===1){e.preventDefault();rename()}
+    });
+    var tbl=document.querySelector('.files');
+    if(tbl)tbl.addEventListener('contextmenu',function(ev){
+      // only when the click is NOT on a row (rows handle their own menu)
+      if(ev.target.closest('#rows tr'))return;
+      ev.preventDefault();showContextMenu(ev.clientX,ev.clientY,true);
     });
     wireDragDrop();
     loadRoots();

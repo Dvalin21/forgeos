@@ -78,6 +78,16 @@ table.files tr.cut td{opacity:.5}
 .pv-stage audio{width:100%}
 .pv-stage pre{margin:0;padding:0;background:transparent;color:var(--text);font:500 12px 'JetBrains Mono',monospace;white-space:pre-wrap;width:100%;max-height:55vh;overflow:auto;text-align:left}
 .pv-stage .none{color:var(--muted);font-size:13px;text-align:center}
+
+.ctx-menu{position:fixed;z-index:200;min-width:180px;padding:6px;background:var(--surface);
+  border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.ctx-item{display:block;width:100%;text-align:left;padding:8px 12px;border:0;border-radius:8px;
+  background:none;cursor:pointer;font:600 13px var(--font);color:var(--text)}
+.ctx-item:hover:not(:disabled){background:var(--surface-2)}
+.ctx-item:disabled{color:var(--muted);opacity:.5;cursor:default}
+.ctx-item.danger{color:var(--danger)}
+.ctx-item.danger:hover:not(:disabled){background:var(--danger-soft)}
+.ctx-sep{height:1px;margin:5px 8px;background:var(--line)}
 </style>
 </head>
 <body>
