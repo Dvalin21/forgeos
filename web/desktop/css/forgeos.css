@@ -832,3 +832,10 @@
 .t-sys     { background: linear-gradient(135deg,#8a97ad,#66738a); }
 .nav a .tile { margin-right: 0; }
 .mini-icon.tile svg, .stat-ic.tile svg { stroke: #fff; }
+
+/* Data Connect: databases as a responsive card grid, not full-width stacks */
+.dc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.dc-card{border:1px solid var(--line);border-radius:15px;background:var(--surface-2);padding:16px 18px}
+.dc-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.dc-name{font-weight:800;font-size:15px;letter-spacing:-.01em}
+.dc-tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}

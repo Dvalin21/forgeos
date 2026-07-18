@@ -45,21 +45,22 @@
       box.innerHTML = '<p style="color:var(--muted)">No databases yet. Import a file-based database directory to track and protect it.</p>';
       return;
     }
-    box.innerHTML = _dc.databases.map(function (d) {
+    box.innerHTML = '<div class="dc-grid">' + _dc.databases.map(function (d) {
       var missing = d.exists === false ? ' <span class="tag" style="background:var(--danger-soft);color:var(--danger)">path missing</span>' : '';
       var prot = d.protected
-        ? ' <span class="tag" style="background:var(--ok-soft,rgba(0,160,90,.12));color:var(--ok,#0a8a52)" title="SMB share modes: oplocks off, strict locking, write-through">protected</span>'
-        : ' <span class="tag" style="background:var(--danger-soft);color:var(--danger)" title="Samba is disabled — no share, no protection">UNPROTECTED</span>';
+        ? '<span class="tag" style="background:var(--ok-soft,rgba(0,160,90,.12));color:var(--ok,#0a8a52)" title="SMB share modes: oplocks off, strict locking, write-through">protected</span>'
+        : '<span class="tag" style="background:var(--danger-soft);color:var(--danger)" title="Samba is disabled — no share, no protection">UNPROTECTED</span>';
       var app = d.app ? '<span class="tag">' + esc(d.app) + '</span>' : '<span class="tag" style="color:var(--muted)">unassigned</span>';
-      var typ = d.db_type ? ' <span class="hint">' + esc(d.db_type) + '</span>' : '';
+      var typ = d.db_type ? '<span class="hint">' + esc(d.db_type) + '</span>' : '';
       var portLine = d.port ? '<div class="hint" style="margin:2px 0 0">port ' + d.port + '</div>' : '';
-      return '<div class="rule-row" style="align-items:flex-start">' +
-        '<div style="flex:1"><div style="font-weight:700">' + esc(d.name) + ' ' + kindBadge(d.kind) + ' ' + app + typ + prot + missing + '</div>' +
-        '<div class="hint" style="margin:2px 0 0">path: <code>' + esc(d.data_path) + '</code></div>' + portLine +
-        (d.comment ? '<div class="hint" style="margin:2px 0 0">' + esc(d.comment) + '</div>' : '') + '</div>' +
-        '<button class="icon-btn danger" data-del="' + esc(d.name) + '" title="Stop tracking"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-9 0v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7"/></svg></button>' +
+      return '<div class="dc-card">' +
+        '<div class="dc-card-top"><div class="dc-name">' + esc(d.name) + ' ' + kindBadge(d.kind) + '</div>' +
+        '<button class="icon-btn danger" data-del="' + esc(d.name) + '" title="Stop tracking this database"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-9 0v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7"/></svg></button></div>' +
+        '<div class="dc-tags">' + app + ' ' + typ + ' ' + prot + missing + '</div>' +
+        '<div class="hint" style="margin:8px 0 0;word-break:break-all">path: <code>' + esc(d.data_path) + '</code></div>' + portLine +
+        (d.comment ? '<div class="hint" style="margin:4px 0 0">' + esc(d.comment) + '</div>' : '') +
         '</div>';
-    }).join('');
+    }).join('') + '</div>';
     box.querySelectorAll('[data-del]').forEach(function (b) {
       b.onclick = function () { removeDb(b.getAttribute('data-del')); };
     });
@@ -73,7 +74,7 @@
   }
 
   function importModal() {
-    var back = document.createElement('div'); back.className = 'backdrop show';
+    var back = document.createElement('div'); back.className = 'modal-back';
     back.innerHTML =
       '<div class="modal" style="max-width:520px">' +
       '<h3>Import a database</h3>' +
@@ -111,7 +112,7 @@
   }
 
   function serverModal() {
-    var back = document.createElement('div'); back.className = 'backdrop show';
+    var back = document.createElement('div'); back.className = 'modal-back';
     back.innerHTML =
       '<div class="modal" style="max-width:520px">' +
       '<h3>Add a server database</h3>' +
