@@ -67,7 +67,7 @@
   }
 
   async function removeDb(name) {
-    if (!confirm('Stop tracking "' + name + '"? Files on disk are left untouched.')) return;
+    if (!confirm('Stop tracking the database "' + name + '"?\n\nForgeOS will forget it, but the database itself, its data, and any users are left completely untouched.')) return;
     var r = await api('/api/data-connect/' + encodeURIComponent(name), { method: 'DELETE' });
     if (r.ok) { toast('Removed', 'ok'); load(); }
     else toast((r.data && r.data.detail) || 'Could not remove', 'err');
@@ -82,7 +82,7 @@
       '<div class="fld"><label>Name</label><input class="wz-input" id="i-name" placeholder="pos-main" autocomplete="off"></div>' +
       '<div class="fld"><label>Directory / data path</label><input class="wz-input" id="i-path" placeholder="/srv/nas/tank/databases/pos" autocomplete="off">' +
         '<div class="hint" id="i-detect"></div></div>' +
-      '<div class="fld"><label>App (owner)</label><input class="wz-input" id="i-app" placeholder="Atrex, QuickBooks, ..." autocomplete="off"></div>' +
+      '<div class="fld"><label>Used by which app? <span style="color:var(--muted);font-weight:400">(optional)</span></label><input class="wz-input" id="i-app" placeholder="e.g. Atrex, QuickBooks — the program that opens this database" autocomplete="off"></div>' +
       '<div class="fld"><label>Comment (optional)</label><input class="wz-input" id="i-comment" autocomplete="off"></div>' +
       '<div id="i-out" class="raw-err" style="display:none"></div>' +
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
@@ -119,7 +119,7 @@
       '<p class="hint">Run PostgreSQL or MariaDB on this NAS. Clients connect over the native port; the data directory stays local (never on a share). ForgeOS pins durability settings and schedules weekly integrity checks.</p>' +
       '<div class="fld"><label>Engine</label><select class="wz-input" id="s-engine"><option value="postgres">PostgreSQL (port 5432)</option><option value="mysql">MariaDB (port 3306)</option></select></div>' +
       '<div class="fld"><label>Name</label><input class="wz-input" id="s-name" placeholder="main-db" autocomplete="off"></div>' +
-      '<div class="fld"><label>App (owner)</label><input class="wz-input" id="s-app" autocomplete="off"></div>' +
+      '<div class="fld"><label>Used by which app? <span style="color:var(--muted);font-weight:400">(optional)</span></label><input class="wz-input" id="s-app" placeholder="e.g. Nextcloud, Gitea — a label, not a database user" autocomplete="off"></div>' +
       '<div class="fld"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="s-install"> Install the engine if missing</label></div>' +
       '<div id="s-out" class="raw-err" style="display:none"></div>' +
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
