@@ -74,21 +74,44 @@ def set_helpers(
 # ────────────────────────────────────────────────────────────
 
 
-def get_cpu_usage() -> float:
-    if _HAVE_PSUTIL:
-        return psutil.cpu_percent(interval=0.5)
-    # Fallback: read /proc/stat directly
+_cpu_prev: tuple[int, int] | None = None  # (total, idle) from the last call
+
+
+def _read_proc_stat() -> tuple[int, int] | None:
+    """(total_jiffies, idle_jiffies) from /proc/stat's aggregate cpu line."""
     try:
         with open("/proc/stat") as f:
             for line in f:
                 if line.startswith("cpu "):
-                    parts = [int(x) for x in line.strip().split()[1:]]
-                    idle = parts[3]
-                    total = sum(parts)
-                    return round(100.0 * (1.0 - idle / total) if total else 0.0, 1)
+                    parts = [int(x) for x in line.split()[1:]]
+                    # idle = idle + iowait (fields 3 and 4) when present
+                    idle = parts[3] + (parts[4] if len(parts) > 4 else 0)
+                    return sum(parts), idle
     except Exception as e:
-        logger.debug("get_cpu_usage fallback failed: %s", e)
-    return 0.0
+        logger.debug("read /proc/stat failed: %s", e)
+    return None
+
+
+def get_cpu_usage() -> float:
+    """Current CPU utilization from the delta between successive /proc/stat
+    reads. A SINGLE read yields the since-boot average (frozen near a constant
+    on a long-lived box — the bug this replaces), and psutil's interval= form
+    blocks the async event loop for the whole interval. The delta is exact,
+    non-blocking, and correct without any optional dependency; the first call
+    after boot returns 0 until a second sample exists (~5 s of polling)."""
+    global _cpu_prev
+    cur = _read_proc_stat()
+    if cur is None:
+        return 0.0
+    if _cpu_prev is None:
+        _cpu_prev = cur
+        return 0.0
+    dt = cur[0] - _cpu_prev[0]
+    di = cur[1] - _cpu_prev[1]
+    _cpu_prev = cur
+    if dt <= 0:
+        return 0.0
+    return round(100.0 * (1.0 - di / dt), 1)
 
 
 def get_memory() -> dict:

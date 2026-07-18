@@ -258,3 +258,47 @@ class TestImagingFirewallRules:
         fim.uninstall(run=fake)
         remaining = fcfg.load().firewall.rules
         assert [r.comment for r in remaining] == ["keep me"]
+
+
+class TestCpuUsageIsCurrentNotSinceBoot:
+    """Regression: CPU showed a frozen since-boot average. A single /proc/stat
+    read gives lifetime idle/total — meaningless on a long-lived box. The
+    value must come from a DELTA between successive reads and respond to load,
+    without blocking the event loop (no psutil interval=)."""
+
+    def setup_method(self):
+        import system_api
+        system_api._cpu_prev = None      # each test starts cold
+
+    def test_first_call_returns_zero_no_baseline(self):
+        import system_api
+        assert system_api.get_cpu_usage() == 0.0
+
+    def test_value_reflects_load_between_calls(self, monkeypatch):
+        import system_api
+        # feed two synthetic /proc/stat snapshots: 100 jiffies elapse, 25 idle
+        # => 75% busy. Proves the math is a delta, not an absolute.
+        snaps = iter([(1000, 500), (1100, 525)])
+        monkeypatch.setattr(system_api, "_read_proc_stat", lambda: next(snaps))
+        assert system_api.get_cpu_usage() == 0.0        # primes baseline
+        assert system_api.get_cpu_usage() == 75.0       # 1 - 25/100
+
+    def test_zero_elapsed_is_safe(self, monkeypatch):
+        import system_api
+        snaps = iter([(1000, 500), (1000, 500)])         # no time passed
+        monkeypatch.setattr(system_api, "_read_proc_stat", lambda: next(snaps))
+        system_api.get_cpu_usage()
+        assert system_api.get_cpu_usage() == 0.0         # no div-by-zero
+
+    def test_idle_iowait_counted_as_idle(self, monkeypatch):
+        import system_api
+        # idle(field3)=400 + iowait(field4)=100 = 500 idle of 1000 total
+        line = "cpu  200 0 300 400 100 0 0 0 0 0\n"
+        import builtins, io
+        monkeypatch.setattr(builtins, "open", lambda *a, **k: io.StringIO(line))
+        assert system_api._read_proc_stat() == (1000, 500)
+
+    def test_missing_proc_stat_returns_zero_not_crash(self, monkeypatch):
+        import system_api
+        monkeypatch.setattr(system_api, "_read_proc_stat", lambda: None)
+        assert system_api.get_cpu_usage() == 0.0
