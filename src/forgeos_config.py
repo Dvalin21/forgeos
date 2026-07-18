@@ -617,6 +617,13 @@ class ManagedDatabase(BaseModel):
     db_type: str = ""                          # detected file family, or engine
     port: int = 0                              # server DBs: 5432/3306; 0 = file
     comment: str = ""
+    # Managed provisioning (server DBs only). When ForgeOS created the database
+    # and its user, it can also drop them. The password is show-once at
+    # creation; only a bcrypt hash lives in /etc/forgeos/db-secrets.json —
+    # never in this config, never recoverable, resettable.
+    managed: bool = False
+    db_name: str = ""                          # database created inside engine
+    db_user: str = ""                          # user created inside engine
 
     @field_validator("name")
     @classmethod
@@ -773,7 +780,7 @@ class AuthConfig(BaseModel):
     require_totp_new_users: bool = False
 
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 
 class ForgeOSConfig(BaseModel):
@@ -894,6 +901,14 @@ def _migrate_v9_to_v10(data: dict) -> dict:
     return data
 
 
+def _migrate_v10_to_v11(data: dict) -> dict:
+    """v11: managed/db_name/db_user on tracked databases. Purely additive —
+    the model defaults (managed=False) make every existing entry valid as an
+    untracked/tracker-only database."""
+    data["version"] = 11
+    return data
+
+
 def _migrate_v7_to_v8(data: dict) -> dict:
     """v8: egress_nic "eth0" was a blind default, never a user choice — reset
     to "" (auto-detect default-route NIC at render time)."""
@@ -914,6 +929,7 @@ _MIGRATIONS = {
     7: _migrate_v7_to_v8,
     8: _migrate_v8_to_v9,
     9: _migrate_v9_to_v10,
+    10: _migrate_v10_to_v11,
 }
 
 

@@ -839,3 +839,14 @@
 .dc-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
 .dc-name{font-weight:800;font-size:15px;letter-spacing:-.01em}
 .dc-tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+
+/* Data Connect: managed-DB card actions + credentials grid */
+.dc-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.mini-btn{font:700 12px var(--font);padding:5px 11px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--text);cursor:pointer}
+.mini-btn:hover{background:var(--surface-2)}
+.mini-btn.danger{color:var(--danger);border-color:var(--danger-soft)}
+.mini-btn.danger:hover{background:var(--danger-soft)}
+.button.danger{background:var(--danger);color:#fff}
+.cred-grid{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center;margin-top:6px}
+.cred-k{font:700 12px var(--font);color:var(--muted)}
+.cred-v code{font:600 13px var(--mono);word-break:break-all}

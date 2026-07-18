@@ -476,7 +476,9 @@ class TestDockerSettings:
     def test_migration_v9_to_v10(self):
         import forgeos_config as fc
         d = fc.migrate({"version": 9})
-        assert d["version"] == 10 and "docker" in d
+        # migrate() chains to the CURRENT schema; assert the v10 effect landed
+        # (docker block) rather than a fixed version that later bumps break.
+        assert "docker" in d and d["version"] == fc.SCHEMA_VERSION
 
 
 class TestPortIntelligence:

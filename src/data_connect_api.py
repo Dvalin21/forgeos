@@ -31,6 +31,7 @@ from fastapi.responses import JSONResponse
 from fastapi import APIRouter, Depends, HTTPException
 
 from forgeos_auth import verify_token  # type: ignore
+import db_provision  # type: ignore
 import forgeos_config as fc
 
 router = APIRouter()
@@ -261,34 +262,140 @@ async def register_server(body: dict, user=Depends(verify_token)):
         raise HTTPException(502, f"could not start {eng['svc']}: "
                                  f"{(res.stderr or res.stdout or '')[-300:]}")
 
+    # Optional: create a real database + user inside the engine. db_name/db_user
+    # default to the tracking name; the generated password is SHOW-ONCE.
+    create_db = bool(body.get("create_db", False))
+    db_name = str(body.get("db_name", "") or name).strip()
+    db_user = str(body.get("db_user", "") or name).strip()
+    shown_password = None
+    if create_db:
+        if not db_provision.valid_identifier(db_name):
+            raise HTTPException(400, f"invalid database name {db_name!r}: letters, "
+                                     f"digits, underscore; start with a letter")
+        if not db_provision.valid_identifier(db_user):
+            raise HTTPException(400, f"invalid user name {db_user!r}: letters, "
+                                     f"digits, underscore; start with a letter")
+        try:
+            shown_password = db_provision.provision(engine, db_name, db_user, name)
+        except db_provision.ProvisionError as e:
+            raise HTTPException(502, f"could not create database: {e}")
+
     try:
         cfg.data_connect.databases.append(fc.ManagedDatabase(
             name=name, kind=engine, data_path=eng["data"],
             app=str(body.get("app", "")).strip(), db_type=eng["label"],
             port=int(body.get("port", 0)) or eng["port"],
-            comment=str(body.get("comment", "")).strip()))
+            comment=str(body.get("comment", "")).strip(),
+            managed=create_db,
+            db_name=db_name if create_db else "",
+            db_user=db_user if create_db else ""))
     except Exception as e:
+        if create_db:                       # roll back the engine objects
+            try:
+                db_provision.deprovision(engine, db_name, db_user, name)
+            except db_provision.ProvisionError:
+                pass
         raise HTTPException(400, f"invalid: {e}")
     cfg.data_connect.enabled = True
     _apply_data_connect(cfg)
-    _audit(user["sub"], "data_connect.register_server", "success",
-           f"{name} ({engine})")
-    return {"ok": True, "engine": engine, "port": eng["port"]}
+    _audit(user["sub"], "data_connect.register_server",
+           "success", f"{name} ({engine}){' +db' if create_db else ''}")
+    out = {"ok": True, "engine": engine, "port": eng["port"], "managed": create_db}
+    if shown_password is not None:
+        # returned exactly once — never retrievable again
+        out["credentials"] = {"host": "localhost", "port": eng["port"],
+                              "database": db_name, "user": db_user,
+                              "password": shown_password}
+    return out
 
 
 @router.delete("/api/data-connect/{name}")
 async def remove_database(name: str, user=Depends(verify_token)):
-    """Stop tracking a database. Files/data on disk are left untouched."""
+    """Stop tracking a database. The engine, its data, and its users are left
+    completely untouched — this only removes ForgeOS's tracking. For a managed
+    database, the stored password hash is forgotten (the DB/user remain in the
+    engine; use delete-database to actually drop them)."""
     if user.get("role") != "admin":
         raise HTTPException(403, "Admin required")
     cfg = fc.load()
     name = name.strip()
-    if not any(d.name == name for d in cfg.data_connect.databases):
+    match = next((d for d in cfg.data_connect.databases if d.name == name), None)
+    if match is None:
         raise HTTPException(404, f"no such database: {name}")
+    if match.managed:
+        db_provision.forget_secret(name)    # DB/user stay; only our secret goes
     cfg.data_connect.databases = [d for d in cfg.data_connect.databases if d.name != name]
     _apply_data_connect(cfg)
     _audit(user["sub"], "data_connect.remove", "success", name)
     return {"ok": True}
+
+
+@router.post("/api/data-connect/{name}/delete-database")
+async def delete_database(name: str, body: dict, user=Depends(verify_token)):
+    """DESTRUCTIVE. Drop the managed database and its user from the engine,
+    then stop tracking. Requires typed-name confirmation. Only valid for
+    databases ForgeOS created (managed=True)."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    cfg = fc.load()
+    name = name.strip()
+    match = next((d for d in cfg.data_connect.databases if d.name == name), None)
+    if match is None:
+        raise HTTPException(404, f"no such database: {name}")
+    if not match.managed:
+        raise HTTPException(409, "this database was not created by ForgeOS — "
+                                 "use Stop tracking, and drop it with your DB tools")
+    if str(body.get("confirm", "")).strip() != name:
+        raise HTTPException(400, "type the database name to confirm deletion")
+    try:
+        db_provision.deprovision(match.kind, match.db_name, match.db_user, name)
+    except db_provision.ProvisionError as e:
+        raise HTTPException(502, f"could not delete database: {e}")
+    cfg.data_connect.databases = [d for d in cfg.data_connect.databases if d.name != name]
+    _apply_data_connect(cfg)
+    _audit(user["sub"], "data_connect.delete_database", "success",
+           f"{name} ({match.kind})")
+    return {"ok": True}
+
+
+@router.post("/api/data-connect/{name}/reset-password")
+async def reset_db_password(name: str, user=Depends(verify_token)):
+    """Generate a NEW password for a managed database's user, apply it in the
+    engine, re-hash it, and return the plaintext ONCE (it cannot be retrieved
+    later — this is the recovery path for a lost password)."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    cfg = fc.load()
+    name = name.strip()
+    match = next((d for d in cfg.data_connect.databases if d.name == name), None)
+    if match is None:
+        raise HTTPException(404, f"no such database: {name}")
+    if not match.managed:
+        raise HTTPException(409, "ForgeOS does not manage this database's user")
+    try:
+        pw = db_provision.reset_password(match.kind, match.db_user, name)
+    except db_provision.ProvisionError as e:
+        raise HTTPException(502, f"could not reset password: {e}")
+    _audit(user["sub"], "data_connect.reset_password", "success", name)
+    return {"ok": True, "credentials": {"host": "localhost", "port": match.port,
+            "database": match.db_name, "user": match.db_user, "password": pw}}
+
+
+@router.get("/api/data-connect/{name}/connection")
+async def get_connection(name: str, user=Depends(verify_token)):
+    """Connection details for a managed database — everything EXCEPT the
+    password (which is show-once and never retrievable). If the password was
+    lost, reset-password issues a new one."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    cfg = fc.load()
+    match = next((d for d in cfg.data_connect.databases if d.name == name.strip()), None)
+    if match is None:
+        raise HTTPException(404, f"no such database: {name}")
+    if not match.managed:
+        raise HTTPException(409, "not a ForgeOS-managed database")
+    return {"host": "localhost", "port": match.port, "database": match.db_name,
+            "user": match.db_user, "engine": match.kind}
 
 
 @router.post("/api/data-connect/broadcast")

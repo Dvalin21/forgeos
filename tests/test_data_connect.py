@@ -515,3 +515,182 @@ class TestRegisterServerApi:
             assert r.status_code == 409
         finally:
             test_client.delete("/api/data-connect/dup", headers=auth_headers)
+
+
+# ──────────────────────────────────────────────────────────
+# Managed database provisioning (create DB + user in engine)
+# ──────────────────────────────────────────────────────────
+
+
+class TestDbProvisionUnit:
+    """db_provision: the injection boundary and show-once secret model."""
+
+    def setup_method(self):
+        import db_provision, tempfile, pathlib
+        db_provision.SECRETS_FILE = pathlib.Path(tempfile.mktemp(suffix=".json"))
+        self.sql = []
+        db_provision.set_run(self._fake)
+
+    def teardown_method(self):
+        import db_provision
+        db_provision.set_run(None)
+
+    def _fake(self, cmd, sql, timeout):
+        import types
+        self.sql.append(sql)
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    def test_identifier_rejects_injection(self):
+        import db_provision as dp
+        assert dp.valid_identifier("app_db") and dp.valid_identifier("_x1")
+        for bad in ["a b", "a-b", "1abc", "", "a;b", "a`b",
+                    "app'x", 'app"x', "drop;--", "a" * 64]:
+            assert not dp.valid_identifier(bad), bad
+
+    def test_provision_creates_and_hashes_showonce(self):
+        import db_provision as dp
+        pw = dp.provision("postgres", "appdb", "appuser", "trackkey")
+        assert len(pw) >= 24
+        assert any("CREATE DATABASE" in s for s in self.sql)
+        assert any("CREATE USER" in s for s in self.sql)
+        # returned plaintext verifies; wrong does not; plaintext is NOT stored
+        assert dp.verify_password("trackkey", pw)
+        assert not dp.verify_password("trackkey", "nope")
+        raw = dp.SECRETS_FILE.read_text()
+        assert pw not in raw and "$2b$" in raw          # only the hash persisted
+
+    def test_secrets_file_is_0600(self):
+        import db_provision as dp, os
+        dp.provision("mysql", "d", "u", "k")
+        assert oct(os.stat(dp.SECRETS_FILE).st_mode)[-3:] == "600"
+
+    def test_reset_invalidates_old(self):
+        import db_provision as dp
+        p1 = dp.provision("postgres", "d", "u", "k")
+        p2 = dp.reset_password("postgres", "u", "k")
+        assert p1 != p2
+        assert dp.verify_password("k", p2) and not dp.verify_password("k", p1)
+
+    def test_deprovision_drops_and_forgets(self):
+        import db_provision as dp
+        pw = dp.provision("mysql", "d", "u", "k")
+        self.sql.clear()
+        dp.deprovision("mysql", "d", "u", "k")
+        assert any("DROP DATABASE" in s for s in self.sql)
+        assert any("DROP USER" in s for s in self.sql)
+        assert not dp.verify_password("k", pw)          # secret gone
+
+    def test_provision_bad_identifier_raises_before_sql(self):
+        import db_provision as dp, pytest
+        with pytest.raises(dp.ProvisionError):
+            dp.provision("postgres", "bad name", "u", "k")
+        assert self.sql == []                           # nothing executed
+
+    def test_engine_failure_rolls_back_database(self):
+        import db_provision as dp, types
+        # CREATE DATABASE ok, CREATE USER fails -> DROP DATABASE must run
+        seq = iter([0, 1])
+        def flaky(cmd, sql, timeout):
+            self.sql.append(sql)
+            rc = 0 if "CREATE DATABASE" in sql or "DROP" in sql else 1
+            return types.SimpleNamespace(returncode=rc, stdout="", stderr="boom")
+        dp.set_run(flaky)
+        with pytest.raises(dp.ProvisionError):
+            dp.provision("postgres", "d", "u", "k")
+        assert any("DROP DATABASE" in s for s in self.sql)
+
+
+class TestManagedDatabaseApi:
+    @pytest.fixture(autouse=True)
+    def _seams(self, monkeypatch, tmp_path):
+        import data_connect_api, db_provision
+        # engine "installed" + started
+        self.cmds = []
+        def fake_run(cmd, timeout):
+            self.cmds.append(cmd)
+            import types
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        data_connect_api.set_run(fake_run)
+        # provisioning SQL faked
+        self.sql = []
+        def fake_sql(cmd, sql, timeout):
+            import types
+            self.sql.append(sql)
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        db_provision.set_run(fake_sql)
+        import pathlib
+        db_provision.SECRETS_FILE = tmp_path / "db-secrets.json"
+        # apply seam so nothing touches /etc or systemctl beyond config
+        applied = []
+        data_connect_api.set_apply(lambda cfg: applied.append(cfg) or __import__("forgeos_config").save(cfg))
+        yield
+        data_connect_api.set_run(None); db_provision.set_run(None)
+        data_connect_api.set_apply(None)
+
+    def test_register_with_create_db_returns_password_once(self, test_client, auth_headers):
+        r = test_client.post("/api/data-connect/register-server", headers=auth_headers,
+                             json={"name": "shop", "engine": "postgres", "create_db": True})
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["managed"] is True
+        creds = body["credentials"]
+        assert creds["database"] == "shop" and creds["user"] == "shop"
+        assert len(creds["password"]) >= 24
+        try:
+            # connection endpoint returns everything EXCEPT the password
+            c = test_client.get("/api/data-connect/shop/connection", headers=auth_headers).json()
+            assert "password" not in c and c["user"] == "shop"
+        finally:
+            test_client.post("/api/data-connect/shop/delete-database",
+                             headers=auth_headers, json={"confirm": "shop"})
+
+    def test_register_invalid_identifier_400(self, test_client, auth_headers):
+        r = test_client.post("/api/data-connect/register-server", headers=auth_headers,
+                             json={"name": "ok", "engine": "postgres",
+                                   "create_db": True, "db_name": "bad name"})
+        assert r.status_code == 400
+
+    def test_delete_database_requires_typed_confirmation(self, test_client, auth_headers):
+        test_client.post("/api/data-connect/register-server", headers=auth_headers,
+                         json={"name": "gone", "engine": "mysql", "create_db": True})
+        try:
+            bad = test_client.post("/api/data-connect/gone/delete-database",
+                                   headers=auth_headers, json={"confirm": "wrong"})
+            assert bad.status_code == 400
+        finally:
+            ok = test_client.post("/api/data-connect/gone/delete-database",
+                                  headers=auth_headers, json={"confirm": "gone"})
+            assert ok.status_code == 200
+            assert any("DROP DATABASE" in s for s in self.sql)
+
+    def test_delete_database_refuses_unmanaged(self, test_client, auth_headers):
+        # track-only (no create_db) -> delete-database must refuse
+        test_client.post("/api/data-connect/register-server", headers=auth_headers,
+                         json={"name": "trackonly", "engine": "postgres"})
+        try:
+            r = test_client.post("/api/data-connect/trackonly/delete-database",
+                                 headers=auth_headers, json={"confirm": "trackonly"})
+            assert r.status_code == 409
+        finally:
+            test_client.delete("/api/data-connect/trackonly", headers=auth_headers)
+
+    def test_reset_password_new_creds_once(self, test_client, auth_headers):
+        reg = test_client.post("/api/data-connect/register-server", headers=auth_headers,
+                               json={"name": "rot", "engine": "postgres", "create_db": True})
+        first = reg.json()["credentials"]["password"]
+        try:
+            r = test_client.post("/api/data-connect/rot/reset-password", headers=auth_headers)
+            assert r.status_code == 200
+            assert r.json()["credentials"]["password"] != first
+        finally:
+            test_client.post("/api/data-connect/rot/delete-database",
+                             headers=auth_headers, json={"confirm": "rot"})
+
+    def test_stop_tracking_leaves_engine_untouched(self, test_client, auth_headers):
+        test_client.post("/api/data-connect/register-server", headers=auth_headers,
+                         json={"name": "keepdb", "engine": "mysql", "create_db": True})
+        self.sql.clear()
+        r = test_client.delete("/api/data-connect/keepdb", headers=auth_headers)
+        assert r.status_code == 200
+        # stop-tracking must NOT issue DROP — the DB stays in the engine
+        assert not any("DROP" in s for s in self.sql)

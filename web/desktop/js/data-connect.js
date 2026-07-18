@@ -53,21 +53,81 @@
       var app = d.app ? '<span class="tag">' + esc(d.app) + '</span>' : '<span class="tag" style="color:var(--muted)">unassigned</span>';
       var typ = d.db_type ? '<span class="hint">' + esc(d.db_type) + '</span>' : '';
       var portLine = d.port ? '<div class="hint" style="margin:2px 0 0">port ' + d.port + '</div>' : '';
+      var manage = d.managed
+        ? '<button class="mini-btn" data-conn="' + esc(d.name) + '">Connection</button>' +
+          '<button class="mini-btn" data-reset="' + esc(d.name) + '">Reset password</button>' +
+          '<button class="mini-btn danger" data-dropdb="' + esc(d.name) + '">Delete database</button>'
+        : '';
       return '<div class="dc-card">' +
         '<div class="dc-card-top"><div class="dc-name">' + esc(d.name) + ' ' + kindBadge(d.kind) + '</div>' +
-        '<button class="icon-btn danger" data-del="' + esc(d.name) + '" title="Stop tracking this database"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-9 0v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7"/></svg></button></div>' +
+        '<button class="icon-btn danger" data-del="' + esc(d.name) + '" title="Stop tracking (engine + data untouched)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m-9 0v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V7"/></svg></button></div>' +
         '<div class="dc-tags">' + app + ' ' + typ + ' ' + prot + missing + '</div>' +
         '<div class="hint" style="margin:8px 0 0;word-break:break-all">path: <code>' + esc(d.data_path) + '</code></div>' + portLine +
         (d.comment ? '<div class="hint" style="margin:4px 0 0">' + esc(d.comment) + '</div>' : '') +
+        (manage ? '<div class="dc-actions">' + manage + '</div>' : '') +
         '</div>';
     }).join('') + '</div>';
     box.querySelectorAll('[data-del]').forEach(function (b) {
       b.onclick = function () { removeDb(b.getAttribute('data-del')); };
     });
+    box.querySelectorAll('[data-conn]').forEach(function (b) {
+      b.onclick = function () { showConnection(b.getAttribute('data-conn')); };
+    });
+    box.querySelectorAll('[data-reset]').forEach(function (b) {
+      b.onclick = function () { resetPassword(b.getAttribute('data-reset')); };
+    });
+    box.querySelectorAll('[data-dropdb]').forEach(function (b) {
+      b.onclick = function () { deleteDatabase(b.getAttribute('data-dropdb')); };
+    });
+  }
+
+  async function showConnection(name) {
+    var r = await api('/api/data-connect/' + encodeURIComponent(name) + '/connection');
+    if (!r.ok) { toast((r.data && r.data.detail) || 'Could not load', 'err'); return; }
+    var c = r.data;
+    var back = document.createElement('div'); back.className = 'modal-back';
+    back.innerHTML = '<div class="modal" style="max-width:520px">' +
+      '<h3>Connection details</h3>' +
+      '<p class="hint">The password is not shown — it was displayed once when created. Lost it? Use Reset password.</p>' +
+      '<div class="cred-grid">' + credRow('Host', c.host) + credRow('Port', c.port) +
+        credRow('Database', c.database) + credRow('User', c.user) + '</div>' +
+      '<div style="display:flex;justify-content:flex-end;margin-top:14px">' +
+        '<button class="button ghost" id="conn-close">Close</button></div></div>';
+    document.body.appendChild(back);
+    $('#conn-close', back).onclick = function () { back.remove(); };
+  }
+
+  async function resetPassword(name) {
+    if (!confirm('Reset the password for "' + name + '"?\n\nThe old password stops working immediately. The new one is shown once.')) return;
+    var r = await api('/api/data-connect/' + encodeURIComponent(name) + '/reset-password', { method: 'POST' });
+    if (r.ok && r.data.credentials) {
+      var eng = (_dc.databases.filter(function (d) { return d.name === name; })[0] || {}).kind;
+      credsModal(r.data.credentials, eng);
+    } else toast((r.data && r.data.detail) || 'Could not reset', 'err');
+  }
+
+  function deleteDatabase(name) {
+    var back = document.createElement('div'); back.className = 'modal-back';
+    back.innerHTML = '<div class="modal" style="max-width:520px">' +
+      '<h3 style="color:var(--danger)">Delete database "' + esc(name) + '"</h3>' +
+      '<p class="hint">This permanently drops the database <b>and its user</b> from the engine. All data in it is destroyed. This cannot be undone.</p>' +
+      '<div class="fld"><label>Type <code>' + esc(name) + '</code> to confirm</label><input class="wz-input" id="drop-confirm" autocomplete="off"></div>' +
+      '<div id="drop-out" class="raw-err" style="display:none"></div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
+        '<button class="button ghost" id="drop-cancel">Cancel</button>' +
+        '<button class="button danger" id="drop-go">Delete permanently</button></div></div>';
+    document.body.appendChild(back);
+    $('#drop-cancel', back).onclick = function () { back.remove(); };
+    $('#drop-go', back).onclick = async function () {
+      var r = await api('/api/data-connect/' + encodeURIComponent(name) + '/delete-database',
+        { method: 'POST', body: JSON.stringify({ confirm: $('#drop-confirm', back).value.trim() }) });
+      if (r.ok) { toast('Database deleted', 'ok'); back.remove(); load(); }
+      else { var o = $('#drop-out', back); o.style.display = ''; o.textContent = (r.data && r.data.detail) || 'Could not delete'; }
+    };
   }
 
   async function removeDb(name) {
-    if (!confirm('Stop tracking the database "' + name + '"?\n\nForgeOS will forget it, but the database itself, its data, and any users are left completely untouched.')) return;
+    if (!confirm('Stop tracking "' + name + '"? Files on disk are left untouched.')) return;
     var r = await api('/api/data-connect/' + encodeURIComponent(name), { method: 'DELETE' });
     if (r.ok) { toast('Removed', 'ok'); load(); }
     else toast((r.data && r.data.detail) || 'Could not remove', 'err');
@@ -82,7 +142,7 @@
       '<div class="fld"><label>Name</label><input class="wz-input" id="i-name" placeholder="pos-main" autocomplete="off"></div>' +
       '<div class="fld"><label>Directory / data path</label><input class="wz-input" id="i-path" placeholder="/srv/nas/tank/databases/pos" autocomplete="off">' +
         '<div class="hint" id="i-detect"></div></div>' +
-      '<div class="fld"><label>Used by which app? <span style="color:var(--muted);font-weight:400">(optional)</span></label><input class="wz-input" id="i-app" placeholder="e.g. Atrex, QuickBooks — the program that opens this database" autocomplete="off"></div>' +
+      '<div class="fld"><label>App (owner)</label><input class="wz-input" id="i-app" placeholder="Atrex, QuickBooks, ..." autocomplete="off"></div>' +
       '<div class="fld"><label>Comment (optional)</label><input class="wz-input" id="i-comment" autocomplete="off"></div>' +
       '<div id="i-out" class="raw-err" style="display:none"></div>' +
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
@@ -111,6 +171,36 @@
     };
   }
 
+  function credsModal(creds, engine) {
+    var uri = engine === 'postgres'
+      ? 'postgresql://' + creds.user + ':' + creds.password + '@' + creds.host + ':' + creds.port + '/' + creds.database
+      : 'mysql://' + creds.user + ':' + creds.password + '@' + creds.host + ':' + creds.port + '/' + creds.database;
+    var back = document.createElement('div'); back.className = 'modal-back';
+    back.innerHTML =
+      '<div class="modal" style="max-width:560px">' +
+      '<h3>Database ready — save these now</h3>' +
+      '<p class="hint" style="color:var(--warn)">The password is shown once and cannot be retrieved later. If you lose it you can reset it, but you can\'t look it up. Copy it somewhere safe before closing.</p>' +
+      '<div class="cred-grid">' +
+        credRow('Host', creds.host) + credRow('Port', creds.port) +
+        credRow('Database', creds.database) + credRow('User', creds.user) +
+        credRow('Password', creds.password) +
+      '</div>' +
+      '<div class="fld" style="margin-top:12px"><label>Connection string</label>' +
+        '<input class="wz-input" id="cred-uri" readonly value="' + esc(uri) + '" onclick="this.select()"></div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">' +
+        '<button class="button" id="cred-copy">Copy connection string</button>' +
+        '<button class="button ghost" id="cred-done">I\'ve saved it</button></div>' +
+      '</div>';
+    document.body.appendChild(back);
+    $('#cred-copy', back).onclick = function () {
+      navigator.clipboard.writeText(uri).then(function () { toast('Copied', 'ok'); });
+    };
+    $('#cred-done', back).onclick = function () { back.remove(); load(); };
+  }
+  function credRow(k, v) {
+    return '<div class="cred-k">' + esc(k) + '</div><div class="cred-v"><code>' + esc(String(v)) + '</code></div>';
+  }
+
   function serverModal() {
     var back = document.createElement('div'); back.className = 'modal-back';
     back.innerHTML =
@@ -120,6 +210,8 @@
       '<div class="fld"><label>Engine</label><select class="wz-input" id="s-engine"><option value="postgres">PostgreSQL (port 5432)</option><option value="mysql">MariaDB (port 3306)</option></select></div>' +
       '<div class="fld"><label>Name</label><input class="wz-input" id="s-name" placeholder="main-db" autocomplete="off"></div>' +
       '<div class="fld"><label>Used by which app? <span style="color:var(--muted);font-weight:400">(optional)</span></label><input class="wz-input" id="s-app" placeholder="e.g. Nextcloud, Gitea — a label, not a database user" autocomplete="off"></div>' +
+      '<div class="fld"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="s-create" checked> Create a database and login for me</label>' +
+        '<div class="hint" style="margin:4px 0 0">ForgeOS makes a database and a user with a strong password (shown once). Uncheck to only track an engine you\'ll set up yourself.</div></div>' +
       '<div class="fld"><label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="s-install"> Install the engine if missing</label></div>' +
       '<div id="s-out" class="raw-err" style="display:none"></div>' +
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">' +
@@ -130,10 +222,12 @@
     $('#s-go', back).onclick = async function () {
       var name = $('#s-name', back).value.trim();
       if (!name) { toast('Name required', 'err'); return; }
+      var engine = $('#s-engine', back).value;
       var btn = this;
       btn.disabled = true; btn.style.opacity = .5; btn.textContent = 'Working…';
-      var payload = { name: name, engine: $('#s-engine', back).value,
+      var payload = { name: name, engine: engine,
                       app: $('#s-app', back).value.trim(),
+                      create_db: $('#s-create', back).checked,
                       install: $('#s-install', back).checked };
       var attempt = 0;
       async function go() {
@@ -145,7 +239,12 @@
           btn.textContent = 'Installing engine…';
           setTimeout(go, 5000); return;
         }
-        if (r.ok) { toast('Server database added', 'ok'); back.remove(); load(); return; }
+        if (r.ok) {
+          back.remove();
+          if (r.data && r.data.credentials) credsModal(r.data.credentials, engine);
+          else { toast('Server database added', 'ok'); load(); }
+          return;
+        }
         var o = $('#s-out', back); o.style.display = '';
         o.textContent = (r.data && r.data.detail) || 'Could not add';
         btn.disabled = false; btn.style.opacity = 1; btn.textContent = 'Add';
