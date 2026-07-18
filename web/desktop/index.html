@@ -107,7 +107,7 @@ a.am-item { text-decoration: none; color: inherit; }
 .vital .cap{font-size:12px;font-weight:700;color:var(--muted);margin-top:2px}
 .ringwrap{position:relative;width:64px;height:64px;flex:none}
 .ringwrap b{position:absolute;inset:0;display:grid;place-items:center;font-size:14px}
-.ring{transform:rotate(-90deg)}
+.ring{width:64px;height:64px;transform:rotate(-90deg)}
 .ring circle{fill:none;stroke-width:7}
 .ring .track{stroke:var(--surface-2,#f1f5fb)}
 .ring .rval{stroke:var(--primary);stroke-linecap:round;transition:stroke-dashoffset .8s ease,stroke .3s}
@@ -246,11 +246,11 @@ a.am-item { text-decoration: none; color: inherit; }
 
       <!-- 2 · VITALS: gauges for capacity, words for state -->
       <section class="vitals">
-        <article class="panel vital"><div class="ringwrap"><svg class="ring" width="64" height="64" data-ring="cpu"><circle class="track" cx="32" cy="32" r="26"/><circle class="rval" cx="32" cy="32" r="26"/></svg><b data-live="r-cpu">—</b></div>
+        <article class="panel vital"><div class="ringwrap"><svg class="ring" viewBox="0 0 64 64" data-ring="cpu"><circle class="track" cx="32" cy="32" r="26"/><circle class="rval" cx="32" cy="32" r="26"/></svg><b data-live="r-cpu">—</b></div>
           <div><label>Processor</label><div class="cap" data-live="r-cpu-c">—</div></div></article>
-        <article class="panel vital"><div class="ringwrap"><svg class="ring" width="64" height="64" data-ring="mem"><circle class="track" cx="32" cy="32" r="26"/><circle class="rval" cx="32" cy="32" r="26"/></svg><b data-live="r-mem">—</b></div>
+        <article class="panel vital"><div class="ringwrap"><svg class="ring" viewBox="0 0 64 64" data-ring="mem"><circle class="track" cx="32" cy="32" r="26"/><circle class="rval" cx="32" cy="32" r="26"/></svg><b data-live="r-mem">—</b></div>
           <div><label>Memory</label><div class="cap" data-live="r-mem-c">—</div></div></article>
-        <article class="panel vital"><div class="ringwrap"><svg class="ring" width="64" height="64" data-ring="disk"><circle class="track" cx="32" cy="32" r="26"/><circle class="rval" cx="32" cy="32" r="26"/></svg><b data-live="r-disk">—</b></div>
+        <article class="panel vital"><div class="ringwrap"><svg class="ring" viewBox="0 0 64 64" data-ring="disk"><circle class="track" cx="32" cy="32" r="26"/><circle class="rval" cx="32" cy="32" r="26"/></svg><b data-live="r-disk">—</b></div>
           <div><label>Storage</label><div class="cap" data-live="r-disk-c">—</div></div></article>
         <article class="panel vital" style="display:block">
           <label>Network</label>
