@@ -1000,6 +1000,20 @@ async def drive_replace(body: dict, user=Depends(verify_token)):
         raise HTTPException(400, r.stderr.strip() or "btrfs replace failed")
     _audit(user["sub"], "storage.drive.replace", "success",
            f"{old_raw} -> {new} in {pool} ({mount})")
+    # keep config's device list truthful after the swap (see add_drive note)
+    try:
+        import storage_api  # type: ignore
+        cfg = storage_api.fc.load()
+        match = next((p for p in cfg.storage.pools if p.name == pool), None)
+        if match is not None:
+            if not old_raw.isdigit():
+                old_path = _dev(old_raw)
+                match.devices = [d for d in match.devices if d != old_path]
+            if new not in match.devices:
+                match.devices.append(new)
+            storage_api.fc.save(cfg)
+    except Exception:
+        pass                         # config sync is best-effort; the swap succeeded
     return {"ok": True, "message": f"Replacing {old_raw} with {new}; "
                                    f"btrfs is rebuilding redundancy"}
 

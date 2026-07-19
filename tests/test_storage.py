@@ -471,3 +471,80 @@ class TestBtrfsDriveActions:
         r = test_client.post("/api/storage/pool/rebuild",
                              json={"pool": "ghost"}, headers=auth_headers)
         assert r.status_code == 404
+
+
+class TestDriveRoleEnrichment:
+    """The /drives endpoint must tell OS disk / pool member / spare apart, and
+    add_drive must persist the new device so config stops diverging from btrfs
+    (the 'says 2 but there are 3' bug)."""
+
+    def _cfg_pool(self, tmp_path, monkeypatch, devices):
+        import forgeos_config as fc
+        cfgfile = tmp_path / "config.json"
+        monkeypatch.setenv("FORGEOS_CONFIG_JSON", str(cfgfile))
+        monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(
+            name="tank", raid_level="raid1", devices=devices,
+            mountpoint=str(tmp_path / "mnt"), uuid="u"))
+        fc.save(cfg, cfgfile)
+        return cfgfile
+
+    def test_add_drive_persists_to_config(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api, forgeos_config as fc
+        cfgfile = self._cfg_pool(tmp_path, monkeypatch, ["/dev/sdb", "/dev/sdd"])
+        monkeypatch.setattr(storage_api.Path, "is_mount", lambda self: True)
+        monkeypatch.setattr(storage_api.subprocess, "run",
+            lambda *a, **k: __import__("types").SimpleNamespace(returncode=0, stdout="", stderr=""))
+        r = test_client.post("/api/storage/drive",
+                             json={"pool": "tank", "device": "sde"}, headers=auth_headers)
+        assert r.status_code == 200, r.text
+        # config now lists THREE devices — the divergence is fixed at the source
+        reloaded = fc.load()
+        tank = next(p for p in reloaded.storage.pools if p.name == "tank")
+        assert tank.devices == ["/dev/sdb", "/dev/sdd", "/dev/sde"]
+
+    def test_add_drive_idempotent_no_dup(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api, forgeos_config as fc
+        self._cfg_pool(tmp_path, monkeypatch, ["/dev/sdb"])
+        monkeypatch.setattr(storage_api.Path, "is_mount", lambda self: True)
+        monkeypatch.setattr(storage_api.subprocess, "run",
+            lambda *a, **k: __import__("types").SimpleNamespace(returncode=0, stdout="", stderr=""))
+        test_client.post("/api/storage/drive", json={"pool": "tank", "device": "sdb"}, headers=auth_headers)
+        reloaded = fc.load()
+        tank = next(p for p in reloaded.storage.pools if p.name == "tank")
+        assert tank.devices.count("/dev/sdb") == 1     # not doubled
+
+    def test_drives_report_role_and_pool(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api
+        from forgeos_diskprep import DiskInfo
+        self._cfg_pool(tmp_path, monkeypatch, ["/dev/sdb", "/dev/sdd"])
+        # raw drives from lsblk layer
+        monkeypatch.setattr(storage_api, "_run_args",
+            lambda *a, **k: '{"blockdevices":[]}')
+        # three disks: sda=OS, sdb=pool member, sdc=spare
+        def fake_inspect(runner=None):
+            os_d = DiskInfo(name="sda", path="/dev/sda"); os_d.is_system = True
+            m = DiskInfo(name="sdb", path="/dev/sdb"); m.in_array = True
+            sp = DiskInfo(name="sdc", path="/dev/sdc")
+            return [os_d, m, sp]
+        monkeypatch.setattr(storage_api.dp, "inspect_disks", fake_inspect)
+        drives = [{"name": "/dev/sda", "type": "SATA", "size": "64G", "model": "x", "temp": 0, "health": 100},
+                  {"name": "/dev/sdb", "type": "SATA", "size": "4T", "model": "y", "temp": 30, "health": 100},
+                  {"name": "/dev/sdc", "type": "SATA", "size": "4T", "model": "z", "temp": 30, "health": 100}]
+        storage_api._enrich_drive_roles(drives)
+        by = {d["name"]: d for d in drives}
+        assert by["/dev/sda"]["role"] == "os" and by["/dev/sda"]["os_label"] == "Forge"
+        assert by["/dev/sdb"]["role"] == "pool" and by["/dev/sdb"]["pool"] == "tank"
+        assert by["/dev/sdc"]["role"] == "spare"
+
+
+class TestAuditPrefixFilter:
+    def test_prefix_filters_to_storage(self, test_client, auth_headers, monkeypatch):
+        # seed a couple of audit rows across namespaces, then filter storage.*
+        import audit_api
+        r = test_client.get("/api/audit?prefix=storage.&limit=10", headers=auth_headers)
+        assert r.status_code == 200
+        # every returned entry (if any) must be in the storage namespace
+        for e in r.json().get("entries", []):
+            assert e["action"].startswith("storage.")

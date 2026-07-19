@@ -57,37 +57,92 @@
     var pct=tot?Math.round(used/tot*100):0;$('#pct').textContent=pct+'%';$('#donut').style.setProperty('--pct',pct+'%');
   }
 
+  // Three distinct, full drive icons — no cylinder, no emoji.
+  function driveIcon(media){
+    if(media==='nvme')  // M.2 stick: long board, connector notch, pin fingers
+      return '<svg viewBox="0 0 24 24"><rect x="2.5" y="8.5" width="16" height="7" rx="1.2"/><rect x="18.5" y="9.8" width="3" height="4.4" rx="0.6"/><path d="M2.5 11h2M2.5 13h2"/><rect x="6" y="10.4" width="3.4" height="3.2" rx="0.5"/><rect x="10.2" y="10.4" width="3.4" height="3.2" rx="0.5"/></svg>';
+    if(media==='ssd')   // flash chip: package body + pin rows + die grid
+      return '<svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="1.6"/><path d="M8 3v2M12 3v2M16 3v2M8 19v2M12 19v2M16 19v2M3 8h2M3 12h2M3 16h2M19 8h2M19 12h2M19 16h2"/><rect x="9" y="9" width="6" height="6" rx="0.8"/></svg>';
+    // HDD: platter + spindle hub + read/write head arm — a spinning disk
+    return '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="11" cy="12" r="5.2"/><circle cx="11" cy="12" r="1.1" fill="currentColor" stroke="none"/><path d="M17.5 6.5l-4 5.2"/><circle cx="17.5" cy="6.5" r="0.9" fill="currentColor" stroke="none"/></svg>';
+  }
+  function mediaLabel(m){return m==='nvme'?'NVMe':m==='ssd'?'SSD':'HDD';}
+
+  function driveCard(dr){
+    var lvl=dr.health>=90?'ok':dr.health>=60?'warn':'err';
+    var name=esc(dr.name.replace('/dev/',''));
+    var temp=dr.temp?dr.temp+' °C':'—';var tcls=dr.temp>=55?'err':dr.temp>=45?'warn':'ok';
+    var media=dr.media||'hdd';
+    var roleBadge = dr.role==='os'
+      ? '<span class="role-badge os">'+esc(dr.os_label||'Forge')+'</span>'
+      : dr.role==='pool'
+        ? '<span class="role-badge pool">'+esc(dr.pool)+'</span>'
+        : '<span class="role-badge spare">Spare</span>';
+    return '<div class="drive-card'+(lvl==='err'?' failed':'')+(dr.role==='os'?' is-os':'')+'">'+
+      '<span class="dot '+lvl+'"></span>'+
+      '<div class="drive-icon media-'+media+'">'+driveIcon(media)+'</div>'+
+      '<div class="drive-top"><h4>'+name+'</h4>'+roleBadge+'</div>'+
+      '<p class="model">'+esc(dr.model||'Unknown')+'</p>'+
+      '<div class="drive-meta"><div class="cell"><span>Capacity</span><strong>'+esc(dr.size||'—')+'</strong></div>'+
+      '<div class="cell"><span>Media</span><strong>'+mediaLabel(media)+'</strong></div>'+
+      '<div class="cell"><span>Temp</span><strong class="lvl '+tcls+'" style="color:var(--'+(tcls==='ok'?'success':tcls==='warn'?'warn':'danger')+')">'+temp+'</strong></div>'+
+      '<div class="cell"><span>Health</span><strong>'+dr.health+'%</strong></div></div>'+
+      '<div class="drive-health"><div class="health-row"><span>SMART status</span><span class="lvl '+lvl+'">'+(lvl==='ok'?'Passed':lvl==='warn'?'Warning':'Failing')+'</span></div>'+
+      '<div class="bar '+(lvl==='ok'?'good':lvl==='warn'?'warn':'danger')+'"><i style="width:'+dr.health+'%"></i></div></div>'+
+      '<div class="drive-actions">'+
+      '<button data-spin="'+esc(dr.name)+'" title="Spin down"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Spin</button>'+
+      '<button data-replace="'+esc(dr.name)+'" title="Replace"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4"/></svg>Replace</button>'+
+      '<button class="danger" data-smart="'+esc(dr.name)+'" title="SMART detail"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h0"/><circle cx="12" cy="12" r="9"/></svg>Info</button>'+
+      '</div></div>';
+  }
+
   async function loadDrives(){
     var d=(await api('/api/storage/drives')).data;var box=$('#drives');var drives=(d&&d.drives)||[];
     $('#drive-chip').textContent=drives.length+' drive'+(drives.length!==1?'s':'');
     if(!drives.length){box.innerHTML='<p style="color:var(--muted)">No drives detected.</p>';return}
-    box.innerHTML=drives.map(function(dr){
-      var lvl=dr.health>=90?'ok':dr.health>=60?'warn':'err';
-      var name=esc(dr.name.replace('/dev/',''));
-      var temp=dr.temp?dr.temp+' °C':'—';var tcls=dr.temp>=55?'err':dr.temp>=45?'warn':'ok';
-      var tran=(dr.type||'').toUpperCase();
-      var kind, bus;
-      if(tran==='NVME'){kind='NVMe';bus='';}
-      else{kind=dr.rota===false?'SSD':dr.rota===true?'HDD':(dr.kind||'HDD');bus=tran||'SATA';}
-      var typeCell='<strong>'+esc(kind)+'</strong>'+(bus?'<span style="display:block;color:var(--muted);font-size:11px;font-weight:700;margin-top:1px">'+esc(bus)+'</span>':'');
-      return '<div class="drive-card'+(lvl==='err'?' failed':'')+'">'+
-        '<span class="dot '+lvl+'"></span>'+
-        '<div class="drive-icon"><svg class="ico" viewBox="0 0 24 24" style="width:26px;height:26px"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3z"/><path d="M4 7v10c0 1.7 3.6 3 8 3s8-1.3 8-3V7"/><circle cx="12" cy="16" r="1"/></svg></div>'+
-        '<h4>'+name+'</h4><p class="model">'+esc(dr.model||'Unknown')+'</p>'+
-        '<div class="drive-meta"><div class="cell"><span>Capacity</span><strong>'+esc(dr.size||'—')+'</strong></div>'+
-        '<div class="cell"><span>Type</span>'+typeCell+'</div>'+
-        '<div class="cell"><span>Temp</span><strong class="lvl '+tcls+'" style="color:var(--'+(tcls==='ok'?'success':tcls==='warn'?'warn':'danger')+')">'+temp+'</strong></div>'+
-        '<div class="cell"><span>Health</span><strong>'+dr.health+'%</strong></div></div>'+
-        '<div class="drive-health"><div class="health-row"><span>SMART status</span><span class="lvl '+lvl+'">'+(lvl==='ok'?'Passed':lvl==='warn'?'Warning':'Failing')+'</span></div>'+
-        '<div class="bar '+(lvl==='ok'?'good':lvl==='warn'?'warn':'danger')+'"><i style="width:'+dr.health+'%"></i></div></div>'+
-        '<div class="drive-actions">'+
-        '<button data-spin="'+esc(dr.name)+'" title="Spin down"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Spin</button>'+
-        '<button data-replace="'+esc(dr.name)+'" title="Replace"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4"/></svg>Replace</button>'+
-        '<button class="danger" data-smart="'+esc(dr.name)+'" title="SMART detail"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h0"/><circle cx="12" cy="12" r="9"/></svg>Info</button>'+
-        '</div></div>'}).join('');
+    // Order: OS first, then pool members grouped by pool name, then spares.
+    var rank={os:0,pool:1,spare:2};
+    drives.sort(function(a,b){
+      var ra=rank[a.role]||2,rb=rank[b.role]||2;
+      if(ra!==rb)return ra-rb;
+      if(a.role==='pool'&&b.role==='pool'&&a.pool!==b.pool)return a.pool.localeCompare(b.pool);
+      return a.name.localeCompare(b.name);
+    });
+    // Render in labeled groups so the OS disk and each pool are visually distinct.
+    var groups=[];var cur=null;
+    drives.forEach(function(dr){
+      var key=dr.role==='os'?'__os':dr.role==='pool'?('pool:'+dr.pool):'__spare';
+      if(!cur||cur.key!==key){cur={key:key,role:dr.role,pool:dr.pool,items:[]};groups.push(cur)}
+      cur.items.push(dr);
+    });
+    box.innerHTML=groups.map(function(g){
+      var title=g.role==='os'?'Operating system (Forge)':g.role==='pool'?('Pool · '+esc(g.pool)):'Unassigned (spare)';
+      return '<div class="drive-group"><div class="drive-group-head">'+title+'</div>'+
+        '<div class="drive-grid">'+g.items.map(driveCard).join('')+'</div></div>';
+    }).join('');
     $$('[data-spin]').forEach(function(b){b.onclick=function(){doSpin(b.getAttribute('data-spin'))}});
     $$('[data-replace]').forEach(function(b){b.onclick=function(){doReplace(b.getAttribute('data-replace'))}});
     $$('[data-smart]').forEach(function(b){b.onclick=function(){doSmart(b.getAttribute('data-smart'))}});
+  }
+
+  // Storage activity terminal — reads the audit log filtered to storage.*
+  var LOGVERB={'storage.pool.create':'created pool','storage.drive.add':'added drive',
+    'storage.drive.replace':'replaced drive','storage.pool.rebuild':'started scrub',
+    'storage.drive.spindown':'spun down drive','storage.drive.fail':'fail requested'};
+  async function loadLog(){
+    var r=(await api('/api/audit?prefix=storage.&limit=60')).data;var box=$('#storage-log');
+    var entries=(r&&r.entries)||[];
+    if(!entries.length){box.innerHTML='<div class="term-line muted">No storage activity recorded yet.</div>';return}
+    box.innerHTML=entries.map(function(e){
+      var t=e.timestamp?new Date((String(e.timestamp).length>12?e.timestamp:e.timestamp*1000)):null;
+      var ts=t?t.toLocaleString([], {month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
+      var verb=LOGVERB[e.action]||(e.action||'').replace('storage.','').replace(/[._]/g,' ');
+      var ok=(e.status==='success');
+      return '<div class="term-line"><span class="term-ts">'+esc(ts)+'</span>'+
+        '<span class="term-st '+(ok?'ok':'err')+'">'+(ok?'OK':'ERR')+'</span>'+
+        '<span class="term-who">'+esc(e.who||'system')+'</span>'+
+        '<span class="term-msg">'+esc(verb)+(e.detail?' — '+esc(e.detail):'')+'</span></div>';
+    }).join('');
   }
 
   // ── actions ──
@@ -135,10 +190,11 @@
         toast(r.ok?'Pool created':(r.data&&r.data.detail)||'Create failed',r.ok?'ok':'err');if(r.ok){loadPools();loadDrives();loadCapacity()}return r.ok}});
   }
 
-  function refresh(){loadPools();loadCapacity();loadDrives()}
+  function refresh(){loadPools();loadCapacity();loadDrives();loadLog()}
   document.addEventListener('DOMContentLoaded',function(){
     $('#refresh').onclick=function(){refresh();toast('Refreshed','info')};
     $('#new-pool').onclick=doNewPool;
+    var lr=$('#log-refresh');if(lr)lr.onclick=function(){loadLog()};
     refresh();
   });
 })();

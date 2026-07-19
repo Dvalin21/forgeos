@@ -168,7 +168,72 @@ async def storage_drives(user=Depends(verify_token)):
                 })
         except Exception as e:
             logger.warning("lsblk fallback parse failed: %s", e)
+    _enrich_drive_roles(drives)
     return {"drives": drives}
+
+
+def _enrich_drive_roles(drives: list) -> None:
+    """Annotate each drive with the truth the UI needs to stop showing every
+    disk as if it were pooled:
+
+      role     : "os" (holds root/boot/swap) | "pool" (in a config pool)
+                 | "spare" (attached, unpooled)
+      pool     : the owning pool's name, or "" 
+      rota     : rotational? True=HDD, False=SSD/NVMe (from lsblk ROTA)
+      media    : "nvme" | "ssd" | "hdd" — for the right icon + always-monitor
+      os_label : "Forge" on the system disk (shown as its pool cell)
+
+    Source of truth is cross-referenced: the disk inspector for OS/rotational,
+    config for pool membership. This is the reconciliation the two separate
+    views (live hardware vs config pools) previously lacked.
+    """
+    try:
+        disks = {d.path: d for d in dp.inspect_disks()}
+    except Exception:
+        disks = {}
+    cfg = fc.load()
+    dev_to_pool = {}
+    for p in cfg.storage.pools:
+        for dev in p.devices:
+            dev_to_pool[dev] = p.name
+
+    # rotational flag straight from lsblk (ROTA), keyed by /dev path
+    rota_map = {}
+    try:
+        out = _run_args(["lsblk", "-J", "-d", "-o", "NAME,ROTA,TRAN"], timeout=10)
+        raw = json.loads(out) if out else {}
+        for dev in (raw.get("blockdevices", []) if isinstance(raw, dict) else raw):
+            rota_map[f"/dev/{dev.get('name','')}"] = {
+                "rota": str(dev.get("rota")) in ("1", "True", "true"),
+                "tran": (dev.get("tran") or "").lower()}
+    except Exception:
+        pass
+
+    for d in drives:
+        path = d.get("name", "")
+        info = disks.get(path)
+        rt = rota_map.get(path, {})
+        tran = rt.get("tran") or (d.get("type", "") or "").lower()
+        rota = rt.get("rota", True)
+        # media class drives the icon and the "monitor regardless of type" rule
+        if tran == "nvme" or path.startswith("/dev/nvme"):
+            media = "nvme"
+        elif rota is False:
+            media = "ssd"
+        else:
+            media = "hdd"
+        d["rota"] = rota
+        d["media"] = media
+        if info is not None and info.is_system:
+            d["role"] = "os"
+            d["pool"] = ""
+            d["os_label"] = "Forge"
+        elif path in dev_to_pool:
+            d["role"] = "pool"
+            d["pool"] = dev_to_pool[path]
+        else:
+            d["role"] = "spare"
+            d["pool"] = ""
 
 
 @router.post("/api/storage/pool")
@@ -240,6 +305,16 @@ async def add_drive(body: dict, user=Depends(verify_token)):
         raise HTTPException(500, "Drive add timed out")
     _audit(user["sub"], "storage.drive.add", "success",
            f"{device} added to btrfs pool {pool} ({mount})")
+
+    # Persist the new device to config — WITHOUT this the pool card kept
+    # showing the original device count while btrfs actually had one more
+    # (the "says 2 but there are 3" divergence). Config is the source of
+    # truth the pools view reads, so it must track the live filesystem.
+    cfg = fc.load()
+    match = next((p for p in cfg.storage.pools if p.name == pool), None)
+    if match is not None and device not in match.devices:
+        match.devices.append(device)
+        fc.save(cfg)
     return {"ok": True, "message": f"Drive {device} added to pool {pool}"}
 
 

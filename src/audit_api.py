@@ -39,13 +39,15 @@ def set_helpers(get_db: Callable[[], sqlite3.Connection]) -> None:
 async def list_audit_log(user=Depends(verify_token),
                          limit: int = 100, offset: int = 0,
                          action: str | None = None,
+                         prefix: str | None = None,
                          who: str | None = None):
     """Query the audit log. Newest first, with optional filters.
 
     Query params:
       limit   — max entries to return (default 100, max 1000)
       offset  — skip N entries from the front (for pagination)
-      action  — filter by action name (e.g. "backup.job.create")
+      action  — filter by exact action name (e.g. "backup.job.create")
+      prefix  — filter by action prefix (e.g. "storage." for the storage feed)
       who     — filter by username
     """
     assert _get_db is not None
@@ -56,6 +58,9 @@ async def list_audit_log(user=Depends(verify_token),
     if action:
         where.append("action = ?")
         params.append(action)
+    if prefix:
+        where.append("action LIKE ?")
+        params.append(prefix.replace("%", "") + "%")
     if who:
         where.append("who = ?")
         params.append(who)

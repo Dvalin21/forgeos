@@ -47,6 +47,33 @@
 .rebuild-bar{height:7px;border-radius:999px;background:rgba(21,34,56,.08);overflow:hidden;margin-top:8px}
 .rebuild-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--primary),var(--primary-2));transition:width .4s}
 .pill-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+
+/* drive groups (OS / pools / spares) */
+.drive-group{margin-bottom:20px}
+.drive-group:last-child{margin-bottom:0}
+.drive-group-head{font:800 12px var(--font);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+/* media-specific icon tint — three distinct looks */
+.drive-icon svg{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.drive-icon.media-hdd{background:rgba(37,99,235,.10);color:#2563eb}
+.drive-icon.media-ssd{background:rgba(16,185,129,.12);color:#0a8a52}
+.drive-icon.media-nvme{background:rgba(139,92,246,.14);color:#7c3aed}
+/* OS card accent */
+.drive-card.is-os{border-color:#7c3aed;box-shadow:0 0 0 1px rgba(124,58,237,.25)}
+.drive-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.role-badge{font:800 10px var(--font);padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
+.role-badge.os{background:rgba(124,58,237,.14);color:#7c3aed}
+.role-badge.pool{background:var(--primary-soft);color:var(--primary)}
+.role-badge.spare{background:var(--surface-2);color:var(--muted)}
+/* storage activity terminal */
+.term{background:#0d1526;border:1px solid #1e2b45;border-radius:14px;padding:12px 14px;max-height:280px;overflow:auto;font:500 12px "JetBrains Mono",ui-monospace,monospace}
+.term-line{display:flex;gap:10px;padding:3px 0;color:#c8d3e6;white-space:nowrap}
+.term-line.muted{color:#5b6b86}
+.term-ts{color:#5b6b86;flex:none}
+.term-st{flex:none;font-weight:800}
+.term-st.ok{color:#34d399}.term-st.err{color:#f87171}
+.term-who{color:#7aa2f7;flex:none}
+.term-msg{color:#c8d3e6;white-space:normal}
 </style>
 </head>
 <body>
@@ -82,8 +109,15 @@
 
       <!-- PHYSICAL DRIVES -->
       <section class="panel pad" style="margin-top:22px">
-        <div class="section-head"><div><h3>Physical Drives</h3><p>Per-disk SMART health, temperature, and lifecycle actions</p></div><span class="chip" id="drive-chip">—</span></div>
-        <div class="drive-grid" id="drives"><div style="color:var(--muted)">Loading drives…</div></div>
+        <div class="section-head"><div><h3>Physical Drives</h3><p>OS disk, pool members, and spares — SMART health, temperature, and lifecycle actions</p></div><span class="chip" id="drive-chip">—</span></div>
+        <div id="drives"><div style="color:var(--muted)">Loading drives…</div></div>
+      </section>
+
+      <!-- STORAGE ACTIVITY LOG (terminal) -->
+      <section class="panel pad" style="margin-top:22px">
+        <div class="section-head"><div><h3>Storage activity</h3><p>Every pool and drive operation, newest first</p></div>
+          <button class="circle-btn" id="log-refresh" title="Refresh log"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></button></div>
+        <div class="term" id="storage-log"><div class="term-line muted">Loading activity…</div></div>
       </section>
     </main>
   </div>
