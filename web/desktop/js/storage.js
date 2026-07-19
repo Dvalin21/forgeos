@@ -143,9 +143,11 @@
       var t=e.timestamp?new Date((String(e.timestamp).length>12?e.timestamp:e.timestamp*1000)):null;
       var ts=t?t.toLocaleString([], {month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
       var verb=LOGVERB[e.action]||(e.action||'').replace('storage.','').replace(/[._]/g,' ');
-      var ok=(e.status==='success');
-      return '<div class="term-line"><span class="term-ts">'+esc(ts)+'</span>'+
-        '<span class="term-st '+(ok?'ok':'err')+'">'+(ok?'OK':'ERR')+'</span>'+
+      var isResult=/_done$/.test(e.action||'');            // completion/result line
+      var st=e.status==='success'?'ok':e.status==='warning'?'warn':'err';
+      var stTxt=st==='ok'?'OK':st==='warn'?'WARN':'ERR';
+      return '<div class="term-line'+(isResult?' result':'')+'"><span class="term-ts">'+esc(ts)+'</span>'+
+        '<span class="term-st '+st+'">'+(isResult?'» '+stTxt:stTxt)+'</span>'+
         '<span class="term-who">'+esc(e.who||'system')+'</span>'+
         '<span class="term-msg">'+esc(verb)+(e.detail?' — '+esc(e.detail):'')+'</span></div>';
     }).join('');
@@ -215,6 +217,12 @@
     $('#refresh').onclick=function(){refresh();toast('Refreshed','info')};
     $('#new-pool').onclick=doNewPool;
     var lr=$('#log-refresh');if(lr)lr.onclick=function(){loadLog()};
+    var lx=$('#log-expand');
+    if(lx)lx.onclick=function(){
+      var term=$('#storage-log'),open=term.classList.toggle('expanded');
+      lx.classList.toggle('open',open);
+      $('span',lx).textContent=open?'Collapse':'Expand';
+    };
     refresh();
   });
 })();
