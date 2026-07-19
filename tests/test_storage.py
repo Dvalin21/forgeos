@@ -190,21 +190,30 @@ class TestAddDrive:
         )
         assert r.status_code == 400
 
-    def test_sends_to_mdadm(self, test_client, auth_headers, monkeypatch):
-        seen_cmds = []
-
+    def test_sends_to_btrfs_device_add(self, test_client, auth_headers, tmp_path, monkeypatch):
+        # Add now targets btrfs (device add on the mountpoint), not mdadm —
+        # the pool must exist and be mounted first.
+        import storage_api, forgeos_config as fc
+        cfgfile = tmp_path / "config.json"
+        monkeypatch.setenv("FORGEOS_CONFIG_JSON", str(cfgfile))
+        monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(
+            name="main", raid_level="raid1", devices=["/dev/sdb"],
+            mountpoint=str(tmp_path / "mnt"), uuid="u1"))
+        fc.save(cfg, cfgfile)
+        monkeypatch.setattr(storage_api.Path, "is_mount", lambda self: True)
+        seen = []
         def mock_run(cmd, **kw):
-            seen_cmds.append(cmd)
+            seen.append(cmd)
             return _mock_subprocess_run(returncode=0)
-
-        monkeypatch.setattr("subprocess.run", mock_run)
-        r = test_client.post(
-            "/api/storage/drive",
-            json={"device": "/dev/sdd", "pool": "main"},
-            headers=auth_headers,
-        )
+        monkeypatch.setattr(storage_api.subprocess, "run", mock_run)
+        r = test_client.post("/api/storage/drive",
+                             json={"device": "sdd", "pool": "main"},
+                             headers=auth_headers)
         assert r.status_code == 200
-        assert any("mdadm" in str(c) for c in seen_cmds)
+        assert any("btrfs" in str(c) and "device" in str(c) for c in seen)
+        assert not any("mdadm" in str(c) for c in seen)
 
     def test_rejects_non_admin(self, test_client, monkeypatch):
         from forgeos_auth import create_token
@@ -346,3 +355,119 @@ class TestStorageDf:
         r = test_client.get("/api/storage/df", headers=auth_headers)
         assert r.status_code == 200
         assert len(r.json()) == 1
+
+
+class TestBtrfsDriveActions:
+    """The four drive/pool mutation endpoints must issue BTRFS commands, not
+    mdadm. The bug: create made btrfs pools but add/replace/scrub targeted
+    /dev/md/<pool>, which never exists for btrfs — every one failed on a real
+    (btrfs) pool. These tests assert the correct command reaches the shell.
+    """
+    import types
+
+    def _btrfs_pool(self, tmp_path, monkeypatch):
+        import forgeos_config as fc
+        cfgfile = tmp_path / "config.json"
+        monkeypatch.setenv("FORGEOS_CONFIG_JSON", str(cfgfile))
+        monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(
+            name="tank", raid_level="raid1",
+            devices=["/dev/sdb", "/dev/sdd"],
+            mountpoint=str(tmp_path / "mnt"), uuid="abc-123"))
+        fc.save(cfg, cfgfile)
+        # pretend the mountpoint is a real mount so _pool_mount passes
+        import storage_api
+        monkeypatch.setattr(storage_api.Path, "is_mount", lambda self: True)
+        return str(tmp_path / "mnt")
+
+    def _capture_run(self, monkeypatch, module):
+        calls = []
+        def fake(args, timeout=15, **k):
+            calls.append(args)
+            import types
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        monkeypatch.setattr(module, "_run", fake)
+        return calls
+
+    def test_rebuild_runs_btrfs_scrub(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import forgeos_pages_api
+        mount = self._btrfs_pool(tmp_path, monkeypatch)
+        calls = self._capture_run(monkeypatch, forgeos_pages_api)
+        r = test_client.post("/api/storage/pool/rebuild",
+                             json={"pool": "tank"}, headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert calls == [["btrfs", "scrub", "start", mount]]
+        assert not any("mdadm" in c for c in calls)
+
+    def test_replace_present_disk_runs_btrfs_replace(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import forgeos_pages_api
+        mount = self._btrfs_pool(tmp_path, monkeypatch)
+        calls = self._capture_run(monkeypatch, forgeos_pages_api)
+        # old device present on disk
+        monkeypatch.setattr(forgeos_pages_api.Path, "exists", lambda self: True)
+        r = test_client.post("/api/storage/drive/replace",
+                             json={"pool": "tank", "old": "sdb", "new": "sde"},
+                             headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert calls[0] == ["btrfs", "replace", "start", "-B",
+                            "/dev/sdb", "/dev/sde", mount]
+
+    def test_replace_missing_disk_uses_devid_and_r(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import forgeos_pages_api
+        mount = self._btrfs_pool(tmp_path, monkeypatch)
+        calls = self._capture_run(monkeypatch, forgeos_pages_api)
+        # numeric 'old' = devid path for a missing disk -> -r rebuild
+        r = test_client.post("/api/storage/drive/replace",
+                             json={"pool": "tank", "old": "1", "new": "sde"},
+                             headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert calls[0] == ["btrfs", "replace", "start", "-B",
+                            "-r", "1", "/dev/sde", mount]
+
+    def test_fail_endpoint_refuses_with_guidance(self, test_client, auth_headers):
+        # btrfs has no 'fail' step; endpoint should 409 with guidance, not run mdadm
+        r = test_client.post("/api/storage/drive/fail",
+                             json={"pool": "tank", "device": "sdb"},
+                             headers=auth_headers)
+        assert r.status_code == 409
+
+    def test_add_drive_runs_btrfs_device_add(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api
+        mount = self._btrfs_pool(tmp_path, monkeypatch)
+        calls = []
+        def fake_run(args, capture_output=True, text=True, timeout=60, **k):
+            calls.append(args)
+            import types
+            return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+        monkeypatch.setattr(storage_api.subprocess, "run", fake_run)
+        r = test_client.post("/api/storage/drive",
+                             json={"pool": "tank", "device": "sde"},
+                             headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert calls == [["btrfs", "device", "add", "-f", "/dev/sde", mount]]
+
+    def test_unmounted_pool_rejected(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import forgeos_pages_api, storage_api, forgeos_config as fc
+        cfgfile = tmp_path / "config.json"
+        monkeypatch.setenv("FORGEOS_CONFIG_JSON", str(cfgfile))
+        monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(
+            name="tank", raid_level="raid1", devices=["/dev/sdb"],
+            mountpoint=str(tmp_path / "mnt"), uuid="x"))
+        fc.save(cfg, cfgfile)
+        monkeypatch.setattr(storage_api.Path, "is_mount", lambda self: False)
+        r = test_client.post("/api/storage/pool/rebuild",
+                             json={"pool": "tank"}, headers=auth_headers)
+        assert r.status_code == 409
+
+    def test_unknown_pool_404(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import forgeos_config as fc
+        cfgfile = tmp_path / "config.json"
+        monkeypatch.setenv("FORGEOS_CONFIG_JSON", str(cfgfile))
+        monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+        fc.save(fc.ForgeOSConfig(), cfgfile)
+        r = test_client.post("/api/storage/pool/rebuild",
+                             json={"pool": "ghost"}, headers=auth_headers)
+        assert r.status_code == 404

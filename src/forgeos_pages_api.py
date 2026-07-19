@@ -935,6 +935,14 @@ def _dev(name: str) -> str:
     return "/dev/" + d
 
 
+def _storage_pool_mount(pool: str) -> str:
+    """Resolve a pool name to its mounted btrfs mountpoint. Delegates to
+    storage_api's resolver so the config lookup + mounted-check live in one
+    place (btrfs device ops are anchored on the mountpoint, not /dev/md)."""
+    import storage_api  # type: ignore
+    return storage_api._pool_mount(pool)
+
+
 @router.post("/api/storage/drive/spindown")
 async def drive_spindown(body: dict, user=Depends(verify_token)):
     """Spin down (standby) an idle disk via hdparm -y."""
@@ -949,56 +957,66 @@ async def drive_spindown(body: dict, user=Depends(verify_token)):
 
 @router.post("/api/storage/drive/fail")
 async def drive_fail(body: dict, user=Depends(verify_token)):
-    """Mark a drive failed in its array (first step of a replace)."""
+    """btrfs has no explicit 'fail a device' step like mdadm — you replace a
+    device directly (online) or remove a missing one in degraded mount. This
+    endpoint is kept for API compatibility but returns guidance rather than
+    running a non-existent operation."""
     _admin(user)
-    pool = re.sub(r"[^a-zA-Z0-9_-]", "", body.get("pool", ""))
-    dev = _dev(body.get("device", ""))
-    if not pool:
-        raise HTTPException(400, "Pool required")
-    r = _run(["mdadm", "--manage", f"/dev/md/{pool}", "--fail", dev], timeout=30)
-    if r.returncode != 0:
-        raise HTTPException(400, r.stderr.strip() or "mark-fail failed")
-    _audit(user["sub"], "storage.drive.fail", "success", f"{dev} in {pool}")
-    return {"ok": True, "message": f"{dev} marked failed in {pool}"}
+    raise HTTPException(409, "btrfs pools don't 'fail' a device — use Replace "
+                             "to swap a drive online, which rebuilds "
+                             "redundancy automatically")
 
 
 @router.post("/api/storage/drive/replace")
 async def drive_replace(body: dict, user=Depends(verify_token)):
-    """Replace a failed drive: remove old, add new → triggers rebuild."""
+    """Replace a drive in a btrfs pool via `btrfs replace start` — online, no
+    unmount, redundancy rebuilt automatically.
+
+    If the old device is still present it's named directly; if it's gone
+    (physically failed/removed), pass its btrfs devid and this uses -r to
+    rebuild the replacement purely from RAID redundancy. The target must be
+    the same size or larger than the source.
+    """
     _admin(user)
     pool = re.sub(r"[^a-zA-Z0-9_-]", "", body.get("pool", ""))
-    old = _dev(body.get("old", ""))
+    old_raw = str(body.get("old", "")).strip()
     new = _dev(body.get("new", ""))
     if not pool:
         raise HTTPException(400, "Pool required")
-    md = f"/dev/md/{pool}"
-    rem = _run(["mdadm", "--manage", md, "--remove", old], timeout=30)
-    if rem.returncode != 0 and "No such device" not in (rem.stderr or ""):
-        raise HTTPException(400, rem.stderr.strip() or "remove failed")
-    add = _run(["mdadm", "--manage", md, "--add", new], timeout=30)
-    if add.returncode != 0:
-        raise HTTPException(400, add.stderr.strip() or "add failed")
+    mount = _storage_pool_mount(pool)
+
+    # old is either a device name (present disk) or a numeric devid (missing)
+    args = ["btrfs", "replace", "start", "-B"]      # -B = foreground, report result
+    if old_raw.isdigit():
+        args += ["-r", old_raw, new, mount]         # rebuild from redundancy
+    else:
+        old = _dev(old_raw)
+        if not Path(old).exists():
+            raise HTTPException(400, f"{old} is not present; pass its btrfs "
+                                     f"devid instead to replace a missing disk")
+        args += [old, new, mount]
+    r = _run(args, timeout=30)
+    if r.returncode != 0:
+        raise HTTPException(400, r.stderr.strip() or "btrfs replace failed")
     _audit(user["sub"], "storage.drive.replace", "success",
-           f"{old} -> {new} in {pool} (rebuild started)")
-    return {"ok": True, "message": f"Replaced {old} with {new}; rebuild started"}
+           f"{old_raw} -> {new} in {pool} ({mount})")
+    return {"ok": True, "message": f"Replacing {old_raw} with {new}; "
+                                   f"btrfs is rebuilding redundancy"}
 
 
 @router.post("/api/storage/pool/rebuild")
 async def pool_rebuild(body: dict, user=Depends(verify_token)):
-    """Kick a resync/scrub on an array."""
+    """Run a btrfs scrub — reads all data/metadata and verifies checksums,
+    repairing from the good copy on a redundant profile. This is the btrfs
+    equivalent of an mdadm consistency check, online and safe."""
     _admin(user)
     pool = re.sub(r"[^a-zA-Z0-9_-]", "", body.get("pool", ""))
     if not pool:
         raise HTTPException(400, "Pool required")
-    # Find the kernel md name behind /dev/md/<pool>
-    real = os.path.realpath(f"/dev/md/{pool}")
-    mdname = os.path.basename(real)
-    sync_action = Path(f"/sys/block/{mdname}/md/sync_action")
-    if not sync_action.exists():
-        raise HTTPException(404, "Array not found")
-    try:
-        sync_action.write_text("check\n")
-    except OSError as e:
-        raise HTTPException(400, f"Could not start rebuild: {e}")
-    _audit(user["sub"], "storage.pool.rebuild", "success", f"check started on {pool}")
-    return {"ok": True, "message": f"Consistency check started on {pool}"}
+    mount = _storage_pool_mount(pool)
+    r = _run(["btrfs", "scrub", "start", mount], timeout=20)
+    if r.returncode != 0:
+        raise HTTPException(400, r.stderr.strip() or "Could not start scrub")
+    _audit(user["sub"], "storage.pool.rebuild", "success",
+           f"scrub started on {pool} ({mount})")
+    return {"ok": True, "message": f"Consistency check (scrub) started on {pool}"}

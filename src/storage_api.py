@@ -51,6 +51,30 @@ def set_helpers(
     _audit = audit
 
 
+def _dev(name: str) -> str:
+    """Validate a bare device name (e.g. 'sdb') into a /dev path."""
+    from fastapi import HTTPException
+    d = re.sub(r"[^a-zA-Z0-9]", "", str(name))
+    if not d or len(d) > 20:
+        raise HTTPException(400, "Invalid device name")
+    return "/dev/" + d
+
+
+def _pool_mount(pool: str) -> str:
+    """Resolve a pool NAME to its btrfs mountpoint from config, and verify it
+    is actually a mounted btrfs filesystem before any device operation. btrfs
+    is managed by mountpoint, so this is the anchor for add/replace/scrub."""
+    from fastapi import HTTPException
+    cfg = fc.load()
+    match = next((p for p in cfg.storage.pools if p.name == pool), None)
+    if match is None:
+        raise HTTPException(404, f"No such pool: {pool}")
+    mp = match.resolved_mountpoint()
+    if not Path(mp).is_mount():
+        raise HTTPException(409, f"Pool '{pool}' is not mounted at {mp}")
+    return mp
+
+
 @router.get("/api/storage/pools")
 async def storage_pools(user=Depends(verify_token)):
     # V2 engine: pools are read from the config-DB — the single source of
@@ -191,30 +215,31 @@ async def create_pool(body: dict, user=Depends(verify_token)):
 
 @router.post("/api/storage/drive")
 async def add_drive(body: dict, user=Depends(verify_token)):
-    """Add a drive to an existing RAID pool — wraps mdadm --manage --add."""
+    """Add a drive to an existing btrfs pool via `btrfs device add`.
+
+    btrfs pools are managed by MOUNTPOINT, not an /dev/md node — the old
+    mdadm --add path could never work against the btrfs pools this same page
+    creates. The device is added online; the caller should run a scrub or let
+    btrfs rebalance as needed.
+    """
     if user.get("role") != "admin":
         raise HTTPException(403, "Admin required")
     pool   = re.sub(r"[^a-zA-Z0-9_-]", "", body.get("pool", ""))
-    device = re.sub(r"[^a-zA-Z0-9_/]", "", str(body.get("device", "")))
+    device = _dev(body.get("device", ""))
     if not pool:
         raise HTTPException(400, "Pool name required")
-    if not device:
-        raise HTTPException(400, "Device path required")
-    if not device.startswith("/dev/"):
-        device = "/dev/" + device
+    mount = _pool_mount(pool)
     try:
-        r = subprocess.run(
-            ["mdadm", "--manage", f"/dev/md/{pool}", "--add", device],
-            capture_output=True, text=True, timeout=30
-        )
+        r = subprocess.run(["btrfs", "device", "add", "-f", device, mount],
+                           capture_output=True, text=True, timeout=60)
         if r.returncode != 0:
-            raise HTTPException(500, detail=r.stderr.strip() or "mdadm --add failed")
+            raise HTTPException(400, r.stderr.strip() or "btrfs device add failed")
     except FileNotFoundError:
-        raise HTTPException(500, detail="mdadm not installed on this system")
+        raise HTTPException(500, "btrfs-progs not installed on this system")
     except subprocess.TimeoutExpired:
-        raise HTTPException(500, detail="Drive add timed out")
+        raise HTTPException(500, "Drive add timed out")
     _audit(user["sub"], "storage.drive.add", "success",
-            f"Drive {device} added to pool {pool}")
+           f"{device} added to btrfs pool {pool} ({mount})")
     return {"ok": True, "message": f"Drive {device} added to pool {pool}"}
 
 

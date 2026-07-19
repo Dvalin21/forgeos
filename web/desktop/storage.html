@@ -56,7 +56,7 @@
       <header class="topbar" style="grid-template-columns:1fr auto">
         <div>
           <div class="section-head" style="margin:0">
-            <div><h3 style="font-size:22px">Storage Manager</h3><p>ForgeRAID arrays, volumes, and physical drive health</p></div>
+            <div><h3 style="font-size:22px">Storage Manager</h3><p>btrfs pools, volumes, and physical drive health</p></div>
           </div>
         </div>
         <div class="top-actions">
@@ -68,7 +68,7 @@
       <!-- ARRAY / POOL OVERVIEW -->
       <section class="hero" style="grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr)">
         <article class="panel pad">
-          <div class="section-head"><div><h3>Array Overview</h3><p>RAID set state and rebuild status</p></div><span class="chip" id="array-chip">—</span></div>
+          <div class="section-head"><div><h3>Pool Overview</h3><p>btrfs RAID pool state and scrub status</p></div><span class="chip" id="array-chip">—</span></div>
           <div id="pool-list"></div>
         </article>
         <aside class="panel pad">

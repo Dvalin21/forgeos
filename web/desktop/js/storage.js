@@ -44,7 +44,7 @@
           '<button class="btn-ghost" data-addd="'+esc(x.name)+'" style="height:36px">Add drive</button></div></div>'}).join('');
       $$('[data-rebuild]').forEach(function(b){b.onclick=function(){doRebuild(b.getAttribute('data-rebuild'))}});
       $$('[data-addd]').forEach(function(b){b.onclick=function(){doAddDrive(b.getAttribute('data-addd'))}});
-    } else { $('#array-chip').textContent='No array'; box.innerHTML='<p style="color:var(--muted)">No mdadm arrays configured. Use Create Pool to build one.</p>'; }
+    } else { $('#array-chip').textContent='No array'; box.innerHTML='<p style="color:var(--muted)">No storage pools yet. Use Create Pool to build a btrfs RAID pool.</p>'; }
   }
 
   async function loadCapacity(){
@@ -97,8 +97,8 @@
     toast(r.ok?dev+' sent to standby':(r.data&&r.data.detail)||'Spin-down failed',r.ok?'ok':'err');
   }
   function doReplace(dev){
-    modal({title:'Replace drive',sub:'Remove '+dev+' from its array and rebuild onto a new disk.',
-      warn:'This marks the old drive failed and starts a rebuild. The array runs degraded until rebuild completes.',
+    modal({title:'Replace drive',sub:'Swap '+dev+' for a new disk. btrfs copies the data online — no downtime.',
+      warn:'btrfs rebuilds redundancy onto the new drive while the pool stays online. If the old drive is already gone, enter its btrfs devid instead of a name.',
       danger:true,cta:'Start replacement',
       fields:[{id:'pool',label:'Array',type:'select',options:poolOpts()},
         {id:'new',label:'New drive (e.g. sdg)',ph:'sdg'}],
@@ -117,14 +117,14 @@
         toast(r.ok?'Consistency check started':(r.data&&r.data.detail)||'Could not start',r.ok?'ok':'err');return r.ok}});
   }
   function doAddDrive(pool){
-    modal({title:'Add drive to '+pool,sub:'Add a spare/expansion disk to the array.',cta:'Add drive',
+    modal({title:'Add drive to '+pool,sub:'Add a disk to grow this btrfs pool. Added online.',cta:'Add drive',
       fields:[{id:'device',label:'Drive (e.g. sdg)',ph:'sdg'}],
       onSubmit:async function(v){if(!v.device){toast('Drive required','warn');return false}
         var r=await api('/api/storage/drive',{method:'POST',body:JSON.stringify({pool:pool,device:v.device})});
         toast(r.ok?'Drive added':(r.data&&r.data.detail)||'Add failed',r.ok?'ok':'err');if(r.ok){loadPools();loadDrives()}return r.ok}});
   }
   function doNewPool(){
-    modal({title:'Create storage pool',sub:'Build a new mdadm RAID array from available drives.',cta:'Create pool',
+    modal({title:'Create storage pool',sub:'Build a new btrfs RAID pool from available drives.',cta:'Create pool',
       warn:'All data on the selected drives will be erased.',danger:true,
       fields:[{id:'name',label:'Pool name',ph:'main'},
         {id:'level',label:'RAID level',type:'select',options:[{value:'1',label:'RAID 1 — mirror (2 drives)'},{value:'5',label:'RAID 5 — single parity (3+)'},{value:'6',label:'RAID 6 — double parity (4+)'},{value:'10',label:'RAID 10 — striped mirror (4+)'},{value:'0',label:'RAID 0 — stripe, no redundancy'}]},
