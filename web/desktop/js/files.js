@@ -115,6 +115,7 @@
     $('#btn-paste').disabled=!CLIPBOARD||!CLIPBOARD.items.length;
     if(one){var e=selEntries()[0];if(e&&e.type==='dir')$('#btn-download').disabled=true}
   }
+  function selEntries(){return ENTRIES.filter(function(e){return SELECTED.has(e.path)})}
   // ── context menu (a second trigger for the toolbar's own handlers) ──
   function closeContextMenu(){var m=$('#ctx-menu');if(m)m.remove();}
   function showContextMenu(x,y,emptyArea){
