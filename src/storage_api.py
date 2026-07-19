@@ -77,11 +77,17 @@ def _pool_mount(pool: str) -> str:
 
 @router.get("/api/storage/pools")
 async def storage_pools(user=Depends(verify_token)):
-    # V2 engine: pools are read from the config-DB — the single source of
-    # truth, ONE entry per pool. (The old forgeos-pool-status scanned the
-    # system live and listed a raid pool once PER DEVICE, so a 2-disk raid1
-    # showed up twice.) Mount state is checked live per pool.
+    # Pools come from the config-DB (one entry per pool). But config is only a
+    # CACHE of the real filesystem — a device added out-of-band, or by an older
+    # build that didn't persist, would leave config stale (the "says 2 but
+    # btrfs has 3" divergence). So we RECONCILE from btrfs on read: if the
+    # live device list differs, config is corrected and saved. btrfs is the
+    # source of truth for membership; config tracks it.
     cfg = fc.load()
+    if _reconcile_pool_devices(cfg):
+        fc.save(cfg)
+        cfg = fc.load()
+
     pools = []
     for p in cfg.storage.pools:
         mp = p.resolved_mountpoint()
@@ -95,6 +101,74 @@ async def storage_pools(user=Depends(verify_token)):
             "health": "ok" if Path(mp).is_mount() else "unmounted",
         })
     return {"pools": pools, "unassigned": []}
+
+
+def _btrfs_devices(mount: str) -> list:
+    """The REAL device list for a mounted btrfs filesystem, parsed from
+    `btrfs filesystem show`. This is authoritative — config is reconciled to
+    match it. Returns [] on any failure so the caller keeps the cached list."""
+    out = _run_args(["btrfs", "filesystem", "show", mount], timeout=10)
+    if not out:
+        return []
+    return re.findall(r"path\s+(/dev/\S+)", out)
+
+
+def _reconcile_pool_devices(cfg) -> bool:
+    """Correct each pool's device list to what btrfs actually reports. btrfs is
+    the source of truth for membership; config is a cache that can drift (older
+    builds that didn't persist an add, or an out-of-band `btrfs device add`).
+    Returns True if anything changed (caller saves). Shared by the pools and
+    drives endpoints so both self-heal identically."""
+    changed = False
+    for p in cfg.storage.pools:
+        mp = p.resolved_mountpoint()
+        if Path(mp).is_mount():
+            live = _btrfs_devices(mp)
+            if live and set(live) != set(p.devices):
+                p.devices = live
+                changed = True
+    return changed
+
+
+# scrub results we've already logged, so polling doesn't spam the audit log
+_scrub_logged: set = set()
+
+
+@router.get("/api/storage/scrub-status/{pool}")
+async def scrub_status(pool: str, user=Depends(verify_token)):
+    """Live scrub status for a pool. When a scrub FINISHES, its result (error
+    summary) is recorded to the audit log ONCE so it shows in the activity
+    terminal — the answer to 'the log should give results of scans'. A scrub
+    is async, so its outcome isn't known when it's kicked off; this captures it
+    on completion."""
+    from fastapi import HTTPException
+    pool = re.sub(r"[^a-zA-Z0-9_-]", "", pool)
+    cfg = fc.load()
+    match = next((p for p in cfg.storage.pools if p.name == pool), None)
+    if match is None:
+        raise HTTPException(404, f"No such pool: {pool}")
+    mp = match.resolved_mountpoint()
+    out = _run_args(["btrfs", "scrub", "status", mp], timeout=10) or ""
+    st = re.search(r"Status:\s+(\w+)", out)
+    status = st.group(1) if st else "unknown"
+    errs = re.search(r"Error summary:\s+(.+)", out)
+    errors = errs.group(1).strip() if errs else ""
+    dur = re.search(r"Duration:\s+(\S+)", out)
+    duration = dur.group(1) if dur else ""
+
+    # record the finished result to the audit log exactly once
+    if status == "finished" and errors:
+        key = f"{pool}:{duration}:{errors}"
+        if key not in _scrub_logged:
+            _scrub_logged.add(key)
+            if _audit:
+                ok = "no errors" in errors.lower()
+                _audit(user["sub"], "storage.pool.scrub_done",
+                       "success" if ok else "warning",
+                       f"{pool} scrub finished — {errors}"
+                       + (f" ({duration})" if duration else ""))
+    return {"pool": pool, "status": status, "errors": errors,
+            "duration": duration, "raw": out[:2000]}
 
 
 @router.get("/api/storage/drives")
@@ -192,6 +266,11 @@ def _enrich_drive_roles(drives: list) -> None:
     except Exception:
         disks = {}
     cfg = fc.load()
+    # reconcile membership from live btrfs so a device added out-of-band isn't
+    # shown as a spare (shared self-heal with the pools endpoint)
+    if _reconcile_pool_devices(cfg):
+        fc.save(cfg)
+        cfg = fc.load()
     dev_to_pool = {}
     for p in cfg.storage.pools:
         for dev in p.devices:

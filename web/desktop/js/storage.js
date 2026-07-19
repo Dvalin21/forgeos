@@ -133,6 +133,7 @@
   // Storage activity terminal — reads the audit log filtered to storage.*
   var LOGVERB={'storage.pool.create':'created pool','storage.drive.add':'added drive',
     'storage.drive.replace':'replaced drive','storage.pool.rebuild':'started scrub',
+    'storage.pool.scrub_done':'scrub finished',
     'storage.drive.spindown':'spun down drive','storage.drive.fail':'fail requested'};
   async function loadLog(){
     var r=(await api('/api/audit?prefix=storage.&limit=60')).data;var box=$('#storage-log');
@@ -172,9 +173,23 @@
     setTimeout(function(){var m=$('.modal');if(m&&d)m.insertAdjacentHTML('beforeend','<pre style="max-height:300px;overflow:auto;background:var(--surface-2);padding:12px;border-radius:12px;font:500 11px JetBrains Mono,monospace;white-space:pre-wrap">'+esc((d.output||'').slice(0,4000))+'</pre>')},30);
   }
   function doRebuild(pool){
-    modal({title:'Consistency check',sub:'Run a parity scrub on '+pool+'. Safe to run while online but uses disk I/O.',cta:'Start check',
+    modal({title:'Consistency check',sub:'Run a btrfs scrub on '+pool+'. Reads every block and verifies checksums, repairing from the good copy. Safe online; uses disk I/O.',cta:'Start check',
       fields:[],onSubmit:async function(){var r=await api('/api/storage/pool/rebuild',{method:'POST',body:JSON.stringify({pool:pool})});
-        toast(r.ok?'Consistency check started':(r.data&&r.data.detail)||'Could not start',r.ok?'ok':'err');return r.ok}});
+        toast(r.ok?'Scrub started — results will appear in the activity log':(r.data&&r.data.detail)||'Could not start',r.ok?'ok':'err');
+        if(r.ok)pollScrub(pool);return r.ok}});
+  }
+  // poll scrub status until finished; each poll records completion to the log
+  function pollScrub(pool,tries){
+    tries=tries||0;
+    if(tries>120)return;                     // ~10 min ceiling
+    setTimeout(async function(){
+      var r=(await api('/api/storage/scrub-status/'+encodeURIComponent(pool))).data;
+      if(r&&r.status==='finished'){
+        var ok=(r.errors||'').toLowerCase().indexOf('no errors')>=0;
+        toast('Scrub of '+pool+' finished — '+(r.errors||'done'),ok?'ok':'warn');
+        loadLog();                           // surface the recorded result
+      } else { pollScrub(pool,tries+1); loadLog(); }
+    },5000);
   }
   function doAddDrive(pool){
     modal({title:'Add drive to '+pool,sub:'Add a disk to grow this btrfs pool. Added online.',cta:'Add drive',

@@ -548,3 +548,107 @@ class TestAuditPrefixFilter:
         # every returned entry (if any) must be in the storage namespace
         for e in r.json().get("entries", []):
             assert e["action"].startswith("storage.")
+
+
+class TestPoolReconcile:
+    """Config is a cache of btrfs; it must self-heal to the real device list
+    (fixes the pre-persist divergence where btrfs had 3 devices, config 2)."""
+
+    def _pool(self, tmp_path, monkeypatch, cfg_devices):
+        import forgeos_config as fc, storage_api
+        cfgfile = tmp_path / "config.json"
+        monkeypatch.setenv("FORGEOS_CONFIG_JSON", str(cfgfile))
+        monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(
+            name="tank", raid_level="raid1", devices=cfg_devices,
+            mountpoint=str(tmp_path / "mnt"), uuid="u"))
+        fc.save(cfg, cfgfile)
+        monkeypatch.setattr(storage_api.Path, "is_mount", lambda self: True)
+        return cfgfile
+
+    def test_reconcile_adds_missing_device(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api, forgeos_config as fc
+        self._pool(tmp_path, monkeypatch, ["/dev/sdb", "/dev/sdd"])
+        # btrfs reports THREE — config has two
+        btrfs_out = ("Label: 'tank'\n\tdevid 1 path /dev/sdb\n"
+                     "\tdevid 2 path /dev/sdd\n\tdevid 3 path /dev/sde\n")
+        monkeypatch.setattr(storage_api, "_run_args",
+            lambda args, **k: btrfs_out if "filesystem" in args else "")
+        r = test_client.get("/api/storage/pools", headers=auth_headers)
+        assert r.status_code == 200
+        devs = r.json()["pools"][0]["devices"]
+        assert set(devs) == {"/dev/sdb", "/dev/sdd", "/dev/sde"}
+        # and it PERSISTED, not just displayed
+        assert set(fc.load().storage.pools[0].devices) == {"/dev/sdb", "/dev/sdd", "/dev/sde"}
+
+    def test_reconcile_noop_when_matching(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api
+        self._pool(tmp_path, monkeypatch, ["/dev/sdb", "/dev/sdd"])
+        monkeypatch.setattr(storage_api, "_run_args",
+            lambda args, **k: "\tdevid 1 path /dev/sdb\n\tdevid 2 path /dev/sdd\n" if "filesystem" in args else "")
+        r = test_client.get("/api/storage/pools", headers=auth_headers)
+        assert set(r.json()["pools"][0]["devices"]) == {"/dev/sdb", "/dev/sdd"}
+
+    def test_reconcile_keeps_cache_on_btrfs_failure(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api
+        self._pool(tmp_path, monkeypatch, ["/dev/sdb", "/dev/sdd"])
+        # btrfs show returns nothing (command failed) -> keep cached list
+        monkeypatch.setattr(storage_api, "_run_args", lambda args, **k: "")
+        r = test_client.get("/api/storage/pools", headers=auth_headers)
+        assert set(r.json()["pools"][0]["devices"]) == {"/dev/sdb", "/dev/sdd"}
+
+
+class TestScrubStatus:
+    def _pool(self, tmp_path, monkeypatch):
+        import forgeos_config as fc, storage_api
+        cfgfile = tmp_path / "config.json"
+        monkeypatch.setenv("FORGEOS_CONFIG_JSON", str(cfgfile))
+        monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(
+            name="tank", raid_level="raid1", devices=["/dev/sdb"],
+            mountpoint=str(tmp_path / "mnt"), uuid="u"))
+        fc.save(cfg, cfgfile)
+        storage_api._scrub_logged.clear()
+
+    def test_finished_scrub_parsed_and_logged(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api
+        self._pool(tmp_path, monkeypatch)
+        out = ("Status:           finished\nDuration:         0:00:03\n"
+               "Error summary:    no errors found\n")
+        monkeypatch.setattr(storage_api, "_run_args", lambda args, **k: out)
+        logged = []
+        monkeypatch.setattr(storage_api, "_audit",
+            lambda who, action, status, detail=None: logged.append((action, status, detail)))
+        r = test_client.get("/api/storage/scrub-status/tank", headers=auth_headers)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "finished"
+        assert "no errors" in body["errors"]
+        # completion recorded to the log exactly once
+        assert any(a == "storage.pool.scrub_done" for a, _, _ in logged)
+
+    def test_scrub_result_logged_once(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api
+        self._pool(tmp_path, monkeypatch)
+        out = "Status:           finished\nDuration:         0:00:03\nError summary:    no errors found\n"
+        monkeypatch.setattr(storage_api, "_run_args", lambda args, **k: out)
+        logged = []
+        monkeypatch.setattr(storage_api, "_audit",
+            lambda who, action, status, detail=None: logged.append(action))
+        test_client.get("/api/storage/scrub-status/tank", headers=auth_headers)
+        test_client.get("/api/storage/scrub-status/tank", headers=auth_headers)  # poll again
+        assert logged.count("storage.pool.scrub_done") == 1     # not spammed
+
+    def test_running_scrub_not_logged(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import storage_api
+        self._pool(tmp_path, monkeypatch)
+        out = "Status:           running\nDuration:         0:00:01\n"
+        monkeypatch.setattr(storage_api, "_run_args", lambda args, **k: out)
+        logged = []
+        monkeypatch.setattr(storage_api, "_audit",
+            lambda who, action, status, detail=None: logged.append(action))
+        r = test_client.get("/api/storage/scrub-status/tank", headers=auth_headers)
+        assert r.json()["status"] == "running"
+        assert not logged        # nothing logged until finished
