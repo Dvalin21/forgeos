@@ -802,46 +802,112 @@ async def compose_project_delete(name: str, user=Depends(verify_token)):
 
 @router.post("/api/files/chmod")
 async def file_chmod(body: dict, user=Depends(verify_token)):
-    """POSIX chmod. `mode` is an octal string like '755' or '0644'."""
+    """POSIX chmod. `mode` is an octal string like '755' or '0644'.
+
+    Scope (independent, for the tree Permissions editor):
+      apply_dirs   - recurse into subdirectories, applying the dir mode
+      apply_files  - recurse into files, applying `file_mode` (or `mode`)
+      file_mode    - optional separate octal for files (the correct Unix
+                     pattern is dirs 755 / files 644 in one pass)
+    `recursive: true` remains supported as an alias for
+    apply_dirs+apply_files with a single mode (used by the file-list editor).
+    """
     _admin(user)
     p = _safe(body.get("path", ""))
     raw = str(body.get("mode", "")).strip()
     if not re.fullmatch(r"[0-7]{3,4}", raw):
         raise HTTPException(400, "Mode must be octal, e.g. 755 or 0644")
+    dir_mode = int(raw, 8)
+
     recursive = bool(body.get("recursive"))
-    mode = int(raw, 8)
-    if recursive and p.is_dir():
-        for root, dirs, files in os.walk(p):
-            os.chmod(root, mode)
-            for f in files:
-                try:
-                    os.chmod(os.path.join(root, f), mode)
-                except OSError:
-                    pass
+    apply_dirs = bool(body.get("apply_dirs")) or recursive
+    apply_files = bool(body.get("apply_files")) or recursive
+
+    file_raw = str(body.get("file_mode", "")).strip()
+    if file_raw:
+        if not re.fullmatch(r"[0-7]{3,4}", file_raw):
+            raise HTTPException(400, "File mode must be octal, e.g. 644")
+        file_mode = int(file_raw, 8)
     else:
-        os.chmod(p, mode)
-    _audit(user["sub"], "files.chmod", "success", f"{p} -> {raw}{' -R' if recursive else ''}")
+        file_mode = dir_mode
+
+    if (apply_dirs or apply_files) and p.is_dir():
+        os.chmod(p, dir_mode)                       # the folder itself
+        for root, dirs, files in os.walk(p):
+            if apply_dirs:
+                for d in dirs:
+                    try:
+                        os.chmod(os.path.join(root, d), dir_mode)
+                    except OSError:
+                        pass
+            if apply_files:
+                for f in files:
+                    try:
+                        os.chmod(os.path.join(root, f), file_mode)
+                    except OSError:
+                        pass
+        scope = f" -R(dirs={apply_dirs},files={apply_files})"
+    else:
+        os.chmod(p, dir_mode)
+        scope = ""
+    detail = f"{p} -> {raw}" + (f"/{file_raw}" if file_raw else "") + scope
+    _audit(user["sub"], "files.chmod", "success", detail)
     return {"ok": True}
 
 
 @router.post("/api/files/chown")
 async def file_chown(body: dict, user=Depends(verify_token)):
-    """POSIX chown. owner/group are names or numeric ids."""
+    """POSIX chown. owner/group are names or numeric ids.
+
+    Scope mirrors chmod: apply_dirs / apply_files recurse independently;
+    `recursive: true` is the both-scopes alias. Independent scoping uses a
+    Python walk (shutil.chown) because `chown -R` cannot target dirs and
+    files separately.
+    """
     _admin(user)
     p = _safe(body.get("path", ""))
     owner = re.sub(r"[^A-Za-z0-9._-]", "", str(body.get("owner", "")))
     group = re.sub(r"[^A-Za-z0-9._-]", "", str(body.get("group", "")))
     if not owner and not group:
         raise HTTPException(400, "owner and/or group required")
+
+    recursive = bool(body.get("recursive"))
+    apply_dirs = bool(body.get("apply_dirs")) or recursive
+    apply_files = bool(body.get("apply_files")) or recursive
+
+    # shutil.chown wants None (not "") for an unchanged field
+    o = owner or None
+    g = group or None
+
+    def _one(path: str) -> None:
+        try:
+            shutil.chown(path, o, g)
+        except (OSError, LookupError):
+            pass
+
+    if (apply_dirs or apply_files) and p.is_dir():
+        try:
+            shutil.chown(str(p), o, g)              # the folder itself
+        except LookupError:
+            raise HTTPException(400, "unknown owner or group")
+        for root, dirs, files in os.walk(p):
+            if apply_dirs:
+                for d in dirs:
+                    _one(os.path.join(root, d))
+            if apply_files:
+                for f in files:
+                    _one(os.path.join(root, f))
+        scope = f" -R(dirs={apply_dirs},files={apply_files})"
+    else:
+        try:
+            shutil.chown(str(p), o, g)
+        except LookupError:
+            raise HTTPException(400, "unknown owner or group")
+        except OSError as e:
+            raise HTTPException(400, str(e) or "chown failed")
+        scope = ""
     spec = owner + (":" + group if group else "")
-    args = ["chown"]
-    if body.get("recursive"):
-        args.append("-R")
-    args += [spec, str(p)]
-    r = _run(args)
-    if r.returncode != 0:
-        raise HTTPException(400, r.stderr.strip() or "chown failed")
-    _audit(user["sub"], "files.chown", "success", f"{p} -> {spec}")
+    _audit(user["sub"], "files.chown", "success", f"{p} -> {spec}{scope}")
     return {"ok": True}
 
 

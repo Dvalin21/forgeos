@@ -57,6 +57,7 @@
       return '<div class="tree-node" data-go="'+esc(r)+'"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'+esc(r.split('/').pop()||r)+'</div>'+
         '<div class="tree-children" data-children="'+esc(r)+'"></div>'}).join('');
     $$('#tree-body .tree-node').forEach(function(n){n.onclick=function(){go(n.getAttribute('data-go'))}});
+    wireTreeMenu($$('#tree-body .tree-node'));
     if(!CWD)go(ROOTS[0]);
   }
   async function expandTree(path){
@@ -65,6 +66,7 @@
     if(!d)return;var dirs=(d.entries||[]).filter(function(e){return e.type==='dir'});
     holder.innerHTML=dirs.map(function(e){return '<div class="tree-node" data-go="'+esc(e.path)+'"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'+esc(e.name)+'</div>'}).join('');
     $$('[data-children="'+CSS.escape(path)+'"] .tree-node').forEach(function(n){n.onclick=function(ev){ev.stopPropagation();go(n.getAttribute('data-go'))}});
+    wireTreeMenu($$('[data-children="'+CSS.escape(path)+'"] .tree-node'));
   }
 
   // ── list ──
@@ -163,19 +165,68 @@
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeContextMenu();});
   window.addEventListener('resize',closeContextMenu);
 
-
-  async function newFolder(){
-    modal({title:'New folder',sub:'Create a folder in '+CWD,fields:[{id:'name',label:'Folder name',ph:'documents'}],cta:'Create',
-      onSubmit:async function(v){if(!v.name){toast('Name required','warn');return false}
-        var r=await api('/api/files/mkdir',{method:'POST',body:JSON.stringify({path:CWD,name:v.name})});
-        toast(r.ok?'Folder created':(r.data&&r.data.detail)||'Failed',r.ok?'ok':'err');if(r.ok)go(CWD);return r.ok}});
+  // Tree context menu — acts on the node's folder IN PLACE (no navigation),
+  // reusing the same target-aware handlers as the file list.
+  function showTreeMenu(x,y,path,name){
+    closeContextMenu();
+    var e={path:path,name:name,type:'dir',mode:undefined};   // a directory entry
+    var canPaste=!!(CLIPBOARD&&CLIPBOARD.items&&CLIPBOARD.items.length);
+    var items=[
+      ['Open',function(){go(path)},true],
+      null,
+      ['New folder inside',function(){newFolder(path)},true],
+      ['Paste into',function(){pasteInto(path)},canPaste],
+      null,
+      ['Cut',function(){CLIPBOARD={op:'cut',items:[path]};toast('1 item cut','info')},true],
+      ['Copy',function(){CLIPBOARD={op:'copy',items:[path]};toast('1 item copied','info')},true],
+      null,
+      ['Rename',function(){rename(e)},true],
+      ['Permissions',function(){editPerms(e)},true],
+      null,
+      ['Delete',function(){delSel([path])},true,true]
+    ];
+    var m=document.createElement('div');m.id='ctx-menu';m.className='ctx-menu';
+    m.innerHTML=items.map(function(it){if(!it)return '<div class="ctx-sep"></div>';
+      return '<button class="ctx-item'+(it[3]?' danger':'')+'"'+(it[2]?'':' disabled')+'>'+esc(it[0])+'</button>'}).join('');
+    document.body.appendChild(m);
+    var r=m.getBoundingClientRect();
+    m.style.left=Math.max(6,Math.min(x,window.innerWidth-r.width-6))+'px';
+    m.style.top=Math.max(6,Math.min(y,window.innerHeight-r.height-6))+'px';
+    var btns=m.querySelectorAll('.ctx-item');var bi=0;
+    items.forEach(function(it){if(!it)return;var btn=btns[bi++];if(it[2])btn.onclick=function(){closeContextMenu();it[1]()}});
   }
-  async function rename(){
-    var e=selEntries()[0];if(!e)return;
+  // paste into an explicit target dir (tree), independent of CWD
+  async function pasteInto(target){
+    if(!CLIPBOARD||!CLIPBOARD.items.length)return;
+    var ep=CLIPBOARD.op==='cut'?'/api/files/move':'/api/files/copy';
+    var r=await api(ep,{method:'POST',body:JSON.stringify({items:CLIPBOARD.items,target:target})});
+    toast(r.ok?(CLIPBOARD.op==='cut'?'Moved':'Copied')+' '+(r.data&&r.data.count||CLIPBOARD.items.length)+' item(s)':(r.data&&r.data.detail)||'Paste failed',r.ok?'ok':'err');
+    if(r.ok){CLIPBOARD=null;go(CWD);loadRoots()}
+  }
+  // attach a contextmenu handler to a set of tree nodes
+  function wireTreeMenu(nodes){
+    nodes.forEach(function(n){n.oncontextmenu=function(ev){
+      ev.preventDefault();ev.stopPropagation();
+      var path=n.getAttribute('data-go');
+      var name=(n.textContent||'').trim()||path.split('/').pop();
+      showTreeMenu(ev.clientX,ev.clientY,path,name);
+    }});
+  }
+
+
+  async function newFolder(inPath){
+    var base=inPath||CWD;
+    modal({title:'New folder',sub:'Create a folder in '+base,fields:[{id:'name',label:'Folder name',ph:'documents'}],cta:'Create',
+      onSubmit:async function(v){if(!v.name){toast('Name required','warn');return false}
+        var r=await api('/api/files/mkdir',{method:'POST',body:JSON.stringify({path:base,name:v.name})});
+        toast(r.ok?'Folder created':(r.data&&r.data.detail)||'Failed',r.ok?'ok':'err');if(r.ok){go(CWD);loadRoots()}return r.ok}});
+  }
+  async function rename(target){
+    var e=target||selEntries()[0];if(!e)return;
     modal({title:'Rename',sub:'Rename "'+e.name+'"',fields:[{id:'name',label:'New name',val:e.name}],cta:'Rename',
       onSubmit:async function(v){if(!v.name){toast('Name required','warn');return false}
         var r=await api('/api/files/rename',{method:'POST',body:JSON.stringify({src:e.path,name:v.name})});
-        toast(r.ok?'Renamed':(r.data&&r.data.detail)||'Failed',r.ok?'ok':'err');if(r.ok)go(CWD);return r.ok}});
+        toast(r.ok?'Renamed':(r.data&&r.data.detail)||'Failed',r.ok?'ok':'err');if(r.ok){go(CWD);loadRoots()}return r.ok}});
   }
   function doCut(){CLIPBOARD={op:'cut',items:[...SELECTED]};toast(CLIPBOARD.items.length+' item(s) cut','info');go(CWD)}
   function doCopy(){CLIPBOARD={op:'copy',items:[...SELECTED]};toast(CLIPBOARD.items.length+' item(s) copied','info');refreshToolbar()}
@@ -186,13 +237,14 @@
     toast(r.ok?(CLIPBOARD.op==='cut'?'Moved':'Copied')+' '+(r.data&&r.data.count||CLIPBOARD.items.length)+' item(s)':(r.data&&r.data.detail)||'Paste failed',r.ok?'ok':'err');
     if(r.ok){CLIPBOARD=null;go(CWD)}
   }
-  function delSel(){
-    var n=SELECTED.size;if(!n)return;
-    modal({title:'Delete '+n+' item'+(n>1?'s':''),sub:'This permanently removes the selected files and folders.',
+  function delSel(targets){
+    var items=targets||[...SELECTED];var n=items.length;if(!n)return;
+    var label=n===1?('"'+(items[0].split('/').pop())+'"'):(n+' items');
+    modal({title:'Delete '+label,sub:'This permanently removes the selected files and folders.',
       warn:'Deleted data cannot be recovered through this interface.',danger:true,cta:'Delete permanently',
-      onSubmit:async function(){var items=[...SELECTED];var ok=0,fail=0;
+      onSubmit:async function(){var ok=0,fail=0;
         for(var i=0;i<items.length;i++){var r=await api('/api/files/delete',{method:'POST',body:JSON.stringify({path:items[i]})});r.ok?ok++:fail++}
-        toast((fail?fail+' failed, ':'')+ok+' deleted',fail?'warn':'ok');go(CWD);return true}});
+        toast((fail?fail+' failed, ':'')+ok+' deleted',fail?'warn':'ok');go(CWD);loadRoots();return true}});
   }
   async function download(){
     var e=selEntries()[0];if(!e||e.type==='dir')return;
@@ -203,27 +255,55 @@
   }
 
   // ── permissions editor ──
-  async function editPerms(){
-    var e=selEntries()[0];if(!e)return;
+  async function editPerms(target){
+    var e=target||selEntries()[0];if(!e)return;
+    var isDir=e.type==='dir';
     var idents=(await api('/api/files/idents')).data||{users:[],groups:[]};
     var mode=e.mode||0o644;
     var bits=[(mode>>6)&7,(mode>>3)&7,mode&7];
-    function row(label,key){var n=key===0?'o':key===1?'g':'a';return '<div class="who">'+label+'</div>'+['r','w','x'].map(function(p,j){var mask=p==='r'?4:p==='w'?2:1;return '<label class="perm-cell"><input type="checkbox" data-k="'+key+'" data-m="'+mask+'" '+(bits[key]&mask?'checked':'')+'>'+p.toUpperCase()+'</label>'}).join('')}
-    var html='<div class="perm-grid">'+row('Owner',0)+row('Group',1)+row('Others',2)+'</div>'+
-      '<div style="display:flex;align-items:center;gap:14px;margin-bottom:14px"><span class="octal-display" id="oct">'+bits.join('')+'</span><label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600"><input type="checkbox" id="recur"> Apply to all contents</label></div>'+
+    function grid(idp,b){return '<div class="perm-grid" data-grid="'+idp+'">'+[['Owner',0],['Group',1],['Others',2]].map(function(pr){
+      return '<div class="who">'+pr[0]+'</div>'+['r','w','x'].map(function(p){var mask=p==='r'?4:p==='w'?2:1;
+        return '<label class="perm-cell"><input type="checkbox" data-k="'+pr[1]+'" data-m="'+mask+'" '+(b[pr[1]]&mask?'checked':'')+'>'+p.toUpperCase()+'</label>'}).join('')}).join('')+'</div>'}
+    // default file mode strips the execute bits from the dir mode (sane 755->644)
+    var fbits=[bits[0]&6,bits[1]&6,bits[2]&6];
+    var scopeUI = isDir ? (
+      '<div class="scope-box">'+
+        '<label class="scope-row"><input type="checkbox" id="sc-dirs"> Also apply to all <b>subdirectories</b></label>'+
+        '<label class="scope-row"><input type="checkbox" id="sc-files"> Also apply to all <b>files</b> inside</label>'+
+        '<div id="fmode-wrap" style="display:none;margin-top:10px">'+
+          '<div class="hint" style="margin-bottom:6px">Permissions for files (usually no execute):</div>'+
+          grid('file',fbits)+
+          '<div class="octal-display" id="foct" style="margin-top:8px">'+fbits.join('')+'</div>'+
+        '</div>'+
+      '</div>'
+    ) : '';
+    var html='<div class="hint" style="margin-bottom:6px">Permissions for '+(isDir?'this folder':'this file')+':</div>'+
+      grid('dir',bits)+
+      '<div style="display:flex;align-items:center;gap:14px;margin:10px 0 14px"><span class="octal-display" id="oct">'+bits.join('')+'</span></div>'+
+      scopeUI+
       '<div class="field"><label>Owner</label><select id="mf-owner">'+(idents.users||[]).map(function(u){return '<option '+(u===e.owner?'selected':'')+'>'+esc(u)+'</option>'}).join('')+'</select></div>'+
       '<div class="field"><label>Group</label><select id="mf-group">'+(idents.groups||[]).map(function(g){return '<option '+(g===e.group?'selected':'')+'>'+esc(g)+'</option>'}).join('')+'</select></div>';
     var m=modal({title:'Permissions · '+e.name,sub:'POSIX chmod and chown for '+e.path,html:html,cta:'Apply',
       onSubmit:async function(v,back){
-        var bs=[0,0,0];$$('.perm-grid input',back).forEach(function(c){if(c.checked)bs[+c.getAttribute('data-k')]|=+c.getAttribute('data-m')});
-        var oct=bs.join('');var rec=$('#recur',back).checked;
-        var r1=await api('/api/files/chmod',{method:'POST',body:JSON.stringify({path:e.path,mode:oct,recursive:rec})});
+        function readGrid(sel){var bs=[0,0,0];$$('[data-grid="'+sel+'"] input',back).forEach(function(c){if(c.checked)bs[+c.getAttribute('data-k')]|=+c.getAttribute('data-m')});return bs.join('')}
+        var dirOct=readGrid('dir');
+        var applyDirs=isDir&&$('#sc-dirs',back).checked;
+        var applyFiles=isDir&&$('#sc-files',back).checked;
+        var body={path:e.path,mode:dirOct,apply_dirs:applyDirs,apply_files:applyFiles};
+        if(applyFiles)body.file_mode=readGrid('file');
+        var r1=await api('/api/files/chmod',{method:'POST',body:JSON.stringify(body)});
         var owner=$('#mf-owner',back).value,group=$('#mf-group',back).value;
-        var r2={ok:true};if(owner!==e.owner||group!==e.group){r2=await api('/api/files/chown',{method:'POST',body:JSON.stringify({path:e.path,owner:owner,group:group,recursive:rec})})}
+        var r2={ok:true};
+        if(owner!==e.owner||group!==e.group){
+          r2=await api('/api/files/chown',{method:'POST',body:JSON.stringify({path:e.path,owner:owner,group:group,apply_dirs:applyDirs,apply_files:applyFiles})})}
         toast(r1.ok&&r2.ok?'Permissions updated':(r1.data&&r1.data.detail)||(r2.data&&r2.data.detail)||'Failed',r1.ok&&r2.ok?'ok':'err');
-        if(r1.ok&&r2.ok)go(CWD);return r1.ok&&r2.ok}});
-    // live octal preview
-    $$('.perm-grid input',m.el).forEach(function(c){c.onchange=function(){var bs=[0,0,0];$$('.perm-grid input',m.el).forEach(function(x){if(x.checked)bs[+x.getAttribute('data-k')]|=+x.getAttribute('data-m')});$('#oct',m.el).textContent=bs.join('')}});
+        if(r1.ok&&r2.ok){go(CWD);loadRoots()}return r1.ok&&r2.ok}});
+    // live octal previews
+    function wireOct(sel,out){$$('[data-grid="'+sel+'"] input',m.el).forEach(function(c){c.onchange=function(){var bs=[0,0,0];$$('[data-grid="'+sel+'"] input',m.el).forEach(function(x){if(x.checked)bs[+x.getAttribute('data-k')]|=+x.getAttribute('data-m')});$(out,m.el).textContent=bs.join('')}})}
+    wireOct('dir','#oct');
+    if(isDir){wireOct('file','#foct');
+      // reveal the file-mode grid only when "apply to files" is checked
+      $('#sc-files',m.el).onchange=function(){$('#fmode-wrap',m.el).style.display=this.checked?'block':'none'}}
   }
 
   // ── preview ──

@@ -197,3 +197,141 @@ class TestFileDelete:
         )
         assert resp.status_code == 200
         assert not d.exists()
+
+
+class TestChmodScoped:
+    """chmod with independent dir/file recursion (tree Permissions editor).
+
+    The correct Unix pattern is dirs 755 / files 644 in ONE operation; the
+    two scopes must be independently targetable and must not bleed into each
+    other.
+    """
+    import stat as _stat
+
+    def _tree(self, root):
+        # root/sub/ , root/f1 , root/sub/f2  — start everything at 700/600
+        import os
+        sub = root / "sub"
+        sub.mkdir()
+        (root / "f1").write_text("a")
+        (sub / "f2").write_text("b")
+        os.chmod(root, 0o700); os.chmod(sub, 0o700)
+        os.chmod(root / "f1", 0o600); os.chmod(sub / "f2", 0o600)
+        return sub
+
+    def _mode(self, p):
+        import os
+        return os.stat(p).st_mode & 0o777
+
+    def test_requires_admin(self, test_client, user_headers, file_root):
+        r = test_client.post("/api/files/chmod",
+                             json={"path": str(file_root), "mode": "755"},
+                             headers=user_headers)
+        assert r.status_code == 403
+
+    def test_apply_dirs_only_leaves_files(self, test_client, auth_headers, file_root):
+        sub = self._tree(file_root)
+        r = test_client.post("/api/files/chmod", headers=auth_headers,
+                             json={"path": str(file_root), "mode": "755",
+                                   "apply_dirs": True, "apply_files": False})
+        assert r.status_code == 200
+        assert self._mode(file_root) == 0o755      # folder itself
+        assert self._mode(sub) == 0o755            # subdir changed
+        assert self._mode(file_root / "f1") == 0o600   # files UNTOUCHED
+        assert self._mode(sub / "f2") == 0o600
+
+    def test_apply_files_only_leaves_dirs(self, test_client, auth_headers, file_root):
+        sub = self._tree(file_root)
+        r = test_client.post("/api/files/chmod", headers=auth_headers,
+                             json={"path": str(file_root), "mode": "644",
+                                   "apply_dirs": False, "apply_files": True})
+        assert r.status_code == 200
+        assert self._mode(sub) == 0o700            # subdir UNTOUCHED
+        assert self._mode(file_root / "f1") == 0o644   # files changed
+        assert self._mode(sub / "f2") == 0o644
+
+    def test_separate_file_mode(self, test_client, auth_headers, file_root):
+        # dirs 755, files 644 in one call — the canonical pattern
+        sub = self._tree(file_root)
+        r = test_client.post("/api/files/chmod", headers=auth_headers,
+                             json={"path": str(file_root), "mode": "755",
+                                   "file_mode": "644",
+                                   "apply_dirs": True, "apply_files": True})
+        assert r.status_code == 200
+        assert self._mode(sub) == 0o755
+        assert self._mode(file_root / "f1") == 0o644
+        assert self._mode(sub / "f2") == 0o644
+
+    def test_recursive_alias_still_works(self, test_client, auth_headers, file_root):
+        # the file-list editor sends recursive:true with a single mode
+        sub = self._tree(file_root)
+        r = test_client.post("/api/files/chmod", headers=auth_headers,
+                             json={"path": str(file_root), "mode": "755",
+                                   "recursive": True})
+        assert r.status_code == 200
+        assert self._mode(sub) == 0o755
+        assert self._mode(file_root / "f1") == 0o755   # both, single mode
+
+    def test_non_recursive_single_target(self, test_client, auth_headers, file_root):
+        sub = self._tree(file_root)
+        r = test_client.post("/api/files/chmod", headers=auth_headers,
+                             json={"path": str(file_root), "mode": "750"})
+        assert r.status_code == 200
+        assert self._mode(file_root) == 0o750
+        assert self._mode(sub) == 0o700            # nothing recursed
+
+    def test_bad_file_mode_400(self, test_client, auth_headers, file_root):
+        self._tree(file_root)
+        r = test_client.post("/api/files/chmod", headers=auth_headers,
+                             json={"path": str(file_root), "mode": "755",
+                                   "file_mode": "xyz", "apply_files": True})
+        assert r.status_code == 400
+
+    def test_traversal_rejected(self, test_client, auth_headers, file_root):
+        r = test_client.post("/api/files/chmod", headers=auth_headers,
+                             json={"path": "/etc", "mode": "777", "recursive": True})
+        assert r.status_code == 403
+
+
+class TestChownScoped:
+    """chown independent dir/file recursion. Uses the invoking user's own
+    name so the operation is permitted without root in the test env."""
+
+    def _tree(self, root):
+        sub = root / "sub"; sub.mkdir()
+        (root / "f1").write_text("a"); (sub / "f2").write_text("b")
+        return sub
+
+    def test_requires_admin(self, test_client, user_headers, file_root):
+        r = test_client.post("/api/files/chown",
+                             json={"path": str(file_root), "owner": "root"},
+                             headers=user_headers)
+        assert r.status_code == 403
+
+    def test_unknown_owner_400(self, test_client, auth_headers, file_root):
+        self._tree(file_root)
+        r = test_client.post("/api/files/chown", headers=auth_headers,
+                             json={"path": str(file_root),
+                                   "owner": "nosuchuser_zzz9"})
+        assert r.status_code == 400
+
+    def test_no_owner_or_group_400(self, test_client, auth_headers, file_root):
+        r = test_client.post("/api/files/chown", headers=auth_headers,
+                             json={"path": str(file_root), "owner": "", "group": ""})
+        assert r.status_code == 400
+
+    def test_same_owner_noop_succeeds_scoped(self, test_client, auth_headers, file_root):
+        # chown to the current owner is a no-op that must still succeed and
+        # exercise the scoped walk without needing root privileges.
+        import getpass
+        sub = self._tree(file_root)
+        me = getpass.getuser()
+        r = test_client.post("/api/files/chown", headers=auth_headers,
+                             json={"path": str(file_root), "owner": me,
+                                   "apply_dirs": True, "apply_files": True})
+        assert r.status_code == 200
+
+    def test_traversal_rejected(self, test_client, auth_headers, file_root):
+        r = test_client.post("/api/files/chown", headers=auth_headers,
+                             json={"path": "/etc", "owner": "root", "recursive": True})
+        assert r.status_code == 403
