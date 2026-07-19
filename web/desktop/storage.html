@@ -49,10 +49,16 @@
 .pill-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
 
 /* drive groups (OS / pools / spares) */
-.drive-group{margin-bottom:20px}
+/* top row: pool overview · capacity · activity, three across */
+.storage-top{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.85fr) minmax(0,1fr);gap:18px;align-items:start}
+@media(max-width:1100px){.storage-top{grid-template-columns:1fr}}
+/* each pool / OS / spares is its own contained BOX */
+.drive-group{border:1px solid var(--line);border-radius:18px;background:var(--surface-2);padding:16px 18px;margin-bottom:16px}
 .drive-group:last-child{margin-bottom:0}
-.drive-group-head{font:800 12px var(--font);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
-.drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px}
+.drive-group.os-box{border-color:#7c3aed;box-shadow:0 0 0 1px rgba(124,58,237,.18)}
+.drive-group-head{display:flex;align-items:center;gap:8px;font:800 13px var(--font);letter-spacing:-.01em;color:var(--text);margin:0 0 12px}
+.drive-group-head .gcount{font:700 11px var(--font);color:var(--muted);text-transform:none;letter-spacing:0}
+.drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
 /* media-specific icon tint — three distinct looks */
 .drive-icon svg{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
 .drive-icon.media-hdd{background:rgba(37,99,235,.10);color:#2563eb}
@@ -64,16 +70,17 @@
 .role-badge{font:800 10px var(--font);padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
 .role-badge.os{background:rgba(124,58,237,.14);color:#7c3aed}
 .role-badge.pool{background:var(--primary-soft);color:var(--primary)}
-.role-badge.spare{background:var(--surface-2);color:var(--muted)}
-/* storage activity terminal */
-.term{background:#0d1526;border:1px solid #1e2b45;border-radius:14px;padding:12px 14px;max-height:280px;overflow:auto;font:500 12px "JetBrains Mono",ui-monospace,monospace}
-.term-line{display:flex;gap:10px;padding:3px 0;color:#c8d3e6;white-space:nowrap}
+.role-badge.spare{background:var(--surface);color:var(--muted)}
+/* storage activity terminal (fits the narrower right column) */
+.term{background:#0d1526;border:1px solid #1e2b45;border-radius:14px;padding:12px 14px;max-height:340px;overflow:auto;font:500 11.5px "JetBrains Mono",ui-monospace,monospace}
+.term-line{display:flex;flex-wrap:wrap;gap:6px 9px;padding:4px 0;color:#c8d3e6;border-bottom:1px solid rgba(255,255,255,.04)}
+.term-line:last-child{border:0}
 .term-line.muted{color:#5b6b86}
 .term-ts{color:#5b6b86;flex:none}
 .term-st{flex:none;font-weight:800}
 .term-st.ok{color:#34d399}.term-st.err{color:#f87171}
 .term-who{color:#7aa2f7;flex:none}
-.term-msg{color:#c8d3e6;white-space:normal}
+.term-msg{color:#c8d3e6;flex:1 1 100%}
 </style>
 </head>
 <body>
@@ -92,18 +99,21 @@
         </div>
       </header>
 
-      <!-- ARRAY / POOL OVERVIEW -->
-      <section class="hero" style="grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr)">
+      <!-- TOP ROW: pool overview · capacity · activity, three across -->
+      <section class="storage-top">
         <article class="panel pad">
-          <div class="section-head"><div><h3>Pool Overview</h3><p>btrfs RAID pool state and scrub status</p></div><span class="chip" id="array-chip">—</span></div>
+          <div class="section-head"><div><h3>Pool Overview</h3><p>btrfs RAID pools and scrub status</p></div><span class="chip" id="array-chip">—</span></div>
           <div id="pool-list"></div>
         </article>
         <aside class="panel pad">
-          <div class="section-head"><div><h3>Capacity</h3><p>Btrfs volume utilization</p></div></div>
-          <div class="storage-layout" style="grid-template-columns:1fr">
-            <div class="donut" style="--pct:0%;margin:0 auto" id="donut"><div class="donut-inner"><div><strong id="pct">—</strong><span>Pool used</span></div></div></div>
-            <div class="volume-list" id="vols" style="margin-top:16px"></div>
-          </div>
+          <div class="section-head"><div><h3>Capacity</h3><p>Volume utilization</p></div></div>
+          <div class="donut" style="--pct:0%;margin:8px auto 0" id="donut"><div class="donut-inner"><div><strong id="pct">—</strong><span>Pool used</span></div></div></div>
+          <div class="volume-list" id="vols" style="margin-top:16px"></div>
+        </aside>
+        <aside class="panel pad">
+          <div class="section-head"><div><h3>Storage activity</h3><p>Newest first</p></div>
+            <button class="circle-btn" id="log-refresh" title="Refresh log"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></button></div>
+          <div class="term" id="storage-log"><div class="term-line muted">Loading activity…</div></div>
         </aside>
       </section>
 
@@ -111,13 +121,6 @@
       <section class="panel pad" style="margin-top:22px">
         <div class="section-head"><div><h3>Physical Drives</h3><p>OS disk, pool members, and spares — SMART health, temperature, and lifecycle actions</p></div><span class="chip" id="drive-chip">—</span></div>
         <div id="drives"><div style="color:var(--muted)">Loading drives…</div></div>
-      </section>
-
-      <!-- STORAGE ACTIVITY LOG (terminal) -->
-      <section class="panel pad" style="margin-top:22px">
-        <div class="section-head"><div><h3>Storage activity</h3><p>Every pool and drive operation, newest first</p></div>
-          <button class="circle-btn" id="log-refresh" title="Refresh log"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></button></div>
-        <div class="term" id="storage-log"><div class="term-line muted">Loading activity…</div></div>
       </section>
     </main>
   </div>

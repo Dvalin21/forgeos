@@ -116,8 +116,13 @@
       cur.items.push(dr);
     });
     box.innerHTML=groups.map(function(g){
-      var title=g.role==='os'?'Operating system (Forge)':g.role==='pool'?('Pool · '+esc(g.pool)):'Unassigned (spare)';
-      return '<div class="drive-group"><div class="drive-group-head">'+title+'</div>'+
+      var title=g.role==='os'?'Operating system':g.role==='pool'?('Pool · '+esc(g.pool)):'Unassigned';
+      var sub=g.role==='os'?'Forge':g.role==='spare'?'not in a pool':'';
+      var n=g.items.length;
+      return '<div class="drive-group'+(g.role==='os'?' os-box':'')+'">'+
+        '<div class="drive-group-head">'+title+
+        (sub?' <span class="gcount">· '+sub+'</span>':'')+
+        ' <span class="gcount">· '+n+' drive'+(n!==1?'s':'')+'</span></div>'+
         '<div class="drive-grid">'+g.items.map(driveCard).join('')+'</div></div>';
     }).join('');
     $$('[data-spin]').forEach(function(b){b.onclick=function(){doSpin(b.getAttribute('data-spin'))}});
