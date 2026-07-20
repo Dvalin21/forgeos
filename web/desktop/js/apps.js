@@ -346,7 +346,7 @@
   // ══════════ CONFIGURE — TIERED FORMS ══════════
   function configureService(kind){
     if(kind==='samba')return sambaWizard();
-    if(kind==='nginx')return nginxOpen();
+    if(kind==='nginx')return void(window.location.href='/reverse-proxy.html');
     if(kind==='object-storage')return forgeStoreOpen();
   }
 
@@ -361,67 +361,6 @@
         if(!b.name||!b.path){toast('Name and path required','warn');return false}
         var r=await api('/api/samba/share',{method:'POST',body:JSON.stringify(b)});toast(r.ok?'Share created':(r.data&&r.data.detail)||'Failed',r.ok?'ok':'err');return r.ok}});
   }
-
-  // — nginx tiered —
-  async function nginxOpen(){
-    var d=(await api('/api/nginx/sites')).data;var sites=(d&&d.sites)||[];
-    var listHtml=sites.length?'<div style="display:grid;gap:6px;margin-bottom:14px">'+sites.map(function(s){return '<div style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2)"><span style="flex:1;font-weight:700">'+esc(s.name)+'<span style="color:var(--muted);font-weight:600;font-size:11px;margin-left:8px">'+(s.server_names||[]).join(' ')+'</span></span><span class="pill '+(s.enabled?'ok':'idle')+'">'+(s.enabled?'Enabled':'Disabled')+'</span><button class="btn-ghost" data-edit="'+esc(s.name)+'" style="height:32px;padding:0 12px;font-size:12px">Edit</button><button class="btn-ghost" data-del="'+esc(s.name)+'" style="height:32px;padding:0 12px;font-size:12px;color:var(--danger);border-color:rgba(207,61,70,.3)">×</button></div>'}).join('')+'</div>':'<p style="color:var(--muted);font-size:13px;margin-bottom:14px">No sites configured.</p>';
-    var m=modal({title:'nginx sites',sub:'Reverse proxies and virtual hosts. nginx -t runs before save.',size:'big',html:listHtml,cta:'New site',
-      onSubmit:function(){m.close();nginxWizard();return false}});
-    $$('[data-edit]',m.el).forEach(function(b){b.onclick=function(){m.close();nginxEdit(b.getAttribute('data-edit'))}});
-    $$('[data-del]',m.el).forEach(function(b){b.onclick=function(){if(!confirm('Delete '+b.getAttribute('data-del')+'?'))return;api('/api/nginx/site/'+b.getAttribute('data-del'),{method:'DELETE'}).then(function(r){toast(r.ok?'Deleted':(r.data&&r.data.detail)||'Failed',r.ok?'ok':'err');if(r.ok){m.close();nginxOpen()}})}});
-  }
-  function nginxWizard(initContent){
-    var tier='simple';
-    var html='<div class="wz-tier" id="nx-tier"><button class="active" data-tier="simple">Simple</button><button data-tier="standard">Standard</button><button data-tier="advanced" class="advanced">Advanced</button></div>'+
-      '<div id="nx-simple">'+
-        '<div class="field"><label>Site name (filename)</label><input id="nx-name" placeholder="photos"></div>'+
-        '<div class="field"><label>Domain (what users type)</label><input id="nx-host" placeholder="photos.example.com"></div>'+
-        '<div class="field"><label>Where to send the traffic</label><input id="nx-upstream" placeholder="http://127.0.0.1:2283"></div>'+
-        '<label class="checkbox-field"><input type="checkbox" id="nx-ssl">Listen on HTTPS port 443 (add a cert later)</label>'+
-      '</div>'+
-      '<div id="nx-standard" class="hidden">'+
-        '<div class="field-row"><div class="field"><label>Basic auth user</label><input id="nx-ba-user" placeholder="(leave empty for none)"></div><div class="field"><label>Basic auth password</label><input id="nx-ba-pass" type="password"></div></div>'+
-        '<label class="checkbox-field" style="margin-bottom:10px"><input type="checkbox" id="nx-gzip" checked>Enable gzip compression</label>'+
-        '<label class="checkbox-field" style="margin-bottom:10px"><input type="checkbox" id="nx-hsts">Add HSTS header (HTTPS only)</label>'+
-        '<label class="checkbox-field"><input type="checkbox" id="nx-clientmax">Increase upload size to 500M</label>'+
-      '</div>'+
-      '<div id="nx-advanced" class="hidden">'+
-        '<div class="warn-box">Advanced mode replaces the generated config with whatever you type here. nginx -t still runs before save.</div>'+
-        '<div class="field"><label>Raw nginx configuration</label><textarea id="nx-raw" style="min-height:280px">'+esc(initContent||'server {\n  listen 80;\n  server_name example.com;\n  location / {\n    proxy_pass http://127.0.0.1:8080;\n    proxy_set_header Host $host;\n  }\n}\n')+'</textarea></div>'+
-      '</div>'+
-      '<label class="checkbox-field" style="margin-top:14px"><input type="checkbox" id="nx-enabled" checked>Enable this site immediately</label>';
-    var m=modal({title:initContent?'Edit nginx site':'New nginx site',sub:'Pick a complexity level. Each tier builds on the one before it.',size:'big',html:html,cta:'Save',
-      onSubmit:async function(back){
-        var name=($('#nx-name',back)||{}).value||'';name=name.trim();
-        var enabled=$('#nx-enabled',back).checked;
-        var content;
-        if(tier==='advanced'){content=$('#nx-raw',back).value;name=name||'site-'+Date.now()}
-        else{
-          var host=$('#nx-host',back).value.trim(),up=$('#nx-upstream',back).value.trim(),ssl=$('#nx-ssl',back).checked;
-          if(!name||!host||!up){toast('Name, domain, and upstream required','warn');return false}
-          var headers='    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    proxy_set_header X-Forwarded-Proto $scheme;\n';
-          var extra='';
-          if(tier==='standard'){
-            var bu=$('#nx-ba-user',back).value.trim();var bp=$('#nx-ba-pass',back).value;
-            if(bu&&bp){extra+='    auth_basic "Restricted";\n    auth_basic_user_file /etc/nginx/.htpasswd-'+name+';\n';
-              toast('Note: also create the .htpasswd file manually with htpasswd -c','info')}
-            if($('#nx-gzip',back).checked){extra+='    gzip on;\n    gzip_types text/plain application/json application/javascript text/css;\n'}
-            if($('#nx-clientmax',back).checked){extra='    client_max_body_size 500M;\n'+extra}
-            if($('#nx-hsts',back).checked&&ssl){extra+='    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;\n'}
-          }
-          content='server {\n  listen '+(ssl?'443 ssl':'80')+';\n  server_name '+host+';\n\n  location / {\n    proxy_pass '+up+';\n'+headers+extra+'  }\n}\n';
-        }
-        var r=await api('/api/nginx/site',{method:'POST',body:JSON.stringify({name:name,content:content,enabled:enabled})});
-        toast(r.ok?name+' saved':(r.data&&r.data.detail)||'Save failed',r.ok?'ok':'err');return r.ok}});
-    $$('#nx-tier button',m.el).forEach(function(b){b.onclick=function(){
-      $$('#nx-tier button',m.el).forEach(function(x){x.classList.remove('active');if(b.classList.contains('advanced'))x.classList.remove('active')});
-      b.classList.add('active');tier=b.getAttribute('data-tier');
-      ['simple','standard','advanced'].forEach(function(t){$('#nx-'+t,m.el).classList.toggle('hidden',t!==tier)});
-    }});
-    if(initContent){tier='advanced';$$('#nx-tier button',m.el)[2].click()}
-  }
-  async function nginxEdit(name){var d=(await api('/api/nginx/site/'+name)).data;if(!d)return;nginxWizard(d.content)}
 
   // — Forge Object Storage tiered —
   function forgeStoreOpen(){
