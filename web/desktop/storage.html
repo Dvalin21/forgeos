@@ -50,7 +50,13 @@
 
 /* drive groups (OS / pools / spares) */
 /* top row: pool overview · capacity · activity, three across */
-.storage-top{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.85fr) minmax(0,1fr);gap:18px;align-items:stretch}
+.storage-top{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,.85fr) minmax(0,1fr);gap:18px;align-items:start}
+/* all three top boxes share ONE explicit compact height so the row can't be
+   driven tall by any box's content (the log especially). Content that exceeds
+   it scrolls inside that box. This keeps the row short and the drives flush. */
+.storage-top>*{height:248px;overflow:hidden;display:flex;flex-direction:column}
+.storage-top #pool-list,.storage-top #vols{overflow:auto}
+.storage-top .term{flex:1;height:auto;min-height:0}
 @media(max-width:1100px){.storage-top{grid-template-columns:1fr}}
 /* each pool / OS / spares is its own contained BOX */
 .drive-group{border:1px solid var(--line);border-radius:18px;background:var(--surface-2);padding:16px 18px;margin-bottom:16px}
@@ -72,13 +78,7 @@
 .role-badge.pool{background:var(--primary-soft);color:var(--primary)}
 .role-badge.spare{background:var(--surface);color:var(--muted)}
 /* storage activity terminal (fits the narrower right column) */
-.term{background:#0d1526;border:1px solid #1e2b45;border-radius:14px;padding:12px 14px;height:210px;overflow:auto;font:500 11.5px "JetBrains Mono",ui-monospace,monospace}
-/* in the stretched top row, the Activity panel fills its box and the
-   terminal fills the panel (scrolls internally) so all three boxes match
-   Pool Overview's height. Box height is driven by Pool Overview, not by
-   log content, so adding events never grows the row. */
-.storage-top aside:last-child{display:flex;flex-direction:column}
-.storage-top aside:last-child .term{height:auto;flex:1;min-height:0}
+.term{background:#0d1526;border:1px solid #1e2b45;border-radius:14px;padding:12px 14px;height:150px;overflow:auto;font:500 11.5px "JetBrains Mono",ui-monospace,monospace}
 .term-line{display:flex;flex-wrap:wrap;gap:6px 9px;padding:4px 0;color:#c8d3e6;border-bottom:1px solid rgba(255,255,255,.04)}
 .term-line:last-child{border:0}
 .term-line.muted{color:#5b6b86}
