@@ -310,6 +310,12 @@ def _enrich_drive_roles(drives: list) -> None:
         elif path in dev_to_pool:
             d["role"] = "pool"
             d["pool"] = dev_to_pool[path]
+        elif info is not None and info.mountpoints:
+            # mounted for something other than a pool (e.g. /mnt/backup) — it's
+            # in use, not a free spare. Show where, so it isn't misread.
+            d["role"] = "inuse"
+            d["pool"] = ""
+            d["mount"] = info.mountpoints[0]
         else:
             d["role"] = "spare"
             d["pool"] = ""

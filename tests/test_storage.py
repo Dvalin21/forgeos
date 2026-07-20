@@ -652,3 +652,44 @@ class TestScrubStatus:
         r = test_client.get("/api/storage/scrub-status/tank", headers=auth_headers)
         assert r.json()["status"] == "running"
         assert not logged        # nothing logged until finished
+
+
+class TestInUseRole:
+    """A disk mounted for something other than a pool (e.g. /mnt/backup) is
+    'in use', not a free spare — the box showed sda at /mnt/backup as spare."""
+
+    def test_mounted_nonpool_disk_is_inuse(self, tmp_path, monkeypatch):
+        import storage_api
+        from forgeos_diskprep import DiskInfo
+        cfgfile = tmp_path / "config.json"
+        monkeypatch.setenv("FORGEOS_CONFIG_JSON", str(cfgfile))
+        import forgeos_config as fc
+        monkeypatch.setattr(fc, "CONFIG_PATH", cfgfile)
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(
+            name="tank", raid_level="raid1", devices=["/dev/sdb"],
+            mountpoint="/srv/nas/tank", uuid="u"))
+        fc.save(cfg, cfgfile)
+        monkeypatch.setattr(storage_api, "_reconcile_pool_devices", lambda c: False)
+        monkeypatch.setattr(storage_api, "_run_args", lambda a, **k: "")
+
+        def fake_inspect(runner=None):
+            def mk(n, sysf, mounts):
+                d = DiskInfo(name=n, path="/dev/" + n)
+                d.is_system = sysf; d.mountpoints = mounts
+                return d
+            return [mk("sda", False, ["/mnt/backup"]),   # in use, not spare
+                    mk("sdb", False, ["/srv/nas/tank"]), # pool
+                    mk("sdc", True, ["/", "[SWAP]"]),    # OS
+                    mk("sdd", False, [])]                # true spare
+        monkeypatch.setattr(storage_api.dp, "inspect_disks", fake_inspect)
+
+        drives = [{"name": "/dev/" + n, "type": "SATA", "size": "1T",
+                   "model": "x", "temp": 0, "health": 100}
+                  for n in ["sda", "sdb", "sdc", "sdd"]]
+        storage_api._enrich_drive_roles(drives)
+        by = {d["name"]: d for d in drives}
+        assert by["/dev/sda"]["role"] == "inuse" and by["/dev/sda"]["mount"] == "/mnt/backup"
+        assert by["/dev/sdb"]["role"] == "pool"
+        assert by["/dev/sdc"]["role"] == "os"
+        assert by["/dev/sdd"]["role"] == "spare"

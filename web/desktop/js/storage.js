@@ -77,7 +77,9 @@
       ? '<span class="role-badge os">'+esc(dr.os_label||'Forge')+'</span>'
       : dr.role==='pool'
         ? '<span class="role-badge pool">'+esc(dr.pool)+'</span>'
-        : '<span class="role-badge spare">Spare</span>';
+        : dr.role==='inuse'
+          ? '<span class="role-badge inuse" title="'+esc(dr.mount||'')+'">In use</span>'
+          : '<span class="role-badge spare">Spare</span>';
     return '<div class="drive-card'+(lvl==='err'?' failed':'')+(dr.role==='os'?' is-os':'')+'">'+
       '<span class="dot '+lvl+'"></span>'+
       '<div class="drive-icon media-'+media+'">'+driveIcon(media)+'</div>'+
@@ -100,31 +102,31 @@
     var d=(await api('/api/storage/drives')).data;var box=$('#drives');var drives=(d&&d.drives)||[];
     $('#drive-chip').textContent=drives.length+' drive'+(drives.length!==1?'s':'');
     if(!drives.length){box.innerHTML='<p style="color:var(--muted)">No drives detected.</p>';return}
-    // Order: OS first, then pool members grouped by pool name, then spares.
-    var rank={os:0,pool:1,spare:2};
-    drives.sort(function(a,b){
-      var ra=rank[a.role]||2,rb=rank[b.role]||2;
-      if(ra!==rb)return ra-rb;
-      if(a.role==='pool'&&b.role==='pool'&&a.pool!==b.pool)return a.pool.localeCompare(b.pool);
-      return a.name.localeCompare(b.name);
-    });
-    // Render in labeled groups so the OS disk and each pool are visually distinct.
-    var groups=[];var cur=null;
+    // Group by role/pool, then lay the boxes out on ONE ROW:
+    // pool boxes (by name) · Unassigned · In-use · OS (smaller, last).
+    var byKey={};var order=[];
     drives.forEach(function(dr){
-      var key=dr.role==='os'?'__os':dr.role==='pool'?('pool:'+dr.pool):'__spare';
-      if(!cur||cur.key!==key){cur={key:key,role:dr.role,pool:dr.pool,items:[]};groups.push(cur)}
-      cur.items.push(dr);
+      var key=dr.role==='pool'?('pool:'+dr.pool):('__'+dr.role);
+      if(!byKey[key]){byKey[key]={key:key,role:dr.role,pool:dr.pool,items:[]};order.push(key)}
+      byKey[key].items.push(dr);
     });
-    box.innerHTML=groups.map(function(g){
-      var title=g.role==='os'?'Operating system':g.role==='pool'?('Pool · '+esc(g.pool)):'Unassigned';
-      var sub=g.role==='os'?'Forge':g.role==='spare'?'not in a pool':'';
-      var n=g.items.length;
-      return '<div class="drive-group'+(g.role==='os'?' os-box':'')+'">'+
+    // stable box order: pools (alpha) → unassigned → inuse → os
+    var rank={pool:0,spare:1,inuse:2,os:3};
+    order.sort(function(a,b){
+      var ga=byKey[a],gb=byKey[b];
+      var ra=rank[ga.role],rb=rank[gb.role];
+      if(ra!==rb)return ra-rb;
+      return (ga.pool||'').localeCompare(gb.pool||'');
+    });
+    box.innerHTML='<div class="drive-row">'+order.map(function(key){
+      var g=byKey[key];var n=g.items.length;
+      var title=g.role==='os'?'OS':g.role==='pool'?('Pool · '+esc(g.pool)):g.role==='inuse'?'In use':'Unassigned';
+      var cls='drive-group'+(g.role==='os'?' os-box compact':'');
+      return '<div class="'+cls+'">'+
         '<div class="drive-group-head">'+title+
-        (sub?' <span class="gcount">· '+sub+'</span>':'')+
         ' <span class="gcount">· '+n+' drive'+(n!==1?'s':'')+'</span></div>'+
         '<div class="drive-grid">'+g.items.map(driveCard).join('')+'</div></div>';
-    }).join('');
+    }).join('')+'</div>';
     $$('[data-spin]').forEach(function(b){b.onclick=function(){doSpin(b.getAttribute('data-spin'))}});
     $$('[data-replace]').forEach(function(b){b.onclick=function(){doReplace(b.getAttribute('data-replace'))}});
     $$('[data-smart]').forEach(function(b){b.onclick=function(){doSmart(b.getAttribute('data-smart'))}});

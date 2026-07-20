@@ -95,6 +95,13 @@
 .log-toggle{font:700 11px var(--font);color:var(--primary);background:none;border:0;cursor:pointer;padding:6px 0 0;display:inline-flex;align-items:center;gap:5px}
 .log-toggle svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .2s}
 .log-toggle.open svg{transform:rotate(180deg)}
+
+/* drive boxes laid out on one row: pools · unassigned · in-use · OS(smaller) */
+.drive-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
+.drive-row .drive-group{flex:1 1 260px;margin-bottom:0}
+.drive-row .drive-group.compact{flex:0 1 220px}   /* OS box smaller */
+.drive-row .drive-grid{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+.role-badge.inuse{background:rgba(180,120,20,.14);color:#b45309}
 </style>
 </head>
 <body>
