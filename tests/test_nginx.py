@@ -219,3 +219,47 @@ class TestNginxTest:
                             lambda *a, **kw: _mock_subprocess_run(stdout="test is successful"))
         r = test_client.post("/api/nginx/test", headers=auth_headers)
         assert r.status_code == 200
+
+
+class TestRawConfigRollback:
+    """nginx_save_raw must NOT leave a broken config persisted if the live
+    nginx -t fails after writing (review Finding #1)."""
+
+    def test_live_test_failure_restores_previous_config(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import nginx_api
+        conf = tmp_path / "nginx.conf"
+        conf.write_text("# GOOD PREVIOUS CONFIG\n")
+        monkeypatch.setattr(nginx_api, "NGINX_CONF", conf)
+        # temp-file test passes; live test FAILS
+        calls = {"n": 0}
+        def fake_run(args, timeout=None):
+            # first call: nginx -t -c <tmp>  -> success
+            # second call: nginx -t (live)   -> failure
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return "nginx: configuration file test is successful"
+            return "nginx: [emerg] bad directive\nconfiguration file test failed"
+        monkeypatch.setattr(nginx_api, "_run_args", fake_run)
+        r = test_client.put("/api/nginx/raw", headers=auth_headers,
+                            json={"config": "BROKEN CONFIG THAT FAILS LIVE TEST"})
+        assert r.status_code == 400
+        # the previous good config must be restored, NOT the broken one
+        assert conf.read_text() == "# GOOD PREVIOUS CONFIG\n"
+
+    def test_live_test_success_persists_and_reloads(self, test_client, auth_headers, tmp_path, monkeypatch):
+        import nginx_api
+        conf = tmp_path / "nginx.conf"
+        conf.write_text("# old\n")
+        monkeypatch.setattr(nginx_api, "NGINX_CONF", conf)
+        reloaded = {"yes": False}
+        def fake_run(args, timeout=None):
+            if args[:2] == ["systemctl", "reload"]:
+                reloaded["yes"] = True
+                return ""
+            return "nginx: configuration file test is successful"
+        monkeypatch.setattr(nginx_api, "_run_args", fake_run)
+        r = test_client.put("/api/nginx/raw", headers=auth_headers,
+                            json={"config": "# NEW GOOD CONFIG\n"})
+        assert r.status_code == 200, r.text
+        assert conf.read_text() == "# NEW GOOD CONFIG\n"   # persisted
+        assert reloaded["yes"]                              # reloaded

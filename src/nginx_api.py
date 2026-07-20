@@ -50,6 +50,9 @@ _start_task: Callable[..., str] | None = None
 # certbot-dns-multi credential store. A 0600 ini the API owns; certbot reads it
 # for DNS-01 challenges. Module-level so tests can isolate it.
 DNS_CREDS_FILE = Path("/etc/letsencrypt/dns-multi.ini")   # legacy single-provider path
+# The live nginx config the raw GET/PUT endpoints read and write. Module-level
+# so tests can redirect it away from the real /etc.
+NGINX_CONF = Path("/etc/nginx/nginx.conf")
 
 
 def _provider_creds_path(code: str) -> Path:
@@ -314,7 +317,7 @@ async def remove_vhost(name: str, user=Depends(verify_token)):
 
 @router.get("/api/nginx/raw")
 async def nginx_raw_config(user=Depends(verify_token)):
-    return {"config": Path("/etc/nginx/nginx.conf").read_text() if Path("/etc/nginx/nginx.conf").exists() else ""}
+    return {"config": NGINX_CONF.read_text() if NGINX_CONF.exists() else ""}
 
 
 @router.put("/api/nginx/raw")
@@ -334,10 +337,22 @@ async def nginx_save_raw(body: dict, user=Depends(verify_token)):
         _os.unlink(_tmp) if _os.path.exists(_tmp) else None
     if "failed" in test.lower():
         raise HTTPException(400, detail={"error": "Config test failed", "output": test})
-    Path("/etc/nginx/nginx.conf").write_text(config)
-    # Test live config, then reload — never reload a broken config
+    # The temp-test passed, but includes/context can differ between `-c tmp`
+    # and the live tree, so the LIVE test can still fail. Back up the current
+    # config first and restore it if the live test fails — otherwise a broken
+    # config would sit persisted on disk and blow up the NEXT nginx start
+    # (logrotate, package update, reboot), even though the running process
+    # wasn't reloaded. Never leave a config that won't boot.
+    live_path = NGINX_CONF
+    prev = live_path.read_text() if live_path.exists() else None
+    live_path.write_text(config)
     test = _run_args(["nginx", "-t"], timeout=10)
     if "failed" in test.lower() or "test is successful" not in test:
+        # roll back to the last-known-good config before failing
+        if prev is not None:
+            live_path.write_text(prev)
+        else:
+            live_path.unlink(missing_ok=True)
         raise HTTPException(400, detail={"error": "Live config test failed", "output": test})
     _run_args(["systemctl", "reload", "nginx"])
     _audit(user["sub"], "nginx.config.update", "success", "Raw nginx config updated & reloaded")
@@ -490,8 +505,14 @@ async def add_domain(body: dict, user=Depends(verify_token)):
     if creds:
         lines = [f"dns_multi_provider = {provider}"]
         for k, v in creds.items():
-            if not _DNS_CRED_KEY_RE.match(str(k)):
+            k = str(k).strip()
+            v = str(v)
+            if not _DNS_CRED_KEY_RE.match(k):
                 raise HTTPException(400, f"invalid credential key: {k}")
+            # Same guard as set_dns_provider: a newline in a value would inject
+            # extra lines into the dns-*.ini (e.g. a rogue dns_multi_provider).
+            if any(c in v for c in "\n\r\x00"):
+                raise HTTPException(400, f"invalid value for {k} (control characters not allowed)")
             lines.append(f"{k} = {v}")
         _atomic_write_0600(creds_path, "\n".join(lines) + "\n")
         if not any(pp.code == provider for pp in cfg.nginx.dns_providers):

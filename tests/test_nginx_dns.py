@@ -341,6 +341,20 @@ class TestDomainsAPI:
             "name": "keithtechco.com", "provider": "porkbun", "wildcard": True})
         assert r.status_code == 200, r.text
 
+    def test_add_domain_rejects_newline_in_cred_value(self, test_client, auth_headers, monkeypatch, tmp_path):
+        # add_domain writes the same dns-*.ini as set_dns_provider; a newline in
+        # a credential value could inject a rogue directive. Must be rejected,
+        # and nothing written (parity with set_dns_provider).
+        import nginx_api
+        cp = tmp_path / "dns-porkbun.ini"
+        monkeypatch.setattr(nginx_api, "_provider_creds_path", lambda code: cp)
+        self._cap_task(monkeypatch)
+        r = test_client.post("/api/nginx/domains", headers=auth_headers, json={
+            "name": "example.com", "provider": "porkbun", "wildcard": False,
+            "credentials": {"PORKBUN_API_KEY": "k\ndns_multi_provider = evil"}})
+        assert r.status_code == 400
+        assert not cp.exists()          # nothing written on rejection
+
     def test_add_domain_new_provider_without_creds_400(self, test_client, auth_headers, monkeypatch, tmp_path):
         import nginx_api
         monkeypatch.setattr(nginx_api, "_provider_creds_path",
