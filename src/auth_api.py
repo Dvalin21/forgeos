@@ -68,8 +68,13 @@ def _issue_session(request: Request, username: str, role: str,
     Shared by password login, the post-2FA step, and the enrollment-required
     path so the cookie attributes (httponly/secure/samesite/max-age) can never
     drift between them. `extra` merges extra top-level keys into the body.
+
+    The token carries the user's current token_epoch so that a later epoch
+    bump (password change) invalidates it. Read fresh here so a token minted
+    now reflects the latest epoch.
     """
-    token = create_token(username, role)
+    epoch = int(load_users().get(username, {}).get("token_epoch", 0))
+    token = create_token(username, role, epoch)
     body = {"token": token, "username": username, "role": role}
     if extra:
         body.update(extra)
@@ -179,14 +184,30 @@ async def logout():
     return resp
 
 
+class ChangePasswordRequest(BaseModel):
+    current: str = Field(..., min_length=1, max_length=128)
+    new: str = Field(..., min_length=8, max_length=128)
+
+
 @router.post("/api/auth/change-password")
-async def change_password(body: dict, user=Depends(verify_token)):
+async def change_password(body: ChangePasswordRequest, request: Request,
+                          user=Depends(verify_token)):
     users = load_users()
     u = users.get(user["sub"])
-    if not u or not pwd_ctx.verify(body.get("current", ""), u["hash"]):
+    if not u or not pwd_ctx.verify(body.current, u["hash"]):
         raise HTTPException(status_code=401, detail="Current password incorrect")
-    users[user["sub"]]["hash"] = pwd_ctx.hash(body["new"])
+    u["hash"] = pwd_ctx.hash(body.new)
+    # Bump the token epoch so EVERY previously-issued token for this user is
+    # now invalid (verify_token rejects tokens below the current epoch). This
+    # is the fix for "old session still works after a password change" — if the
+    # change was because the password leaked, existing attacker sessions die.
+    u["token_epoch"] = int(u.get("token_epoch", 0)) + 1
+    users[user["sub"]] = u
     save_users(users)
     if _audit is not None:
         _audit(user["sub"], "auth.password.change", "success", "Password changed")
-    return {"ok": True}
+    # Re-issue a fresh session for the caller who just changed their password,
+    # carrying the new epoch — so they stay logged in while all their OTHER
+    # tokens are invalidated. (Never break userspace: don't log out the person
+    # who did the right thing.)
+    return _issue_session(request, user["sub"], u["role"])

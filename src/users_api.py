@@ -172,6 +172,11 @@ async def change_role(username: str, body: dict, user=Depends(verify_token)):
         raise HTTPException(400, "Cannot demote the last admin")
 
     users[username]["role"] = new_role
+    # Bump the token epoch: the user's existing token carries the OLD role in
+    # its claim (verify_token reads role from the token, not the store). Without
+    # this, a demoted admin keeps admin access until their token expires. The
+    # bump forces them to re-authenticate and pick up the new role.
+    users[username]["token_epoch"] = int(users[username].get("token_epoch", 0)) + 1
     save_users(users)
     assert _audit is not None
     _audit(user["sub"], "users.role", "success", f"User '{username}' -> {new_role}")
@@ -196,6 +201,10 @@ async def admin_reset_password(username: str, body: dict, user=Depends(verify_to
         raise HTTPException(404, f"User '{username}' not found")
 
     users[username]["hash"] = pwd_ctx.hash(new_password)
+    # Bump the token epoch so the reset user's existing sessions are all
+    # invalidated — this is the recovery path (often used precisely because
+    # the account was compromised), so old tokens MUST die.
+    users[username]["token_epoch"] = int(users[username].get("token_epoch", 0)) + 1
     save_users(users)
     assert _audit is not None
     _audit(user["sub"], "users.password.reset", "success", f"Password reset for '{username}'")

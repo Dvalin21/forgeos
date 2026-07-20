@@ -184,10 +184,20 @@ def save_users(users: dict) -> None:
         raise
 
 
-def create_token(username: str, role: str) -> str:
+def create_token(username: str, role: str, epoch: int = 0) -> str:
+    """Issue a full session token.
+
+    `epoch` is the user's current token_epoch — a monotonic counter bumped
+    whenever their credentials change (e.g. password change). verify_token
+    rejects a token whose epoch is older than the user's current one, which
+    is how a stateless JWT gets revoked: bump the epoch and every prior token
+    is instantly invalid. Default 0 keeps tokens issued before this existed
+    (and users with no token_epoch yet) valid — no forced logout on deploy.
+    """
     payload = {
         "sub": username,
         "role": role,
+        "epoch": epoch,
         "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRE),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGO)
@@ -275,10 +285,23 @@ def _extract_token(request: Request) -> str:
     return token
 
 
+def _epoch_current(username: str) -> int:
+    """The user's current token_epoch (0 if unset or user is gone). Read fresh
+    so an epoch bump takes effect immediately on the next request."""
+    try:
+        return int(load_users().get(username, {}).get("token_epoch", 0))
+    except (OSError, ValueError, TypeError):
+        # If the store can't be read, fall back to 0 so a transient read error
+        # doesn't lock everyone out. The token still had to be validly signed.
+        return 0
+
+
 def verify_token(request: Request) -> dict:
     """FastAPI dependency — full session tokens only. Rejects the restricted
     mfa_pending / mfa_enroll scopes, so a half-authenticated token can never
-    reach a real endpoint (the MFA bypass guard)."""
+    reach a real endpoint (the MFA bypass guard). Also enforces token_epoch:
+    a token whose epoch is older than the user's current one is rejected —
+    this is what invalidates every prior session when the password changes."""
     token = _extract_token(request)
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -290,6 +313,12 @@ def verify_token(request: Request) -> dict:
         # A half-authenticated token (pre-2FA, or pre-enrollment) must never
         # reach a real endpoint.
         raise HTTPException(status_code=401, detail="Two-factor authentication required")
+    # Stateless revocation: a token minted before the user's current epoch
+    # (e.g. before their last password change) is dead. Token epoch defaults
+    # to 0 for pre-existing tokens; user epoch defaults to 0 when unset — so
+    # untouched accounts keep working (no forced logout on deploy).
+    if int(payload.get("epoch", 0)) < _epoch_current(payload.get("sub", "")):
+        raise HTTPException(status_code=401, detail="Session expired, please sign in again")
     return payload
 
 
