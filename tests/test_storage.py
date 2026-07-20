@@ -653,6 +653,31 @@ class TestScrubStatus:
         assert r.json()["status"] == "running"
         assert not logged        # nothing logged until finished
 
+    def test_no_stats_available_is_finished(self, test_client, auth_headers, tmp_path, monkeypatch):
+        # REAL output from hardware: a fast scrub of a near-empty pool finishes
+        # and btrfs clears the per-run stats, printing "no stats available"
+        # instead of "Status: finished". The Error summary is still present, so
+        # this MUST be treated as finished and logged — the exact bug where a
+        # started check never reported a result.
+        import storage_api
+        self._pool(tmp_path, monkeypatch)
+        out = ("UUID:             4c83da51-347a-47ce-8045-8e08b685ddca\n"
+               "\tno stats available\n"
+               "Total to scrub:   688.00KiB\n"
+               "Rate:             0.00B/s\n"
+               "Error summary:    no errors found\n")
+        monkeypatch.setattr(storage_api, "_run_args", lambda args, **k: out)
+        logged = []
+        monkeypatch.setattr(storage_api, "_audit",
+            lambda who, action, status, detail=None: logged.append((action, status, detail)))
+        r = test_client.get("/api/storage/scrub-status/tank", headers=auth_headers)
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "finished"          # NOT "unknown"
+        assert "no errors" in body["errors"]
+        # and the result reached the activity log
+        assert any(a == "storage.pool.scrub_done" and s == "success" for a, s, _ in logged)
+
 
 class TestInUseRole:
     """A disk mounted for something other than a pool (e.g. /mnt/backup) is

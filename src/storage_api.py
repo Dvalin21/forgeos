@@ -149,12 +149,27 @@ async def scrub_status(pool: str, user=Depends(verify_token)):
         raise HTTPException(404, f"No such pool: {pool}")
     mp = match.resolved_mountpoint()
     out = _run_args(["btrfs", "scrub", "status", mp], timeout=10) or ""
-    st = re.search(r"Status:\s+(\w+)", out)
-    status = st.group(1) if st else "unknown"
     errs = re.search(r"Error summary:\s+(.+)", out)
     errors = errs.group(1).strip() if errs else ""
     dur = re.search(r"Duration:\s+(\S+)", out)
     duration = dur.group(1) if dur else ""
+
+    # btrfs reports scrub state in THREE forms, all seen on real systems:
+    #   "Status: running"           — in progress
+    #   "Status: finished"          — done, stats retained
+    #   "no stats available"        — done, but the per-run stats were cleared
+    #       (common on a fast scrub of a nearly-empty pool). The Error summary
+    #       line is still printed, so a scrub with no "running" status and an
+    #       Error summary present IS finished.
+    st = re.search(r"Status:\s+(\w+)", out)
+    if st:
+        status = st.group(1)                       # running | finished | aborted | ...
+    elif "no stats available" in out and errors:
+        status = "finished"                        # cleared-stats but complete
+    elif errors:
+        status = "finished"
+    else:
+        status = "unknown"
 
     # record the finished result to the audit log exactly once
     if status == "finished" and errors:
