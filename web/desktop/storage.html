@@ -50,7 +50,7 @@
 
 /* drive groups (OS / pools / spares) */
 /* top row: pool overview · capacity · activity, three across */
-.storage-top{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,.7fr) minmax(0,1.4fr);gap:18px;align-items:start}
+.storage-top{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,.7fr) minmax(0,1.4fr);gap:18px;align-items:stretch}
 @media(max-width:1100px){.storage-top{grid-template-columns:1fr}}
 /* each pool / OS / spares is its own contained BOX */
 .drive-group{border:1px solid var(--line);border-radius:18px;background:var(--surface-2);padding:16px 18px;margin-bottom:16px}
@@ -91,7 +91,10 @@
 .storage-top .donut-inner strong{font-size:22px}
 .storage-top .donut-inner span{font-size:10px}
 /* expandable activity log */
-.term.expanded{max-height:70vh}
+/* the activity panel anchors the overlay */
+.storage-top aside:last-child{position:relative}
+/* expanded: the terminal floats over the drives below instead of reflowing */
+.term.expanded{position:absolute;left:0;right:0;top:100%;margin-top:8px;max-height:60vh;z-index:40;box-shadow:0 18px 40px rgba(8,15,30,.45)}
 .log-toggle{font:700 11px var(--font);color:var(--primary);background:none;border:0;cursor:pointer;padding:6px 0 0;display:inline-flex;align-items:center;gap:5px}
 .log-toggle svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .2s}
 .log-toggle.open svg{transform:rotate(180deg)}
