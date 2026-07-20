@@ -221,10 +221,39 @@
     var lr=$('#log-refresh');if(lr)lr.onclick=function(){loadLog()};
     var lx=$('#log-expand');
     if(lx)lx.onclick=function(){
-      var term=$('#storage-log'),open=term.classList.toggle('expanded');
-      lx.classList.toggle('open',open);
-      $('span',lx).textContent=open?'Collapse':'Expand';
+      var term=$('#storage-log');
+      var willOpen=!term.classList.contains('expanded');
+      if(willOpen){
+        // pin the fixed overlay to the terminal's current on-screen box so it
+        // appears in place, then floats over the drives below
+        var r=term.getBoundingClientRect();
+        term.style.left=r.left+'px';
+        term.style.top=r.top+'px';
+        term.style.width=r.width+'px';
+        document.body.classList.add('term-open-backdrop');
+      } else {
+        term.style.left=term.style.top=term.style.width='';
+        document.body.classList.remove('term-open-backdrop');
+      }
+      term.classList.toggle('expanded',willOpen);
+      lx.classList.toggle('open',willOpen);
+      $('span',lx).textContent=willOpen?'Collapse':'Expand';
     };
+    // collapse the overlay on outside click or Escape
+    document.addEventListener('click',function(e){
+      var term=$('#storage-log');
+      if(term&&term.classList.contains('expanded')&&!term.contains(e.target)&&e.target!==lx&&!lx.contains(e.target)){
+        term.classList.remove('expanded');term.style.left=term.style.top=term.style.width='';
+        document.body.classList.remove('term-open-backdrop');
+        lx.classList.remove('open');$('span',lx).textContent='Expand';
+      }
+    });
+    document.addEventListener('keydown',function(e){
+      if(e.key==='Escape'){var term=$('#storage-log');
+        if(term&&term.classList.contains('expanded')){term.classList.remove('expanded');
+          term.style.left=term.style.top=term.style.width='';document.body.classList.remove('term-open-backdrop');
+          lx.classList.remove('open');$('span',lx).textContent='Expand';}}
+    });
     refresh();
   });
 })();

@@ -93,8 +93,12 @@
 /* expandable activity log */
 /* the activity panel anchors the overlay */
 .storage-top aside:last-child{position:relative}
-/* expanded: the terminal floats over the drives below instead of reflowing */
-.term.expanded{position:absolute;left:0;right:0;top:100%;margin-top:8px;max-height:60vh;z-index:40;box-shadow:0 18px 40px rgba(8,15,30,.45)}
+/* expanded: float the terminal as a fixed panel so it ESCAPES the
+   panel's overflow:hidden (which clipped an absolute child to blank) and
+   overlays the drives instead of reflowing them. JS sets its left/top/width
+   to the panel's live position so it appears in place. */
+.term.expanded{position:fixed;max-height:min(60vh,520px);z-index:80;box-shadow:0 24px 60px rgba(8,15,30,.55);border-color:#2a3b5c}
+body.term-open-backdrop::after{content:"";position:fixed;inset:0;background:rgba(4,9,18,.35);z-index:70}
 .log-toggle{font:700 11px var(--font);color:var(--primary);background:none;border:0;cursor:pointer;padding:6px 0 0;display:inline-flex;align-items:center;gap:5px}
 .log-toggle svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .2s}
 .log-toggle.open svg{transform:rotate(180deg)}
