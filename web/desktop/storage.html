@@ -72,7 +72,7 @@
 .role-badge.pool{background:var(--primary-soft);color:var(--primary)}
 .role-badge.spare{background:var(--surface);color:var(--muted)}
 /* storage activity terminal (fits the narrower right column) */
-.term{background:#0d1526;border:1px solid #1e2b45;border-radius:14px;padding:12px 14px;max-height:340px;overflow:auto;font:500 11.5px "JetBrains Mono",ui-monospace,monospace}
+.term{background:#0d1526;border:1px solid #1e2b45;border-radius:14px;padding:12px 14px;height:210px;overflow:auto;font:500 11.5px "JetBrains Mono",ui-monospace,monospace}
 .term-line{display:flex;flex-wrap:wrap;gap:6px 9px;padding:4px 0;color:#c8d3e6;border-bottom:1px solid rgba(255,255,255,.04)}
 .term-line:last-child{border:0}
 .term-line.muted{color:#5b6b86}
@@ -93,7 +93,7 @@
 /* expandable activity log */
 /* expanded log opens as a modal (the proven clip-immune pattern) */
 .term-modal{width:min(900px,94vw);max-height:82vh;display:flex;flex-direction:column}
-.term-modal .term{max-height:none;flex:1;min-height:300px}
+.term-modal .term{height:auto;max-height:none;flex:1;min-height:300px}
 .log-toggle{font:700 11px var(--font);color:var(--primary);background:none;border:0;cursor:pointer;padding:6px 0 0;display:inline-flex;align-items:center;gap:5px}
 .log-toggle svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .2s}
 .log-toggle.open svg{transform:rotate(180deg)}
