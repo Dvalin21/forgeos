@@ -137,15 +137,13 @@
     'storage.drive.replace':'replaced drive','storage.pool.rebuild':'started scrub',
     'storage.pool.scrub_done':'scrub finished',
     'storage.drive.spindown':'spun down drive','storage.drive.fail':'fail requested'};
-  async function loadLog(){
-    var r=(await api('/api/audit?prefix=storage.&limit=60')).data;var box=$('#storage-log');
-    var entries=(r&&r.entries)||[];
-    if(!entries.length){box.innerHTML='<div class="term-line muted">No storage activity recorded yet.</div>';return}
-    box.innerHTML=entries.map(function(e){
+  function renderLogLines(entries){
+    if(!entries.length)return '<div class="term-line muted">No storage activity recorded yet.</div>';
+    return entries.map(function(e){
       var t=e.timestamp?new Date((String(e.timestamp).length>12?e.timestamp:e.timestamp*1000)):null;
       var ts=t?t.toLocaleString([], {month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'';
       var verb=LOGVERB[e.action]||(e.action||'').replace('storage.','').replace(/[._]/g,' ');
-      var isResult=/_done$/.test(e.action||'');            // completion/result line
+      var isResult=/_done$/.test(e.action||'');
       var st=e.status==='success'?'ok':e.status==='warning'?'warn':'err';
       var stTxt=st==='ok'?'OK':st==='warn'?'WARN':'ERR';
       return '<div class="term-line'+(isResult?' result':'')+'"><span class="term-ts">'+esc(ts)+'</span>'+
@@ -153,6 +151,10 @@
         '<span class="term-who">'+esc(e.who||'system')+'</span>'+
         '<span class="term-msg">'+esc(verb)+(e.detail?' — '+esc(e.detail):'')+'</span></div>';
     }).join('');
+  }
+  async function loadLog(){
+    var r=(await api('/api/audit?prefix=storage.&limit=60')).data;var box=$('#storage-log');
+    box.innerHTML=renderLogLines((r&&r.entries)||[]);
   }
 
   // ── actions ──
@@ -220,40 +222,28 @@
     $('#new-pool').onclick=doNewPool;
     var lr=$('#log-refresh');if(lr)lr.onclick=function(){loadLog()};
     var lx=$('#log-expand');
-    if(lx)lx.onclick=function(){
-      var term=$('#storage-log');
-      var willOpen=!term.classList.contains('expanded');
-      if(willOpen){
-        // pin the fixed overlay to the terminal's current on-screen box so it
-        // appears in place, then floats over the drives below
-        var r=term.getBoundingClientRect();
-        term.style.left=r.left+'px';
-        term.style.top=r.top+'px';
-        term.style.width=r.width+'px';
-        document.body.classList.add('term-open-backdrop');
-      } else {
-        term.style.left=term.style.top=term.style.width='';
-        document.body.classList.remove('term-open-backdrop');
-      }
-      term.classList.toggle('expanded',willOpen);
-      lx.classList.toggle('open',willOpen);
-      $('span',lx).textContent=willOpen?'Collapse':'Expand';
-    };
-    // collapse the overlay on outside click or Escape
-    document.addEventListener('click',function(e){
-      var term=$('#storage-log');
-      if(term&&term.classList.contains('expanded')&&!term.contains(e.target)&&e.target!==lx&&!lx.contains(e.target)){
-        term.classList.remove('expanded');term.style.left=term.style.top=term.style.width='';
-        document.body.classList.remove('term-open-backdrop');
-        lx.classList.remove('open');$('span',lx).textContent='Expand';
-      }
-    });
-    document.addEventListener('keydown',function(e){
-      if(e.key==='Escape'){var term=$('#storage-log');
-        if(term&&term.classList.contains('expanded')){term.classList.remove('expanded');
-          term.style.left=term.style.top=term.style.width='';document.body.classList.remove('term-open-backdrop');
-          lx.classList.remove('open');$('span',lx).textContent='Expand';}}
-    });
+    if(lx)lx.onclick=openLogModal;
     refresh();
   });
+
+  // Expand opens the full activity log in a MODAL — the .modal-back pattern
+  // used across the app is position:fixed inset:0 as a direct <body> child, so
+  // it's clip-immune by construction (the prior in-panel overlay was clipped
+  // to blank by .panel's overflow:hidden). No coordinate math, no race.
+  async function openLogModal(){
+    var back=document.createElement('div');back.className='modal-back';
+    back.innerHTML='<div class="modal term-modal">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+      '<h3 style="margin:0">Storage activity</h3>'+
+      '<button class="btn-ghost" data-x style="height:34px">Close</button></div>'+
+      '<div class="term" id="log-modal-body"><div class="term-line muted">Loading…</div></div></div>';
+    document.body.appendChild(back);
+    var close=function(){back.remove()};
+    back.addEventListener('click',function(e){if(e.target===back||e.target.hasAttribute('data-x'))close()});
+    document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){close();document.removeEventListener('keydown',esc)}});
+    // full history in the modal (more than the sidebar's compact view)
+    var r=(await api('/api/audit?prefix=storage.&limit=200')).data;
+    var body=$('#log-modal-body',back);
+    body.innerHTML=renderLogLines((r&&r.entries)||[]);
+  }
 })();

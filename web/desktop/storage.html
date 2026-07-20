@@ -91,14 +91,9 @@
 .storage-top .donut-inner strong{font-size:22px}
 .storage-top .donut-inner span{font-size:10px}
 /* expandable activity log */
-/* the activity panel anchors the overlay */
-.storage-top aside:last-child{position:relative}
-/* expanded: float the terminal as a fixed panel so it ESCAPES the
-   panel's overflow:hidden (which clipped an absolute child to blank) and
-   overlays the drives instead of reflowing them. JS sets its left/top/width
-   to the panel's live position so it appears in place. */
-.term.expanded{position:fixed;max-height:min(60vh,520px);z-index:80;box-shadow:0 24px 60px rgba(8,15,30,.55);border-color:#2a3b5c}
-body.term-open-backdrop::after{content:"";position:fixed;inset:0;background:rgba(4,9,18,.35);z-index:70}
+/* expanded log opens as a modal (the proven clip-immune pattern) */
+.term-modal{width:min(900px,94vw);max-height:82vh;display:flex;flex-direction:column}
+.term-modal .term{max-height:none;flex:1;min-height:300px}
 .log-toggle{font:700 11px var(--font);color:var(--primary);background:none;border:0;cursor:pointer;padding:6px 0 0;display:inline-flex;align-items:center;gap:5px}
 .log-toggle svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .2s}
 .log-toggle.open svg{transform:rotate(180deg)}
@@ -142,7 +137,7 @@ body.term-open-backdrop::after{content:"";position:fixed;inset:0;background:rgba
           <div class="section-head"><div><h3>Storage activity</h3><p>Newest first</p></div>
             <button class="circle-btn" id="log-refresh" title="Refresh log"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></button></div>
           <div class="term" id="storage-log"><div class="term-line muted">Loading activity…</div></div>
-          <button class="log-toggle" id="log-expand"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><span>Expand</span></button>
+          <button class="log-toggle" id="log-expand"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg><span>View all</span></button>
         </aside>
       </section>
 
