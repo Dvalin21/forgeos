@@ -687,6 +687,11 @@
     .toast{padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:#fff;box-shadow:var(--shadow);font-size:13px;font-weight:700;min-width:220px}
     .toast.ok{border-left:4px solid var(--success)} .toast.err{border-left:4px solid var(--danger)} .toast.info{border-left:4px solid var(--primary)} .toast.warn{border-left:4px solid var(--warn)}
     .modal-back{position:fixed;inset:0;z-index:55;display:grid;place-items:center;padding:24px;background:rgba(19,35,58,.42);backdrop-filter:blur(4px)}
+    /* static .backdrop modals (users/vpn/backup) had NO CSS, so the modal fell
+       to the bottom-left. Hidden by default, centered when .show is toggled —
+       same positioning as .modal-back. */
+    .backdrop{position:fixed;inset:0;z-index:55;display:none;place-items:center;padding:24px;background:rgba(19,35,58,.42);backdrop-filter:blur(4px)}
+    .backdrop.show{display:grid}
     .modal{width:min(540px,95vw);padding:26px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
     .modal h3{margin:0 0 4px;font-size:19px;letter-spacing:-.03em} .modal p.sub{margin:0 0 18px;color:var(--muted);font-size:13px}
     .btn-ghost{height:44px;padding:0 16px;border:1px solid var(--line);border-radius:13px;background:var(--surface-2);font:800 13px var(--font);cursor:pointer}
