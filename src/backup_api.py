@@ -42,6 +42,12 @@ logger = logging.getLogger("forgeos-api")
 
 router = APIRouter()
 
+# The backup tools this module drives. Single source of truth for (a) validating
+# a job's tool and (b) filtering the shared background-task registry down to
+# backup activity only — the registry is global and also holds e.g. certbot
+# tasks, which must NOT appear in the NAS Backup activity view.
+BACKUP_TOOLS = ("borg", "restic", "rclone")
+
 # Injected by main module — see set_helpers().
 _start_task: Optional[Callable[..., str]] = None
 _audit: Optional[Callable[..., None]] = None
@@ -281,7 +287,7 @@ async def list_backup_jobs(user=Depends(verify_token)):
 async def create_backup_job(body: dict, user=Depends(verify_token)):
     """Create a new scheduled backup job."""
     tool = body.get("tool", "")
-    if tool not in ("borg", "restic", "rclone"):
+    if tool not in BACKUP_TOOLS:
         raise HTTPException(status_code=400, detail=f"Unsupported tool: {tool}")
     if not body.get("source"):
         raise HTTPException(status_code=400, detail="source required")
@@ -504,19 +510,26 @@ async def dr_configure(body: dict, user=Depends(verify_token)):
 
 @router.get("/api/backup/task/{task_id}")
 async def get_task_status(task_id: str, user=Depends(verify_token)):
-    """Poll background task status."""
+    """Poll background task status (backup tasks only)."""
     with _task_lock:
         t = _background_tasks.get(task_id)
-    if not t:
+    # The registry is shared; only surface backup tasks through this namespace.
+    if not t or t.get("tool") not in BACKUP_TOOLS:
         raise HTTPException(status_code=404, detail="Task not found")
     return t
 
 
 @router.get("/api/backup/tasks")
 async def list_tasks(user=Depends(verify_token)):
-    """List all recent background tasks (newest first)."""
+    """List recent BACKUP background tasks (newest first).
+
+    The task registry is shared process-wide and also holds non-backup tasks
+    (e.g. certbot). Filter to backup tools so the NAS Backup activity view
+    shows only backup activity, not everything in the system.
+    """
     with _task_lock:
-        tasks = list(_background_tasks.values())
+        tasks = [t for t in _background_tasks.values()
+                 if t.get("tool") in BACKUP_TOOLS]
     return {"tasks": sorted(tasks, key=lambda x: x.get("started_at", 0), reverse=True)}
 
 

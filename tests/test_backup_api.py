@@ -103,3 +103,51 @@ class TestTaskFailureCapturesStdout:
         mod._background_tasks[tid] = {"id": tid, "status": "pending", "error": None}
         mod._run_background(["certbot"], tid, timeout=10)
         assert "ACME challenge failed" in mod._background_tasks[tid]["error"]
+
+
+class TestBackupActivityScope:
+    """/api/backup/tasks must show ONLY backup-tool tasks, not the whole
+    shared registry (which also holds e.g. certbot tasks)."""
+
+    def _seed(self, mod):
+        mod._background_tasks.clear()
+        mod._background_tasks.update({
+            "b1": {"id": "b1", "tool": "borg",    "action": "create",   "status": "done",    "started_at": 100},
+            "r1": {"id": "r1", "tool": "restic",  "action": "snapshot", "status": "running", "started_at": 200},
+            "s1": {"id": "s1", "tool": "rclone",  "action": "sync",     "status": "done",    "started_at": 150},
+            "c1": {"id": "c1", "tool": "certbot", "action": "dns-01",   "status": "done",    "started_at": 300},
+            "x1": {"id": "x1", "tool": "certbot", "action": "domain-add","status": "failed", "started_at": 250},
+        })
+
+    def test_list_excludes_non_backup_tools(self, test_client, auth_headers):
+        import backup_api as mod
+        self._seed(mod)
+        try:
+            r = test_client.get("/api/backup/tasks", headers=auth_headers)
+            assert r.status_code == 200
+            tools = {t["tool"] for t in r.json()["tasks"]}
+            assert tools == {"borg", "restic", "rclone"}   # NO certbot
+            assert all(t["tool"] != "certbot" for t in r.json()["tasks"])
+        finally:
+            mod._background_tasks.clear()
+
+    def test_list_still_newest_first(self, test_client, auth_headers):
+        import backup_api as mod
+        self._seed(mod)
+        try:
+            r = test_client.get("/api/backup/tasks", headers=auth_headers)
+            ids = [t["id"] for t in r.json()["tasks"]]
+            assert ids == ["r1", "s1", "b1"]   # 200,150,100 desc; certbot excluded
+        finally:
+            mod._background_tasks.clear()
+
+    def test_single_task_hides_non_backup(self, test_client, auth_headers):
+        import backup_api as mod
+        self._seed(mod)
+        try:
+            # a backup task is visible
+            assert test_client.get("/api/backup/task/b1", headers=auth_headers).status_code == 200
+            # a certbot task is NOT reachable through the backup namespace
+            assert test_client.get("/api/backup/task/c1", headers=auth_headers).status_code == 404
+        finally:
+            mod._background_tasks.clear()
