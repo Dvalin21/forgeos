@@ -370,3 +370,90 @@ async def get_ddns(user=Depends(verify_token)):
         "last_ip": _conf_get("DDNS_LAST_IP", ""),
         "last_update": _conf_get("DDNS_LAST_UPDATE", ""),
     }
+
+
+# ════════════════════════════════════════════════════════════════════
+# WRITE ENDPOINTS  (admin-only)
+#
+# Interface changes go through the rollback engine (apply → 60s confirm →
+# auto-revert) because they can drop the box off the network. Global changes
+# (hostname/DNS) are applied directly — they don't drop the IP session.
+# ════════════════════════════════════════════════════════════════════
+def _require_admin(user) -> None:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin required")
+
+
+@router.put("/api/net/interface/{name}")
+async def set_interface(name: str, cfg: InterfaceConfig, user=Depends(verify_token)):
+    """Apply an interface's addressing behind the rollback safeguard.
+
+    Returns a confirm token + window. The client MUST call /api/net/confirm
+    with the token from the NEW address within the window, or the change is
+    automatically reverted (so a bad address can't lock you out).
+    """
+    _require_admin(user)
+    if cfg.name != name:
+        raise HTTPException(status_code=400, detail="interface name mismatch")
+    import net_ifupdown as ni
+    label = (f"{cfg.name} → {cfg.method}"
+             + (f" {cfg.address}" if cfg.method == "static" else ""))
+    try:
+        res = ni.engine.apply({"cfg": cfg}, label)
+    except Exception as e:
+        # RollbackError (already-pending / apply-failed-and-restored) → 409
+        raise HTTPException(status_code=409, detail=str(e))
+    if _audit is not None:
+        _audit(user["sub"], "net.interface.apply", "pending", label)
+    return res
+
+
+@router.post("/api/net/confirm")
+async def confirm_change(body: dict, user=Depends(verify_token)):
+    """Confirm a pending interface change (cancels the auto-revert)."""
+    _require_admin(user)
+    import net_ifupdown as ni
+    token = str(body.get("token", ""))
+    try:
+        res = ni.engine.confirm(token)
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if _audit is not None:
+        _audit(user["sub"], "net.interface.confirm", "success", res.get("label", ""))
+    return res
+
+
+@router.post("/api/net/cancel")
+async def cancel_change(user=Depends(verify_token)):
+    """Immediately revert the pending interface change (discard)."""
+    _require_admin(user)
+    import net_ifupdown as ni
+    try:
+        res = ni.engine.cancel()
+    except Exception as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if _audit is not None:
+        _audit(user["sub"], "net.interface.cancel", "success", res.get("label", ""))
+    return res
+
+
+@router.get("/api/net/pending")
+async def pending_change(user=Depends(verify_token)):
+    """Status of any pending interface change (for the confirm countdown UI)."""
+    import net_ifupdown as ni
+    return ni.engine.status()
+
+
+@router.put("/api/net/global")
+async def set_global(cfg: GlobalNetConfig, user=Depends(verify_token)):
+    """Apply hostname + DNS directly (low-risk — no rollback timer)."""
+    _require_admin(user)
+    import net_ifupdown as ni
+    try:
+        ni.apply_global(cfg.hostname, cfg.dns, cfg.domain)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"failed to apply: {e}")
+    if _audit is not None:
+        _audit(user["sub"], "net.global.apply", "success",
+               f"hostname={cfg.hostname} dns={','.join(cfg.dns)}")
+    return {"ok": True}
