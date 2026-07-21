@@ -913,6 +913,23 @@ except ImportError as e:
 
 
 # ────────────────────────────────────────────────────────────
+# NETWORK — interfaces, DNS, DDNS, routes (network_api.py)
+# ────────────────────────────────────────────────────────────
+try:
+    from network_api import router as network_router, set_helpers as set_network_helpers
+    set_network_helpers(
+        run_args=_run_args,
+        audit=_audit,
+        conf=conf,
+    )
+    app.include_router(network_router)
+    logger.info("Network API loaded")
+except ImportError as e:
+    logger.error("Network API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
 # STORAGE — extracted to storage_api.py (Sprint 1, commit 3)
 # Routes: pools, drives, pool, drive, df, snapshots, snapshot,
 #         smart/{device}, hotswap-log, smart-alerts

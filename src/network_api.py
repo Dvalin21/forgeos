@@ -1,0 +1,354 @@
+"""Network configuration API — interfaces, addressing, DNS, DDNS, routes.
+
+READ LAYER + VALIDATED MODELS (patch 1 of the Network page build).
+
+This module exposes the current network state (interfaces, DNS resolvers,
+static routes) and defines the strictly-validated request models that the
+later write patches will consume. It writes NOTHING yet — every endpoint here
+is a GET. The write paths (interface addressing, global DNS/hostname, DDNS,
+routes) land in subsequent patches behind an apply→confirm→auto-revert engine,
+because this host uses ifupdown (no `netplan try` to lean on) and the primary
+interface is the one the web UI runs on — a bad address change would drop a
+headless box off the network.
+
+Backend facts this module is built against (verified on the target VM):
+  • ifupdown: `networking` service active; netplan absent; NetworkManager off.
+  • config: /etc/network/interfaces with `source /etc/network/interfaces.d/*`.
+  • DNS: plain static /etc/resolv.conf (not a symlink); systemd-resolved off.
+"""
+from __future__ import annotations
+
+import ipaddress
+import json
+import logging
+import re
+from pathlib import Path
+from typing import Any, Callable, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
+
+from forgeos_auth import verify_token
+
+logger = logging.getLogger("forgeos-api")
+
+router = APIRouter()
+
+# ── injected helpers (wired from the main module via set_helpers) ──
+_run_args: Optional[Callable[..., str]] = None
+_audit: Optional[Callable[..., None]] = None
+_conf_get: Optional[Callable[[str, str], str]] = None
+
+
+def set_helpers(
+    run_args: Callable[..., str],
+    audit: Callable[..., None],
+    conf: Callable[[str, str], str],
+) -> None:
+    """Wire shared helpers from the main module (mirrors system_api)."""
+    global _run_args, _audit, _conf_get
+    _run_args = run_args
+    _audit = audit
+    _conf_get = conf
+
+
+# ── paths (module-level so tests can redirect them off the real /etc) ──
+RESOLV_CONF = Path("/etc/resolv.conf")
+INTERFACES_D = Path("/etc/network/interfaces.d")
+
+# Loopback and virtual bridges we don't surface as configurable NICs.
+_HIDE_IFACE_RE = re.compile(r"^(lo|docker\d+|br-[0-9a-f]+|veth|virbr|wg\d+)")
+
+
+# ════════════════════════════════════════════════════════════════════
+# VALIDATED MODELS  (used by the write patches; defined here so the
+# validation rules live with the read layer and can be unit-tested now)
+# ════════════════════════════════════════════════════════════════════
+class InterfaceConfig(BaseModel):
+    """Per-interface addressing. Simple by design: IPv4/IPv6, DHCP/static, MTU
+    (no VLAN/bonding/802.1X in v1)."""
+    name: str = Field(..., min_length=1, max_length=15)
+    method: str = Field(...)                       # "dhcp" | "static"
+    address: Optional[str] = None                  # CIDR, e.g. 10.0.0.69/24
+    gateway: Optional[str] = None
+    dns: list[str] = Field(default_factory=list)
+    mtu: int = Field(default=1500, ge=576, le=9000)
+
+    @field_validator("name")
+    @classmethod
+    def _iface_name(cls, v: str) -> str:
+        # Linux iface names: no whitespace, slash, or shell metacharacters.
+        if not re.fullmatch(r"[A-Za-z0-9@._-]+", v):
+            raise ValueError("invalid interface name")
+        return v
+
+    @field_validator("method")
+    @classmethod
+    def _method(cls, v: str) -> str:
+        if v not in ("dhcp", "static"):
+            raise ValueError("method must be 'dhcp' or 'static'")
+        return v
+
+    @field_validator("address")
+    @classmethod
+    def _address(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, ""):
+            return None
+        try:
+            # interface form (accepts host bits) — this is an address on a NIC
+            ipaddress.ip_interface(v)
+        except ValueError:
+            raise ValueError(f"invalid IP/CIDR: {v}")
+        return v
+
+    @field_validator("gateway")
+    @classmethod
+    def _gateway(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, ""):
+            return None
+        try:
+            ipaddress.ip_address(v)
+        except ValueError:
+            raise ValueError(f"invalid gateway address: {v}")
+        return v
+
+    @field_validator("dns")
+    @classmethod
+    def _dns(cls, v: list[str]) -> list[str]:
+        for s in v:
+            try:
+                ipaddress.ip_address(s)
+            except ValueError:
+                raise ValueError(f"invalid DNS server: {s}")
+        return v
+
+    def model_post_init(self, __context: Any) -> None:
+        # static requires an address; a static gateway must be a plain host IP
+        # on the same subnet as the address (catches fat-finger gateways that
+        # would blackhole the box).
+        if self.method == "static":
+            if not self.address:
+                raise ValueError("static addressing requires an address")
+            if self.gateway:
+                net = ipaddress.ip_interface(self.address).network
+                if ipaddress.ip_address(self.gateway) not in net:
+                    raise ValueError("gateway is not on the interface's subnet")
+
+
+class GlobalNetConfig(BaseModel):
+    """System-wide identity + resolvers (not tied to one interface)."""
+    hostname: str = Field(..., min_length=1, max_length=63)
+    domain: str = Field(default="", max_length=253)
+    dns: list[str] = Field(default_factory=list)
+    gateway: Optional[str] = None
+    proxy: str = Field(default="", max_length=253)
+
+    @field_validator("hostname")
+    @classmethod
+    def _hostname(cls, v: str) -> str:
+        # RFC 1123 label: letters/digits/hyphen, not starting/ending with hyphen
+        if not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?", v):
+            raise ValueError("invalid hostname")
+        return v
+
+    @field_validator("domain")
+    @classmethod
+    def _domain(cls, v: str) -> str:
+        if v == "":
+            return v
+        if not re.fullmatch(r"[A-Za-z0-9.-]+", v) or ".." in v:
+            raise ValueError("invalid domain")
+        return v
+
+    @field_validator("dns")
+    @classmethod
+    def _dns(cls, v: list[str]) -> list[str]:
+        for s in v:
+            try:
+                ipaddress.ip_address(s)
+            except ValueError:
+                raise ValueError(f"invalid DNS server: {s}")
+        return v
+
+    @field_validator("gateway")
+    @classmethod
+    def _gateway(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, ""):
+            return None
+        try:
+            ipaddress.ip_address(v)
+        except ValueError:
+            raise ValueError(f"invalid gateway address: {v}")
+        return v
+
+
+class StaticRoute(BaseModel):
+    destination: str                               # CIDR
+    gateway: str
+    interface: Optional[str] = None
+    metric: int = Field(default=0, ge=0, le=2**31 - 1)
+
+    @field_validator("destination")
+    @classmethod
+    def _dest(cls, v: str) -> str:
+        try:
+            ipaddress.ip_network(v, strict=False)   # a destination network
+        except ValueError:
+            raise ValueError(f"invalid destination network: {v}")
+        return v
+
+    @field_validator("gateway")
+    @classmethod
+    def _gw(cls, v: str) -> str:
+        try:
+            ipaddress.ip_address(v)
+        except ValueError:
+            raise ValueError(f"invalid gateway address: {v}")
+        return v
+
+    @field_validator("interface")
+    @classmethod
+    def _iface(cls, v: Optional[str]) -> Optional[str]:
+        if v in (None, ""):
+            return None
+        if not re.fullmatch(r"[A-Za-z0-9@._-]+", v):
+            raise ValueError("invalid interface name")
+        return v
+
+
+# ════════════════════════════════════════════════════════════════════
+# READ HELPERS
+# ════════════════════════════════════════════════════════════════════
+def _ip_json(*args: str) -> list:
+    """Run `ip -j <args>` and parse JSON; [] on any failure."""
+    assert _run_args is not None
+    out = _run_args(["ip", "-j", *args], timeout=5)
+    if not out:
+        return []
+    try:
+        data = json.loads(out)
+        return data if isinstance(data, list) else []
+    except (json.JSONDecodeError, ValueError):
+        return []
+
+
+def _read_interfaces() -> list[dict]:
+    """Enumerate real NICs with address/link/counter detail."""
+    ifaces: list[dict] = []
+    addr_data = _ip_json("addr", "show")
+    for iface in addr_data:
+        if not isinstance(iface, dict):
+            continue
+        name = iface.get("ifname", "")
+        if not name or _HIDE_IFACE_RE.match(name):
+            continue
+        ipv4, ipv6 = [], []
+        for a in iface.get("addr_info", []):
+            if not isinstance(a, dict):
+                continue
+            fam, local, plen = a.get("family"), a.get("local"), a.get("prefixlen")
+            if fam == "inet" and local:
+                ipv4.append(f"{local}/{plen}" if plen is not None else local)
+            elif fam == "inet6" and local and a.get("scope") != "link":
+                ipv6.append(f"{local}/{plen}" if plen is not None else local)
+        stats = iface.get("stats64", {}) or {}
+        rx = (stats.get("rx", {}) or {}).get("bytes", 0)
+        tx = (stats.get("tx", {}) or {}).get("bytes", 0)
+        ifaces.append({
+            "name": name,
+            "state": iface.get("operstate", "UNKNOWN"),
+            "mac": iface.get("address", ""),
+            "mtu": iface.get("mtu", 0),
+            "ipv4": ipv4,
+            "ipv6": ipv6,
+            "rx_bytes": rx,
+            "tx_bytes": tx,
+        })
+    return ifaces
+
+
+def _read_dns() -> list[str]:
+    """Nameservers from /etc/resolv.conf (this host resolves via the static file)."""
+    servers: list[str] = []
+    try:
+        for line in RESOLV_CONF.read_text().splitlines():
+            line = line.strip()
+            if line.startswith("nameserver"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    servers.append(parts[1])
+    except OSError:
+        pass
+    return servers
+
+
+def _read_routes() -> list[dict]:
+    """Current routing table (default + static)."""
+    routes: list[dict] = []
+    for r in _ip_json("route", "show"):
+        if not isinstance(r, dict):
+            continue
+        routes.append({
+            "destination": r.get("dst", ""),
+            "gateway": r.get("gateway", ""),
+            "interface": r.get("dev", ""),
+            "metric": r.get("metric", 0),
+            "protocol": r.get("protocol", ""),
+        })
+    return routes
+
+
+# ════════════════════════════════════════════════════════════════════
+# READ ENDPOINTS
+# ════════════════════════════════════════════════════════════════════
+@router.get("/api/net/interfaces")
+async def list_interfaces(user=Depends(verify_token)):
+    """Full per-interface detail (addresses, link state, MAC, MTU, counters)."""
+    return {"interfaces": _read_interfaces()}
+
+
+@router.get("/api/net/global")
+async def get_global(user=Depends(verify_token)):
+    """System-wide network identity + resolvers."""
+    assert _run_args is not None
+    assert _conf_get is not None
+    dns = _read_dns()
+    # default gateway from the routing table
+    gw = ""
+    for r in _read_routes():
+        if r["destination"] in ("default", "0.0.0.0/0") and r["gateway"]:
+            gw = r["gateway"]
+            break
+    return {
+        "hostname": _run_args(["hostname"]).strip() or "forgeos",
+        "domain": _conf_get("DOMAIN", ""),
+        "dns": dns,
+        "gateway": gw,
+        "proxy": _conf_get("HTTP_PROXY", ""),
+    }
+
+
+@router.get("/api/net/routes")
+async def get_routes(user=Depends(verify_token)):
+    """Current routing table."""
+    return {"routes": _read_routes()}
+
+
+@router.get("/api/net/ddns")
+async def get_ddns(user=Depends(verify_token)):
+    """DDNS configuration status.
+
+    Credentials are NEVER returned (write-only, like the nginx ACME creds).
+    The provider/hostname/last-update come from config once the DDNS write
+    subsystem lands; until then this reports 'not configured'.
+    """
+    assert _conf_get is not None
+    provider = _conf_get("DDNS_PROVIDER", "")
+    return {
+        "configured": bool(provider),
+        "provider": provider,
+        "hostname": _conf_get("DDNS_HOSTNAME", ""),
+        # deliberately omitted: any credential/token value
+        "last_ip": _conf_get("DDNS_LAST_IP", ""),
+        "last_update": _conf_get("DDNS_LAST_UPDATE", ""),
+    }
