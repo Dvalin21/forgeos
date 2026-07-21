@@ -922,9 +922,9 @@ try:
         audit=_audit,
         conf=conf,
     )
-    # the ifupdown write layer shares the same command runner
-    import net_ifupdown as _net_ifupdown
-    _net_ifupdown.set_runner(_run_args)
+    # the networkd write layer shares the same command runner
+    import net_networkd as _net_backend
+    _net_backend.set_runner(_run_args)
     app.include_router(network_router)
     logger.info("Network API loaded")
 except ImportError as e:

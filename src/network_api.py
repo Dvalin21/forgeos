@@ -395,7 +395,7 @@ async def set_interface(name: str, cfg: InterfaceConfig, user=Depends(verify_tok
     _require_admin(user)
     if cfg.name != name:
         raise HTTPException(status_code=400, detail="interface name mismatch")
-    import net_ifupdown as ni
+    import net_networkd as ni
     label = (f"{cfg.name} → {cfg.method}"
              + (f" {cfg.address}" if cfg.method == "static" else ""))
     try:
@@ -412,7 +412,7 @@ async def set_interface(name: str, cfg: InterfaceConfig, user=Depends(verify_tok
 async def confirm_change(body: dict, user=Depends(verify_token)):
     """Confirm a pending interface change (cancels the auto-revert)."""
     _require_admin(user)
-    import net_ifupdown as ni
+    import net_networkd as ni
     token = str(body.get("token", ""))
     try:
         res = ni.engine.confirm(token)
@@ -427,7 +427,7 @@ async def confirm_change(body: dict, user=Depends(verify_token)):
 async def cancel_change(user=Depends(verify_token)):
     """Immediately revert the pending interface change (discard)."""
     _require_admin(user)
-    import net_ifupdown as ni
+    import net_networkd as ni
     try:
         res = ni.engine.cancel()
     except Exception as e:
@@ -440,7 +440,7 @@ async def cancel_change(user=Depends(verify_token)):
 @router.get("/api/net/pending")
 async def pending_change(user=Depends(verify_token)):
     """Status of any pending interface change (for the confirm countdown UI)."""
-    import net_ifupdown as ni
+    import net_networkd as ni
     return ni.engine.status()
 
 
@@ -448,7 +448,7 @@ async def pending_change(user=Depends(verify_token)):
 async def set_global(cfg: GlobalNetConfig, user=Depends(verify_token)):
     """Apply hostname + DNS directly (low-risk — no rollback timer)."""
     _require_admin(user)
-    import net_ifupdown as ni
+    import net_networkd as ni
     try:
         ni.apply_global(cfg.hostname, cfg.dns, cfg.domain)
     except Exception as e:

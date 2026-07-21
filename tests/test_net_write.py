@@ -1,51 +1,45 @@
-"""Interface/global write layer — snapshot/apply/revert + endpoints.
-Uses a temp /etc/network and mocked reload — NO real ifupdown/ip commands."""
+"""Interface/global write layer (systemd-networkd backend) — snapshot/apply/
+revert + endpoints. Uses a temp /etc/systemd/network + mocked networkctl —
+NO real networkctl/ip commands."""
 import time
 import pytest
 
 
 @pytest.fixture
 def netfs(tmp_path, monkeypatch, test_client):
-    """Redirect all ifupdown paths into a temp dir + capture reload calls.
+    """Redirect networkd paths into a temp dir + capture networkctl calls.
 
-    Depends on test_client so app startup (which calls set_runner with the real
-    runner) happens FIRST — then we override _run_args with the mock.
+    Depends on test_client so app startup (set_runner with the real runner)
+    happens FIRST — then we override _run_args with the mock.
     """
-    import net_ifupdown as ni
-    main = tmp_path / "interfaces"
-    dropd = tmp_path / "interfaces.d"
+    import net_networkd as ni
+    netdir = tmp_path / "network"
     resolv = tmp_path / "resolv.conf"
-    dropd.mkdir()
-    main.write_text("source /etc/network/interfaces.d/*\n"
-                    "auto lo\niface lo inet loopback\n"
-                    "allow-hotplug ens18\niface ens18 inet dhcp\n")
+    netdir.mkdir()
+    # a distro-default file that ForgeOS must leave alone
+    (netdir / "99-default.network").write_text("[Match]\nName=en*\n[Network]\nDHCP=yes\n")
     resolv.write_text("nameserver 10.0.0.1\n")
-    monkeypatch.setattr(ni, "INTERFACES_MAIN", main)
-    monkeypatch.setattr(ni, "INTERFACES_D", dropd)
+    monkeypatch.setattr(ni, "NETWORKD_DIR", netdir)
     monkeypatch.setattr(ni, "RESOLV_CONF", resolv)
     calls = []
     monkeypatch.setattr(ni, "_run_args", lambda args, timeout=None: calls.append(args) or "")
-    # force the classic ifdown/ifup path deterministically (no ifreload in test)
-    monkeypatch.setattr(ni.shutil, "which", lambda _: None)
-    # reset engine state between tests
     ni.engine._pending = None
     ni.engine._last_result = None
-    return {"main": main, "dropd": dropd, "resolv": resolv, "calls": calls, "ni": ni}
+    return {"netdir": netdir, "resolv": resolv, "calls": calls, "ni": ni}
 
 
 class TestSnapshotRestore:
     def test_snapshot_then_restore_is_exact(self, netfs):
         ni = netfs["ni"]
         snap = ni._snapshot()
-        # mutate everything
-        (netfs["dropd"] / "forgeos-ens18.cfg").write_text("garbage")
-        netfs["main"].write_text("WIPED")
+        (netfs["netdir"] / "10-forgeos-ens18.network").write_text("garbage")
+        (netfs["netdir"] / "99-default.network").write_text("WIPED")
         netfs["resolv"].write_text("nameserver 8.8.8.8")
-        # restore
         ni._restore(snap)
-        assert "iface ens18 inet dhcp" in netfs["main"].read_text()
+        # distro default restored, added forgeos file removed, resolv restored
+        assert "DHCP=yes" in (netfs["netdir"] / "99-default.network").read_text()
+        assert not (netfs["netdir"] / "10-forgeos-ens18.network").exists()
         assert netfs["resolv"].read_text() == "nameserver 10.0.0.1\n"
-        assert not (netfs["dropd"] / "forgeos-ens18.cfg").exists()  # added file removed
 
 
 class TestApplyConfirm:
@@ -54,42 +48,35 @@ class TestApplyConfirm:
             "name": "ens18", "method": "static",
             "address": "10.0.0.69/24", "gateway": "10.0.0.1", "mtu": 1500})
 
-    def test_apply_writes_dropin_and_dedups_main(self, netfs, test_client, auth_headers):
+    def test_apply_writes_network_file_and_reconfigures(self, netfs, test_client, auth_headers):
         r = self._apply_static(test_client, auth_headers)
         assert r.status_code == 200, r.text
         assert "token" in r.json()
-        # drop-in written with the static stanza
-        dropin = netfs["dropd"] / "forgeos-ens18.cfg"
-        assert dropin.exists()
-        assert "iface ens18 inet static" in dropin.read_text()
-        # main file deduped (ens18 commented, lo intact)
-        main = netfs["main"].read_text()
-        assert "# iface ens18 inet dhcp" in main
-        assert "iface lo inet loopback" in main
-        # reload was attempted (ifdown+ifup since which()->None)
-        assert ["ifdown", "ens18", "--force"] in netfs["calls"]
-        assert ["ifup", "ens18"] in netfs["calls"]
-        netfs["ni"].engine.cancel()   # cleanup pending
+        nf = netfs["netdir"] / "10-forgeos-ens18.network"
+        assert nf.exists()
+        assert "Address=10.0.0.69/24" in nf.read_text()
+        # distro default untouched
+        assert (netfs["netdir"] / "99-default.network").exists()
+        # networkctl reload + reconfigure were called
+        assert ["networkctl", "reload"] in netfs["calls"]
+        assert ["networkctl", "reconfigure", "ens18"] in netfs["calls"]
+        netfs["ni"].engine.cancel()
 
     def test_confirm_commits(self, netfs, test_client, auth_headers):
         r = self._apply_static(test_client, auth_headers)
-        tok = r.json()["token"]
-        c = test_client.post("/api/net/confirm", headers=auth_headers, json={"token": tok})
+        c = test_client.post("/api/net/confirm", headers=auth_headers, json={"token": r.json()["token"]})
         assert c.status_code == 200
         assert c.json()["result"] == "committed"
-        # still static after confirm (no revert)
-        assert "iface ens18 inet static" in (netfs["dropd"] / "forgeos-ens18.cfg").read_text()
+        assert "Address=10.0.0.69/24" in (netfs["netdir"] / "10-forgeos-ens18.network").read_text()
 
-    def test_no_confirm_auto_reverts(self, netfs, test_client, auth_headers, monkeypatch):
-        # shrink the window so the timer fires fast
+    def test_no_confirm_auto_reverts(self, netfs, test_client, auth_headers):
         netfs["ni"].engine._window = 1
         r = self._apply_static(test_client, auth_headers)
-        assert (netfs["dropd"] / "forgeos-ens18.cfg").exists()
+        assert (netfs["netdir"] / "10-forgeos-ens18.network").exists()
         time.sleep(1.4)
-        # auto-reverted: drop-in gone, main restored to dhcp
-        assert not (netfs["dropd"] / "forgeos-ens18.cfg").exists()
-        assert "iface ens18 inet dhcp" in netfs["main"].read_text()
-        assert "# iface ens18" not in netfs["main"].read_text()
+        # auto-reverted: forgeos file gone, default intact
+        assert not (netfs["netdir"] / "10-forgeos-ens18.network").exists()
+        assert (netfs["netdir"] / "99-default.network").exists()
         assert netfs["ni"].engine.status()["last_result"] == "reverted"
 
     def test_second_apply_while_pending_rejected(self, netfs, test_client, auth_headers):
@@ -102,11 +89,11 @@ class TestApplyConfirm:
         self._apply_static(test_client, auth_headers)
         c = test_client.post("/api/net/cancel", headers=auth_headers)
         assert c.status_code == 200
-        assert not (netfs["dropd"] / "forgeos-ens18.cfg").exists()
+        assert not (netfs["netdir"] / "10-forgeos-ens18.network").exists()
 
     def test_name_mismatch_rejected(self, netfs, test_client, auth_headers):
         r = test_client.put("/api/net/interface/ens18", headers=auth_headers, json={
-            "name": "eth9", "method": "dhcp"})   # body name != path name
+            "name": "eth9", "method": "dhcp"})
         assert r.status_code == 400
 
 
@@ -129,7 +116,6 @@ class TestGlobalWrite:
 
 class TestAdminGating:
     def test_writes_require_admin(self, netfs, test_client, user_headers):
-        # a non-admin token must be refused on every write
         for call in [
             lambda: test_client.put("/api/net/interface/ens18", headers=user_headers,
                                     json={"name": "ens18", "method": "dhcp"}),
