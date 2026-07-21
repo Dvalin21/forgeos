@@ -84,17 +84,25 @@ class TestReadEndpoints:
 
     def _mock_ip(self, monkeypatch):
         import network_api as n
+        # `ip -j addr` carries addresses but NOT stats64
         addr_json = (
             '[{"ifname":"lo","operstate":"UNKNOWN","addr_info":[]},'
-            '{"ifname":"ens18","operstate":"UP","address":"b4:2e:99:1a:cf:07",'
-            '"mtu":1500,"stats64":{"rx":{"bytes":3420000000},"tx":{"bytes":1080000000}},'
+            '{"ifname":"ens18","operstate":"UP","address":"bc:24:11:f2:3b:1e",'
+            '"mtu":1500,'
             '"addr_info":[{"family":"inet","local":"10.0.0.69","prefixlen":24},'
             '{"family":"inet6","local":"fe80::1","prefixlen":64,"scope":"link"}]},'
             '{"ifname":"docker0","operstate":"DOWN","addr_info":[]}]'
         )
+        # `ip -s -j link` carries stats64 (real values from the target VM)
+        link_json = (
+            '[{"ifname":"ens18","stats64":{"rx":{"bytes":3800623959},'
+            '"tx":{"bytes":204280987}}}]'
+        )
         route_json = ('[{"dst":"default","gateway":"10.0.0.1","dev":"ens18"},'
                       '{"dst":"10.0.0.0/24","dev":"ens18","protocol":"kernel"}]')
         def fake_run(args, timeout=None):
+            if args[:4] == ["ip", "-j", "-s", "link"]:
+                return link_json
             if args[:3] == ["ip", "-j", "addr"]:
                 return addr_json
             if args[:3] == ["ip", "-j", "route"]:
@@ -112,8 +120,9 @@ class TestReadEndpoints:
         assert names == ["ens18"]                  # lo + docker0 hidden
         eth = r.json()["interfaces"][0]
         assert eth["ipv4"] == ["10.0.0.69/24"]
-        assert eth["mac"] == "b4:2e:99:1a:cf:07"
-        assert eth["rx_bytes"] == 3420000000
+        assert eth["mac"] == "bc:24:11:f2:3b:1e"
+        assert eth["rx_bytes"] == 3800623959
+        assert eth["tx_bytes"] == 204280987
         # link-local ipv6 excluded
         assert eth["ipv6"] == []
 

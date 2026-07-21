@@ -232,9 +232,29 @@ def _ip_json(*args: str) -> list:
         return []
 
 
+def _read_link_stats() -> dict[str, tuple[int, int]]:
+    """Per-interface (rx_bytes, tx_bytes) from `ip -s -j link`.
+
+    Statistics live on `ip -s link`, NOT on `ip addr` — the address dump omits
+    stats64, so counters must be read separately and merged by ifname.
+    """
+    stats: dict[str, tuple[int, int]] = {}
+    for iface in _ip_json("-s", "link", "show"):
+        if not isinstance(iface, dict):
+            continue
+        name = iface.get("ifname", "")
+        s = iface.get("stats64", {}) or {}
+        rx = (s.get("rx", {}) or {}).get("bytes", 0)
+        tx = (s.get("tx", {}) or {}).get("bytes", 0)
+        if name:
+            stats[name] = (rx, tx)
+    return stats
+
+
 def _read_interfaces() -> list[dict]:
     """Enumerate real NICs with address/link/counter detail."""
     ifaces: list[dict] = []
+    link_stats = _read_link_stats()          # rx/tx come from `ip -s link`
     addr_data = _ip_json("addr", "show")
     for iface in addr_data:
         if not isinstance(iface, dict):
@@ -251,9 +271,7 @@ def _read_interfaces() -> list[dict]:
                 ipv4.append(f"{local}/{plen}" if plen is not None else local)
             elif fam == "inet6" and local and a.get("scope") != "link":
                 ipv6.append(f"{local}/{plen}" if plen is not None else local)
-        stats = iface.get("stats64", {}) or {}
-        rx = (stats.get("rx", {}) or {}).get("bytes", 0)
-        tx = (stats.get("tx", {}) or {}).get("bytes", 0)
+        rx, tx = link_stats.get(name, (0, 0))
         ifaces.append({
             "name": name,
             "state": iface.get("operstate", "UNKNOWN"),
