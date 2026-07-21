@@ -442,17 +442,23 @@ class TestDockerSettings:
             r = test_client.put("/api/docker/settings", headers=auth_headers,
                                 json={"apps_root": bad})
             assert r.status_code == 400, bad
-        root = str(tmp_path / "apps")
+        # /tmp is intentionally NOT an allowed app-data prefix (world-writable,
+        # cleared on reboot), so use a valid prefix and mock mkdir to avoid
+        # writing a privileged path during the test.
+        from pathlib import Path
+        made = []
+        def fake_mkdir(self, *a, **k):
+            made.append(str(self))
+        monkeypatch.setattr(Path, "mkdir", fake_mkdir)
+        root = "/srv/forgeos-test-apps"
         r = test_client.put("/api/docker/settings", headers=auth_headers,
                             json={"apps_root": root})
         assert r.status_code == 200
         try:
-            assert (tmp_path / "apps").is_dir()          # mkdir'd
+            assert root in made                          # apps_root was mkdir'd
             g = test_client.get("/api/docker/settings", headers=auth_headers)
             assert g.json()["apps_root"] == root         # persisted
         finally:
-            # reset via the config layer — the endpoint mkdirs its target,
-            # and tests must never write privileged paths like /srv
             import forgeos_config as fc
             cfg = fc.load(); cfg.docker = fc.DockerConfig(); fc.save(cfg)
 
@@ -536,3 +542,29 @@ class TestPruneContainers:
         r = test_client.post("/api/docker/prune/containers", headers=auth_headers)
         assert r.status_code == 200
         assert ["container", "prune", "-f"] in calls
+
+
+class TestAppsRootAllowlist:
+    """apps_root validator: denylist -> resolve + allowlist. The old denylist
+    was bypassable (/etc/../etc -> /etc; /bin /lib /sys never listed)."""
+
+    def test_bypasses_now_blocked(self):
+        import forgeos_config as fc
+        from pydantic import ValidationError
+        for bad in ("/etc/../etc", "/etc/cron.d", "/bin", "/lib", "/sys",
+                    "/boot/../etc", "/var/../etc/cron.d", "/srv/../etc",
+                    "/", "/etc", "/root", "relative"):
+            with pytest.raises((ValidationError, ValueError)):
+                fc.DockerConfig(apps_root=bad)
+
+    def test_legit_locations_allowed(self):
+        import forgeos_config as fc
+        for good in ("/srv/apps", "/srv/nas/tank/apps", "/opt/appdata",
+                     "/mnt/storage/apps", "/home/user/apps",
+                     "/var/lib/forgeos-apps"):
+            assert fc.DockerConfig(apps_root=good).apps_root == good
+
+    def test_dotdot_is_normalized_before_check(self):
+        import forgeos_config as fc
+        # a legit-looking path that resolves INTO an allowed prefix keeps working
+        assert fc.DockerConfig(apps_root="/srv/nas/../apps").apps_root == "/srv/apps"

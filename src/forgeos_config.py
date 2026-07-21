@@ -578,12 +578,24 @@ class DockerConfig(BaseModel):
     @field_validator("apps_root")
     @classmethod
     def _abs_root(cls, v: str) -> str:
-        v = (v or "").rstrip("/")
-        if not v.startswith("/") or v == "":
+        # Validate what's ALLOWED, not what's forbidden — a denylist of "bad"
+        # paths can't be exhaustive and is trivially bypassed (/etc/../etc
+        # normalises to /etc, and /bin /lib /sys were never on the list).
+        # Resolve first (collapses .. and symlinks), then require the result to
+        # sit under a sane app-data prefix.
+        raw = (v or "").strip()
+        if not raw.startswith("/"):
             raise ValueError("apps_root must be an absolute path")
-        if v == "/" or v in ("/etc", "/usr", "/boot", "/root", "/var"):
-            raise ValueError(f"{v} is not a sane app-data location")
-        return v
+        resolved = os.path.normpath(raw).rstrip("/") or "/"
+        allowed_prefixes = ("/srv", "/opt", "/mnt", "/media", "/home", "/data",
+                            "/var/lib")
+        # allow an allowed prefix itself, or any path strictly beneath it
+        if not any(resolved == p or resolved.startswith(p + "/")
+                   for p in allowed_prefixes):
+            raise ValueError(
+                f"{resolved} is not a permitted app-data location — use a path "
+                f"under one of: {', '.join(allowed_prefixes)}")
+        return resolved
 
 
 DataConnectKind = Literal["file", "postgres", "mysql"]
