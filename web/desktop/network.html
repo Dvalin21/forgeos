@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>Network · ForgeOS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+<style>
+/* page-local styles (shared tokens come from forgeos.css) */
+.net-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start}
+.span2{grid-column:1/-1}
+.p-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px}
+.p-head h3{margin:0;font-size:16px}
+.p-head p{margin:3px 0 0;color:var(--muted);font-size:12.5px;max-width:54ch}
+
+.if-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.if-card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:15px 16px;background:var(--surface-2)}
+.if-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.if-name{display:flex;align-items:center;gap:9px;font-weight:800;font-size:14px}
+.if-ico{width:30px;height:30px;border-radius:9px;background:var(--primary-soft);display:grid;place-items:center;color:var(--primary)}
+.if-ico svg{width:17px;height:17px;stroke:currentColor;stroke-width:2;fill:none}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot.up{background:var(--success);box-shadow:0 0 0 3px rgba(16,166,106,.16)}
+.dot.down{background:var(--muted)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:12.5px;margin:0}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+.kv dd.mono{font-family:var(--mono);font-size:11.5px}
+.mini-metric{display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--muted)}
+.mini-metric b{display:block;color:var(--text);font-size:14px;font-variant-numeric:tabular-nums;font-weight:800}
+.if-foot{display:flex;gap:8px;align-items:center;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.badge{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:7px;text-transform:uppercase;letter-spacing:.4px}
+.badge.dhcp{background:var(--primary-soft);color:var(--primary)}
+.badge.static{background:rgba(0,164,184,.12);color:#0894a6}
+
+.frow{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.frow:last-of-type{border-bottom:0}
+.frow label{font-size:12.5px;color:var(--muted);font-weight:600}
+.kvval{font-weight:600;font-size:13px;font-variant-numeric:tabular-nums}
+.kvval.mono{font-family:var(--mono);font-size:12px}
+
+table.rt{width:100%;border-collapse:collapse;font-size:12.5px}
+table.rt th{text-align:left;color:var(--muted);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:0 10px 9px}
+table.rt td{padding:10px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+table.rt td.mono{font-family:var(--mono);font-size:11.5px}
+.tag{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;background:var(--surface-3);color:var(--muted)}
+.muted{color:var(--muted)}
+.empty{color:var(--muted);font-size:12.5px;padding:14px 2px}
+/* .chip color variants — shared CSS only ships the base .chip */
+.chip.ok{background:rgba(16,166,106,.12);color:var(--success)}
+.chip.warn{background:rgba(216,138,0,.14);color:var(--warn)}
+
+/* read-only phase notice */
+.ro-note{display:flex;gap:11px;align-items:flex-start;padding:12px 15px;border-radius:var(--radius-sm);background:var(--primary-soft);border:1px solid rgba(41,98,255,.2);margin-bottom:18px}
+.ro-note svg{width:18px;height:18px;stroke:var(--primary);stroke-width:2;fill:none;flex-shrink:0;margin-top:1px}
+.ro-note p{margin:0;font-size:12.5px;color:#1c3d7a;line-height:1.5}
+@media(max-width:1020px){.net-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+  <main class="main">
+    <header class="topbar">
+      <div class="section-head">
+        <h3>Network</h3>
+        <p>Interfaces, addressing, DNS, dynamic DNS, and routing</p>
+      </div>
+      <div class="top-actions">
+        <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
+        <span class="chip" id="net-status">checking…</span>
+      </div>
+    </header>
+
+    <div style="padding:22px 26px">
+      <div class="ro-note">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+        <p>This page currently shows your live network configuration (read-only). Editing — static IP, DNS, dynamic DNS, and routes — is being added next, with an apply-and-confirm safeguard so an address change can never lock you out.</p>
+      </div>
+
+      <div class="net-grid">
+
+        <!-- Interfaces -->
+        <section class="panel pad span2">
+          <div class="p-head">
+            <div><h3>Interfaces</h3><p>Physical and virtual network adapters detected on this system.</p></div>
+            <span class="chip" id="if-chip">—</span>
+          </div>
+          <div class="if-grid" id="if-grid"><div class="empty">Loading interfaces…</div></div>
+        </section>
+
+        <!-- Global -->
+        <section class="panel pad">
+          <div class="p-head">
+            <div><h3>Global settings</h3><p>System-wide identity and name resolution.</p></div>
+          </div>
+          <div id="global-body">
+            <div class="empty">Loading…</div>
+          </div>
+        </section>
+
+        <!-- DDNS -->
+        <section class="panel pad">
+          <div class="p-head">
+            <div><h3>Dynamic DNS</h3><p>Keep a hostname pointed at this server when your public IP changes.</p></div>
+            <span class="chip" id="ddns-chip">—</span>
+          </div>
+          <div id="ddns-body">
+            <div class="empty">Loading…</div>
+          </div>
+        </section>
+
+        <!-- Routes -->
+        <section class="panel pad span2">
+          <div class="p-head">
+            <div><h3>Routing table</h3><p>How traffic is directed to each destination network.</p></div>
+            <span class="chip" id="rt-chip">—</span>
+          </div>
+          <div id="rt-body"><div class="empty">Loading routes…</div></div>
+        </section>
+
+      </div>
+    </div>
+  </main>
+
+  <div id="toasts"></div>
+<script src="/js/network.js"></script>
+<script src="/js/nav.js"></script>
+</body>
+</html>
