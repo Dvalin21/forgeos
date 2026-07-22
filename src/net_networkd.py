@@ -161,16 +161,36 @@ def _restore(snap: dict) -> None:
         _atomic_write(RESOLV_CONF, snap["resolv"])
 
 
+# Which interface the pending change touched. The engine allows exactly one
+# pending change at a time, so a single slot is sufficient. _revert needs this
+# because the engine hands it only the snapshot — and restoring the .network
+# file is NOT enough: the live link keeps the applied address until that
+# interface is explicitly reconfigured.
+_pending_iface: Optional[str] = None
+
+
 def _apply(change: dict) -> None:
     """Apply a pending interface change, then reload. change = {'cfg': cfg}."""
+    global _pending_iface
     cfg = change["cfg"]
+    _pending_iface = cfg.name
     _atomic_write(_netfile_path(cfg.name), render_network_file(cfg))
     _reload(cfg.name)
 
 
 def _revert(snap: dict) -> None:
+    """Restore the snapshot AND reconfigure the affected link.
+
+    Restoring the file alone leaves the interface on the applied (possibly
+    unreachable) address — `networkctl reload` re-reads config but does not
+    reliably re-apply it to an already-configured link. Reconfiguring the
+    specific interface is what actually brings the box back.
+    """
+    global _pending_iface
+    iface = _pending_iface
     _restore(snap)
-    _reload(None)          # reload config; reconfigure happens per restored file
+    _reload(iface)
+    _pending_iface = None
 
 
 # Single engine instance for interface changes (60s confirm window).

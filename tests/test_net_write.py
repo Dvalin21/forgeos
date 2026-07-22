@@ -78,6 +78,9 @@ class TestApplyConfirm:
         assert not (netfs["netdir"] / "10-forgeos-ens18.network").exists()
         assert (netfs["netdir"] / "99-default.network").exists()
         assert netfs["ni"].engine.status()["last_result"] == "reverted"
+        # the REVERT must also reconfigure the link — restoring the file alone
+        # leaves the interface on the bad address (hardware-proven regression)
+        assert netfs["calls"].count(["networkctl", "reconfigure", "ens18"]) >= 2
 
     def test_second_apply_while_pending_rejected(self, netfs, test_client, auth_headers):
         self._apply_static(test_client, auth_headers)
@@ -90,6 +93,7 @@ class TestApplyConfirm:
         c = test_client.post("/api/net/cancel", headers=auth_headers)
         assert c.status_code == 200
         assert not (netfs["netdir"] / "10-forgeos-ens18.network").exists()
+        assert netfs["calls"].count(["networkctl", "reconfigure", "ens18"]) >= 2
 
     def test_name_mismatch_rejected(self, netfs, test_client, auth_headers):
         r = test_client.put("/api/net/interface/ens18", headers=auth_headers, json={
