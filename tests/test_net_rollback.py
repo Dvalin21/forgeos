@@ -138,3 +138,27 @@ def test_stale_timeout_after_confirm_is_noop():
     eng._on_timeout(tok)
     assert f.state == "NEW"                     # NOT reverted
     assert eng.status()["last_result"] == "committed"
+
+
+def test_revert_failure_is_reported_not_swallowed():
+    """A revert that throws must NOT be recorded as a successful rollback —
+    the host is probably still on the applied config."""
+    f = Fake()
+    def bad_revert(snap):
+        raise OSError(30, "Read-only file system")
+    eng = RollbackEngine(f.snapshot, f.apply, bad_revert, window_seconds=1)
+    eng.apply("BAD", "ens18 -> broken")
+    time.sleep(1.4)
+    st = eng.status()
+    assert st["pending"] is False
+    assert st["last_result"] == "revert-failed"
+
+
+def test_cancel_raises_when_revert_fails():
+    f = Fake()
+    def bad_revert(snap):
+        raise OSError(30, "Read-only file system")
+    eng = RollbackEngine(f.snapshot, f.apply, bad_revert, window_seconds=30)
+    eng.apply("BAD", "x")
+    with pytest.raises(RollbackError):
+        eng.cancel()

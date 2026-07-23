@@ -24,11 +24,14 @@ one is armed, because two overlapping reverts would corrupt the config):
 """
 from __future__ import annotations
 
+import logging
 import secrets
 import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
+
+logger = logging.getLogger("forgeos-api")
 
 
 @dataclass
@@ -149,7 +152,10 @@ class RollbackEngine:
             if p is None:
                 raise RollbackError("no network change is pending")
             p.timer.cancel()
-            return self._do_revert_locked(p)
+            res = self._do_revert_locked(p)
+            if res.get("result") == "revert-failed":
+                raise RollbackError(f"revert failed: {res.get('error')}")
+            return res
 
     # ── timer callback (runs on the Timer thread) ──
     def _on_timeout(self, token: str) -> None:
@@ -162,11 +168,24 @@ class RollbackEngine:
             self._do_revert_locked(p)
 
     def _do_revert_locked(self, p: _Pending) -> dict:
-        """Restore the snapshot. Caller must hold _lock."""
+        """Restore the snapshot. Caller must hold _lock.
+
+        A revert that throws must NOT be reported as success: the box is very
+        likely still on the applied (possibly unreachable) config, and the old
+        `finally` block recorded "reverted" regardless while the traceback died
+        unread on the Timer thread. Fail loudly instead.
+        """
         try:
             self._revert(p.snapshot)
-        finally:
-            p.reverted = True
+        except Exception as e:
+            logger.exception(
+                "network revert FAILED for %s — host may still be on the "
+                "applied config", p.label)
+            p.reverted = False
             self._pending = None
-            self._last_result = "reverted"
+            self._last_result = "revert-failed"
+            return {"result": "revert-failed", "label": p.label, "error": str(e)}
+        p.reverted = True
+        self._pending = None
+        self._last_result = "reverted"
         return {"result": "reverted", "label": p.label}

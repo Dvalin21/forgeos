@@ -128,3 +128,50 @@ class TestAdminGating:
             lambda: test_client.post("/api/net/cancel", headers=user_headers),
         ]:
             assert call().status_code == 403
+
+
+class TestReadOnlyParentDir:
+    """systemd ProtectSystem carve-outs can be FILE-level (-/etc/resolv.conf),
+    leaving the parent dir read-only. mkstemp there fails — hardware-proven to
+    abort the whole revert and strand the box."""
+
+    def test_atomic_write_falls_back_when_parent_readonly(self, netfs, monkeypatch):
+        import errno as _errno
+        ni = netfs["ni"]
+        target = netfs["resolv"]
+        def boom(*a, **k):
+            raise OSError(_errno.EROFS, "Read-only file system")
+        monkeypatch.setattr(ni.tempfile, "mkstemp", boom)
+        ni._atomic_write(target, "nameserver 9.9.9.9\n")
+        assert target.read_text() == "nameserver 9.9.9.9\n"
+
+    def test_atomic_write_reraises_other_oserrors(self, netfs, monkeypatch):
+        import errno as _errno
+        ni = netfs["ni"]
+        def boom(*a, **k):
+            raise OSError(_errno.ENOSPC, "No space left on device")
+        monkeypatch.setattr(ni.tempfile, "mkstemp", boom)
+        with pytest.raises(OSError):
+            ni._atomic_write(netfs["resolv"], "x")
+
+    def test_resolv_failure_does_not_abort_revert(self, netfs, test_client,
+                                                  auth_headers, monkeypatch):
+        """The regression: a resolv.conf write blowing up must not stop the
+        .network restore + reconfigure that actually un-bricks the host."""
+        ni = netfs["ni"]
+        ni.engine._window = 1
+        real = ni._atomic_write
+        def selective(path, content, mode=0o644):
+            if str(path) == str(netfs["resolv"]):
+                raise OSError(30, "Read-only file system")
+            return real(path, content, mode)
+        r = test_client.put("/api/net/interface/ens18", headers=auth_headers, json={
+            "name": "ens18", "method": "static",
+            "address": "10.0.0.69/24", "gateway": "10.0.0.1", "mtu": 1500})
+        assert r.status_code == 200
+        monkeypatch.setattr(ni, "_atomic_write", selective)
+        time.sleep(1.4)
+        # revert still completed: forgeos file removed AND link reconfigured
+        assert not (netfs["netdir"] / "10-forgeos-ens18.network").exists()
+        assert netfs["calls"].count(["networkctl", "reconfigure", "ens18"]) >= 2
+        assert ni.engine.status()["last_result"] == "reverted"
