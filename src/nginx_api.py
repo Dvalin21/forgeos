@@ -22,6 +22,7 @@ from pydantic import ValidationError
 
 import forgeos_config as fc
 from generators import registry
+from forgeos_atomic import atomic_write
 from forgeos_auth import verify_token
 
 logger = logging.getLogger("forgeos-api")
@@ -60,29 +61,6 @@ def _provider_creds_path(code: str) -> Path:
     return Path(f"/etc/letsencrypt/dns-{code}.ini")
 _DNS_PROVIDER_RE = re.compile(r"^[a-z0-9_]+$")          # lego provider codes
 _DNS_CRED_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")     # env-var names
-
-
-def _atomic_write_0600(path: Path, content: str) -> None:
-    """Atomically write `content` with 0600 perms (the file holds DNS API
-    tokens). Temp-file + fsync + chmod + os.replace, same as the user store."""
-    import os
-    import tempfile
-
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".dns-", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(content)
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
 
 
 # Save the config-DB then regenerate + reload nginx via the v2 generator.
@@ -444,7 +422,7 @@ async def set_dns_provider(body: dict, user=Depends(verify_token)):
         if any(c in v for c in "\n\r\x00"):
             raise HTTPException(400, f"Invalid value for {k} (control characters not allowed)")
         lines.append(f"{k} = {v}")
-    _atomic_write_0600(DNS_CREDS_FILE, "\n".join(lines) + "\n")
+    atomic_write(DNS_CREDS_FILE, "\n".join(lines) + "\n", 0o600)
     assert _audit is not None
     _audit(user["sub"], "nginx.acme.dns.config", "success", f"DNS provider set to {provider}")
     return {"ok": True, "provider": provider}
@@ -514,7 +492,7 @@ async def add_domain(body: dict, user=Depends(verify_token)):
             if any(c in v for c in "\n\r\x00"):
                 raise HTTPException(400, f"invalid value for {k} (control characters not allowed)")
             lines.append(f"{k} = {v}")
-        _atomic_write_0600(creds_path, "\n".join(lines) + "\n")
+        atomic_write(creds_path, "\n".join(lines) + "\n", 0o600)
         if not any(pp.code == provider for pp in cfg.nginx.dns_providers):
             cfg.nginx.dns_providers.append(
                 fc.DnsProvider(code=provider, creds_path=str(creds_path)))

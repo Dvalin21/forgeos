@@ -35,13 +35,12 @@ networkctl runs through the injected runner so tests mock it.
 """
 from __future__ import annotations
 
-import errno
 import logging
 import os
-import tempfile
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from forgeos_atomic import atomic_write
 from net_rollback import RollbackEngine
 
 logger = logging.getLogger("forgeos-api")
@@ -98,51 +97,6 @@ def render_resolv_conf(dns: list[str], domain: str = "") -> str:
 # ════════════════════════════════════════════════════════════════════
 # LOW-LEVEL FILE + RELOAD
 # ════════════════════════════════════════════════════════════════════
-def _write_in_place(path: Path, content: str, mode: int) -> None:
-    """Truncate-and-write the target directly.
-
-    ponytail: not atomic — a crash mid-write leaves a partial file. Used only
-    when the parent directory is read-only so no temp file can be created
-    (see _atomic_write). The one path that needs this is /etc/resolv.conf,
-    which is not lockout-critical; upgrade only if an atomic target ever
-    lands in a read-only directory.
-    """
-    with open(path, "w") as f:
-        f.write(content)
-        f.flush()
-        os.fsync(f.fileno())
-    try:
-        os.chmod(path, mode)
-    except OSError:
-        pass
-
-
-def _atomic_write(path: Path, content: str, mode: int = 0o644) -> None:
-    if not path.parent.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".fnet-", suffix=".tmp")
-    except OSError as e:
-        if e.errno not in (errno.EROFS, errno.EACCES, errno.EPERM):
-            raise
-        # systemd ProtectSystem carve-outs can be FILE-level (the unit grants
-        # -/etc/resolv.conf, not /etc), which leaves the parent directory
-        # read-only — mkstemp there fails even though the target is writable.
-        # Fall back to writing the target itself.
-        _write_in_place(path, content, mode)
-        return
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(content)
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp, mode)
-        os.replace(tmp, path)
-    finally:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-
-
 def _netfile_path(iface: str) -> Path:
     # 10- prefix so ForgeOS files sort before any distro defaults
     return NETWORKD_DIR / f"10-forgeos-{iface}.network"
@@ -187,14 +141,14 @@ def _restore(snap: dict) -> None:
                 except OSError:
                     pass
     for name, content in snap.get("files", {}).items():
-        _atomic_write(NETWORKD_DIR / name, content)
+        atomic_write(NETWORKD_DIR / name, content)
     if snap.get("resolv") is not None:
         # DNS is NOT lockout-critical — the .network restore above is what
         # brings the box back. A resolv.conf failure must never abort the
         # revert before the link gets reconfigured (it did exactly that on
         # hardware: EROFS here left the box stranded on the applied address).
         try:
-            _atomic_write(RESOLV_CONF, snap["resolv"])
+            atomic_write(RESOLV_CONF, snap["resolv"])
         except OSError as e:
             logger.error("revert: could not restore resolv.conf: %s", e)
 
@@ -212,7 +166,7 @@ def _apply(change: dict) -> None:
     global _pending_iface
     cfg = change["cfg"]
     _pending_iface = cfg.name
-    _atomic_write(_netfile_path(cfg.name), render_network_file(cfg))
+    atomic_write(_netfile_path(cfg.name), render_network_file(cfg))
     _reload(cfg.name)
 
 
@@ -245,4 +199,4 @@ def apply_global(hostname: str, dns: list[str], domain: str) -> None:
         # Written directly to resolv.conf. If systemd-resolved manages
         # resolv.conf as a symlink, the ISO provisioning decides that; here we
         # write the file the system actually reads.
-        _atomic_write(RESOLV_CONF, render_resolv_conf(dns, domain))
+        atomic_write(RESOLV_CONF, render_resolv_conf(dns, domain))

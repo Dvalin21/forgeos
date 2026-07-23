@@ -137,22 +137,23 @@ class TestReadOnlyParentDir:
 
     def test_atomic_write_falls_back_when_parent_readonly(self, netfs, monkeypatch):
         import errno as _errno
+        import forgeos_atomic as fa
         ni = netfs["ni"]
         target = netfs["resolv"]
         def boom(*a, **k):
             raise OSError(_errno.EROFS, "Read-only file system")
-        monkeypatch.setattr(ni.tempfile, "mkstemp", boom)
-        ni._atomic_write(target, "nameserver 9.9.9.9\n")
+        monkeypatch.setattr(fa.tempfile, "mkstemp", boom)
+        fa.atomic_write(target, "nameserver 9.9.9.9\n")
         assert target.read_text() == "nameserver 9.9.9.9\n"
 
     def test_atomic_write_reraises_other_oserrors(self, netfs, monkeypatch):
         import errno as _errno
-        ni = netfs["ni"]
+        import forgeos_atomic as fa
         def boom(*a, **k):
             raise OSError(_errno.ENOSPC, "No space left on device")
-        monkeypatch.setattr(ni.tempfile, "mkstemp", boom)
+        monkeypatch.setattr(fa.tempfile, "mkstemp", boom)
         with pytest.raises(OSError):
-            ni._atomic_write(netfs["resolv"], "x")
+            fa.atomic_write(netfs["resolv"], "x")
 
     def test_resolv_failure_does_not_abort_revert(self, netfs, test_client,
                                                   auth_headers, monkeypatch):
@@ -160,7 +161,7 @@ class TestReadOnlyParentDir:
         .network restore + reconfigure that actually un-bricks the host."""
         ni = netfs["ni"]
         ni.engine._window = 1
-        real = ni._atomic_write
+        real = ni.atomic_write
         def selective(path, content, mode=0o644):
             if str(path) == str(netfs["resolv"]):
                 raise OSError(30, "Read-only file system")
@@ -169,7 +170,7 @@ class TestReadOnlyParentDir:
             "name": "ens18", "method": "static",
             "address": "10.0.0.69/24", "gateway": "10.0.0.1", "mtu": 1500})
         assert r.status_code == 200
-        monkeypatch.setattr(ni, "_atomic_write", selective)
+        monkeypatch.setattr(ni, "atomic_write", selective)
         time.sleep(1.4)
         # revert still completed: forgeos file removed AND link reconfigured
         assert not (netfs["netdir"] / "10-forgeos-ens18.network").exists()

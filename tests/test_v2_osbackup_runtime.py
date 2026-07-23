@@ -152,10 +152,3 @@ def test_run_backup_cloud_sync_failure_still_local_ok():
     ok = runner.run_backup(cloud_sync=True, cloud_remote="b2", backup_path="/mnt/backup/osbackup")
     assert ok is True   # local backup succeeded
     assert any(lvl == "warning" for lvl, t in notes)
-
-
-def test_atomic_write_creates_parents(tmp_path):
-    target = tmp_path / "etc" / "systemd" / "system" / "x.timer"
-    ob._atomic_write(str(target), "content", 0o644)
-    assert target.exists()
-    assert target.read_text() == "content"

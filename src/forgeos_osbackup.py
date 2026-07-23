@@ -154,24 +154,3 @@ class OsBackupRunner:
                            check=False, capture_output=True)
         except Exception:
             pass
-
-
-def _atomic_write(path: str, content: str, mode: int) -> None:
-    import os
-    import tempfile
-    from pathlib import Path
-
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".forgeos-", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(content)
-        os.chmod(tmp, mode)
-        os.replace(tmp, p)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise

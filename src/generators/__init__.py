@@ -23,6 +23,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from forgeos_atomic import atomic_write
+
 
 @dataclass(frozen=True)
 class RenderedFile:
@@ -73,23 +75,8 @@ class ServiceGenerator:
 
     @staticmethod
     def _atomic_write(rf: RenderedFile) -> None:
-        p = Path(rf.path)
-        # mkdir -p the parent FIRST — this is the bug class that disappears.
-        p.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=".forgeos-", suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w") as f:
-                f.write(rf.content)
-                f.flush()
-                os.fsync(f.fileno())
-            os.chmod(tmp, rf.mode)
-            os.replace(tmp, p)
-        except BaseException:
-            try:
-                os.unlink(tmp)
-            except OSError:
-                pass
-            raise
+        """Adapter: RenderedFile -> the shared atomic writer."""
+        atomic_write(rf.path, rf.content, rf.mode)
 
     @staticmethod
     def _run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
