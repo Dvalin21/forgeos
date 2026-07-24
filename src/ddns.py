@@ -320,3 +320,65 @@ def update(cfg: dict, ip: str) -> DdnsResult:
     if provider == "cloudflare":
         return _update_cloudflare(hostname, creds, ip)
     return _update_custom(hostname, creds, ip)
+
+
+# ════════════════════════════════════════════════════════════════════
+# SCHEDULER TICK  (called from the app's existing 60s loop)
+# ════════════════════════════════════════════════════════════════════
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def due(cfg: dict, now_ts: float) -> bool:
+    """Is an update owed? Enabled, configured, and past the interval."""
+    if not cfg.get("enabled") or not cfg.get("provider"):
+        return False
+    # A prior FATAL result parks the loop — re-sending only earns a ban or
+    # rate-limit. The user clears it by saving new settings (which resets
+    # last_status) or hitting Test.
+    if cfg.get("last_status") == "fatal":
+        return False
+    interval = max(5, int(cfg.get("interval_minutes", 5))) * 60
+    return (now_ts - float(cfg.get("last_ts", 0))) >= interval
+
+
+def tick(now_ts: float) -> Optional[DdnsResult]:
+    """One scheduler step. Returns the result if an update ran, else None.
+
+    Only pushes when the public IP actually differs from what was last
+    confirmed — dyndns2 providers treat repeated unchanged updates as abuse.
+    Persists outcome (including the parked-on-fatal state) so it survives a
+    restart and the UI can show it.
+    """
+    cfg = load()
+    if not due(cfg, now_ts):
+        return None
+    ip = detect_public_ip()
+    if not ip:
+        # transient — try again next tick, don't record a fatal
+        return DdnsResult("retry", "noip", "Public IP unavailable.")
+    if ip == cfg.get("last_ip") and cfg.get("last_status") in ("ok", "nochg"):
+        # nothing to do; just advance the clock so we don't re-check every tick
+        cfg["last_ts"] = now_ts
+        _persist(cfg)
+        return None
+
+    res = update(cfg, ip)
+    cfg["last_ts"] = now_ts
+    cfg["last_update"] = _now_iso()
+    cfg["last_status"] = res.status
+    cfg["last_message"] = res.message
+    if res.success:
+        cfg["last_ip"] = res.ip or ip
+    _persist(cfg)
+    if res.status == "fatal":
+        logger.warning("ddns: parked after fatal result (%s): %s", res.code, res.message)
+    return res
+
+
+def _persist(cfg: dict) -> None:
+    try:
+        save(cfg)
+    except OSError as e:
+        logger.warning("ddns: could not persist state: %s", e)

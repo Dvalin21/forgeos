@@ -102,21 +102,40 @@
   }
 
   // ── DDNS ──
+  var DDNS = null;
+  var STATUS_LABEL = { ok:'Synced', nochg:'Synced', fatal:'Error', retry:'Retrying', '':'Configured' };
+  var STATUS_CHIP  = { ok:'chip ok', nochg:'chip ok', fatal:'chip warn', retry:'chip warn', '':'chip' };
+
   function renderDdns(d){
+    DDNS = d;
     var body = $('ddns-body'), chip = $('ddns-chip');
     if (!d || !d.configured){
       chip.textContent = 'Not configured';
       chip.className = 'chip';
-      body.innerHTML = '<div class="empty">No dynamic DNS provider configured yet. This is where you\u2019ll point a hostname (e.g. nas.example.com) at this server and keep it updated as your public IP changes.</div>';
+      body.innerHTML = '<div class="empty">No dynamic DNS provider configured yet — keep a hostname (e.g. nas.example.com) pointed at this server as your public IP changes.</div>'
+        + '<div class="mfoot" style="padding:14px 0 0;border-top:1px solid var(--line);margin-top:6px">'
+        + '<button class="btn-pri" id="ddns-setup" type="button">Set up</button></div>';
       return;
     }
-    chip.textContent = 'Configured';
-    chip.className = 'chip ok';
-    body.innerHTML = ''
-      + row('Provider', esc(d.provider || '—'))
-      + row('Hostname', '<span class="mono">' + esc(d.hostname || '—') + '</span>')
-      + row('Last IP', '<span class="mono">' + esc(d.last_ip || '—') + '</span>')
-      + row('Last update', esc(d.last_update || '—'));
+    var st = d.last_status || '';
+    chip.textContent = STATUS_LABEL[st] || 'Configured';
+    chip.className = STATUS_CHIP[st] || 'chip';
+    var msg = (st === 'fatal' || st === 'retry') && d.last_message
+      ? '<div class="warnbox" style="margin-top:0 0 8px"><p>' + esc(d.last_message) + '</p></div>' : '';
+    body.innerHTML = msg
+      + row('Provider', esc(providerName(d.provider)))
+      + row('Hostname', '<span class="kvval mono">' + esc(d.hostname || '—') + '</span>')
+      + row('Last IP', '<span class="kvval mono">' + esc(d.last_ip || '—') + '</span>')
+      + row('Last update', esc(d.last_update || 'never'))
+      + row('Auto-update', d.enabled ? ('every ' + esc(String(d.interval_minutes)) + ' min') : 'off')
+      + '<div class="mfoot" style="padding:14px 0 0;border-top:1px solid var(--line);margin-top:6px">'
+      + '<button class="btn-ghost" id="ddns-remove" type="button">Remove</button>'
+      + '<button class="btn-ghost" id="ddns-test" type="button">Test now</button>'
+      + '<button class="btn-pri" id="ddns-edit" type="button">Edit</button></div>';
+  }
+  function providerName(p){
+    return { cloudflare:'Cloudflare', noip:'No-IP', dyndns:'DynDNS',
+             duckdns:'DuckDNS', custom:'Custom' }[p] || p || '—';
   }
 
   // ── Routes ──
@@ -315,6 +334,95 @@
     }
   }
 
+  // ── DDNS configuration modal ──
+  function ddnsSyncProvider(){
+    var prov = $('dm-provider').value;
+    document.querySelectorAll('[data-prov]').forEach(function(el){
+      var provs = el.getAttribute('data-prov').split(' ');
+      el.style.display = (provs.indexOf(prov) >= 0) ? '' : 'none';
+    });
+    var note = $('dm-creds-note');
+    if (note){
+      note.textContent = (DDNS && DDNS.has_credentials)
+        ? 'Credentials are stored. Leave the fields blank to keep them.'
+        : '';
+    }
+  }
+  function ddnsSyncEnabled(){
+    $('dm-interval-row').style.display = $('dm-enabled').checked ? '' : 'none';
+  }
+
+  function openDdns(){
+    var d = DDNS || {};
+    $('dm-provider').value = d.provider || 'cloudflare';
+    $('dm-hostname').value = d.hostname || '';
+    $('dm-enabled').checked = d.enabled !== false;
+    $('dm-interval').value = String(d.interval_minutes || 5);
+    // never prefilled — the server won't return them
+    ['dm-cf-token','dm-cf-zone','dm-user','dm-pass','dm-duck-token','dm-url'].forEach(function(id){
+      var e = $(id); if (e) e.value = '';
+    });
+    $('dm-err').textContent = '';
+    ddnsSyncProvider(); ddnsSyncEnabled();
+    show('ddns-modal', true);
+  }
+
+  function collectCreds(prov){
+    var c = {};
+    if (prov === 'cloudflare'){
+      if ($('dm-cf-token').value) c.token = $('dm-cf-token').value;
+      if ($('dm-cf-zone').value)  c.zone  = $('dm-cf-zone').value.trim();
+    } else if (prov === 'noip' || prov === 'dyndns'){
+      if ($('dm-user').value) c.username = $('dm-user').value;
+      if ($('dm-pass').value) c.password = $('dm-pass').value;
+    } else if (prov === 'duckdns'){
+      if ($('dm-duck-token').value) c.token = $('dm-duck-token').value;
+    } else if (prov === 'custom'){
+      if ($('dm-url').value) c.url = $('dm-url').value.trim();
+    }
+    return c;
+  }
+
+  async function saveDdns(){
+    var prov = $('dm-provider').value;
+    var body = { provider: prov, hostname: $('dm-hostname').value.trim(),
+                 enabled: $('dm-enabled').checked,
+                 interval_minutes: parseInt($('dm-interval').value, 10) || 5 };
+    var creds = collectCreds(prov);
+    // Only send credentials if the user typed some — omitting them keeps the
+    // stored ones. But a brand-new config with none is a mistake worth catching
+    // client-side rather than saving an unusable provider.
+    if (Object.keys(creds).length) body.credentials = creds;
+    else if (!(DDNS && DDNS.has_credentials)){
+      $('dm-err').textContent = 'Enter the credentials for this provider.';
+      return;
+    }
+    $('dm-save').disabled = true;
+    var r = await api('/api/net/ddns', { method: 'PUT', body: JSON.stringify(body) });
+    $('dm-save').disabled = false;
+    if (!r.ok){ $('dm-err').textContent = detail(r) || 'Could not save.'; return; }
+    show('ddns-modal', false);
+    toast('Dynamic DNS saved', 'ok');
+    await loadAll();
+  }
+
+  async function testDdns(){
+    toast('Testing…', '');
+    var r = await api('/api/net/ddns/test', { method: 'POST' });
+    if (!r.ok){ toast(detail(r) || 'Test failed', 'warn'); loadAll(); return; }
+    var d = r.data || {};
+    toast(d.success ? ('DDNS OK — ' + (d.ip || '')) : ('DDNS: ' + (d.message || d.status)),
+          d.success ? 'ok' : 'warn');
+    loadAll();
+  }
+
+  async function removeDdns(){
+    var r = await api('/api/net/ddns', { method: 'DELETE' });
+    if (!r.ok){ toast(detail(r) || 'Could not remove', 'warn'); return; }
+    toast('Dynamic DNS removed', 'ok');
+    loadAll();
+  }
+
   // ── global settings ──
   async function applyGlobal(){
     var err = $('g-err'); if (err) err.textContent = '';
@@ -350,7 +458,14 @@
     document.addEventListener('click', function(e){
       if (e.target.id === 'g-apply') applyGlobal();
       if (e.target.id === 'g-reset') loadAll();
+      if (e.target.id === 'ddns-setup' || e.target.id === 'ddns-edit') openDdns();
+      if (e.target.id === 'ddns-test') testDdns();
+      if (e.target.id === 'ddns-remove') removeDdns();
     });
+    $('dm-provider').addEventListener('change', ddnsSyncProvider);
+    $('dm-enabled').addEventListener('change', ddnsSyncEnabled);
+    $('dm-cancel').addEventListener('click', function(){ show('ddns-modal', false); });
+    $('dm-save').addEventListener('click', saveDdns);
 
     loadAll().then(resumePending);
   }

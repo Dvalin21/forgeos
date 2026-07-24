@@ -413,11 +413,15 @@ async def set_ddns(cfg: DdnsConfig, user=Depends(verify_token)):
         "enabled": cfg.enabled,
         "interval_minutes": cfg.interval_minutes,
         "credentials": creds,
-        # carry the observed state forward; it isn't user input
-        "last_ip": existing.get("last_ip", ""),
+        # Saving new settings clears any parked state and forces the next tick
+        # to run: the user is very likely fixing whatever caused a fatal, and a
+        # stale last_status="fatal" / last_ip would keep the loop parked or make
+        # it skip as "unchanged". Observed history (last_update text) is kept.
+        "last_ip": "",
+        "last_ts": 0,
+        "last_status": "",
+        "last_message": "",
         "last_update": existing.get("last_update", ""),
-        "last_status": existing.get("last_status", ""),
-        "last_message": existing.get("last_message", ""),
     }
     try:
         ddns.save(stored)

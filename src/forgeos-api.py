@@ -520,6 +520,7 @@ async def _scheduler_loop() -> None:
                 interval = _schedule_to_seconds(job.get("schedule", "daily"))
                 if now - last >= interval:
                     _execute_backup_job(job["id"])
+            _ddns_tick(now)
         except Exception as e:
             logger.warning("Scheduler check failed: %s", e)
         # Sleep in 1s increments so shutdown doesn't wait 60s
@@ -527,6 +528,17 @@ async def _scheduler_loop() -> None:
             if _shutting_down:
                 return
             await asyncio.sleep(1)
+
+
+def _ddns_tick(now_ts: float) -> None:
+    """Run one DDNS scheduler step. The provider call is blocking network I/O,
+    so hand it to a thread rather than stalling the async loop."""
+    try:
+        import ddns
+    except ImportError:
+        return
+    import threading
+    threading.Thread(target=ddns.tick, args=(now_ts,), daemon=True).start()
 
 
 def _execute_backup_job(job_id: str) -> None:

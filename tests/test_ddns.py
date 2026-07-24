@@ -244,3 +244,78 @@ class TestDdnsEndpoints:
     def test_test_without_config_is_400(self, store, test_client, auth_headers):
         assert test_client.post("/api/net/ddns/test",
                                 headers=auth_headers).status_code == 400
+
+
+class TestScheduler:
+    def _cfg(self, store, **over):
+        c = {"provider": "duckdns", "hostname": "mybox", "enabled": True,
+             "interval_minutes": 5, "credentials": {"token": "t"},
+             "last_ts": 0, "last_ip": "", "last_status": ""}
+        c.update(over)
+        ddns.save(c)
+        return c
+
+    def test_due_respects_interval(self, store):
+        self._cfg(store, last_ts=1000.0, interval_minutes=5)
+        assert ddns.due(ddns.load(), 1000.0 + 4*60) is False   # 4 min < 5
+        assert ddns.due(ddns.load(), 1000.0 + 5*60) is True    # 5 min
+
+    def test_disabled_is_never_due(self, store):
+        self._cfg(store, enabled=False)
+        assert ddns.due(ddns.load(), 1e12) is False
+
+    def test_fatal_parks_the_loop(self, store):
+        self._cfg(store, last_status="fatal")
+        # even long past the interval, a fatal config is not due (would get banned)
+        assert ddns.due(ddns.load(), 1e12) is False
+
+    def test_tick_updates_when_due_and_ip_changed(self, store, monkeypatch):
+        self._cfg(store, last_ts=0, last_ip="198.51.100.9", last_status="ok")
+        monkeypatch.setattr(ddns, "detect_public_ip", lambda: "203.0.113.7")
+        monkeypatch.setattr(ddns, "_get", lambda u, h=None: (200, "OK"))
+        res = ddns.tick(1e12)
+        assert res is not None and res.success
+        assert ddns.load()["last_ip"] == "203.0.113.7"
+
+    def test_tick_skips_write_when_ip_unchanged(self, store, monkeypatch):
+        self._cfg(store, last_ts=0, last_ip="203.0.113.7", last_status="ok")
+        monkeypatch.setattr(ddns, "detect_public_ip", lambda: "203.0.113.7")
+        called = {"n": 0}
+        monkeypatch.setattr(ddns, "_get",
+                            lambda u, h=None: (called.__setitem__("n", called["n"]+1), (200, "OK"))[1])
+        res = ddns.tick(1e12)
+        assert res is None                 # nothing pushed
+        assert called["n"] == 0            # provider never contacted
+        assert ddns.load()["last_ts"] == 1e12   # but the clock advanced
+
+    def test_tick_parks_on_fatal(self, store, monkeypatch):
+        self._cfg(store, last_ts=0, last_ip="", last_status="")
+        monkeypatch.setattr(ddns, "detect_public_ip", lambda: "203.0.113.7")
+        monkeypatch.setattr(ddns, "_get", lambda u, h=None: (200, "KO"))   # duckdns fatal
+        res = ddns.tick(1e12)
+        assert res.status == "fatal"
+        assert ddns.load()["last_status"] == "fatal"
+        # and the next tick is now parked
+        assert ddns.due(ddns.load(), 1e12 + 1e6) is False
+
+    def test_tick_no_public_ip_is_transient_not_fatal(self, store, monkeypatch):
+        self._cfg(store, last_ts=0)
+        monkeypatch.setattr(ddns, "detect_public_ip", lambda: "")
+        res = ddns.tick(1e12)
+        assert res.status == "retry"
+        assert ddns.load().get("last_status") != "fatal"   # not parked
+
+
+class TestSaveClearsParkedState:
+    def test_saving_settings_resets_fatal(self, store, test_client, auth_headers):
+        ddns.save({"provider": "duckdns", "hostname": "old", "enabled": True,
+                   "interval_minutes": 5, "credentials": {"token": "old"},
+                   "last_status": "fatal", "last_ip": "203.0.113.7", "last_ts": 999})
+        r = test_client.put("/api/net/ddns", headers=auth_headers, json={
+            "provider": "duckdns", "hostname": "old", "interval_minutes": 5,
+            "credentials": {"token": "fixed"}})
+        assert r.status_code == 200
+        stored = ddns.load()
+        assert stored["last_status"] == ""      # parked state cleared
+        assert stored["last_ts"] == 0           # forces an immediate re-check
+        assert ddns.due(stored, 1e12) is True   # loop resumes
