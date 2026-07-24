@@ -182,6 +182,42 @@ class GlobalNetConfig(BaseModel):
         return v
 
 
+class DdnsConfig(BaseModel):
+    """DDNS settings. `credentials` is write-only — it is never echoed back."""
+    provider: str
+    hostname: str = Field(..., min_length=1, max_length=253)
+    enabled: bool = True
+    interval_minutes: int = Field(default=5, ge=5, le=1440)
+    credentials: dict = Field(default_factory=dict)
+
+    @field_validator("provider")
+    @classmethod
+    def _provider(cls, v: str) -> str:
+        import ddns
+        if v not in ddns.PROVIDERS:
+            raise ValueError(f"provider must be one of {', '.join(ddns.PROVIDERS)}")
+        return v
+
+    @field_validator("hostname")
+    @classmethod
+    def _hostname(cls, v: str) -> str:
+        v = v.strip()
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", v) or ".." in v:
+            raise ValueError("invalid hostname")
+        return v
+
+    @field_validator("credentials")
+    @classmethod
+    def _creds(cls, v: dict) -> dict:
+        # values land in URLs and auth headers — keep control characters out
+        for k, val in v.items():
+            if not isinstance(val, str):
+                raise ValueError(f"credential {k} must be a string")
+            if any(c in val for c in "\n\r\x00"):
+                raise ValueError(f"credential {k} contains control characters")
+        return v
+
+
 class StaticRoute(BaseModel):
     destination: str                               # CIDR
     gateway: str
@@ -354,22 +390,90 @@ async def get_routes(user=Depends(verify_token)):
 
 @router.get("/api/net/ddns")
 async def get_ddns(user=Depends(verify_token)):
-    """DDNS configuration status.
+    """DDNS status. Credentials are NEVER returned — only whether they're set."""
+    import ddns
+    return ddns.public_view(ddns.load())
 
-    Credentials are NEVER returned (write-only, like the nginx ACME creds).
-    The provider/hostname/last-update come from config once the DDNS write
-    subsystem lands; until then this reports 'not configured'.
+
+@router.put("/api/net/ddns")
+async def set_ddns(cfg: DdnsConfig, user=Depends(verify_token)):
+    """Save DDNS settings. Credentials are stored at 0600 and never echoed.
+
+    Omitting `credentials` keeps the ones already stored, so the UI can save
+    a hostname or interval change without having to re-enter a token it was
+    never allowed to read back.
     """
-    assert _conf_get is not None
-    provider = _conf_get("DDNS_PROVIDER", "")
-    return {
-        "configured": bool(provider),
-        "provider": provider,
-        "hostname": _conf_get("DDNS_HOSTNAME", ""),
-        # deliberately omitted: any credential/token value
-        "last_ip": _conf_get("DDNS_LAST_IP", ""),
-        "last_update": _conf_get("DDNS_LAST_UPDATE", ""),
+    _require_admin(user)
+    import ddns
+    existing = ddns.load()
+    creds = cfg.credentials or existing.get("credentials") or {}
+    stored = {
+        "provider": cfg.provider,
+        "hostname": cfg.hostname,
+        "enabled": cfg.enabled,
+        "interval_minutes": cfg.interval_minutes,
+        "credentials": creds,
+        # carry the observed state forward; it isn't user input
+        "last_ip": existing.get("last_ip", ""),
+        "last_update": existing.get("last_update", ""),
+        "last_status": existing.get("last_status", ""),
+        "last_message": existing.get("last_message", ""),
     }
+    try:
+        ddns.save(stored)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"could not save: {e}")
+    if _audit is not None:
+        _audit(user["sub"], "net.ddns.save", "success",
+               f"{cfg.provider} {cfg.hostname}")
+    return ddns.public_view(stored)
+
+
+@router.delete("/api/net/ddns")
+async def clear_ddns(user=Depends(verify_token)):
+    """Remove the DDNS configuration and its stored credentials."""
+    _require_admin(user)
+    import ddns
+    try:
+        ddns.save({})
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"could not clear: {e}")
+    if _audit is not None:
+        _audit(user["sub"], "net.ddns.clear", "success", "")
+    return {"ok": True}
+
+
+@router.post("/api/net/ddns/test")
+async def test_ddns(user=Depends(verify_token)):
+    """Run one update now and report what the provider said.
+
+    A real update attempt, not a dry run — reaching the provider with the
+    stored credentials is the only thing that actually proves they work.
+    The outcome is recorded so the UI can show it.
+    """
+    _require_admin(user)
+    import ddns
+    from datetime import datetime, timezone
+    cfg = ddns.load()
+    if not cfg.get("provider"):
+        raise HTTPException(status_code=400, detail="No DDNS provider configured")
+    ip = ddns.detect_public_ip()
+    if not ip:
+        raise HTTPException(status_code=502, detail="Could not determine the public IP")
+    res = ddns.update(cfg, ip)
+    cfg["last_status"] = res.status
+    cfg["last_message"] = res.message
+    cfg["last_update"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    if res.success:
+        cfg["last_ip"] = res.ip or ip
+    try:
+        ddns.save(cfg)
+    except OSError:
+        logger.warning("ddns: could not persist the test result")
+    if _audit is not None:
+        _audit(user["sub"], "net.ddns.test", res.status, res.code)
+    return {"status": res.status, "code": res.code, "message": res.message,
+            "ip": res.ip or ip, "success": res.success}
 
 
 # ════════════════════════════════════════════════════════════════════

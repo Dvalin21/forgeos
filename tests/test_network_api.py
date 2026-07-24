@@ -140,17 +140,18 @@ class TestReadEndpoints:
         assert body["gateway"] == "10.0.0.1"       # from default route
         assert body["dns"] == ["1.1.1.1", "9.9.9.9"]
 
-    def test_ddns_never_returns_credentials(self, test_client, auth_headers, monkeypatch):
-        import network_api as n
-        monkeypatch.setattr(n, "_conf_get",
-                            lambda k, d="": {"DDNS_PROVIDER": "cloudflare",
-                                             "DDNS_HOSTNAME": "nas.example.com",
-                                             "DDNS_TOKEN": "SECRET-SHOULD-NOT-LEAK"}.get(k, d))
+    def test_ddns_never_returns_credentials(self, test_client, auth_headers,
+                                            monkeypatch, tmp_path):
+        """The GET endpoint reads the 0600 store; the token must not come back."""
+        import ddns
+        f = tmp_path / "ddns.json"
+        monkeypatch.setattr(ddns, "DDNS_FILE", f)
+        ddns.save({"provider": "cloudflare", "hostname": "nas.example.com",
+                   "credentials": {"token": "SECRET-SHOULD-NOT-LEAK"}})
         r = test_client.get("/api/net/ddns", headers=auth_headers)
         assert r.status_code == 200
         body = r.json()
         assert body["provider"] == "cloudflare"
         assert body["configured"] is True
-        # the token must NOT appear anywhere in the response
         assert "SECRET-SHOULD-NOT-LEAK" not in str(body)
-        assert "token" not in body and "credential" not in body
+        assert "credentials" not in body and "token" not in body
