@@ -25,7 +25,12 @@ def netfs(tmp_path, monkeypatch, test_client):
     monkeypatch.setattr(ni, "_run_args", lambda args, timeout=None: calls.append(args) or "")
     ni.engine._pending = None
     ni.engine._last_result = None
-    return {"netdir": netdir, "resolv": resolv, "calls": calls, "ni": ni}
+    # the engine is module-level: tests that shrink the window must not leak it
+    # into the next test (this bit us — a later test saw window==1)
+    saved_window = ni.engine._window
+    yield {"netdir": netdir, "resolv": resolv, "calls": calls, "ni": ni}
+    ni.engine._window = saved_window
+    ni.engine._pending = None
 
 
 class TestSnapshotRestore:
@@ -176,3 +181,45 @@ class TestReadOnlyParentDir:
         assert not (netfs["netdir"] / "10-forgeos-ens18.network").exists()
         assert netfs["calls"].count(["networkctl", "reconfigure", "ens18"]) >= 2
         assert ni.engine.status()["last_result"] == "reverted"
+
+
+class TestPendingDiscovery:
+    """An address change moves the box to a new origin where the browser's
+    localStorage (and its confirm token) is gone. The admin reconnects, signs
+    in, and the UI must be able to DISCOVER the pending change — otherwise the
+    confirm is unreachable and every address change auto-reverts."""
+
+    def _apply(self, client, headers):
+        return client.put("/api/net/interface/ens18", headers=headers, json={
+            "name": "ens18", "method": "static",
+            "address": "10.0.0.80/24", "gateway": "10.0.0.1", "mtu": 1500})
+
+    def test_pending_returns_token_so_a_fresh_session_can_confirm(
+            self, netfs, test_client, auth_headers):
+        applied = self._apply(test_client, auth_headers)
+        assert applied.status_code == 200
+        # a NEW session (no memory of the apply) discovers the change
+        p = test_client.get("/api/net/pending", headers=auth_headers)
+        assert p.status_code == 200
+        assert p.json()["pending"] is True
+        tok = p.json()["token"]
+        assert tok == applied.json()["token"]
+        # and can confirm with only what it just discovered
+        c = test_client.post("/api/net/confirm", headers=auth_headers,
+                             json={"token": tok})
+        assert c.status_code == 200
+        assert c.json()["result"] == "committed"
+
+    def test_pending_omits_token_when_idle(self, netfs, test_client, auth_headers):
+        r = test_client.get("/api/net/pending", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["pending"] is False
+        assert "token" not in r.json()
+
+    def test_pending_requires_admin(self, netfs, test_client, user_headers):
+        assert test_client.get("/api/net/pending",
+                               headers=user_headers).status_code == 403
+
+    def test_window_allows_for_reconnect_and_signin(self, netfs):
+        # 60s is not enough to move origin, sign in again, and confirm
+        assert netfs["ni"].engine.window_seconds >= 120

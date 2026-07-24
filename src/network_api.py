@@ -439,9 +439,22 @@ async def cancel_change(user=Depends(verify_token)):
 
 @router.get("/api/net/pending")
 async def pending_change(user=Depends(verify_token)):
-    """Status of any pending interface change (for the confirm countdown UI)."""
+    """Status of any pending interface change (for the confirm countdown UI).
+
+    Includes the confirm token. An address change moves the box to a new
+    origin, where localStorage — and therefore the token the browser held —
+    is gone; the admin has to reconnect and sign in at the new address, and
+    the UI needs a way to DISCOVER the pending change there. Confirming is
+    already admin-only, so handing an admin the token over an authenticated
+    request is the intended flow, not a downgrade: the token exists to stop a
+    stale confirm validating a NEWER change, not to be a secret.
+    """
+    _require_admin(user)
     import net_networkd as ni
-    return ni.engine.status()
+    st = ni.engine.status()
+    if st.get("pending"):
+        st["token"] = ni.engine.pending_token()
+    return st
 
 
 @router.put("/api/net/global")

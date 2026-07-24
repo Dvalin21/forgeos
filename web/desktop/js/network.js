@@ -35,7 +35,10 @@
   }
 
   // ── Interfaces ──
+  var IFACES = [];
+
   function renderInterfaces(list){
+    IFACES = list || [];
     var grid = $('if-grid');
     if (!list || !list.length){ grid.innerHTML = '<div class="empty">No interfaces detected.</div>'; return; }
     var up = list.filter(function(i){ return i.state === 'UP'; }).length;
@@ -65,22 +68,35 @@
       +     '<div><b>' + fmtBytes(i.rx_bytes) + '</b>received</div>'
       +     '<div><b>' + fmtBytes(i.tx_bytes) + '</b>sent</div>'
       +   '</div>'
+      +   '<div class="if-foot">'
+      +     '<span style="flex:1"></span>'
+      +     '<button class="button ghost sm" data-cfg="' + esc(i.name) + '">Configure</button>'
+      +   '</div>'
       + '</div>';
     }).join('');
   }
 
   // ── Global ──
+  var GLOBAL = null;
+
   function renderGlobal(g){
     var body = $('global-body');
     if (!g){ body.innerHTML = '<div class="empty">Unavailable.</div>'; return; }
-    var dns = (g.dns && g.dns.length) ? g.dns.join(', ') : '—';
+    GLOBAL = g;
     body.innerHTML = ''
-      + row('Hostname', esc(g.hostname || '—'))
-      + row('Domain', esc(g.domain || '—'))
-      + row('DNS servers', '<span class="mono">' + esc(dns) + '</span>')
-      + row('Default gateway', '<span class="mono">' + esc(g.gateway || '—') + '</span>')
-      + row('HTTP proxy', esc(g.proxy || '—'));
+      + inp('Hostname', 'g-host', g.hostname || '')
+      + inp('Domain', 'g-domain', g.domain || '')
+      + inp('DNS servers', 'g-dns', (g.dns || []).join(', '), '1.1.1.1, 9.9.9.9')
+      + row('Default gateway', '<span class="kvval mono">' + esc(g.gateway || '—') + '</span>'
+            + '<div class="hint" style="font-size:11.5px;color:var(--muted)">Set per interface</div>')
+      + '<div class="err" id="g-err"></div>';
   }
+  function inp(label, id, val, ph){
+    return '<div class="frow"><label>' + label + '</label>'
+      + '<input class="fi" id="' + id + '" value="' + esc(val) + '"'
+      + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '></div>';
+  }
+
   function row(label, valHtml){
     return '<div class="frow"><label>' + label + '</label><div class="kvval">' + valHtml + '</div></div>';
   }
@@ -150,10 +166,193 @@
     }
   }
 
+
+  // ── interface configuration modal ──
+  var editing = null;          // name of the interface being configured
+
+  function show(id, on){ var e=$(id); if(e) e.classList[on?'add':'remove']('show'); }
+
+  function methodOf(){
+    var r = document.querySelector('input[name="ifm-method"]:checked');
+    return r ? r.value : 'dhcp';
+  }
+  function syncMethodUI(){
+    var m = methodOf();
+    $('static-fields').style.display = (m === 'static') ? '' : 'none';
+    $('lbl-dhcp').classList.toggle('on', m === 'dhcp');
+    $('lbl-static').classList.toggle('on', m === 'static');
+  }
+
+  function openConfig(name){
+    var i = IFACES.filter(function(x){ return x.name === name; })[0];
+    if (!i) return;
+    editing = name;
+    $('ifm-title').textContent = 'Configure ' + name;
+    $('ifm-sub').textContent = i.mac ? ('MAC ' + i.mac) : '';
+    $('ifm-err').textContent = '';
+    // The read layer can't tell dhcp from static, so don't pretend: default to
+    // static prefilled with what the link currently has.
+    var addr = (i.ipv4 && i.ipv4[0]) || '';
+    document.querySelector('input[name="ifm-method"][value="static"]').checked = true;
+    $('ifm-address').value = addr;
+    $('ifm-gateway').value = (GLOBAL && GLOBAL.gateway) || '';
+    $('ifm-dns').value = (GLOBAL && (GLOBAL.dns || []).join(', ')) || '';
+    $('ifm-mtu').value = i.mtu || 1500;
+    syncMethodUI();
+    show('if-modal', true);
+  }
+
+  function splitList(v){
+    return (v || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+  }
+
+  async function applyInterface(){
+    if (!editing) return;
+    var m = methodOf();
+    var body = { name: editing, method: m, dns: splitList($('ifm-dns').value),
+                 mtu: parseInt($('ifm-mtu').value, 10) || 1500 };
+    if (m === 'static'){
+      body.address = $('ifm-address').value.trim();
+      body.gateway = $('ifm-gateway').value.trim();
+    }
+    var before = currentAddrOf(editing);
+    $('ifm-apply').disabled = true;
+    var r = await api('/api/net/interface/' + encodeURIComponent(editing),
+                      { method: 'PUT', body: JSON.stringify(body) });
+    $('ifm-apply').disabled = false;
+    if (!r.ok){
+      $('ifm-err').textContent = detail(r) || 'Could not apply these settings.';
+      return;
+    }
+    show('if-modal', false);
+    // a moved address means this origin is about to stop answering
+    var moved = (m === 'static' && body.address && body.address !== before);
+    openConfirm(r.data, moved ? body.address : null);
+  }
+
+  function currentAddrOf(name){
+    var i = IFACES.filter(function(x){ return x.name === name; })[0];
+    return (i && i.ipv4 && i.ipv4[0]) || '';
+  }
+  function detail(r){
+    return (r.data && (r.data.detail || r.data.message)) || '';
+  }
+
+  // ── confirm countdown ──
+  var pendingToken = null, ticker = null;
+
+  function openConfirm(info, movedTo){
+    pendingToken = (info && info.token) || null;
+    $('cf-sub').textContent = (info && info.label) || '';
+    $('cf-err').textContent = '';
+    var link = $('cf-newaddr');
+    if (movedTo){
+      var host = movedTo.split('/')[0];
+      link.href = location.protocol + '//' + host + '/network.html';
+      link.textContent = link.href;
+      link.style.display = '';
+      $('cf-move').style.display = '';
+    } else {
+      link.style.display = 'none';
+      $('cf-move').style.display = 'none';
+    }
+    show('cf-modal', true);
+    startTicker(info && info.window_seconds);
+  }
+
+  function startTicker(secs){
+    stopTicker();
+    var left = typeof secs === 'number' ? secs : 120;
+    var el = $('cf-count');
+    function paint(){
+      el.textContent = left + 's';
+      el.classList.toggle('low', left <= 20);
+    }
+    paint();
+    ticker = setInterval(function(){
+      left -= 1;
+      if (left <= 0){
+        stopTicker();
+        show('cf-modal', false);
+        toast('Change rolled back — not confirmed in time', 'warn');
+        loadAll();
+        return;
+      }
+      paint();
+    }, 1000);
+  }
+  function stopTicker(){ if (ticker){ clearInterval(ticker); ticker = null; } }
+
+  async function keepSettings(){
+    if (!pendingToken){ $('cf-err').textContent = 'No pending change to confirm.'; return; }
+    $('cf-keep').disabled = true;
+    var r = await api('/api/net/confirm', { method: 'POST',
+                                            body: JSON.stringify({ token: pendingToken }) });
+    $('cf-keep').disabled = false;
+    if (!r.ok){ $('cf-err').textContent = detail(r) || 'Could not confirm.'; return; }
+    stopTicker(); show('cf-modal', false); pendingToken = null;
+    toast('Network settings kept', 'ok');
+    loadAll();
+  }
+
+  async function revertNow(){
+    $('cf-revert').disabled = true;
+    var r = await api('/api/net/cancel', { method: 'POST' });
+    $('cf-revert').disabled = false;
+    if (!r.ok){ $('cf-err').textContent = detail(r) || 'Could not revert.'; return; }
+    stopTicker(); show('cf-modal', false); pendingToken = null;
+    toast('Reverted to the previous settings', 'ok');
+    loadAll();
+  }
+
+  // Picks up a change applied from ANOTHER origin (the box moved, the admin
+  // reconnected here and signed in) — without this the confirm is unreachable.
+  async function resumePending(){
+    var r = await api('/api/net/pending');
+    if (r.ok && r.data && r.data.pending){
+      openConfirm({ token: r.data.token, label: r.data.label,
+                    window_seconds: r.data.seconds_remaining }, null);
+    }
+  }
+
+  // ── global settings ──
+  async function applyGlobal(){
+    var err = $('g-err'); if (err) err.textContent = '';
+    var body = { hostname: ($('g-host') || {}).value || '',
+                 domain: ($('g-domain') || {}).value || '',
+                 dns: splitList(($('g-dns') || {}).value) };
+    $('g-apply').disabled = true;
+    var r = await api('/api/net/global', { method: 'PUT', body: JSON.stringify(body) });
+    $('g-apply').disabled = false;
+    if (!r.ok){
+      if (err) err.textContent = detail(r) || 'Could not apply these settings.';
+      return;
+    }
+    toast('Global settings applied', 'ok');
+    loadAll();
+  }
+
   function init(){
     var rb = $('refresh');
     if (rb) rb.addEventListener('click', function(){ loadAll(); toast('Refreshed', 'ok'); });
-    loadAll();
+
+    document.addEventListener('click', function(e){
+      var b = e.target.closest ? e.target.closest('[data-cfg]') : null;
+      if (b) openConfig(b.getAttribute('data-cfg'));
+    });
+    document.querySelectorAll('input[name="ifm-method"]').forEach(function(r){
+      r.addEventListener('change', syncMethodUI);
+    });
+    $('ifm-cancel').addEventListener('click', function(){ show('if-modal', false); });
+    $('ifm-apply').addEventListener('click', applyInterface);
+    $('cf-keep').addEventListener('click', keepSettings);
+    $('cf-revert').addEventListener('click', revertNow);
+    document.addEventListener('click', function(e){
+      if (e.target.id === 'g-apply') applyGlobal();
+      if (e.target.id === 'g-reset') loadAll();
+    });
+
+    loadAll().then(resumePending);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

@@ -50,6 +50,29 @@ table.rt td.mono{font-family:var(--mono);font-size:11.5px}
 .chip.ok{background:rgba(16,166,106,.12);color:var(--success)}
 .chip.warn{background:rgba(216,138,0,.14);color:var(--warn)}
 
+/* form inputs — shared CSS ships no generic input class */
+input.fi,select.fi{width:100%;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);font:600 13px var(--font);color:var(--text)}
+input.fi:focus,select.fi:focus{outline:2px solid var(--primary-soft);border-color:var(--primary)}
+input.fi:disabled{opacity:.6}
+
+/* modals — .backdrop centering comes from the shared CSS */
+.modal{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);width:min(520px,92vw);max-height:88vh;overflow:auto}
+.modal .mhead{padding:18px 22px 0}
+.modal .mhead h3{margin:0;font-size:17px}
+.modal .mhead p{margin:4px 0 0;color:var(--muted);font-size:12.5px}
+.modal .mbody{padding:16px 22px}
+.modal .mfoot{display:flex;justify-content:flex-end;gap:10px;padding:14px 22px 20px}
+.seg{display:flex;gap:8px}
+.seg label{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:var(--surface-2)}
+.seg input{margin:0}
+.seg label.on{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+.warnbox{display:flex;gap:11px;align-items:flex-start;padding:12px 14px;border-radius:var(--radius-sm);background:rgba(216,138,0,.09);border:1px solid rgba(216,138,0,.24);margin-top:14px}
+.warnbox p{margin:0;font-size:12.5px;color:#7a5200;line-height:1.5}
+.count{font-variant-numeric:tabular-nums;font-weight:800;font-size:30px;color:var(--primary);text-align:center;margin:6px 0 2px}
+.count.low{color:var(--danger)}
+.newaddr{display:block;text-align:center;font-family:var(--mono);font-size:14px;font-weight:700;padding:11px;border-radius:var(--radius-sm);background:var(--primary-soft);color:var(--primary);text-decoration:none;margin-top:12px}
+.err{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:1em}
+
 /* read-only phase notice */
 .ro-note{display:flex;gap:11px;align-items:flex-start;padding:12px 15px;border-radius:var(--radius-sm);background:var(--primary-soft);border:1px solid rgba(41,98,255,.2);margin-bottom:18px}
 .ro-note svg{width:18px;height:18px;stroke:var(--primary);stroke-width:2;fill:none;flex-shrink:0;margin-top:1px}
@@ -95,6 +118,10 @@ table.rt td.mono{font-family:var(--mono);font-size:11.5px}
           <div id="global-body">
             <div class="empty">Loading…</div>
           </div>
+          <div class="mfoot" style="padding:14px 0 0;border-top:1px solid var(--line);margin-top:6px">
+            <button class="btn-ghost" id="g-reset" type="button">Reset</button>
+            <button class="btn-pri" id="g-apply" type="button">Apply</button>
+          </div>
         </section>
 
         <!-- DDNS -->
@@ -120,6 +147,61 @@ table.rt td.mono{font-family:var(--mono);font-size:11.5px}
       </div>
     </div>
   </main>
+
+  <!-- interface configuration -->
+  <div class="backdrop" id="if-modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ifm-title">
+      <div class="mhead">
+        <h3 id="ifm-title">Configure interface</h3>
+        <p id="ifm-sub">—</p>
+      </div>
+      <div class="mbody">
+        <div class="frow"><label>Addressing</label>
+          <div class="seg">
+            <label id="lbl-dhcp"><input type="radio" name="ifm-method" value="dhcp"> Automatic (DHCP)</label>
+            <label id="lbl-static"><input type="radio" name="ifm-method" value="static"> Manual (static)</label>
+          </div>
+        </div>
+        <div id="static-fields">
+          <div class="frow"><label>IP address</label><input class="fi" id="ifm-address" placeholder="10.0.0.69/24"></div>
+          <div class="frow"><label>Gateway</label><input class="fi" id="ifm-gateway" placeholder="10.0.0.1"></div>
+        </div>
+        <div class="frow"><label>DNS servers</label><input class="fi" id="ifm-dns" placeholder="1.1.1.1, 9.9.9.9"></div>
+        <div class="frow"><label>MTU</label><input class="fi" id="ifm-mtu" placeholder="1500"></div>
+        <div class="warnbox">
+          <p><b>Changing this interface can drop your connection.</b> The new settings are applied with a confirmation timer — if you don't confirm from the new address, ForgeOS rolls back automatically.</p>
+        </div>
+        <div class="err" id="ifm-err"></div>
+      </div>
+      <div class="mfoot">
+        <button class="btn-ghost" id="ifm-cancel" type="button">Cancel</button>
+        <button class="btn-pri" id="ifm-apply" type="button">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- confirm countdown -->
+  <div class="backdrop" id="cf-modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cf-title">
+      <div class="mhead">
+        <h3 id="cf-title">Confirm network change</h3>
+        <p id="cf-sub">—</p>
+      </div>
+      <div class="mbody">
+        <div class="count" id="cf-count">—</div>
+        <p style="text-align:center;margin:0;color:var(--muted);font-size:12.5px">until automatic rollback</p>
+        <a class="newaddr" id="cf-newaddr" href="#" style="display:none"></a>
+        <div class="warnbox" id="cf-move" style="display:none">
+          <p>This machine is moving to a new address. Open the link above and sign in there, then confirm — otherwise these settings revert automatically and the old address comes back.</p>
+        </div>
+        <div class="err" id="cf-err"></div>
+      </div>
+      <div class="mfoot">
+        <button class="btn-ghost" id="cf-revert" type="button">Revert now</button>
+        <button class="btn-pri" id="cf-keep" type="button">Keep these settings</button>
+      </div>
+    </div>
+  </div>
 
   <div id="toasts"></div>
 <script src="/js/network.js"></script>

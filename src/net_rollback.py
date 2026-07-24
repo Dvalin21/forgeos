@@ -92,6 +92,11 @@ class RollbackEngine:
                 "last_result": self._last_result,
             }
 
+    def pending_token(self) -> Optional[str]:
+        """Token of the current pending change, if any (admin-only callers)."""
+        with self._lock:
+            return self._pending.token if self._pending else None
+
     # ── the three transitions ──
     def apply(self, new_config: Any, label: str) -> dict:
         """Snapshot, apply `new_config`, and arm the revert timer.

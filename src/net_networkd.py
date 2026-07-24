@@ -186,7 +186,10 @@ def _revert(snap: dict) -> None:
 
 
 # Single engine instance for interface changes (60s confirm window).
-engine = RollbackEngine(_snapshot, _apply, _revert, window_seconds=60)
+# 120s, not 60: an address change moves the box to a new origin, so the admin
+# has to reconnect AND sign in again at the new address before they can
+# confirm. 60s is not enough for that round trip.
+engine = RollbackEngine(_snapshot, _apply, _revert, window_seconds=120)
 
 
 # ════════════════════════════════════════════════════════════════════
