@@ -388,6 +388,58 @@ async def get_routes(user=Depends(verify_token)):
     return {"routes": _read_routes()}
 
 
+@router.get("/api/net/routes/managed")
+async def get_managed_routes(user=Depends(verify_token)):
+    """Only the routes ForgeOS manages (from 20-forgeos-routes.network).
+
+    The live table (GET /api/net/routes) also lists kernel/DHCP routes ForgeOS
+    doesn't own and must not offer to delete; the UI edits this set.
+    """
+    import net_networkd as ni
+    return {"routes": ni.load_managed_routes()}
+
+
+@router.post("/api/net/routes")
+async def add_route(route: StaticRoute, user=Depends(verify_token)):
+    """Add a managed static route. Applied directly — a bad route doesn't drop
+    the box the way a bad address does, so no rollback timer."""
+    _require_admin(user)
+    import net_networkd as ni
+    routes = ni.load_managed_routes()
+    new = {"destination": route.destination, "gateway": route.gateway,
+           "metric": route.metric}
+    # destination is the identity: replace a route to the same network rather
+    # than stacking a duplicate
+    routes = [r for r in routes if r["destination"] != new["destination"]]
+    routes.append(new)
+    try:
+        ni.apply_routes(routes)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"could not apply route: {e}")
+    if _audit is not None:
+        _audit(user["sub"], "net.route.add", "success",
+               f"{new['destination']} via {new['gateway']}")
+    return {"routes": ni.load_managed_routes()}
+
+
+@router.delete("/api/net/routes")
+async def delete_route(destination: str, user=Depends(verify_token)):
+    """Remove a managed route by destination network."""
+    _require_admin(user)
+    import net_networkd as ni
+    routes = ni.load_managed_routes()
+    kept = [r for r in routes if r["destination"] != destination]
+    if len(kept) == len(routes):
+        raise HTTPException(status_code=404, detail="no managed route for that destination")
+    try:
+        ni.apply_routes(kept)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"could not apply: {e}")
+    if _audit is not None:
+        _audit(user["sub"], "net.route.delete", "success", destination)
+    return {"routes": ni.load_managed_routes()}
+
+
 @router.get("/api/net/ddns")
 async def get_ddns(user=Depends(verify_token)):
     """DDNS status. Credentials are NEVER returned — only whether they're set."""

@@ -139,23 +139,34 @@
   }
 
   // ── Routes ──
+  var MANAGED = [];   // destinations ForgeOS manages (deletable)
+
   function renderRoutes(list){
     var body = $('rt-body');
-    if (!list || !list.length){ body.innerHTML = '<div class="empty">No routes found.</div>'; return; }
-    $('rt-chip').textContent = list.length + ' route' + (list.length !== 1 ? 's' : '');
-    var rows = list.map(function(r){
+    var managedSet = {};
+    MANAGED.forEach(function(r){ managedSet[r.destination] = true; });
+    var rows = (list || []).map(function(r){
       var dest = r.destination || 'default';
+      var canDelete = managedSet[r.destination] === true;
       return '<tr>'
       +   '<td class="mono">' + esc(dest) + '</td>'
       +   '<td class="mono">' + esc(r.gateway || '—') + '</td>'
       +   '<td>' + (r.interface ? '<span class="tag">' + esc(r.interface) + '</span>' : '—') + '</td>'
       +   '<td>' + esc(String(r.metric || 0)) + '</td>'
-      +   '<td>' + (r.protocol ? '<span class="muted">' + esc(r.protocol) + '</span>' : '') + '</td>'
+      +   '<td>' + (canDelete
+              ? '<span class="tag">managed</span>'
+              : (r.protocol ? '<span class="muted">' + esc(r.protocol) + '</span>' : '')) + '</td>'
+      +   '<td style="text-align:right">' + (canDelete
+              ? '<button class="button ghost sm" data-delroute="' + esc(r.destination) + '">Remove</button>'
+              : '') + '</td>'
       + '</tr>';
     }).join('');
+    $('rt-chip').textContent = (list ? list.length : 0) + ' route' + ((list && list.length !== 1) ? 's' : '');
     body.innerHTML = '<table class="rt"><thead><tr>'
-      + '<th>Destination</th><th>Gateway</th><th>Interface</th><th>Metric</th><th>Source</th>'
-      + '</tr></thead><tbody>' + rows + '</tbody></table>';
+      + '<th>Destination</th><th>Gateway</th><th>Interface</th><th>Metric</th><th>Source</th><th></th>'
+      + '</tr></thead><tbody>' + (rows || '<tr><td colspan="6" class="empty">No routes found.</td></tr>') + '</tbody></table>'
+      + '<div class="mfoot" style="padding:12px 0 0;border-top:1px solid var(--line);margin-top:8px">'
+      + '<button class="btn-pri" id="rt-add" type="button">Add route</button></div>';
   }
 
   async function loadAll(){
@@ -164,15 +175,17 @@
       api('/api/net/interfaces'),
       api('/api/net/global'),
       api('/api/net/ddns'),
-      api('/api/net/routes')
+      api('/api/net/routes'),
+      api('/api/net/routes/managed')
     ]);
-    var ifaces = res[0], glob = res[1], ddns = res[2], routes = res[3];
+    var ifaces = res[0], glob = res[1], ddns = res[2], routes = res[3], managed = res[4];
 
     if (ifaces.ok && ifaces.data){ renderInterfaces(ifaces.data.interfaces || []); }
     else { $('if-grid').innerHTML = '<div class="empty">Failed to load interfaces.</div>'; }
 
     if (glob.ok && glob.data){ renderGlobal(glob.data); } else { $('global-body').innerHTML = '<div class="empty">Failed to load.</div>'; }
     if (ddns.ok && ddns.data){ renderDdns(ddns.data); } else { $('ddns-body').innerHTML = '<div class="empty">Failed to load.</div>'; }
+    MANAGED = (managed.ok && managed.data) ? (managed.data.routes || []) : [];
     if (routes.ok && routes.data){ renderRoutes(routes.data.routes || []); } else { $('rt-body').innerHTML = '<div class="empty">Failed to load routes.</div>'; }
 
     // top-of-page reachability chip: green if we have a default gateway
@@ -461,11 +474,16 @@
       if (e.target.id === 'ddns-setup' || e.target.id === 'ddns-edit') openDdns();
       if (e.target.id === 'ddns-test') testDdns();
       if (e.target.id === 'ddns-remove') removeDdns();
+      if (e.target.id === 'rt-add') openRoute();
+      var dr = e.target.closest ? e.target.closest('[data-delroute]') : null;
+      if (dr) deleteRoute(dr.getAttribute('data-delroute'));
     });
     $('dm-provider').addEventListener('change', ddnsSyncProvider);
     $('dm-enabled').addEventListener('change', ddnsSyncEnabled);
     $('dm-cancel').addEventListener('click', function(){ show('ddns-modal', false); });
     $('dm-save').addEventListener('click', saveDdns);
+    $('rm-cancel').addEventListener('click', function(){ show('rt-modal', false); });
+    $('rm-save').addEventListener('click', saveRoute);
 
     loadAll().then(resumePending);
   }

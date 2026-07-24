@@ -48,6 +48,7 @@ logger = logging.getLogger("forgeos-api")
 # ── paths (module-level → redirectable in tests) ──
 NETWORKD_DIR = Path("/etc/systemd/network")
 RESOLV_CONF = Path("/etc/resolv.conf")
+ROUTES_FILE = Path("/etc/systemd/network/20-forgeos-routes.network")
 
 _MANAGED_MARK = "# Managed by ForgeOS — edits here are overwritten\n"
 
@@ -183,6 +184,110 @@ def _revert(snap: dict) -> None:
     _restore(snap)
     _reload(iface)
     _pending_iface = None
+
+
+# ════════════════════════════════════════════════════════════════════
+# STATIC ROUTES  (separate file — survives interface-file regeneration)
+# ════════════════════════════════════════════════════════════════════
+# Managed routes live in their own 20-forgeos-routes.network, NOT in the
+# per-interface files: those regenerate wholesale on every interface edit and
+# would wipe any [Route] sections written into them. networkd applies every
+# .network file whose [Match] selects a present link, so a routes-only file
+# matched to the primary interface adds its routes without owning addressing.
+#
+# Lower stakes than interface changes: a bad route doesn't drop the box the way
+# a bad address does, so these apply directly — no rollback timer. Still
+# admin-gated and validated at the API boundary.
+
+def render_routes_file(routes: list, match_iface: str) -> str:
+    """Render 20-forgeos-routes.network for a list of route dicts.
+
+    Each route: {destination (CIDR), gateway, metric}. `match_iface` binds the
+    file to a present link so networkd applies it.
+    """
+    lines = [_MANAGED_MARK, "[Match]\n", f"Name={match_iface}\n"]
+    for r in routes:
+        lines.append("\n[Route]\n")
+        lines.append(f"Destination={r['destination']}\n")
+        if r.get("gateway"):
+            lines.append(f"Gateway={r['gateway']}\n")
+        m = int(r.get("metric", 0) or 0)
+        if m:
+            lines.append(f"Metric={m}\n")
+    return "".join(lines)
+
+
+def load_managed_routes() -> list:
+    """Parse the managed routes back out of 20-forgeos-routes.network.
+
+    The file is the source of truth for what ForgeOS manages (the live routing
+    table also holds kernel/DHCP routes we don't own).
+    """
+    if not ROUTES_FILE.exists():
+        return []
+    out, cur = [], None
+    try:
+        text = ROUTES_FILE.read_text()
+    except OSError:
+        return []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line == "[Route]":
+            cur = {"destination": "", "gateway": "", "metric": 0}
+            out.append(cur)
+        elif cur is not None and "=" in line:
+            k, _, v = line.partition("=")
+            k = k.strip().lower()
+            if k == "destination":
+                cur["destination"] = v.strip()
+            elif k == "gateway":
+                cur["gateway"] = v.strip()
+            elif k == "metric":
+                try:
+                    cur["metric"] = int(v.strip())
+                except ValueError:
+                    pass
+    return [r for r in out if r["destination"]]
+
+
+def _match_iface_for_routes() -> str:
+    """Which link to bind the routes file to: the primary (default-route) NIC.
+
+    Falls back to the first ForgeOS-managed interface file, then to a wildcard,
+    so routes still load on a single-NIC box regardless of its name.
+    """
+    assert _run_args is not None
+    try:
+        import json as _json
+        out = _run_args(["ip", "-j", "route", "show", "default"], timeout=10)
+        data = _json.loads(out) if out else []
+        if data and isinstance(data, list) and data[0].get("dev"):
+            return data[0]["dev"]
+    except Exception:
+        pass
+    if NETWORKD_DIR.is_dir():
+        for p in sorted(NETWORKD_DIR.glob("10-forgeos-*.network")):
+            name = p.stem.replace("10-forgeos-", "")
+            if name:
+                return name
+    return "en*"
+
+
+def apply_routes(routes: list) -> None:
+    """Persist the managed route set and reload networkd.
+
+    Writing an empty list removes the managed-routes file entirely rather than
+    leaving a [Match]-only stub.
+    """
+    if not routes:
+        if ROUTES_FILE.exists():
+            try:
+                ROUTES_FILE.unlink()
+            except OSError as e:
+                logger.warning("routes: could not remove %s: %s", ROUTES_FILE, e)
+    else:
+        atomic_write(ROUTES_FILE, render_routes_file(routes, _match_iface_for_routes()))
+    _reload(None)
 
 
 # Single engine instance for interface changes (60s confirm window).

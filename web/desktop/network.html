@@ -262,6 +262,26 @@ input.fi:disabled{opacity:.6}
     </div>
   </div>
 
+  <!-- add static route -->
+  <div class="backdrop" id="rt-modal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rm-title">
+      <div class="mhead">
+        <h3 id="rm-title">Add static route</h3>
+        <p>Send traffic for a destination network via a specific gateway.</p>
+      </div>
+      <div class="mbody">
+        <div class="frow"><label>Destination</label><input class="fi" id="rm-dest" placeholder="192.168.50.0/24"></div>
+        <div class="frow"><label>Gateway</label><input class="fi" id="rm-gw" placeholder="10.0.0.254"></div>
+        <div class="frow"><label>Metric</label><input class="fi" id="rm-metric" placeholder="0"></div>
+        <div class="err" id="rm-err"></div>
+      </div>
+      <div class="mfoot">
+        <button class="btn-ghost" id="rm-cancel" type="button">Cancel</button>
+        <button class="btn-pri" id="rm-save" type="button">Add route</button>
+      </div>
+    </div>
+  </div>
+
   <div id="toasts"></div>
 <script src="/js/network.js"></script>
 <script src="/js/nav.js"></script>
