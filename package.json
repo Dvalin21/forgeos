@@ -1,0 +1,11 @@
+{
+  "name": "forgeos-web",
+  "private": true,
+  "description": "ForgeOS web UI — dev-only tooling for frontend smoke tests",
+  "scripts": {
+    "test:frontend": "node tests/frontend/network_init.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0"
+  }
+}

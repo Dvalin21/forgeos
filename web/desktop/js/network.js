@@ -436,6 +436,32 @@
     loadAll();
   }
 
+  // ── static route modal ──
+  function openRoute(){
+    $('rm-dest').value = ''; $('rm-gw').value = ''; $('rm-metric').value = '';
+    $('rm-err').textContent = '';
+    show('rt-modal', true);
+  }
+  async function saveRoute(){
+    var body = { destination: $('rm-dest').value.trim(),
+                 gateway: $('rm-gw').value.trim(),
+                 metric: parseInt($('rm-metric').value, 10) || 0 };
+    if (!body.destination || !body.gateway){
+      $('rm-err').textContent = 'Destination and gateway are required.'; return;
+    }
+    $('rm-save').disabled = true;
+    var r = await api('/api/net/routes', { method: 'POST', body: JSON.stringify(body) });
+    $('rm-save').disabled = false;
+    if (!r.ok){ $('rm-err').textContent = detail(r) || 'Could not add the route.'; return; }
+    show('rt-modal', false); toast('Route added', 'ok'); loadAll();
+  }
+  async function deleteRoute(dest){
+    var r = await api('/api/net/routes?destination=' + encodeURIComponent(dest),
+                      { method: 'DELETE' });
+    if (!r.ok){ toast(detail(r) || 'Could not remove route', 'warn'); return; }
+    toast('Route removed', 'ok'); loadAll();
+  }
+
   // ── global settings ──
   async function applyGlobal(){
     var err = $('g-err'); if (err) err.textContent = '';
