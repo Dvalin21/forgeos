@@ -390,54 +390,69 @@ async def get_routes(user=Depends(verify_token)):
 
 @router.get("/api/net/routes/managed")
 async def get_managed_routes(user=Depends(verify_token)):
-    """Only the routes ForgeOS manages (from 20-forgeos-routes.network).
-
-    The live table (GET /api/net/routes) also lists kernel/DHCP routes ForgeOS
-    doesn't own and must not offer to delete; the UI edits this set.
+    """Only the routes ForgeOS manages, flattened to a list with the interface
+    on each. The live table (GET /api/net/routes) also lists kernel/DHCP routes
+    ForgeOS doesn't own and must not offer to delete; the UI edits this set.
     """
     import net_networkd as ni
-    return {"routes": ni.load_managed_routes()}
+    flat = []
+    for iface, routes in ni.load_managed_routes().items():
+        for r in routes:
+            flat.append({**r, "interface": iface})
+    return {"routes": flat}
 
 
 @router.post("/api/net/routes")
 async def add_route(route: StaticRoute, user=Depends(verify_token)):
     """Add a managed static route. Applied directly — a bad route doesn't drop
-    the box the way a bad address does, so no rollback timer."""
+    the box the way a bad address does, so no rollback timer.
+
+    Routes attach to an interface (they're written into that interface's
+    .network file so networkd can validate the gateway). If the caller doesn't
+    name one, the primary/default-route interface is used.
+    """
     _require_admin(user)
     import net_networkd as ni
-    routes = ni.load_managed_routes()
-    new = {"destination": route.destination, "gateway": route.gateway,
-           "metric": route.metric}
-    # destination is the identity: replace a route to the same network rather
-    # than stacking a duplicate
-    routes = [r for r in routes if r["destination"] != new["destination"]]
-    routes.append(new)
+    iface = route.interface or ni.default_route_iface()
+    if not iface:
+        raise HTTPException(status_code=400,
+                            detail="no interface for the route and no default route found")
+    store = ni.load_managed_routes()
+    lst = [r for r in store.get(iface, []) if r["destination"] != route.destination]
+    lst.append({"destination": route.destination, "gateway": route.gateway,
+                "metric": route.metric})
+    store[iface] = lst
     try:
-        ni.apply_routes(routes)
+        ni.apply_routes(store)
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"could not apply route: {e}")
     if _audit is not None:
         _audit(user["sub"], "net.route.add", "success",
-               f"{new['destination']} via {new['gateway']}")
-    return {"routes": ni.load_managed_routes()}
+               f"{route.destination} via {route.gateway} on {iface}")
+    return await get_managed_routes(user)
 
 
 @router.delete("/api/net/routes")
 async def delete_route(destination: str, user=Depends(verify_token)):
-    """Remove a managed route by destination network."""
+    """Remove a managed route by destination network (across all interfaces)."""
     _require_admin(user)
     import net_networkd as ni
-    routes = ni.load_managed_routes()
-    kept = [r for r in routes if r["destination"] != destination]
-    if len(kept) == len(routes):
+    store = ni.load_managed_routes()
+    found = False
+    for iface in list(store.keys()):
+        kept = [r for r in store[iface] if r["destination"] != destination]
+        if len(kept) != len(store[iface]):
+            found = True
+        store[iface] = kept
+    if not found:
         raise HTTPException(status_code=404, detail="no managed route for that destination")
     try:
-        ni.apply_routes(kept)
+        ni.apply_routes(store)
     except OSError as e:
         raise HTTPException(status_code=500, detail=f"could not apply: {e}")
     if _audit is not None:
         _audit(user["sub"], "net.route.delete", "success", destination)
-    return {"routes": ni.load_managed_routes()}
+    return await get_managed_routes(user)
 
 
 @router.get("/api/net/ddns")

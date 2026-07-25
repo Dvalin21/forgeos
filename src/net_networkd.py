@@ -48,7 +48,7 @@ logger = logging.getLogger("forgeos-api")
 # ── paths (module-level → redirectable in tests) ──
 NETWORKD_DIR = Path("/etc/systemd/network")
 RESOLV_CONF = Path("/etc/resolv.conf")
-ROUTES_FILE = Path("/etc/systemd/network/20-forgeos-routes.network")
+ROUTES_STORE = Path("/etc/forgeos/managed-routes.json")  # source of truth for managed routes
 
 _MANAGED_MARK = "# Managed by ForgeOS — edits here are overwritten\n"
 
@@ -83,6 +83,18 @@ def render_network_file(cfg: Any) -> str:
             lines.append(f"DNS={d}\n")
     if cfg.mtu and cfg.mtu != 1500:
         lines += ["\n", "[Link]\n", f"MTUBytes={cfg.mtu}\n"]
+    # Managed static routes live IN the interface file, not a separate one:
+    # networkd validates a route's Gateway against a local Address in the SAME
+    # .network, and a routes-only file (no [Network] address) fails with
+    # "Gateway= without static address configured" and never installs the route.
+    for r in load_managed_routes().get(cfg.name, []):
+        lines.append("\n[Route]\n")
+        lines.append(f"Destination={r['destination']}\n")
+        if r.get("gateway"):
+            lines.append(f"Gateway={r['gateway']}\n")
+        m = int(r.get("metric", 0) or 0)
+        if m:
+            lines.append(f"Metric={m}\n")
     return "".join(lines)
 
 
@@ -187,75 +199,40 @@ def _revert(snap: dict) -> None:
 
 
 # ════════════════════════════════════════════════════════════════════
-# STATIC ROUTES  (separate file — survives interface-file regeneration)
+# STATIC ROUTES  (stored per-interface, emitted INTO the interface file)
 # ════════════════════════════════════════════════════════════════════
-# Managed routes live in their own 20-forgeos-routes.network, NOT in the
-# per-interface files: those regenerate wholesale on every interface edit and
-# would wipe any [Route] sections written into them. networkd applies every
-# .network file whose [Match] selects a present link, so a routes-only file
-# matched to the primary interface adds its routes without owning addressing.
+# The managed-route set is kept in a JSON sidecar keyed by interface. It is the
+# source of truth for what ForgeOS manages (the live routing table also holds
+# kernel/DHCP routes we don't own). render_network_file() emits [Route] sections
+# from this store into the interface's own .network file, so each route's
+# Gateway is validated against that interface's Address — a routes-only file
+# can't be, and networkd silently drops its routes.
 #
-# Lower stakes than interface changes: a bad route doesn't drop the box the way
-# a bad address does, so these apply directly — no rollback timer. Still
-# admin-gated and validated at the API boundary.
+# Lower stakes than address changes: a bad route doesn't drop the box, so these
+# apply directly (no rollback timer). Still admin-gated and validated at the API.
 
-def render_routes_file(routes: list, match_iface: str) -> str:
-    """Render 20-forgeos-routes.network for a list of route dicts.
-
-    Each route: {destination (CIDR), gateway, metric}. `match_iface` binds the
-    file to a present link so networkd applies it.
-    """
-    lines = [_MANAGED_MARK, "[Match]\n", f"Name={match_iface}\n"]
-    for r in routes:
-        lines.append("\n[Route]\n")
-        lines.append(f"Destination={r['destination']}\n")
-        if r.get("gateway"):
-            lines.append(f"Gateway={r['gateway']}\n")
-        m = int(r.get("metric", 0) or 0)
-        if m:
-            lines.append(f"Metric={m}\n")
-    return "".join(lines)
-
-
-def load_managed_routes() -> list:
-    """Parse the managed routes back out of 20-forgeos-routes.network.
-
-    The file is the source of truth for what ForgeOS manages (the live routing
-    table also holds kernel/DHCP routes we don't own).
-    """
-    if not ROUTES_FILE.exists():
-        return []
-    out, cur = [], None
+def load_managed_routes() -> dict:
+    """Managed routes as {iface: [route, ...]}. {} when none/unreadable."""
+    if not ROUTES_STORE.exists():
+        return {}
     try:
-        text = ROUTES_FILE.read_text()
-    except OSError:
-        return []
-    for raw in text.splitlines():
-        line = raw.strip()
-        if line == "[Route]":
-            cur = {"destination": "", "gateway": "", "metric": 0}
-            out.append(cur)
-        elif cur is not None and "=" in line:
-            k, _, v = line.partition("=")
-            k = k.strip().lower()
-            if k == "destination":
-                cur["destination"] = v.strip()
-            elif k == "gateway":
-                cur["gateway"] = v.strip()
-            elif k == "metric":
-                try:
-                    cur["metric"] = int(v.strip())
-                except ValueError:
-                    pass
-    return [r for r in out if r["destination"]]
+        import json
+        data = json.loads(ROUTES_STORE.read_text())
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
 
 
-def _match_iface_for_routes() -> str:
-    """Which link to bind the routes file to: the primary (default-route) NIC.
+def _save_managed_routes(routes_by_iface: dict) -> None:
+    import json
+    # drop empty interface lists so the store doesn't accrete stubs
+    clean = {k: v for k, v in routes_by_iface.items() if v}
+    atomic_write(ROUTES_STORE, json.dumps(clean, indent=2), 0o644)
 
-    Falls back to the first ForgeOS-managed interface file, then to a wildcard,
-    so routes still load on a single-NIC box regardless of its name.
-    """
+
+def default_route_iface() -> str:
+    """The primary (default-route) NIC — the interface routes attach to when the
+    caller doesn't name one. Falls back to the first managed interface file."""
     assert _run_args is not None
     try:
         import json as _json
@@ -270,24 +247,58 @@ def _match_iface_for_routes() -> str:
             name = p.stem.replace("10-forgeos-", "")
             if name:
                 return name
-    return "en*"
+    return ""
 
 
-def apply_routes(routes: list) -> None:
-    """Persist the managed route set and reload networkd.
+def _rerender_iface(iface: str) -> None:
+    """Rewrite an interface's .network file to reflect the current store.
 
-    Writing an empty list removes the managed-routes file entirely rather than
-    leaving a [Match]-only stub.
+    Routes are emitted by render_network_file(), so we re-render from the file's
+    existing [Network] settings plus the managed routes. We read the current
+    file to preserve its addressing, then re-emit — but since we only have the
+    raw file here (not an InterfaceConfig), we patch the [Route] sections in
+    place rather than reconstructing addressing we might get wrong.
     """
-    if not routes:
-        if ROUTES_FILE.exists():
-            try:
-                ROUTES_FILE.unlink()
-            except OSError as e:
-                logger.warning("routes: could not remove %s: %s", ROUTES_FILE, e)
-    else:
-        atomic_write(ROUTES_FILE, render_routes_file(routes, _match_iface_for_routes()))
-    _reload(None)
+    path = _netfile_path(iface)
+    if not path.exists():
+        # No ForgeOS-managed file for this interface — nothing to attach routes
+        # to. (Routes require an interface we own the .network for.)
+        return
+    existing = path.read_text()
+    # strip any prior [Route] blocks we wrote, keep everything else verbatim
+    kept = []
+    for block in existing.split("\n[Route]\n"):
+        kept.append(block)
+    base = kept[0].rstrip("\n") + "\n"
+    routes = load_managed_routes().get(iface, [])
+    out = [base]
+    for r in routes:
+        out.append("\n[Route]\n")
+        out.append(f"Destination={r['destination']}\n")
+        if r.get("gateway"):
+            out.append(f"Gateway={r['gateway']}\n")
+        m = int(r.get("metric", 0) or 0)
+        if m:
+            out.append(f"Metric={m}\n")
+    atomic_write(path, "".join(out))
+
+
+def apply_routes(routes_by_iface: dict) -> None:
+    """Persist the managed route set and re-apply the affected interfaces.
+
+    Each interface's routes are written into its own .network file, then
+    networkd reloads and reconfigures that interface so the routes install
+    (reload alone re-reads config but doesn't apply to an already-up link).
+    """
+    prior = load_managed_routes()
+    _save_managed_routes(routes_by_iface)
+    # every interface that gained, lost, or changed routes needs re-rendering
+    touched = set(prior) | set(routes_by_iface)
+    assert _run_args is not None
+    _run_args(["networkctl", "reload"], timeout=15)
+    for iface in touched:
+        _rerender_iface(iface)
+        _run_args(["networkctl", "reconfigure", iface], timeout=30)
 
 
 # Single engine instance for interface changes (60s confirm window).
