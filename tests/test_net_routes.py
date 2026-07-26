@@ -59,6 +59,40 @@ class TestRoutesInInterfaceFile:
         assert "[Route]" not in content
         assert "Address=10.0.0.69/24" in content    # addressing preserved
 
+    def test_reload_happens_after_file_is_rewritten(self, routefs):
+        """Ordering bug (hardware): reload ran BEFORE the file was rewritten, so
+        reconfigure applied networkd's stale cache and the route didn't install
+        until an unrelated later reload. reload must see the NEW file content."""
+        ni = routefs["ni"]
+        netfile = routefs["netdir"] / "10-forgeos-ens18.network"
+        # capture the file's route-count AT THE MOMENT reload is called
+        seen = {}
+        real_run = ni._run_args
+        def spy(args, timeout=None):
+            if args[:2] == ["networkctl", "reload"]:
+                seen["routes_in_file_at_reload"] = netfile.read_text().count("[Route]")
+            return real_run(args, timeout=timeout)
+        import net_networkd
+        orig = net_networkd._run_args
+        net_networkd._run_args = spy
+        try:
+            ni.apply_routes({"ens18": [
+                {"destination": "10.11.0.0/24", "gateway": "10.0.0.1", "metric": 0}]})
+        finally:
+            net_networkd._run_args = orig
+        # the route must already be in the file when reload runs (not written after)
+        assert seen.get("routes_in_file_at_reload") == 1
+
+    def test_reconfigure_after_reload(self, routefs):
+        """reconfigure applies the reloaded cache, so it must come AFTER reload."""
+        ni = routefs["ni"]
+        ni.apply_routes({"ens18": [
+            {"destination": "10.12.0.0/24", "gateway": "10.0.0.1", "metric": 0}]})
+        calls = [c for c in routefs["calls"] if c[:1] == ["networkctl"]]
+        reload_idx = next(i for i, c in enumerate(calls) if c[1] == "reload")
+        recfg_idx = next(i for i, c in enumerate(calls) if c[1] == "reconfigure")
+        assert reload_idx < recfg_idx
+
     def test_metric_emitted_when_nonzero(self, routefs):
         ni = routefs["ni"]
         ni.apply_routes({"ens18": [

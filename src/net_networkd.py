@@ -286,18 +286,22 @@ def _rerender_iface(iface: str) -> None:
 def apply_routes(routes_by_iface: dict) -> None:
     """Persist the managed route set and re-apply the affected interfaces.
 
-    Each interface's routes are written into its own .network file, then
-    networkd reloads and reconfigures that interface so the routes install
-    (reload alone re-reads config but doesn't apply to an already-up link).
+    Order is load-bearing: rewrite the interface files FIRST, THEN
+    `networkctl reload` (so networkd reads the new file contents into its
+    cache), THEN `reconfigure` each interface (which applies that freshly
+    reloaded cache to the live link). Reloading before the rewrite — the
+    original bug — made reconfigure apply networkd's STALE cached view, so a
+    route add/remove didn't take effect until the next unrelated reload.
     """
     prior = load_managed_routes()
     _save_managed_routes(routes_by_iface)
     # every interface that gained, lost, or changed routes needs re-rendering
     touched = set(prior) | set(routes_by_iface)
     assert _run_args is not None
-    _run_args(["networkctl", "reload"], timeout=15)
     for iface in touched:
         _rerender_iface(iface)
+    _run_args(["networkctl", "reload"], timeout=15)      # AFTER the rewrite
+    for iface in touched:
         _run_args(["networkctl", "reconfigure", iface], timeout=30)
 
 
