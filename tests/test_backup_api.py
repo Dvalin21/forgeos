@@ -175,11 +175,19 @@ class TestToolVersionDetection:
         assert seen["cmd"] == ["borg", "--version"]
         assert "version" not in seen["cmd"][1:] or seen["cmd"][1] == "--version"
 
-    def test_all_backup_tools_use_dash_dash_version(self, monkeypatch):
+    def test_each_tool_uses_its_verified_version_arg(self, monkeypatch):
+        """borg and restic/rclone have OPPOSITE conventions, verified on
+        hardware: borg only accepts --version (the `version` subcommand is
+        parsed as a repo arg and fails); restic and rclone only accept the
+        `version` subcommand (restic rejects --version outright; rclone's
+        --version is an update-target flag, not a version query)."""
         mod, seen = self._capture_cmd(monkeypatch)
-        for tool in mod.BACKUP_TOOLS:
+        expected = {"borg": ["borg", "--version"],
+                    "restic": ["restic", "version"],
+                    "rclone": ["rclone", "version"]}
+        for tool, exp in expected.items():
             mod._check_tool(tool)
-            assert seen["cmd"] == [tool, "--version"], f"{tool}: {seen['cmd']}"
+            assert seen["cmd"] == exp, f"{tool}: got {seen['cmd']}, want {exp}"
 
     def test_borg_status_reports_installed_when_borg_runs(self, test_client,
                                                           auth_headers, monkeypatch):
@@ -197,6 +205,34 @@ class TestToolVersionDetection:
         r = test_client.get("/api/backup/borg/status", headers=auth_headers)
         assert r.status_code == 200
         assert r.json()["installed"] is True
+
+    def test_restic_status_installed_when_subcommand_runs(self, test_client,
+                                                        auth_headers, monkeypatch):
+        """restic 0.18 rejects --version; only `restic version` works. The
+        status endpoint must report installed when the subcommand exits 0."""
+        import backup_api as mod
+        from unittest.mock import MagicMock
+        def fake_run(cmd, *a, **k):
+            if cmd == ["restic", "version"]:
+                return MagicMock(returncode=0, stdout=b"restic 0.18.0\n", stderr=b"")
+            if cmd == ["restic", "--version"]:
+                return MagicMock(returncode=1, stdout=b"", stderr=b"unknown flag: --version")
+            return MagicMock(returncode=0, stdout=b"", stderr=b"")
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+        r = test_client.get("/api/backup/restic/status", headers=auth_headers)
+        assert r.status_code == 200 and r.json()["installed"] is True
+
+    def test_rclone_status_installed_when_subcommand_runs(self, test_client,
+                                                         auth_headers, monkeypatch):
+        import backup_api as mod
+        from unittest.mock import MagicMock
+        def fake_run(cmd, *a, **k):
+            if cmd == ["rclone", "version"]:
+                return MagicMock(returncode=0, stdout=b"rclone v1.65.0\n", stderr=b"")
+            return MagicMock(returncode=1, stdout=b"", stderr=b"")
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+        r = test_client.get("/api/backup/rclone/status", headers=auth_headers)
+        assert r.status_code == 200 and r.json()["installed"] is True
 
     def test_missing_tool_still_reports_false(self, monkeypatch):
         import backup_api as mod

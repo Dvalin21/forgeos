@@ -57,8 +57,8 @@ BACKUP_TOOLS = ("borg", "restic", "rclone")
 # one-line change, not another nine-call-site hunt.
 _VERSION_ARGS = {
     "borg": ["--version"],
-    "restic": ["--version"],
-    "rclone": ["--version"],
+    "restic": ["version"],   # restic rejects --version (unknown flag); the version SUBCOMMAND is correct
+    "rclone": ["version"],   # rclone version query is the subcommand; --version is an update-target flag, not a version query
 }
 
 # Injected by main module — see set_helpers().
