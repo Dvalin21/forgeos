@@ -151,3 +151,56 @@ class TestBackupActivityScope:
             assert test_client.get("/api/backup/task/c1", headers=auth_headers).status_code == 404
         finally:
             mod._background_tasks.clear()
+
+
+class TestToolVersionDetection:
+    """borg's version probe was `borg version`, which borg parses as a
+    positional REPOSITORY arg and exits non-zero — so an installed borg was
+    reported missing. The probe must use `borg --version`."""
+
+    def _capture_cmd(self, monkeypatch):
+        import backup_api as mod
+        seen = {}
+        from unittest.mock import MagicMock
+        def fake_run(cmd, *a, **k):
+            seen["cmd"] = cmd
+            return MagicMock(returncode=0, stdout=b"", stderr=b"")
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+        return mod, seen
+
+    def test_borg_probed_with_dash_dash_version(self, monkeypatch):
+        mod, seen = self._capture_cmd(monkeypatch)
+        assert mod._check_tool("borg") is True
+        # the exact bug: must be --version, NOT the `version` subcommand
+        assert seen["cmd"] == ["borg", "--version"]
+        assert "version" not in seen["cmd"][1:] or seen["cmd"][1] == "--version"
+
+    def test_all_backup_tools_use_dash_dash_version(self, monkeypatch):
+        mod, seen = self._capture_cmd(monkeypatch)
+        for tool in mod.BACKUP_TOOLS:
+            mod._check_tool(tool)
+            assert seen["cmd"] == [tool, "--version"], f"{tool}: {seen['cmd']}"
+
+    def test_borg_status_reports_installed_when_borg_runs(self, test_client,
+                                                          auth_headers, monkeypatch):
+        """End to end: a borg that exits 0 on --version shows installed=True."""
+        import backup_api as mod
+        from unittest.mock import MagicMock
+        def fake_run(cmd, *a, **k):
+            # simulate real borg: --version → 0, `version` subcommand → 2
+            if cmd[:2] == ["borg", "--version"]:
+                return MagicMock(returncode=0, stdout=b"borg 1.2.4\n", stderr=b"")
+            if cmd[:2] == ["borg", "version"]:
+                return MagicMock(returncode=2, stdout=b"", stderr=b"error")
+            return MagicMock(returncode=0, stdout=b"[]", stderr=b"")
+        monkeypatch.setattr(mod.subprocess, "run", fake_run)
+        r = test_client.get("/api/backup/borg/status", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["installed"] is True
+
+    def test_missing_tool_still_reports_false(self, monkeypatch):
+        import backup_api as mod
+        def boom(cmd, *a, **k):
+            raise FileNotFoundError(cmd[0])
+        monkeypatch.setattr(mod.subprocess, "run", boom)
+        assert mod._check_tool("borg") is False

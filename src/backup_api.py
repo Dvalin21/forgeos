@@ -48,6 +48,19 @@ router = APIRouter()
 # tasks, which must NOT appear in the NAS Backup activity view.
 BACKUP_TOOLS = ("borg", "restic", "rclone")
 
+# How to ask each tool for its version (used only to detect that it's installed
+# and runnable). borg is the reason this is a map, not a constant: `borg
+# version` is parsed as a positional REPOSITORY argument and exits non-zero, so
+# the detection reported an installed borg as missing. `borg --version` is the
+# correct flag. restic and rclone accept `--version` too, so the flag is
+# uniform — but keep the map so a tool with a different convention is a
+# one-line change, not another nine-call-site hunt.
+_VERSION_ARGS = {
+    "borg": ["--version"],
+    "restic": ["--version"],
+    "rclone": ["--version"],
+}
+
 # Injected by main module — see set_helpers().
 _start_task: Optional[Callable[..., str]] = None
 _audit: Optional[Callable[..., None]] = None
@@ -87,12 +100,16 @@ def set_helpers(
 
 
 def _check_tool(name: str, version_args: list[str] | None = None) -> bool:
-    """Check if a CLI tool is installed and executable."""
+    """Check if a CLI tool is installed and executable.
+
+    version_args defaults to the tool's known version flag (see _VERSION_ARGS);
+    pass an explicit list only to override. The default matters: borg must be
+    probed with --version, not a `version` subcommand.
+    """
+    if version_args is None:
+        version_args = _VERSION_ARGS.get(name, ["--version"])
     try:
-        cmd = [name]
-        if version_args:
-            cmd.extend(version_args)
-        r = subprocess.run(cmd, capture_output=True, timeout=5)
+        r = subprocess.run([name, *version_args], capture_output=True, timeout=5)
         return r.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
@@ -112,7 +129,7 @@ def _require_tool(name: str, version_args: list[str] | None = None) -> None:
 @router.get("/api/backup/borg/status")
 async def borg_status(user=Depends(verify_token)):
     """Get Borg backup status and jobs"""
-    installed = _check_tool("borg", ["version"])
+    installed = _check_tool("borg")
     jobs = []
     if installed:
         try:
@@ -134,7 +151,7 @@ async def borg_status(user=Depends(verify_token)):
 @router.post("/api/backup/borg/create")
 async def borg_create(body: dict, user=Depends(verify_token)):
     """Create new Borg backup job (async — returns task_id, poll GET /api/backup/task/{id})"""
-    _require_tool("borg", ["version"])
+    _require_tool("borg")
     
     name = body.get("name", "backup")
     source = body.get("source", "")
@@ -154,7 +171,7 @@ async def borg_create(body: dict, user=Depends(verify_token)):
 @router.get("/api/backup/borg/list")
 async def borg_list(destination: str, user=Depends(verify_token)):
     """List archives in repository"""
-    _require_tool("borg", ["version"])
+    _require_tool("borg")
     
     try:
         result = subprocess.run(
@@ -179,13 +196,13 @@ async def borg_list(destination: str, user=Depends(verify_token)):
 @router.get("/api/backup/restic/status")
 async def restic_status(user=Depends(verify_token)):
     """Get Restic status"""
-    return {"installed": _check_tool("restic", ["version"])}
+    return {"installed": _check_tool("restic")}
 
 
 @router.post("/api/backup/restic/snapshot")
 async def restic_snapshot(body: dict, user=Depends(verify_token)):
     """Create Restic snapshot (async — returns task_id, poll GET /api/backup/task/{id})"""
-    _require_tool("restic", ["version"])
+    _require_tool("restic")
     
     repo = body.get("repo", "/backup/restic")
     paths = body.get("paths", [])
@@ -203,7 +220,7 @@ async def restic_snapshot(body: dict, user=Depends(verify_token)):
 @router.get("/api/backup/restic/snapshots")
 async def restic_snapshots(repo: str, user=Depends(verify_token)):
     """List restic snapshots"""
-    _require_tool("restic", ["version"])
+    _require_tool("restic")
     
     cmd = ["restic", "-r", repo, "snapshots", "--json"]
     try:
@@ -226,13 +243,13 @@ async def restic_snapshots(repo: str, user=Depends(verify_token)):
 @router.get("/api/backup/rclone/status")
 async def rclone_status(user=Depends(verify_token)):
     """Get RClone status"""
-    return {"installed": _check_tool("rclone", ["version"])}
+    return {"installed": _check_tool("rclone")}
 
 
 @router.post("/api/backup/rclone/sync")
 async def rclone_sync(body: dict, user=Depends(verify_token)):
     """Run RClone sync (async — returns task_id, poll GET /api/backup/task/{id})"""
-    _require_tool("rclone", ["version"])
+    _require_tool("rclone")
     
     source = body.get("source", "")
     destination = body.get("destination", "")
@@ -253,7 +270,7 @@ async def rclone_sync(body: dict, user=Depends(verify_token)):
 @router.get("/api/backup/rclone/configs")
 async def rclone_configs(user=Depends(verify_token)):
     """List RClone configs"""
-    if not _check_tool("rclone", ["version"]):
+    if not _check_tool("rclone"):
         return {"remotes": []}
     
     try:
