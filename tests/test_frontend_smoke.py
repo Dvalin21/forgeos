@@ -17,6 +17,7 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parent.parent
 _HARNESS = _ROOT / "tests" / "frontend" / "network_init.test.js"
+_NAV_HARNESS = _ROOT / "tests" / "frontend" / "nav_scroll.test.js"
 
 
 def _node_with_jsdom() -> bool:
@@ -36,3 +37,11 @@ def test_network_js_init_runs_without_reference_error():
     r = subprocess.run(["node", str(_HARNESS)], cwd=str(_ROOT),
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, f"network.js init() failed:\n{r.stderr}\n{r.stdout}"
+
+
+@pytest.mark.skipif(not _node_with_jsdom(),
+                    reason="node or jsdom unavailable (frontend tooling not installed)")
+def test_nav_scroll_position_logic():
+    r = subprocess.run(["node", str(_NAV_HARNESS)], cwd=str(_ROOT),
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, f"nav.js scroll test failed:\n{r.stderr}\n{r.stdout}"

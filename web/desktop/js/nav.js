@@ -219,9 +219,30 @@
     }
   }
 
+  // The sidebar is rebuilt from scratch on every page load (real page
+  // navigation, not a SPA), so its inner .nav-scroll starts at the top each
+  // time — losing your place in a long nav list when you pick an item below
+  // the fold. Persist the scroll position per-tab across navigations.
+  var NAV_SCROLL_KEY = "forgeos_nav_scroll";
+
+  function wireNavScroll() {
+    var sc = document.querySelector(".sidebar .nav-scroll");
+    if (!sc) return;
+    // restore before paint so there's no visible jump
+    try {
+      var y = sessionStorage.getItem(NAV_SCROLL_KEY);
+      if (y !== null) sc.scrollTop = parseInt(y, 10) || 0;
+    } catch (e) { /* sessionStorage unavailable — nav just starts at top */ }
+    sc.addEventListener("scroll", function () {
+      try { sessionStorage.setItem(NAV_SCROLL_KEY, String(sc.scrollTop)); }
+      catch (e) { /* ignore */ }
+    }, { passive: true });
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", mount);
+    document.addEventListener("DOMContentLoaded", function () { mount(); wireNavScroll(); });
   } else {
     mount();
+    wireNavScroll();
   }
 })();
