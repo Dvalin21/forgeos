@@ -1,0 +1,21 @@
+[Unit]
+Description=ForgeOS first-boot setup (network conversion + install)
+# Needs a real, working network connection (DHCP lease acquired) before
+# forgeos_firstboot.py has anything to read, and before bootstrap.sh's own
+# apt-get/pip steps can reach anything. Also wait for basic.target so this
+# doesn't race the rest of first-boot startup on a box that's about to have
+# its addressing rewritten mid-init.
+After=network-online.target basic.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/forgeos-src/iso/firstboot/forgeos-firstboot-install.sh
+# Give the full install (network wait + apt + pip + config seed) real room;
+# this is a one-time cost, not a steady-state service.
+TimeoutStartSec=1800
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
