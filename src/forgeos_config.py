@@ -751,6 +751,49 @@ class StoragePool(BaseModel):
         return self.mountpoint or f"/srv/nas/{self.name}"
 
 
+class LhsrGroup(BaseModel):
+    """An LHSR disk group — a set of disks combined into a hybrid RAID."""
+    name: str = "default"
+    parity: int = 1  # 1 = LHSR1, 2 = LHSR2
+    disks: list[str] = Field(default_factory=list)  # device paths like /dev/sdb
+
+    @field_validator("name")
+    @classmethod
+    def _valid_name(cls, v: str) -> str:
+        import re
+        if not re.fullmatch(r"[A-Za-z0-9_-]{2,}", v or ""):
+            raise ValueError(f"invalid LHSR group name: {v!r}")
+        return v
+
+    @field_validator("parity")
+    @classmethod
+    def _valid_parity(cls, v: int) -> int:
+        if v not in (1, 2):
+            raise ValueError(f"parity must be 1 or 2, got {v}")
+        return v
+
+
+class LhsrConfig(BaseModel):
+    """LHSR (Hybrid RAID) configuration."""
+    groups: list[LhsrGroup] = Field(default_factory=list)
+    enabled: bool = False
+
+    @field_validator("groups")
+    @classmethod
+    def _unique_group_names(cls, v: list[LhsrGroup]) -> list[LhsrGroup]:
+        names = [g.name.lower() for g in v]
+        dupes = {n for n in names if names.count(n) > 1}
+        if dupes:
+            raise ValueError(f"duplicate LHSR group names: {sorted(dupes)}")
+        return v
+
+
+class InstallConfig(BaseModel):
+    """First-boot installation configuration."""
+    os_drive: str = ""  # device path like /dev/sda
+    configured: bool = False
+
+
 class StorageConfig(BaseModel):
     pools: list[StoragePool] = Field(default_factory=list)
 
@@ -792,7 +835,7 @@ class AuthConfig(BaseModel):
     require_totp_new_users: bool = False
 
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 
 class ForgeOSConfig(BaseModel):
@@ -821,6 +864,8 @@ class ForgeOSConfig(BaseModel):
     toggles: TogglesConfig = Field(default_factory=TogglesConfig)
     osbackup: OsBackupConfig = Field(default_factory=OsBackupConfig)
     auth: AuthConfig = Field(default_factory=AuthConfig)
+    lhsr: LhsrConfig = Field(default_factory=LhsrConfig)
+    install: InstallConfig = Field(default_factory=InstallConfig)
 
     @field_validator("apps")
     @classmethod
@@ -931,6 +976,14 @@ def _migrate_v7_to_v8(data: dict) -> dict:
     return data
 
 
+def _migrate_v11_to_v12(data: dict) -> dict:
+    """v12: LHSR (hybrid RAID) and install config blocks. Additive."""
+    data.setdefault("lhsr", {})
+    data.setdefault("install", {})
+    data["version"] = 12
+    return data
+
+
 _MIGRATIONS = {
     1: _migrate_v1_to_v2,
     2: _migrate_v2_to_v3,
@@ -942,6 +995,7 @@ _MIGRATIONS = {
     8: _migrate_v8_to_v9,
     9: _migrate_v9_to_v10,
     10: _migrate_v10_to_v11,
+    11: _migrate_v11_to_v12,
 }
 
 

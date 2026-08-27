@@ -15,6 +15,7 @@ notify logic are unit-testable without root.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from forgeos_atomic import atomic_write as _atomic_write
 
 TIMER_UNIT = "/etc/systemd/system/forgeos-osbackup.timer"
 SERVICE_UNIT = "/etc/systemd/system/forgeos-osbackup.service"

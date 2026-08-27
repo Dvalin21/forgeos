@@ -216,14 +216,80 @@
         toast(r.ok?'Pool created':(r.data&&r.data.detail)||'Create failed',r.ok?'ok':'err');if(r.ok){loadPools();loadDrives();loadCapacity()}return r.ok}});
   }
 
-  function refresh(){loadPools();loadCapacity();loadDrives();loadLog()}
+  function refresh(){loadPools();loadCapacity();loadDrives();loadLog();loadLhsrTrends()}
+
+  // ── LHSR Planner ──
+  async function loadLhsrPlanner(){
+    // Load available disks into the planner selection
+    var d=(await api('/api/storage/drives')).data;
+    var drives=(d&&d.drives)||[];
+    var spareDrives=drives.filter(function(x){return x.role==='spare'});
+    var box=$('#lhsr-plan-result');
+    if(!spareDrives.length){
+      box.innerHTML='<p style="color:var(--muted)">No unassigned drives available for LHSR layout.</p>';
+      return;
+    }
+    // Build a simple disk selection UI
+    var diskRows=spareDrives.map(function(dr){
+      var name=esc(dr.name.replace('/dev/',''));
+      return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0"><input type="checkbox" class="lhsr-disk" data-name="'+name+'" data-size="'+(dr.size_bytes||0)+'">'+name+' ('+esc(dr.size)+')</label>';
+    }).join('');
+    box.innerHTML='<div style="display:grid;gap:8px;margin-bottom:12px">'+diskRows+'</div>'+
+      '<div style="display:flex;gap:8px"><button class="btn-ghost" id="lhsr-compute">Compute Layout</button>'+
+      '<select id="lhsr-parity" style="height:44px;padding:0 14px;border:1px solid var(--line);border-radius:13px;background:var(--surface-2);font:600 14px var(--font);color:var(--text)"><option value="1">LHSR1 — single parity</option><option value="2">LHSR2 — dual parity</option></select></div>'+
+      '<pre id="lhsr-output" style="margin-top:12px;background:var(--surface-2);padding:12px;border-radius:12px;font:500 11px JetBrains Mono,monospace;white-space:pre-wrap;max-height:400px;overflow:auto"></pre>';
+    $('#lhsr-compute').onclick=async function(){
+      var selected=$$('.lhsr-disk:checked');
+      if(selected.length<3){toast('Select at least 3 disks','warn');return}
+      var disks=selected.map(function(cb){
+        return {name:cb.getAttribute('data-name'),size_bytes:parseInt(cb.getAttribute('data-size')||'0')}
+      });
+      var parity=parseInt($('#lhsr-parity').value||'1',10);
+      var r=await api('/api/lhsr/plan',{method:'POST',body:JSON.stringify({disks:disks.map(function(d){return{name:d.name,size_sectors:Math.floor(d.size_bytes/512)}}),parity:parity})});
+      if(r.ok){
+        var d=r.data;
+        var out='LHSR Layout\n'+'='.repeat(40)+'\n';
+        out+='Mode: LHSR'+d.parity+' ('+d.parity+' parity per tier)\n';
+        out+='Total raw: '+d.total_raw_human+'\n';
+        out+='Total usable: '+d.total_usable_human+'\n';
+        out+='Tiers: '+d.tier_count+'\n\n';
+        d.tiers.forEach(function(t){
+          out+='Tier '+t.index+': '+t.raid_type.toUpperCase()+' '+t.member_count+' disks, '+t.usable_human+' usable\n';
+        });
+        $('#lhsr-output').textContent=out;
+      } else {
+        toast((r.data&&r.data.detail)||'Plan failed','err');
+      }
+    };
+  }
+
+  // ── LHSR Trends ──
+  async function loadLhsrTrends(){
+    var box=$('#lhsr-trends');
+    var r=await api('/api/lhsr/trends');
+    if(!r.ok){box.innerHTML='<p style="color:var(--muted)">No trend data available.</p>';return}
+    var disks=(r.data&&r.data.disks)||[];
+    if(!disks.length){box.innerHTML='<p style="color:var(--muted)">No trend data recorded yet. Record a snapshot to begin monitoring.</p>';return}
+    box.innerHTML=disks.map(function(d){
+      var w=d.warning_text;
+      var cls=w?'warn':'ok';
+      var pts=d.data_points||0;
+      return '<div style="padding:10px 0;border-bottom:1px solid var(--line)">'+
+        '<div style="display:flex;justify-content:space-between"><strong>'+esc(d.disk_path)+'</strong><span style="color:var(--'+cls+');font-weight:700">'+pts+' points'+(w?' ⚠':' ✓')+'</span></div>'+
+        (w?'<p style="margin:4px 0 0;color:var(--warn);font-size:12px">'+esc(w)+</p>':'')+'</div>';
+    }).join('');
+  }
+
   document.addEventListener('DOMContentLoaded',function(){
     $('#refresh').onclick=function(){refresh();toast('Refreshed','info')};
     $('#new-pool').onclick=doNewPool;
     var lr=$('#log-refresh');if(lr)lr.onclick=function(){loadLog()};
     var lx=$('#log-expand');
     if(lx)lx.onclick=openLogModal;
+    var lpb=$('#lhsr-plan-btn');if(lpb)lpb.onclick=loadLhsrPlanner;
+    var ltr=$('#lhsr-trend-refresh');if(ltr)ltr.onclick=loadLhsrTrends;
     refresh();
+    loadLhsrPlanner();
   });
 
   // Expand opens the full activity log in a MODAL — the .modal-back pattern

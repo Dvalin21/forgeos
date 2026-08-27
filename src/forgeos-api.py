@@ -910,6 +910,7 @@ except ImportError as e:
 # ────────────────────────────────────────────────────────────
 try:
     from system_api import router as system_router, set_helpers as set_system_helpers
+    from system_api import get_cpu_usage, get_memory, get_load, get_temps
     set_system_helpers(
         run_args=_run_args,
         audit=_audit,
@@ -1049,6 +1050,32 @@ try:
     logger.info("Audit API loaded")
 except ImportError as e:
     logger.error("Audit API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
+# SETUP — First-boot configuration wizard (setup_api.py)
+# Routes: status, network-interfaces, timezones, disks, configure
+# ────────────────────────────────────────────────────────────
+try:
+    from setup_api import router as setup_router
+    app.include_router(setup_router)
+    logger.info("Setup API loaded")
+except ImportError as e:
+    logger.error("Setup API failed to load: %s", e)
+    raise
+
+
+# ────────────────────────────────────────────────────────────
+# LHSR — Hybrid RAID layout engine (lhsr_api.py)
+# Routes: plan, health
+# ────────────────────────────────────────────────────────────
+try:
+    from lhsr_api import router as lhsr_router
+    app.include_router(lhsr_router)
+    logger.info("LHSR API loaded")
+except ImportError as e:
+    logger.error("LHSR API failed to load: %s", e)
     raise
 
 

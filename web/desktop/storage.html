@@ -147,6 +147,20 @@
         </aside>
       </section>
 
+      <!-- LHSR — Hybrid RAID for mixed-size disks -->
+      <section class="panel pad" style="margin-top:14px">
+        <div class="section-head"><div><h3>LHSR Planner</h3><p>Hybrid RAID layout for mixed-size disks — greedy tiering with btrfs per tier</p></div>
+          <button class="button" style="background:var(--primary-soft);color:var(--primary)" id="lhsr-plan-btn"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Plan Layout</button></div>
+        <div id="lhsr-plan-result" style="margin-top:12px"><p style="color:var(--muted)">Select disks and click Plan Layout to compute an LHSR configuration.</p></div>
+      </section>
+
+      <!-- LHSR Trend — Predictive failure analysis -->
+      <section class="panel pad" style="margin-top:14px">
+        <div class="section-head"><div><h3>Disk Health Trends</h3><p>SMART trend analysis and predictive failure detection</p></div>
+          <button class="circle-btn" id="lhsr-trend-refresh" title="Refresh trends"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></button></div>
+        <div id="lhsr-trends" style="margin-top:12px"><p style="color:var(--muted)">Loading trend data…</p></div>
+      </section>
+
       <!-- PHYSICAL DRIVES -->
       <section class="panel pad" style="margin-top:14px">
         <div class="section-head"><div><h3>Physical Drives</h3><p>OS disk, pool members, and spares — SMART health, temperature, and lifecycle actions</p></div><span class="chip" id="drive-chip">—</span></div>

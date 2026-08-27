@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width, initial-scale=1'>
+<title>Setup Wizard · ForgeOS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+<style>
+.wizard-steps{display:flex;gap:8px;margin-bottom:24px}
+.step{padding:8px 16px;border-radius:11px;font:700 12px var(--font);background:var(--surface-2);color:var(--muted)}
+.step.active{background:var(--primary);color:#fff}
+.step.done{background:rgba(22,163,74,.15);color:#16a34a}
+.wizard-panel{display:none}
+.wizard-panel.active{display:block}
+.disk-select{display:grid;gap:10px;margin:12px 0}
+.disk-option{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;cursor:pointer;transition:.15s}
+.disk-option:hover{border-color:var(--primary)}
+.disk-option.selected{border-color:var(--primary);background:var(--primary-soft)}
+.disk-option .size{font:700 12px var(--font);color:var(--muted)}
+.group-card{border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.group-card h4{margin:0 0 8px}
+.parity-select{display:flex;gap:8px;margin:8px 0}
+.parity-select button{flex:1;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);font:700 12px var(--font);cursor:pointer}
+.parity-select button.active{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+.schedule-row{display:flex;align-items:center;gap:12px;margin:10px 0}
+.schedule-row select{height:44px;padding:0 14px;border:1px solid var(--line);border-radius:13px;background:var(--surface-2);font:600 13px var(--font);color:var(--text)}
+.preview-box{background:var(--surface-2);padding:16px;border-radius:14px;font:500 12px JetBrains Mono,monospace;white-space:pre-wrap;margin-top:12px}
+</style>
+</head>
+<body>
+  <div class="app"><main class="main" style="grid-column:1/-1;max-width:800px;margin:0 auto">
+    <header class="topbar" style="grid-template-columns:1fr">
+      <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Setup Wizard</h3><p>Configure your ForgeOS system</p></div></div>
+    </header>
+
+    <div class="wizard-steps" id="wizard-steps">
+      <div class="step active" data-step="1">Network</div>
+      <div class="step" data-step="2">System</div>
+      <div class="step" data-step="3">OS Drive</div>
+      <div class="step" data-step="4">LHSR Groups</div>
+      <div class="step" data-step="5">Monitoring</div>
+      <div class="step" data-step="6">Review</div>
+    </div>
+
+    <!-- Step 1: Network -->
+    <div class="wizard-panel active" data-panel="1">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>Network Configuration</h3><p>Set a static IP address</p></div></div>
+        <div class="field"><label>Interface</label><select id="net-iface"></select></div>
+        <div class="two"><div class="field"><label>IP Address</label><input id="net-ip" placeholder="10.0.0.241"></div>
+          <div class="field" style="max-width:100px"><label>Prefix Length</label><input id="net-prefix" value="24" inputmode="numeric"></div></div>
+        <div class="field"><label>Gateway</label><input id="net-gw" placeholder="10.0.0.1"></div>
+        <div class="field"><label>DNS Server</label><input id="net-dns" placeholder="10.0.0.1"></div>
+        <button class="button" id="net-next" style="margin-top:12px">Next</button>
+      </section>
+    </div>
+
+    <!-- Step 2: System -->
+    <div class="wizard-panel" data-panel="2">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>System Identity</h3><p>Hostname and timezone</p></div></div>
+        <div class="field"><label>Hostname</label><input id="sys-hostname" placeholder="forgeos"></div>
+        <div class="field"><label>LAN Name</label><input id="sys-lan" placeholder="forgeos.local"></div>
+        <div class="field"><label>Timezone</label><select id="sys-tz"></select></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="button ghost" data-prev>Back</button><button class="button" id="sys-next">Next</button></div>
+      </section>
+    </div>
+
+    <!-- Step 3: OS Drive -->
+    <div class="wizard-panel" data-panel="3">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>Operating System Drive</h3><p>Select which disk holds the OS (untouchable by storage pools)</p></div></div>
+        <div class="disk-select" id="os-drive-list"></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="button ghost" data-prev>Back</button><button class="button" id="os-next">Next</button></div>
+      </section>
+    </div>
+
+    <!-- Step 4: LHSR Groups -->
+    <div class="wizard-panel" data-panel="4">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>LHSR Disk Groups</h3><p>Assign remaining disks to hybrid RAID groups (LHSR1 or LHSR2)</p></div></div>
+        <div id="lhsr-groups"></div>
+        <button class="button ghost" id="add-group" style="margin-top:8px">+ Add Group</button>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="button ghost" data-prev>Back</button><button class="button" id="lhsr-next">Next</button></div>
+      </section>
+    </div>
+
+    <!-- Step 5: Monitoring -->
+    <div class="wizard-panel" data-panel="5">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>SMART Monitoring</h3><p>Schedule automatic disk health snapshots</p></div></div>
+        <div class="opt-row"><div><h5>Enable SMART snapshots</h5><p>Record disk health daily for predictive failure analysis</p></div><div class="switch on" id="snap-enabled"><i></i></div></div>
+        <div class="schedule-row" id="schedule-row">
+          <label>Frequency:</label>
+          <select id="snap-calendar">
+            <option value="hourly">Every hour</option>
+            <option value="daily" selected>Daily</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="button ghost" data-prev>Back</button><button class="button" id="snap-next">Next</button></div>
+      </section>
+    </div>
+
+    <!-- Step 6: Review -->
+    <div class="wizard-panel" data-panel="6">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>Review & Apply</h3><p>Confirm your configuration</p></div></div>
+        <div id="review-content" class="preview-box"></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="button ghost" data-prev>Back</button><button class="button" id="apply-btn">Apply Configuration</button></div>
+      </section>
+    </div>
+
+  </main></div>
+  <div id="toasts"></div>
+  <script src="/js/nav.js"></script>
+  <script src="/js/setup.js"></script>
+</body>
+</html>

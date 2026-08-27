@@ -724,7 +724,8 @@ async def file_chmod(body: dict, user=Depends(verify_token)):
         file_mode = dir_mode
 
     if (apply_dirs or apply_files) and p.is_dir():
-        os.chmod(p, dir_mode)                       # the folder itself
+        if apply_dirs:
+            os.chmod(p, dir_mode)                       # the folder itself
         for root, dirs, files in os.walk(p):
             if apply_dirs:
                 for d in dirs:
