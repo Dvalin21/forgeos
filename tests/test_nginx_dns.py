@@ -338,7 +338,7 @@ class TestDomainsAPI:
         fcfg.save(cfg)
         # no credentials passed -> must reuse
         r = test_client.post("/api/nginx/domains", headers=auth_headers, json={
-            "name": "keithtechco.com", "provider": "porkbun", "wildcard": True})
+            "name": "example.com", "provider": "porkbun", "wildcard": True})
         assert r.status_code == 200, r.text
 
     def test_add_domain_rejects_newline_in_cred_value(self, test_client, auth_headers, monkeypatch, tmp_path):

@@ -324,20 +324,20 @@ def test_secaudit_skips_absent_optional_files():
 def test_naming_derives_lan_name_from_hostname():
     # Option 3: no domain given -> lan_name = <hostname>.local, hostname untouched
     inst = _installer(fi.InstallChoices(domain=""))
-    inst.get_hostname = lambda: "KeithTechCo"
+    inst.get_hostname = lambda: "ExampleCorp"
     cfg = inst.build_config()
-    assert cfg.naming.system_hostname == "KeithTechCo"
-    assert cfg.naming.lan_name == "KeithTechCo.local"
-    assert cfg.domain == "KeithTechCo.local"
+    assert cfg.naming.system_hostname == "ExampleCorp"
+    assert cfg.naming.lan_name == "ExampleCorp.local"
+    assert cfg.domain == "ExampleCorp.local"
     assert cfg.naming.public_fqdn == ""        # empty until mail/proxy sets it
 
 
 def test_naming_custom_domain_kept():
     inst = _installer(fi.InstallChoices(domain="nas.local"))
-    inst.get_hostname = lambda: "KeithTechCo"
+    inst.get_hostname = lambda: "ExampleCorp"
     cfg = inst.build_config()
     assert cfg.naming.lan_name == "nas.local"
-    assert cfg.naming.system_hostname == "KeithTechCo"   # NOT renamed
+    assert cfg.naming.system_hostname == "ExampleCorp"   # NOT renamed
 
 
 def test_resolution_hostname_default_is_noop_alias():
