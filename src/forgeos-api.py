@@ -370,9 +370,8 @@ def _run_background(cmd: list[str], task_id: str, timeout: int = 600,
                     final_status = "done"
                 else:
                     t["status"] = "failed"
-                    # certbot (and many tools) print the actual reason to
-                    # STDOUT, not stderr — keep whichever is non-empty, prefer
-                    # the tail so the ACME error line survives truncation.
+                    # Some tools print errors to stdout, certbot to stderr —
+                    # capture both so the reason survives truncation.
                     detail = (r.stderr.strip() + "\n" + r.stdout.strip()).strip()
                     t["error"] = detail[-2000:] if detail else "Exit code %d" % r.returncode
                     final_error = t["error"]
@@ -1235,21 +1234,15 @@ async def ws_docker_exec(ws: WebSocket, container: str):
         stderr=asyncio.subprocess.PIPE,
     )
     
-    if proc.stdin is None or proc.stdout is None:
-        await ws.close(code=4002, reason="Failed to start container shell")
-        return
-    
+    assert proc.stdin is not None and proc.stdout is not None
+
     # Forward WebSocket to process
     async def ws_to_proc():
         try:
             while True:
                 data = await ws.receive_text()
-                if data.startswith("RESIZE:"):
-                    # Docker doesn't support TIOCSWINSZ directly via exec
-                    pass
-                else:
-                    proc.stdin.write(data.encode())
-                    await proc.stdin.drain()
+                proc.stdin.write(data.encode())
+                await proc.stdin.drain()
         except WebSocketDisconnect:
             proc.kill()
         except Exception as e:
