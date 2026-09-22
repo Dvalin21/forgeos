@@ -100,10 +100,11 @@ def _lhsr_handler(args):
                 return 0
 
         # Execute the layout
-        print("\nExecuting LHSR layout...")
-        # TODO: implement partitioning, mkfs, LVM setup
-        print("TODO: execution not yet implemented")
-        return 0
+        print("\nExecuting LHSR layout...", file=sys.stderr)
+        print("ERROR: LHSR pool execution is not yet implemented. "
+              "Use the API endpoint POST /api/lhsr/plan for layout planning.",
+              file=sys.stderr)
+        return 1
 
     return 0
 
