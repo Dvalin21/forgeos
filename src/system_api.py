@@ -253,10 +253,7 @@ async def list_services(user=Depends(verify_token)):
                 ["systemctl", "list-units", f"{svc}*", "--no-legend"],
                 timeout=3,
             )
-            if units_out and "active" in units_out.splitlines()[0] if units_out else False:
-                status = "running"
-            else:
-                status = "stopped"
+            status = "running" if units_out and "active" in units_out else "stopped"
         else:
             out = _run_args(["systemctl", "is-active", svc], timeout=3)
             status = "running" if out.strip() == "active" else "stopped"

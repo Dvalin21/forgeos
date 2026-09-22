@@ -425,6 +425,8 @@ def _start_task(cmd: list[str], tool: str, action: str,
 
 
 # ── Backup job persistence ──────────────────────────────────
+_MAX_JOB_HISTORY = 20  # keep this many completed runs per job
+
 
 def _persist_jobs() -> None:
     """Write backup job configs to SQLite."""
@@ -536,7 +538,6 @@ def _ddns_tick(now_ts: float) -> None:
         import ddns
     except ImportError:
         return
-    import threading
     threading.Thread(target=ddns.tick, args=(now_ts,), daemon=True).start()
 
 
@@ -551,19 +552,22 @@ def _execute_backup_job(job_id: str) -> None:
     source = job.get("source", [])
     dest = job.get("destination", "")
 
-    if tool == "borg":
+    def _borg_cmd(job, dest, source):
         archive_name = f"{job.get('name', 'backup')}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-        cmd = ["borg", "create", f"{dest}::{archive_name}"] + source
-        task_id = _start_task(cmd, "borg", "scheduled", timeout=600, job_id=job_id)
-    elif tool == "restic":
-        cmd = ["restic", "-r", dest, "backup"] + source
-        task_id = _start_task(cmd, "restic", "scheduled", timeout=600, job_id=job_id)
-    elif tool == "rclone":
-        cmd = ["rclone", "sync"] + source + [dest]
-        task_id = _start_task(cmd, "rclone", "scheduled", timeout=600, job_id=job_id)
-    else:
+        return ["borg", "create", f"{dest}::{archive_name}"] + source
+
+    _BACKUP_CMD_BUILDERS = {
+        "borg": _borg_cmd,
+        "restic": lambda job, dest, source: ["restic", "-r", dest, "backup"] + source,
+        "rclone": lambda job, dest, source: ["rclone", "sync"] + source + [dest],
+    }
+
+    builder = _BACKUP_CMD_BUILDERS.get(tool)
+    if not builder:
         logger.warning("Unknown backup tool '%s' for job %s", tool, job_id)
         return
+    cmd = builder(job, dest, source)
+    task_id = _start_task(cmd, tool, "scheduled", timeout=600, job_id=job_id)
 
     with _jobs_lock:
         j = _backup_jobs.get(job_id)
@@ -573,9 +577,6 @@ def _execute_backup_job(job_id: str) -> None:
             j["last_task_id"] = task_id
             j["last_status"] = "running"
     _persist_jobs()
-
-
-_MAX_JOB_HISTORY = 20  # keep this many completed runs per job
 
 
 def _update_job_from_task(task_id: str, status: str, error: str | None = None) -> None:
@@ -1235,24 +1236,26 @@ async def ws_docker_exec(ws: WebSocket, container: str):
     )
     
     assert proc.stdin is not None and proc.stdout is not None
+    stdin = proc.stdin
+    stdout = proc.stdout
 
     # Forward WebSocket to process
     async def ws_to_proc():
         try:
             while True:
                 data = await ws.receive_text()
-                proc.stdin.write(data.encode())
-                await proc.stdin.drain()
+                stdin.write(data.encode())
+                await stdin.drain()
         except WebSocketDisconnect:
             proc.kill()
         except Exception as e:
             logger.warning("ws_docker_exec ws_to_proc: %s", e)
             proc.kill()
-    
+
     async def proc_to_ws():
         try:
             while True:
-                data = await proc.stdout.read(4096)
+                data = await stdout.read(4096)
                 if not data:
                     break
                 await ws.send_text(data.decode("utf-8", errors="replace"))
@@ -1298,30 +1301,27 @@ async def ws_lxc_exec(ws: WebSocket, container: str):
         stderr=asyncio.subprocess.PIPE,
     )
     
-    if proc.stdin is None or proc.stdout is None:
-        await ws.close(code=4002, reason="Failed to start container shell")
-        return
-    
+    assert proc.stdin is not None and proc.stdout is not None
+    stdin = proc.stdin
+    stdout = proc.stdout
+
     # Forward WebSocket to process
     async def ws_to_proc():
         try:
             while True:
                 data = await ws.receive_text()
-                if data.startswith("RESIZE:"):
-                    pass
-                else:
-                    proc.stdin.write(data.encode())
-                    await proc.stdin.drain()
+                stdin.write(data.encode())
+                await stdin.drain()
         except WebSocketDisconnect:
             proc.kill()
         except Exception as e:
             logger.warning("ws_lxc_exec ws_to_proc: %s", e)
             proc.kill()
-    
+
     async def proc_to_ws():
         try:
             while True:
-                data = await proc.stdout.read(4096)
+                data = await stdout.read(4096)
                 if not data:
                     break
                 await ws.send_text(data.decode("utf-8", errors="replace"))
