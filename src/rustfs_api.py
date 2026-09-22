@@ -51,10 +51,16 @@ def _load_rustfs_creds() -> dict:
         import secrets
         creds["access_key"] = "rustfs_" + secrets.token_hex(16)
         creds["secret_key"] = secrets.token_urlsafe(32)
+        payload = (f'\nRUSTFS_ACCESS_KEY="{creds["access_key"]}"\n'
+                   f'\nRUSTFS_SECRET_KEY="{creds["secret_key"]}"\n')
         try:
-            with open(str(config_file), "a") as f:
-                f.write(f'\nRUSTFS_ACCESS_KEY="{creds["access_key"]}"\n')
-                f.write(f'\nRUSTFS_SECRET_KEY="{creds["secret_key"]}"\n')
+            config_file.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(str(config_file), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+            try:
+                os.write(fd, payload.encode())
+                os.fsync(fd)
+            finally:
+                os.close(fd)
         except Exception as e:
             logger.warning("FAILED to write RustFS creds to %s: %s", config_file, e)
     
