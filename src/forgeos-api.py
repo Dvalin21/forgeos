@@ -1363,6 +1363,16 @@ except ImportError as e:
     raise
 
 
+# Catch-all for unmatched /api/* paths — returns 404 for any method.
+# Without this, the StaticFiles mount below returns 405 for POST/PUT/DELETE
+# to non-existent /api/* paths (e.g. deleted endpoints), which is wrong.
+from fastapi.responses import JSONResponse
+
+@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+async def api_catch_all(path: str):
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+
 # ────────────────────────────────────────────────────────────
 # STATIC WEB UI
 # ────────────────────────────────────────────────────────────
