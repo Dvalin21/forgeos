@@ -8,8 +8,7 @@ Provides:
 - Web Console (port 9001, embedded in ForgeOS WebGUI)
 """
 
-import os, sys
-import json
+import os
 import logging
 import subprocess
 from pathlib import Path
@@ -19,10 +18,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File, Request
 from forgeos_auth import verify_token
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
 import boto3
 from botocore.client import Config
-from fastapi import FastAPI
 
 # ── Configuration ──
 RUSTFS_API_ENDPOINT = os.environ.get("RUSTFS_API_ENDPOINT", "http://localhost:9000")
@@ -82,8 +79,13 @@ def get_s3_client():
     )
 
 # ── Router ──
+def _require_admin_dep(user=Depends(verify_token)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin required")
+
+
 router = APIRouter(prefix="/api/storage", tags=["RustFS Storage"],
-                   dependencies=[Depends(verify_token)])
+                   dependencies=[Depends(_require_admin_dep)])
 
 # ── Health Check ──
 @router.get("/health")

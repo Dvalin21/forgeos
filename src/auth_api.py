@@ -21,11 +21,11 @@ from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from forgeos_auth import (
     log_auth_failure,
-    JWT_EXPIRE,
     LoginRequest,
     create_mfa_token,
     create_token,
@@ -37,6 +37,11 @@ from forgeos_auth import (
     verify_token,
 )
 import forgeos_auth as fa
+
+# Pre-computed bcrypt hash of a random string — timing equalizer for unknown
+# usernames (keeps login from answering measurably faster when the user
+# doesn't exist).
+_DUMMY_HASH = pwd_ctx.hash("notarealpassword")
 
 logger = logging.getLogger("forgeos-api")
 
@@ -79,11 +84,6 @@ def _issue_session(request: Request, username: str, role: str,
     if extra:
         body.update(extra)
     resp = JSONResponse(body)
-    secure = request.headers.get("x-forwarded-proto", request.url.scheme) == "https"
-    resp.set_cookie(
-        "forgeos_token", token, httponly=True, secure=secure,
-        samesite="strict", max_age=JWT_EXPIRE * 3600,
-    )
     return resp
 
 
@@ -100,7 +100,10 @@ async def login(body: LoginRequest, request: Request):
             detail="No users configured. Run forgeos-install to set up admin user.",
         )
     user = users.get(body.username)
-    if not user or not pwd_ctx.verify(body.password, user["hash"]):
+    # Run bcrypt off the event loop; an unknown user still pays one verify
+    # against a dummy hash so the answer time doesn't leak the username.
+    ok = await run_in_threadpool(pwd_ctx.verify, body.password, user["hash"] if user else _DUMMY_HASH)
+    if not user or not ok:
         logger.warning("FAILED LOGIN user=%s from=%s", body.username, request.client.host)
         log_auth_failure("LOGIN", body.username, request.client.host)
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -161,7 +164,7 @@ async def login_totp(body: TotpLoginRequest, request: Request):
         accepted = True
     else:
         # 2) single-use backup code (a 6-digit TOTP can't collide — lengths differ).
-        used, remaining = fa.consume_backup_code(code, user.get("backup_codes", []))
+        used, remaining = await run_in_threadpool(fa.consume_backup_code, code, user.get("backup_codes", []))
         if used:
             user["backup_codes"] = remaining
             accepted = True
@@ -178,9 +181,23 @@ async def login_totp(body: TotpLoginRequest, request: Request):
 
 
 @router.post("/api/auth/logout")
-async def logout():
+async def logout(request: Request):
     resp = JSONResponse({"ok": True})
-    resp.delete_cookie("forgeos_token")
+    # Invalidate this user's sessions: bump token_epoch so every outstanding
+    # Bearer token fails verify_token on its next use. (Was: only deleted the
+    # cookie, which the UI never read — the real Bearer token lived on.)
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+    if token:
+        try:
+            from jose import jwt as _jwt
+            payload = _jwt.decode(token, fa.JWT_SECRET, algorithms=[fa.JWT_ALGO])
+            users = load_users()
+            sub = payload.get("sub", "")
+            if sub in users:
+                users[sub]["token_epoch"] = int(users[sub].get("token_epoch", 0)) + 1
+                save_users(users)
+        except Exception:
+            pass
     return resp
 
 
@@ -194,7 +211,8 @@ async def change_password(body: ChangePasswordRequest, request: Request,
                           user=Depends(verify_token)):
     users = load_users()
     u = users.get(user["sub"])
-    if not u or not pwd_ctx.verify(body.current, u["hash"]):
+    ok = await run_in_threadpool(pwd_ctx.verify, body.current, u["hash"] if u else _DUMMY_HASH)
+    if not u or not ok:
         raise HTTPException(status_code=401, detail="Current password incorrect")
     u["hash"] = pwd_ctx.hash(body.new)
     # Bump the token epoch so EVERY previously-issued token for this user is

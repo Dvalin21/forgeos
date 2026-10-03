@@ -9,7 +9,6 @@ This is the DESTRUCTIVE counterpart to forgeos_lhsr.py.
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 import time
 from pathlib import Path

@@ -19,8 +19,7 @@ Higher = healthier. 90-100 = OK, 70-89 = WARNING,
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 
 @dataclass

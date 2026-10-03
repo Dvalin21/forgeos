@@ -11,10 +11,9 @@ Routes (/api/samba/*): shares (CRUD), raw config (GET/PUT), connections
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
 
 from forgeos_auth import verify_token
 import forgeos_config as fc

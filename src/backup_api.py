@@ -26,11 +26,9 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import subprocess
-import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -40,7 +38,23 @@ from forgeos_auth import verify_token
 
 logger = logging.getLogger("forgeos-api")
 
-router = APIRouter()
+def validate_backup_args(*args) -> None:
+    """Reject user-supplied argv entries that look like options. shell=False
+    stops shell metacharacters, not option injection (e.g. a source of
+    '--password-command=id' would be interpreted by restic/borg/rclone)."""
+    for a in args:
+        vals = a if isinstance(a, (list, tuple)) else [a]
+        for v in vals:
+            if isinstance(v, str) and v.startswith("-"):
+                raise HTTPException(status_code=400, detail=f"Invalid path/option: {v!r}")
+
+
+def _require_admin_dep(user=Depends(verify_token)):
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin required")
+
+
+router = APIRouter(dependencies=[Depends(_require_admin_dep)])
 
 # The backup tools this module drives. Single source of truth for (a) validating
 # a job's tool and (b) filtering the shared background-task registry down to
@@ -70,6 +84,7 @@ _background_tasks: Optional[dict] = None
 _task_lock: Any = None
 _persist_jobs: Optional[Callable[[], None]] = None
 _update_job_from_task: Optional[Callable[..., None]] = None
+_execute_backup_job: Optional[Callable[[str], None]] = None
 
 
 def set_helpers(
@@ -81,9 +96,11 @@ def set_helpers(
     task_lock: Any,
     persist_jobs: Callable[[], None],
     update_job_from_task: Callable[..., None],
+    execute_job: Optional[Callable[[str], None]] = None,
 ) -> None:
     global _start_task, _audit, _backup_jobs, _jobs_lock
     global _background_tasks, _task_lock, _persist_jobs, _update_job_from_task
+    global _execute_backup_job
     _start_task = start_task
     _audit = audit
     _backup_jobs = backup_jobs
@@ -92,6 +109,7 @@ def set_helpers(
     _task_lock = task_lock
     _persist_jobs = persist_jobs
     _update_job_from_task = update_job_from_task
+    _execute_backup_job = execute_job
 
 
 # ────────────────────────────────────────────────────────────
@@ -159,7 +177,8 @@ async def borg_create(body: dict, user=Depends(verify_token)):
     
     if not source:
         raise HTTPException(status_code=400, detail="Source required")
-    
+    validate_backup_args(source, destination)
+
     archive_name = f"{name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
     cmd = ["borg", "create", f"{destination}::{archive_name}", source]
     task_id = _start_task(cmd, "borg", "create", timeout=600)
@@ -209,7 +228,8 @@ async def restic_snapshot(body: dict, user=Depends(verify_token)):
     
     if not paths:
         raise HTTPException(status_code=400, detail="Paths required")
-    
+    validate_backup_args(repo, paths)
+
     cmd = ["restic", "-r", repo, "snapshot"] + paths
     task_id = _start_task(cmd, "restic", "snapshot", timeout=600)
     _audit(user["sub"], "backup.restic.snapshot", "success",
@@ -257,7 +277,8 @@ async def rclone_sync(body: dict, user=Depends(verify_token)):
     
     if not source or not destination:
         raise HTTPException(status_code=400, detail="Source and destination required")
-    
+    validate_backup_args(source, destination, config or "")
+
     cmd = ["rclone", "sync", source, destination]
     if config:
         cmd.extend(["--config", config])
@@ -310,6 +331,7 @@ async def create_backup_job(body: dict, user=Depends(verify_token)):
         raise HTTPException(status_code=400, detail="source required")
     if not body.get("destination"):
         raise HTTPException(status_code=400, detail="destination required")
+    validate_backup_args(body.get("source", []), body.get("destination", ""), body.get("config") or "")
 
     job_id = str(uuid.uuid4())
     now = datetime.now().isoformat()
@@ -394,6 +416,8 @@ async def run_backup_job_now(job_id: str, user=Depends(verify_token)):
         job = _backup_jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    if _execute_backup_job is None:
+        raise HTTPException(status_code=500, detail="Backup executor not initialized")
     _execute_backup_job(job_id)
     _audit(user["sub"], "backup.job.run", "success",
             f"Triggered backup job '{job.get('name', job_id)}'")

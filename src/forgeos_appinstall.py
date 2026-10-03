@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import forgeos_config as fc
 import forgeos_ports as fp

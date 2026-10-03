@@ -29,8 +29,7 @@ def _resolve(disk_idents):
 
 def _lhsr_handler(args):
     """Handle forgeos-storage lhsr subcommands."""
-    import json
-    from forgeos_lhsr import plan_layout, format_size
+    from forgeos_lhsr import plan_layout
 
     if args.lhsr_cmd == "plan":
         # Read device sizes

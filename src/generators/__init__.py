@@ -17,11 +17,8 @@ from bash modules writing /etc files imperatively:
 
 from __future__ import annotations
 
-import os
 import subprocess
-import tempfile
 from dataclasses import dataclass
-from pathlib import Path
 
 from forgeos_atomic import atomic_write
 

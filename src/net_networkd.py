@@ -36,7 +36,6 @@ networkctl runs through the injected runner so tests mock it.
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import Any, Callable, Optional
 

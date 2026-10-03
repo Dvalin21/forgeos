@@ -10,9 +10,9 @@ forgeos.conf
 *.pfx
 *.env
 .env.*
-*_secret*
-*_password*
-*_token*
+# (narrowed wildcard secret patterns removed — they silently ignored
+# any future source file containing those substrings; explicit names above
+# plus .config/users.json below cover the real secrets)
 api-users.json
 
 # ── Generated at install time ─────────────────────────────────
@@ -95,3 +95,5 @@ web/desktop/index5-integrated.html
 *.tmp
 *.log
 forgeos-installer-amd64.iso
+# users.json holds a real bcrypt hash — never track it
+.config/users.json

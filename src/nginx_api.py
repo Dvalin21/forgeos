@@ -14,10 +14,9 @@ import re
 import subprocess
 import logging
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 import forgeos_config as fc

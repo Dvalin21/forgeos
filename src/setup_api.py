@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import subprocess
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 

@@ -11,12 +11,11 @@ Provides REST API for:
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from forgeos_auth import verify_token
-from forgeos_lhsr import plan_layout, format_size, Layout
+from forgeos_lhsr import plan_layout, format_size
 from forgeos_lhsr_health import DiskHealth, compute_health_score, health_label, health_color
 
 logger = logging.getLogger("forgeos-api")

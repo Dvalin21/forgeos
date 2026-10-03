@@ -15,7 +15,7 @@ import threading
 import json
 import os
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from fastapi.responses import JSONResponse
 from forgeos_auth import verify_token

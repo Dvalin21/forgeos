@@ -240,3 +240,26 @@ class TestToolVersionDetection:
             raise FileNotFoundError(cmd[0])
         monkeypatch.setattr(mod.subprocess, "run", boom)
         assert mod._check_tool("borg") is False
+
+
+class TestBackupRouterAdminGate:
+    """B3 regression: every backup route must require the admin role, not just
+    any authenticated session."""
+
+    def test_non_admin_cannot_run_job(self, test_client, user_headers):
+        r = test_client.post("/api/backup/jobs/x/run", headers=user_headers)
+        assert r.status_code == 403
+
+    def test_non_admin_cannot_delete_job(self, test_client, user_headers):
+        r = test_client.delete("/api/backup/jobs/x", headers=user_headers)
+        assert r.status_code == 403
+
+    def test_non_admin_cannot_create_job(self, test_client, user_headers):
+        r = test_client.post("/api/backup/jobs", headers=user_headers,
+                             json={"tool": "borg", "source": ["/srv"], "destination": "/backup"})
+        assert r.status_code == 403
+
+    def test_admin_passes_gate(self, test_client, auth_headers):
+        # 404 (job unknown) proves the request got past the router dependency.
+        r = test_client.delete("/api/backup/jobs/nonexistent", headers=auth_headers)
+        assert r.status_code in (404, 200)

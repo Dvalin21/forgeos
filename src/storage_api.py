@@ -25,7 +25,7 @@ import logging
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -473,6 +473,8 @@ async def storage_snapshots(pool: str = "", user=Depends(verify_token)):
 
 @router.post("/api/storage/snapshot")
 async def create_snapshot(body: dict, user=Depends(verify_token)):
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
     pool = body.get("pool", "")
     desc = body.get("description", "manual")
     if pool:

@@ -47,6 +47,9 @@ BASE_PACKAGES: list[str] = [
     "restic", "rclone", "borgbackup",   # backup_api offers all three tools
     # storage: btrfs pools + disk inspection/partitioning (disk-prep safety)
     "btrfs-progs", "util-linux", "parted", "gdisk", "smartmontools",
+    "snapper",                  # storage snapshot list/create shell out to this
+    "hdparm",                   # disk spin-down endpoint
+    "docker-compose",           # appstore exec shells `docker compose`; docker.io alone doesn't ship it
     # bare-metal disaster recovery (ReaR builds the rescue ISO + system archive)
     "rear", "genisoimage", "syslinux",
     # mDNS: makes <hostname>.local resolve on the LAN with zero client config

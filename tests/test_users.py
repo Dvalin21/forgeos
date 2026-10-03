@@ -223,4 +223,7 @@ class TestGetMe:
     def test_unknown_subject_404(self, test_client):
         _seed({"bob": ("password1", "user")})
         r = test_client.get("/api/users/me", headers=_hdr("ghost", "user"))
-        assert r.status_code == 404
+        # verify_token now rejects tokens whose sub no longer exists in the
+        # store (the deleted-user revocation hole) -> 401 at the boundary
+        # before the route's own 404 path is reached.
+        assert r.status_code == 401

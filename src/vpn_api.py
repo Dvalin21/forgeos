@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import Response
 
 import forgeos_config as fc
 from forgeos_auth import verify_token

@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import secrets
-import sys
 import tempfile
 import time
 
@@ -280,8 +279,6 @@ def log_auth_failure(what: str, username: str, ip: str) -> None:
 def _extract_token(request: Request) -> str:
     """Pull the JWT from the Authorization header, falling back to the cookie."""
     token = request.headers.get("Authorization", "").removeprefix("Bearer ")
-    if not token:
-        token = request.cookies.get("forgeos_token", "")
     return token
 
 
@@ -319,6 +316,9 @@ def verify_token(request: Request) -> dict:
     # untouched accounts keep working (no forced logout on deploy).
     if int(payload.get("epoch", 0)) < _epoch_current(payload.get("sub", "")):
         raise HTTPException(status_code=401, detail="Session expired, please sign in again")
+    # A token whose subject no longer exists (deleted user) is dead.
+    if payload.get("sub", "") not in load_users():
+        raise HTTPException(status_code=401, detail="Account no longer exists")
     return payload
 
 
@@ -336,16 +336,18 @@ def verify_enroll_or_session(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     if payload.get("scope") not in (None, MFA_ENROLL_SCOPE):
         raise HTTPException(status_code=401, detail="Not authorized for enrollment")
+    # Same epoch + existence rules as verify_token.
+    if int(payload.get("epoch", 0)) < _epoch_current(payload.get("sub", "")):
+        raise HTTPException(status_code=401, detail="Session expired, please sign in again")
+    if payload.get("sub", "") not in load_users():
+        raise HTTPException(status_code=401, detail="Account no longer exists")
     return payload
 
 
-def verify_ws_token(ws: WebSocket) -> dict | None:
-    """Validate JWT from WebSocket query param 'token'.
-    
-    Returns decoded payload on success, None on failure.
-    Caller should close the WebSocket if None is returned.
-    """
-    token = ws.query_params.get("token", "")
+def check_ws_payload(token: str) -> dict | None:
+    """Decode a WS-carried JWT and apply the same session rules as
+    verify_token: no half-auth scopes, current epoch, existing user.
+    Returns the payload, or None on any failure."""
     if not token:
         return None
     try:
@@ -354,7 +356,20 @@ def verify_ws_token(ws: WebSocket) -> dict | None:
         return None
     if payload.get("scope") in (MFA_PENDING_SCOPE, MFA_ENROLL_SCOPE):
         return None
+    if int(payload.get("epoch", 0)) < _epoch_current(payload.get("sub", "")):
+        return None
+    if payload.get("sub", "") not in load_users():
+        return None
     return payload
+
+
+def verify_ws_token(ws: WebSocket) -> dict | None:
+    """Validate JWT from WebSocket query param 'token'.
+
+    Returns decoded payload on success, None on failure.
+    Caller should close the WebSocket if None is returned.
+    """
+    return check_ws_payload(ws.query_params.get("token", ""))
 
 
 # ── TOTP / 2FA (shared by users_api enroll/verify and auth_api login) ─────────

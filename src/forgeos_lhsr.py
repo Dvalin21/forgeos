@@ -14,7 +14,6 @@ No Synology SHR naming anywhere in ForgeOS.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 # Defaults matching LHSR's userspace tools

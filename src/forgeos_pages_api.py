@@ -30,8 +30,8 @@ import subprocess
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import FileResponse
 
 # Auth dependency — same source the other routers use.
 from forgeos_auth import verify_token  # type: ignore

@@ -16,7 +16,6 @@ Security:
   All endpoints require auth except /api/auth/login and /health
 """
 
-from typing import List
 import asyncio
 import json
 import sqlite3
@@ -25,7 +24,7 @@ import re
 import subprocess
 import time
 from collections import deque
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 
 import sys
@@ -44,22 +43,18 @@ logger.setLevel(logging.INFO)
 
 import uvicorn
 from fastapi import (
-    Depends, FastAPI, HTTPException,
-    Request, WebSocket, WebSocketDisconnect,
+    FastAPI, HTTPException,
+    WebSocket, WebSocketDisconnect,
 )
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from jose import JWTError, jwt
 from forgeos_auth import (
-    JWT_SECRET, JWT_ALGO, JWT_EXPIRE,
-    pwd_ctx, LoginRequest,
-    load_users, save_users, create_token, verify_token,
+    check_ws_payload,
 )
 
 # Optional psutil — try once at module level instead of in every function
 try:
-    import psutil
+    import psutil  # noqa: F401  -- availability probe
     _HAVE_PSUTIL = True
 except ImportError:
     _HAVE_PSUTIL = False
@@ -517,7 +512,7 @@ async def _scheduler_loop() -> None:
             for job in jobs:
                 if not job.get("enabled", True):
                     continue
-                last = job.get("last_run_ts", 0)
+                last = job.get("last_run_ts") or 0
                 interval = _schedule_to_seconds(job.get("schedule", "daily"))
                 if now - last >= interval:
                     _execute_backup_job(job["id"])
@@ -631,28 +626,29 @@ async def lifespan(_app: FastAPI):
         scheduler_task.cancel()
         # Re-entry guard: if shutdown is already running, skip.
         with _shutdown_lock:
-            if _shutting_down:
-                logger.warning("Shutdown re-entry blocked (already shutting down)")
-                return
-            _shutting_down = True
-
-        pending = list(_background_tasks.items())
-        if pending:
-            logger.warning("Shutdown — %d background tasks in flight", len(pending))
-            for tid, t in pending:
-                thread = t.get("thread")
-                if thread and thread.is_alive():
-                    logger.warning("  Task %s (%s/%s) still running — will be killed",
-                                   tid, t.get("tool","?"), t.get("action","?"))
-                    # Can't safely kill a thread; will be terminated by process exit.
-                    # Mark it so frontend sees "cancelled" on next poll.
-                    t["status"] = "cancelled"
-                    t["error"] = "Server shutdown during task execution"
-                    t["finished_at"] = time.time()
-            # Persist cancelled tasks so frontend can poll once after restart
-            _persist_tasks()
-        for h in logger.handlers:
-            h.flush()
+            already = _shutting_down
+            if not already:
+                _shutting_down = True
+        if already:
+            logger.warning("Shutdown re-entry blocked (already shutting down)")
+        else:
+            pending = list(_background_tasks.items())
+            if pending:
+                logger.warning("Shutdown — %d background tasks in flight", len(pending))
+                for tid, t in pending:
+                    thread = t.get("thread")
+                    if thread and thread.is_alive():
+                        logger.warning("  Task %s (%s/%s) still running — will be killed",
+                                       tid, t.get("tool","?"), t.get("action","?"))
+                        # Can't safely kill a thread; will be terminated by process exit.
+                        # Mark it so frontend sees "cancelled" on next poll.
+                        t["status"] = "cancelled"
+                        t["error"] = "Server shutdown during task execution"
+                        t["finished_at"] = time.time()
+                # Persist cancelled tasks so frontend can poll once after restart
+                _persist_tasks()
+            for h in logger.handlers:
+                h.flush()
 
 
 app = FastAPI(
@@ -705,15 +701,10 @@ try:
 except ImportError as e:
     logger.warning("ForgeOS Pages API not available: %s", e)
 
-# CORS configuration
-_allowed_origins = os.environ.get("FORGEOS_CORS_ORIGINS", "").split(",") if os.environ.get("FORGEOS_CORS_ORIGINS") else ["*"]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS middleware and the forgeos_token cookie were removed: the UI is
+# same-origin behind the built-in nginx and authenticates with a Bearer token
+# from localStorage. Reflecting any origin with credentials, or accepting the
+# cookie as an auth fallback, was pure attack surface.
 
 
 # ─── Security Headers (CSP via pure ASGI middleware) ───
@@ -1144,10 +1135,8 @@ def _ws_token(ws: WebSocket) -> str:
 
 @app.websocket("/ws/metrics")
 async def ws_metrics(ws: WebSocket):
-    token = _ws_token(ws)
-    try:
-        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-    except JWTError:
+    payload = check_ws_payload(_ws_token(ws))
+    if payload is None:
         await ws.close(code=4001)
         return
     await ws.accept(subprotocol="forgeos")
@@ -1183,10 +1172,8 @@ LOG_SOURCES = {
 
 @app.websocket("/ws/logs")
 async def ws_logs(ws: WebSocket):
-    token = _ws_token(ws)
-    try:
-        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-    except JWTError:
+    payload = check_ws_payload(_ws_token(ws))
+    if payload is None:
         await ws.close(code=4001)
         return
     await ws.accept(subprotocol="forgeos")
@@ -1219,14 +1206,15 @@ async def ws_logs(ws: WebSocket):
 @app.websocket("/ws/docker/exec/{container}")
 async def ws_docker_exec(ws: WebSocket, container: str):
     """WebSocket terminal for Docker container exec."""
-    token = _ws_token(ws)
-    try:
-        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-    except JWTError:
+    payload = check_ws_payload(_ws_token(ws))
+    if payload is None:
         await ws.close(code=4001)
         return
+    if payload.get("role") != "admin":
+        await ws.close(code=4003, reason="Admin required")
+        return
     await ws.accept(subprotocol="forgeos")
-    
+
     # Start docker exec with PTY
     proc = await asyncio.create_subprocess_exec(
         "docker", "exec", "-it", container, "sh",
@@ -1280,19 +1268,14 @@ async def ws_docker_exec(ws: WebSocket, container: str):
 @app.websocket("/ws/lxc/exec/{container}")
 async def ws_lxc_exec(ws: WebSocket, container: str):
     """WebSocket terminal for LXC container exec."""
-    token = _ws_token(ws)
-    try:
-        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-    except JWTError:
+    payload = check_ws_payload(_ws_token(ws))
+    if payload is None:
         await ws.close(code=4001, reason="Unauthorized")
+        return
+    if payload.get("role") != "admin":
+        await ws.close(code=4003, reason="Admin required")
         return
     await ws.accept(subprotocol="forgeos")
-    try:
-        jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGO])
-    except JWTError:
-        await ws.close(code=4001, reason="Unauthorized")
-        return
-    
     # Start lxc exec with PTY
     proc = await asyncio.create_subprocess_exec(
         "lxc", "exec", container, "--", "bash", "-l",
@@ -1355,6 +1338,7 @@ try:
         task_lock=_task_lock,
         persist_jobs=_persist_jobs,
         update_job_from_task=_update_job_from_task,
+        execute_job=_execute_backup_job,
     )
     app.include_router(backup_router)
     logger.info("Backup API loaded")

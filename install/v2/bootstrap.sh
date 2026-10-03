@@ -26,6 +26,9 @@ apt-get install -y -qq python3 python3-pip python3-venv git
 # 2. Install ForgeOS + its declared deps from pyproject (the deps-file rule:
 #    never hand-pick; pyproject is the source of truth).
 echo "==> Installing ForgeOS Python package + deps"
+# Debian trixie ships a broken typing_extensions (no RECORD file) that pip
+# refuses to uninstall, blocking the whole install. Force-reinstall it first.
+pip install --quiet --break-system-packages --force-reinstall --ignore-installed typing_extensions
 pip install --quiet --break-system-packages "${REPO_ROOT}[rustfs]"
 
 # 3. Hand off to the Python installer.

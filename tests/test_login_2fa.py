@@ -53,7 +53,8 @@ class TestLoginWithoutTotp:
         body = r.json()
         assert body["token"] and body["role"] == "admin"
         assert "mfa_required" not in body
-        assert "forgeos_token" in r.headers.get("set-cookie", "")
+        # Cookie path was removed (B4): login returns the Bearer token only.
+        assert "forgeos_token" not in r.headers.get("set-cookie", "")
 
 
 class TestLoginChallenge:
@@ -92,7 +93,7 @@ class TestLoginChallenge:
                              json={"mfa_token": mfa_token, "code": pyotp.TOTP(secret).now()})
         assert r.status_code == 200, r.text
         token = r.json()["token"]
-        assert "forgeos_token" in r.headers.get("set-cookie", "")
+        assert "forgeos_token" not in r.headers.get("set-cookie", "")
         # the issued session token is a REAL one — works on a protected route
         ok = test_client.get("/api/users", headers={"Authorization": "Bearer " + token})
         assert ok.status_code == 200
@@ -178,3 +179,22 @@ class TestWebSocketGuard:
     def test_ws_rejects_enroll_token(self):
         # a restricted enroll token must not open a WebSocket either
         assert verify_ws_token(self._FakeWS(create_enroll_token("alice"))) is None
+
+
+class TestWsSessionRuleRegression:
+    """B1 regression: the four WS handlers must reject half-auth tokens
+    (mfa_pending / mfa_enroll) and — for the exec shells — non-admin users,
+    the same way verify_token does."""
+
+    def test_mfa_pending_rejected_on_session_rule(self):
+        from forgeos_auth import create_mfa_token, check_ws_payload
+        assert check_ws_payload(create_mfa_token("alice")) is None
+
+    def test_session_accepted_on_session_rule(self):
+        from forgeos_auth import create_token, check_ws_payload
+        p = check_ws_payload(create_token("alice", "admin"))
+        assert p is not None and p["sub"] == "alice"
+
+    def test_deleted_user_rejected_on_session_rule(self):
+        from forgeos_auth import create_token, check_ws_payload
+        assert check_ws_payload(create_token("ghost_not_in_store", "admin")) is None

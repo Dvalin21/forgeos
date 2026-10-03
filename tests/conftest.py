@@ -53,8 +53,19 @@ def _isolate_forgeos_config(monkeypatch: pytest.MonkeyPatch) -> Generator[None, 
             'WEBUI_JWT_SECRET="test-secret-not-for-production"\n'
         )
 
-        # Create empty api-users.json
-        (etc / "api-users.json").write_text("{}")
+        # Seed the isolated user store with every fixture account — tokens are
+        # minted ad-hoc in the tests, and verify_token rejects a token whose
+        # sub is no longer in the store (B-Auth). Each test still starts from
+        # THIS seed; tests that need a different store rewrite it themselves.
+        (etc / "api-users.json").write_text(json.dumps({
+            "testadmin": {"hash": "$2b$12$u8DvYoSWQ5Z4vL9xhX8ZHuJ6HqL3Q2z0Y9gTj8m8mF5e5c0k0v0W", "role": "admin", "token_epoch": 0},
+            "testuser":  {"hash": "$2b$12$u8DvYoSWQ5Z4vL9xhX8ZHuJ6HqL3Q2z0Y9gTj8m8mF5e5c0k0v0W", "role": "user", "token_epoch": 0},
+            "admin":     {"hash": "$2b$12$u8DvYoSWQ5Z4vL9xhX8ZHuJ6HqL3Q2z0Y9gTj8m8mF5e5c0k0v0W", "role": "admin", "token_epoch": 0},
+            "alice":     {"hash": "$2b$12$u8DvYoSWQ5Z4vL9xhX8ZHuJ6HqL3Q2z0Y9gTj8m8mF5e5c0k0v0W", "role": "admin", "token_epoch": 0},
+            "bob":       {"hash": "$2b$12$u8DvYoSWQ5Z4vL9xhX8ZHuJ6HqL3Q2z0Y9gTj8m8mF5e5c0k0v0W", "role": "user", "token_epoch": 0},
+            "regular":   {"hash": "$2b$12$u8DvYoSWQ5Z4vL9xhX8ZHuJ6HqL3Q2z0Y9gTj8m8mF5e5c0k0v0W", "role": "user", "token_epoch": 0},
+            "reg":       {"hash": "$2b$12$u8DvYoSWQ5Z4vL9xhX8ZHuJ6HqL3Q2z0Y9gTj8m8mF5e5c0k0v0W", "role": "user", "token_epoch": 0},
+        }))
 
         # Replace the module-level Path constants directly
         monkeypatch.setattr(forgeos_auth, "CONFIG_FILE", etc / "forgeos.conf")
