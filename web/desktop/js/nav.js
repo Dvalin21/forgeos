@@ -185,6 +185,35 @@
     document.head.appendChild(s);
   }
 
+
+  // ── bottom-left live status dot ──
+  // The static "checking…" text was never replaced on most pages; poll the
+  // two storage reads_once per page load so it reports a real reading.
+  function shortPoll() {
+    var tk = "";
+    try { tk = localStorage.getItem("forgeos_token") || ""; } catch (x) {}
+    var H = { headers: { "Authorization": "Bearer " + tk } };
+    return fetch("/api/storage/pools", H).then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (pdata) {
+        var pools = (pdata && pdata.pools) || [];
+        return fetch("/api/storage/drives", H).then(function (r) { return r.json().catch(function () { return null; }); }).then(function (ddata) {
+          var drv = (ddata && ddata.drives) || [];
+          var poolBad = pools.some(function (x) { return x.health && x.health !== "ok"; });
+          var goodDrives = drv.filter(function (x) { return typeof x.health === "number" ? x.health >= 90 : true; }).length;
+          var ok = drv.length && goodDrives === drv.length && !poolBad;
+          var titleEl = document.querySelector("#sf-title [data-live=\"health\"]");
+          var detEl = document.querySelector("#sf-detail");
+          if (titleEl) titleEl.textContent = poolBad || drv.length !== goodDrives ? "Attention" : pools.length ? "All good" : "Ready";
+          if (detEl) {
+            var parts = [];
+            if (pools.length) parts.push(pools.length + " pool" + (pools.length === 1 ? "" : "s"));
+            if (drv.length) parts.push(goodDrives + "/" + drv.length + " drives healthy");
+            detEl.textContent = parts.length ? parts.join(" · ") : "No storage data";
+          }
+        });
+      }).catch(function () { /* offline / not logged in — leave placeholder */ });
+  }
+
   function mount() {
     injectStyles();
     var sidebar = buildSidebar();
@@ -240,7 +269,7 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () { mount(); wireNavScroll(); });
+    document.addEventListener("DOMContentLoaded", function () { mount(); wireNavScroll(); shortPoll(); });
   } else {
     mount();
     wireNavScroll();
