@@ -276,7 +276,7 @@
       var pts=d.data_points||0;
       return '<div style="padding:10px 0;border-bottom:1px solid var(--line)">'+
         '<div style="display:flex;justify-content:space-between"><strong>'+esc(d.disk_path)+'</strong><span style="color:var(--'+cls+');font-weight:700">'+pts+' points'+(w?' ⚠':' ✓')+'</span></div>'+
-        (w?'<p style="margin:4px 0 0;color:var(--warn);font-size:12px">'+esc(w)+</p>':'')+'</div>';
+        (w?'<p style="margin:4px 0 0;color:var(--warn);font-size:12px">'+esc(w)+'</p>':'')+'</div>';
     }).join('');
   }
 
