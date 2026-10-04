@@ -5,7 +5,10 @@
   function token(){try{return localStorage.getItem('forgeos_token')}catch(e){return null}}
   async function api(p,o){o=o||{};var h=Object.assign({},o.headers||{});var t=token();if(t)h.Authorization='Bearer '+t;
     if(o.body&&!h['Content-Type'])h['Content-Type']='application/json';
-    try{var r=await fetch(p,Object.assign({},o,{headers:h}));var d=null;try{d=await r.json()}catch(e){}return{ok:r.ok,status:r.status,data:d}}catch(e){return{ok:false,data:null}}}
+    // 6s ceiling so a hung btrfs query can't leave the page on a spinner
+    // forever; callers treat {ok:false,data:null} as an honest failure.
+    var ctl=new AbortController();var to=setTimeout(function(){ctl.abort()},6000);
+    try{var r=await fetch(p,Object.assign({},o,{headers:h,signal:ctl.signal}));var d=null;try{d=await r.json()}catch(e){}return{ok:r.ok,status:r.status,data:d}}catch(e){return{ok:false,data:null}}finally{clearTimeout(to)}}
   function esc(s){var d=document.createElement('div');d.textContent=s==null?'':s;return d.innerHTML}
   function fmtBytes(b){b=Number(b)||0;if(b>=1e12)return (b/1e12).toFixed(1)+' TB';if(b>=1e9)return (b/1e9).toFixed(1)+' GB';if(b>=1e6)return (b/1e6).toFixed(0)+' MB';return b+' B'}
   function toast(m,k){k=k||'info';var b=$('#toasts'),e=document.createElement('div');e.className='toast '+k;e.textContent=m;b.appendChild(e);setTimeout(function(){e.style.transition='opacity .2s';e.style.opacity=0;setTimeout(function(){e.remove()},220)},4000)}
@@ -27,7 +30,8 @@
 
   var POOLS=[];
   async function loadPools(){
-    var p=(await api('/api/storage/pools')).data; var box=$('#pool-list');POOLS=(p&&p.pools)||[];
+    var pr=await api('/api/storage/pools'); var p=pr.data; var box=$('#pool-list');POOLS=(p&&p.pools)||[];
+    if(!pr.ok&&!p){box.innerHTML='<p class="empty-state">Could not read pools — is the storage API up? <a href="#" onclick="location.reload();return false">Retry</a></p>';$('#array-chip').textContent='Error';return}
     if(POOLS.length){
       var worst='ok',ord={ok:0,predict:1,warn:2,rebuilding:2,err:3};
       POOLS.forEach(function(x){if((ord[x.health]||0)>(ord[worst]||0))worst=x.health});
@@ -48,7 +52,8 @@
   }
 
   async function loadCapacity(){
-    var df=(await api('/api/storage/df')).data;var vl=$('#vols');var tot=0,used=0;
+    var dfr=await api('/api/storage/df');var df=dfr.data;var vl=$('#vols');var tot=0,used=0;
+    if(!dfr.ok&&!df){vl.innerHTML='<p class="empty-state">Could not read capacity — <a href="#" onclick="location.reload();return false">Retry</a></p>';return}
     if(Array.isArray(df)&&df.length){
       vl.innerHTML=df.map(function(v){tot+=v.total||0;used+=v.used||0;var pc=v.total?Math.round(v.used/v.total*100):0;
         var c=pc>=90?'danger':pc>=75?'warn':'good';
@@ -99,7 +104,8 @@
   }
 
   async function loadDrives(){
-    var d=(await api('/api/storage/drives')).data;var box=$('#drives');var drives=(d&&d.drives)||[];
+    var dr=await api('/api/storage/drives');var d=dr.data;var box=$('#drives');var drives=(d&&d.drives)||[];
+    if(!dr.ok&&!d){box.innerHTML='<p class="empty-state">Could not read drives — <a href="#" onclick="location.reload();return false">Retry</a></p>';$('#drive-chip').textContent='Error';return}
     $('#drive-chip').textContent=drives.length+' drive'+(drives.length!==1?'s':'');
     if(!drives.length){box.innerHTML='<p class="empty-state">No drives detected.</p>';return}
     // Group by role/pool, then lay the boxes out on ONE ROW:
