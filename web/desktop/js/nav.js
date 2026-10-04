@@ -151,6 +151,7 @@
           '<path d="M6 4h12v3H9v4h9v3H9v6H6z"/>' +
         '</svg></div>' +
         '<div><h1>ForgeNAS</h1><p>Control Center</p></div>' +
+        '<span id="brand-ver" title="Installed version" style="margin-left:auto;align-self:flex-start;font-size:10px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px">…</span>' +
       '</div>';
 
     // scrollable middle: brand stays pinned on top, footer pinned at bottom
@@ -183,6 +184,15 @@
       "</div>";
 
     aside.innerHTML = html;
+    // version chip: cheap audit trail, fetched once from the settings API
+    var tk = "";
+    try { tk = localStorage.getItem("forgeos_token") || ""; } catch (x) {}
+    fetch("/api/system/info", { headers: { "Authorization": "Bearer " + tk } })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (d) {
+        var el = aside.querySelector("#brand-ver");
+        if (el) el.textContent = (d && d.forgeos_ver) ? "v" + String(d.forgeos_ver).replace(/^v/, "") : "";
+      }).catch(function () {});
     return aside;
   }
 
