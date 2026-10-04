@@ -222,6 +222,17 @@
   // The static "checking…" text was never replaced on most pages; poll the
   // two storage reads_once per page load so it reports a real reading.
   function shortPoll() {
+    var done = false;
+    // 8s ceiling: if the storage API hasn't answered, stop dangling on
+    // "checking…" and say so. Upgrade path: surface a real timeout error
+    // from fetch itself once the API guarantees response times.
+    setTimeout(function () {
+      if (done) return;
+      var t = document.querySelector('#sf-title [data-live="health"]');
+      var d = document.querySelector('#sf-detail');
+      if (t && t.textContent === 'checking…') t.textContent = 'Unavailable';
+      if (d && /Reading pool state/.test(d.textContent)) d.textContent = 'Could not reach the storage API';
+    }, 8000);
     var tk = "";
     try { tk = localStorage.getItem("forgeos_token") || ""; } catch (x) {}
     var H = { headers: { "Authorization": "Bearer " + tk } };
@@ -243,7 +254,13 @@
             detEl.textContent = parts.length ? parts.join(" · ") : "No storage data";
           }
         });
-      }).catch(function () { /* offline / not logged in — leave placeholder */ });
+      }).then(function () { done = true; }, function () {
+        done = true;
+        var t = document.querySelector('#sf-title [data-live="health"]');
+        var d = document.querySelector('#sf-detail');
+        if (t) t.textContent = 'Unavailable';
+        if (d) d.textContent = 'Could not reach the storage API';
+      });
   }
 
   function mount() {
@@ -301,9 +318,10 @@
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () { mount(); wireNavScroll(); shortPoll(); });
+    document.addEventListener("DOMContentLoaded", function () { mount(); wireNavScroll(); shortPoll(); setInterval(shortPoll, 60000); });
   } else {
     mount();
     wireNavScroll();
+    shortPoll(); setInterval(shortPoll, 60000);
   }
 })();
