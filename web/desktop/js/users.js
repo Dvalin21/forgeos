@@ -41,7 +41,7 @@
     if (r.status === 403) {
       document.querySelector("main").innerHTML =
         '<section class="panel pad"><h3>Admin only</h3>' +
-        '<p style="color:var(--muted)">User management requires an administrator account. ' +
+        '<p class="empty-state">User management requires an administrator account. ' +
         'Your own password and 2FA are on <a href="/profile.html">your profile</a>.</p></section>';
       return;
     }

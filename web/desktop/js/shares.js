@@ -40,11 +40,11 @@
   async function loadShares() {
     var d = (await api('/api/samba/shares')).data;
     var box = $('#shares');
-    if (!d) { box.innerHTML = '<p style="color:var(--muted)">Could not read shares.</p>'; $('#share-chip').textContent = '—'; return; }
+    if (!d) { box.innerHTML = '<p class="empty-state">Could not read shares.</p>'; $('#share-chip').textContent = '—'; return; }
     _shares = d.shares || [];
     $('#share-chip').textContent = _shares.length + ' share' + (_shares.length !== 1 ? 's' : '');
     if (!_shares.length) {
-      box.innerHTML = '<p style="color:var(--muted)">No shares yet. Tap <b>New Share</b> to share a folder over the network.</p>';
+      box.innerHTML = '<p class="empty-state">No shares yet. Tap <b>New Share</b> to share a folder over the network.</p>';
       return;
     }
     box.innerHTML = _shares.map(function (s) {

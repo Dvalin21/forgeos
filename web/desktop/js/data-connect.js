@@ -42,7 +42,7 @@
   function renderList() {
     var box = $('#db-list'); if (!box) return;
     if (!_dc.databases.length) {
-      box.innerHTML = '<p style="color:var(--muted)">No databases yet. Import a file-based database directory to track and protect it.</p>';
+      box.innerHTML = '<p class="empty-state">No databases yet. Import a file-based database directory to track and protect it.</p>';
       return;
     }
     box.innerHTML = '<div class="dc-grid">' + _dc.databases.map(function (d) {

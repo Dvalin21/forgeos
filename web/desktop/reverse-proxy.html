@@ -21,13 +21,13 @@
 
     <section class="panel pad" style="margin-bottom:18px">
       <div class="section-head"><div><h3>Proxy hosts</h3><p>Each host forwards a domain to an upstream service. The ForgeOS UI host is protected and cannot be removed.</p></div><span class="chip" id="vhost-chip">&mdash;</span></div>
-      <div id="vhosts"><p style="color:var(--muted)">Loading hosts&hellip;</p></div>
+      <div id="vhosts"><p class="empty-state">Loading hosts&hellip;</p></div>
     </section>
 
     <section class="panel pad" style="margin-bottom:18px">
       <div class="section-head"><div><h3>Domains</h3><p>Add a domain to issue its certificate. Hosts you create under it use that certificate automatically. <b>The A/CNAME record must already point to this server at your DNS provider</b> &mdash; ForgeOS issues the certificate, not the DNS record.</p></div>
         <button class="button" style="background:var(--primary-soft);color:var(--primary)" id="domain-add" type="button"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add domain</button></div>
-      <div id="domain-list"><p style="color:var(--muted)">Loading domains&hellip;</p></div>
+      <div id="domain-list"><p class="empty-state">Loading domains&hellip;</p></div>
     </section>
 
     <section class="panel pad">

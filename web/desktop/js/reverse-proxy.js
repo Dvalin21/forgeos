@@ -34,10 +34,10 @@
   async function loadVhosts() {
     var d = (await api('/api/nginx/vhosts')).data;
     var box = $('#vhosts');
-    if (!d) { box.innerHTML = '<p style="color:var(--muted)">Could not read hosts.</p>'; $('#vhost-chip').textContent = '\u2014'; return; }
+    if (!d) { box.innerHTML = '<p class="empty-state">Could not read hosts.</p>'; $('#vhost-chip').textContent = '\u2014'; return; }
     _vhosts = d.vhosts || [];
     $('#vhost-chip').textContent = _vhosts.length + ' host' + (_vhosts.length !== 1 ? 's' : '');
-    if (!_vhosts.length) { box.innerHTML = '<p style="color:var(--muted)">No hosts yet. Tap <b>New Vhost</b> to route a domain to a service.</p>'; return; }
+    if (!_vhosts.length) { box.innerHTML = '<p class="empty-state">No hosts yet. Tap <b>New Vhost</b> to route a domain to a service.</p>'; return; }
     box.innerHTML = _vhosts.map(function (v) {
       var prot = v.name === UI_VHOST;
       var tags = '<span class="tag ' + (v.cert === 'letsencrypt' ? 'rw' : 'ro') + '">' + (v.cert === 'letsencrypt' ? 'LE cert' : 'self-signed') + '</span>' +
@@ -280,7 +280,7 @@
   var _savedProviders = [];
   function renderDomainList() {
     var box = $('#domain-list'); if (!box) return;
-    if (!_domains.length) { box.innerHTML = '<p style="color:var(--muted)">No domains yet. Add one to issue its certificate; hosts under it then use that certificate automatically.</p>'; return; }
+    if (!_domains.length) { box.innerHTML = '<p class="empty-state">No domains yet. Add one to issue its certificate; hosts under it then use that certificate automatically.</p>'; return; }
     box.innerHTML = _domains.map(function (d) {
       var kind = d.wildcard ? '<span class="tag rw">wildcard</span>' : '<span class="tag ro">single</span>';
       var cert = d.cert_present

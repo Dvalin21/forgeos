@@ -44,7 +44,7 @@
           '<button class="btn-ghost" data-addd="'+esc(x.name)+'" style="height:36px">Add drive</button></div></div>'}).join('');
       $$('[data-rebuild]').forEach(function(b){b.onclick=function(){doRebuild(b.getAttribute('data-rebuild'))}});
       $$('[data-addd]').forEach(function(b){b.onclick=function(){doAddDrive(b.getAttribute('data-addd'))}});
-    } else { $('#array-chip').textContent='No array'; box.innerHTML='<p style="color:var(--muted)">No storage pools yet. Use Create Pool to build a btrfs RAID pool.</p>'; }
+    } else { $('#array-chip').textContent='No array'; box.innerHTML='<p class="empty-state">No storage pools yet. Use Create Pool to build a btrfs RAID pool.</p>'; }
   }
 
   async function loadCapacity(){
@@ -53,7 +53,7 @@
       vl.innerHTML=df.map(function(v){tot+=v.total||0;used+=v.used||0;var pc=v.total?Math.round(v.used/v.total*100):0;
         var c=pc>=90?'danger':pc>=75?'warn':'good';
         return '<div class="volume"><div class="volume-head"><div><h4>'+esc(v.mount)+'</h4><p>btrfs · '+esc(v.source)+'</p></div><strong>'+fmtBytes(v.used)+' / '+fmtBytes(v.total)+'</strong></div><div class="bar '+c+'"><i style="width:'+pc+'%"></i></div></div>'}).join('');
-    } else vl.innerHTML='<p style="color:var(--muted);font-size:13px">No btrfs volumes mounted.</p>';
+    } else vl.innerHTML='<p class="empty-state">No btrfs volumes mounted.</p>';
     var pct=tot?Math.round(used/tot*100):0;$('#pct').textContent=pct+'%';$('#donut').style.setProperty('--pct',pct+'%');
   }
 
@@ -101,7 +101,7 @@
   async function loadDrives(){
     var d=(await api('/api/storage/drives')).data;var box=$('#drives');var drives=(d&&d.drives)||[];
     $('#drive-chip').textContent=drives.length+' drive'+(drives.length!==1?'s':'');
-    if(!drives.length){box.innerHTML='<p style="color:var(--muted)">No drives detected.</p>';return}
+    if(!drives.length){box.innerHTML='<p class="empty-state">No drives detected.</p>';return}
     // Group by role/pool, then lay the boxes out on ONE ROW:
     // pool boxes (by name) · Unassigned · In-use · OS (smaller, last).
     var byKey={};var order=[];
@@ -226,7 +226,7 @@
     var spareDrives=drives.filter(function(x){return x.role==='spare'});
     var box=$('#lhsr-plan-result');
     if(!spareDrives.length){
-      box.innerHTML='<p style="color:var(--muted)">No unassigned drives available for LHSR layout.</p>';
+      box.innerHTML='<p class="empty-state">No unassigned drives available for LHSR layout.</p>';
       return;
     }
     // Build a simple disk selection UI
@@ -267,9 +267,9 @@
   async function loadLhsrTrends(){
     var box=$('#lhsr-trends');
     var r=await api('/api/lhsr/trends');
-    if(!r.ok){box.innerHTML='<p style="color:var(--muted)">No trend data available.</p>';return}
+    if(!r.ok){box.innerHTML='<p class="empty-state">No trend data available.</p>';return}
     var disks=(r.data&&r.data.disks)||[];
-    if(!disks.length){box.innerHTML='<p style="color:var(--muted)">No trend data recorded yet. Record a snapshot to begin monitoring.</p>';return}
+    if(!disks.length){box.innerHTML='<p class="empty-state">No trend data recorded yet. Record a snapshot to begin monitoring.</p>';return}
     box.innerHTML=disks.map(function(d){
       var w=d.warning_text;
       var cls=w?'warn':'ok';

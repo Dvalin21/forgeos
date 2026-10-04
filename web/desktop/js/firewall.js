@@ -25,7 +25,7 @@
     // rules
     var box=$('#rules');var rules=d.rules||[];
     $('#rule-chip').textContent=rules.length+' rule'+(rules.length!==1?'s':'');
-    if(!rules.length){box.innerHTML='<p style="color:var(--muted)">No rules yet. Tap <b>Add Rule</b> to allow a service like file sharing or SSH.</p>';return}
+    if(!rules.length){box.innerHTML='<p class="empty-state">No rules yet. Tap <b>Add Rule</b> to allow a service like file sharing or SSH.</p>';return}
     box.innerHTML=rules.map(function(r){
       var act=(r.action||'').toLowerCase().indexOf('allow')>=0?'allow':(r.action||'').toLowerCase().indexOf('reject')>=0?'reject':'deny';
       return '<div class="rule-row"><div class="rule-num">'+r.num+'</div>'+

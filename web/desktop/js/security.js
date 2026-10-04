@@ -24,12 +24,12 @@
   async function loadJails() {
     var d = (await api('/api/security/fail2ban')).data;
     var box = $('#jails');
-    if (!d) { box.innerHTML = '<p style="color:var(--muted)">Could not read fail2ban.</p>'; $('#f2b-chip').textContent = '\u2014'; return; }
+    if (!d) { box.innerHTML = '<p class="empty-state">Could not read fail2ban.</p>'; $('#f2b-chip').textContent = '\u2014'; return; }
     var jl = d.jails || [];
     var on = jl.filter(function (j) { return j.enabled; });
     var banned = jl.reduce(function (n, j) { return n + (j.banned || []).length; }, 0);
     $('#f2b-chip').textContent = d.enabled ? (on.length + ' jails · ' + banned + ' banned') : 'disabled';
-    if (!jl.length) { box.innerHTML = '<p style="color:var(--muted)">No jails.</p>'; }
+    if (!jl.length) { box.innerHTML = '<p class="empty-state">No jails.</p>'; }
     else {
       box.innerHTML = jl.map(function (j) {
         var bans = (j.banned || []).map(function (ip) {

@@ -116,7 +116,7 @@
     var html = '' +
       '<div class="brand">' +
         '<div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24">' +
-          '<path d="M4 7.5h16v9H4z"/><path d="M7 10.5h3M14 10.5h3M7 14h10"/><path d="M9 4.5h6M9 19.5h6"/>' +
+          '<path d="M6 4h12v3H9v4h9v3H9v6H6z"/>' +
         '</svg></div>' +
         '<div><h1>ForgeNAS</h1><p>Control Center</p></div>' +
       '</div>';
