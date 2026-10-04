@@ -62,7 +62,6 @@
 .ov-card .lbl{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .ov-card .val{font-size:22px;font-weight:800;letter-spacing:-.03em;margin-top:4px}
 .ov-card .val small{font-size:12px;font-weight:600;color:var(--muted);margin-left:6px}
-.empty{padding:40px;text-align:center;color:var(--muted);font-size:13px}
 .powered{margin-top:24px;padding:12px 16px;background:var(--surface-3);border-radius:12px;font-size:12px;color:var(--muted);font-weight:600;text-align:center}
 /* wizard / advanced expander */
     .wz-tier{display:flex;gap:6px;padding:5px;background:var(--surface-2);border-radius:12px;border:1px solid var(--line);margin-bottom:18px}
@@ -114,7 +113,7 @@ details.adv > .body{padding:0 16px 14px}
       <button class="tab" data-t="services">Services <span class="badge" id="b-svc">—</span></button>
     </div>
 
-    <section id="tab-catalog"><div class="grid-cards" id="catalog-grid"><div class="empty">Loading catalog…</div></div></section>
+    <section id="tab-catalog"><div class="grid-cards" id="catalog-grid"><div class="empty-state">Loading catalog…</div></div></section>
 
     <section id="tab-containers" class="hidden">
       <div class="subtabs">
@@ -130,11 +129,11 @@ details.adv > .body{padding:0 16px 14px}
         <button class="btn-ghost" data-prune="volumes" style="height:32px;padding:0 12px;font-size:12px">Prune volumes</button>
         <button class="btn-ghost" data-prune="networks" style="height:32px;padding:0 12px;font-size:12px">Prune networks</button>
         <button class="btn-ghost" data-prune="system" style="height:32px;padding:0 12px;font-size:12px">Prune system</button>
-      </div><div class="grid-cards" id="containers-grid"><div class="empty">Loading containers…</div></div></div>
+      </div><div class="grid-cards" id="containers-grid"><div class="empty-state">Loading containers…</div></div></div>
     </section>
 
     <section id="tab-services" class="hidden">
-      <div class="grid-cards" id="services-grid"><div class="empty">Loading services…</div></div>
+      <div class="grid-cards" id="services-grid"><div class="empty-state">Loading services…</div></div>
     </section>
 
     <div class="powered">Object storage powered by RustFS · Container runtimes: Docker &amp; Incus</div>

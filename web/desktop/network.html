@@ -45,7 +45,6 @@ table.rt td{padding:10px;border-top:1px solid var(--line);font-variant-numeric:t
 table.rt td.mono{font-family:var(--mono);font-size:11.5px}
 .tag{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:6px;background:var(--surface-3);color:var(--muted)}
 .muted{color:var(--muted)}
-.empty{color:var(--muted);font-size:12.5px;padding:14px 2px}
 /* .chip color variants — shared CSS only ships the base .chip */
 .chip.ok{background:rgba(16,166,106,.12);color:var(--success)}
 .chip.warn{background:rgba(216,138,0,.14);color:var(--warn)}
@@ -108,7 +107,7 @@ input.fi:disabled{opacity:.6}
             <div><h3>Interfaces</h3><p>Physical and virtual network adapters detected on this system.</p></div>
             <span class="chip" id="if-chip">—</span>
           </div>
-          <div class="if-grid" id="if-grid"><div class="empty">Loading interfaces…</div></div>
+          <div class="if-grid" id="if-grid"><div class="empty-state">Loading interfaces…</div></div>
         </section>
 
         <!-- Global -->
@@ -117,7 +116,7 @@ input.fi:disabled{opacity:.6}
             <div><h3>Global settings</h3><p>System-wide identity and name resolution.</p></div>
           </div>
           <div id="global-body">
-            <div class="empty">Loading…</div>
+            <div class="empty-state">Loading…</div>
           </div>
           <div class="mfoot" style="padding:14px 0 0;border-top:1px solid var(--line);margin-top:6px">
             <button class="btn-ghost" id="g-reset" type="button">Reset</button>
@@ -132,7 +131,7 @@ input.fi:disabled{opacity:.6}
             <span class="chip" id="ddns-chip">—</span>
           </div>
           <div id="ddns-body">
-            <div class="empty">Loading…</div>
+            <div class="empty-state">Loading…</div>
           </div>
         </section>
 
@@ -142,7 +141,7 @@ input.fi:disabled{opacity:.6}
             <div><h3>Routing table</h3><p>How traffic is directed to each destination network.</p></div>
             <span class="chip" id="rt-chip">—</span>
           </div>
-          <div id="rt-body"><div class="empty">Loading routes…</div></div>
+          <div id="rt-body"><div class="empty-state">Loading routes…</div></div>
         </section>
 
       </div>
