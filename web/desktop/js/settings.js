@@ -92,5 +92,19 @@
     toast("Test email sent — check the inbox", "ok");
   };
 
+  // ── appearance ──
+  (function () {
+    var sel = $("#theme-sel");
+    if (!sel) return;
+    var cur = null;
+    try { cur = localStorage.getItem("forgeos_theme"); } catch (e) {}
+    sel.value = (cur === "light" || cur === "dark") ? cur : "auto";
+    sel.onchange = function () {
+      var v = sel.value === "auto" ? null : sel.value;
+      if (window.forgeosSetTheme) window.forgeosSetTheme(v);
+      toast("Theme: " + sel.options[sel.selectedIndex].text, "ok");
+    };
+  })();
+
   loadSys(); loadSmtp();
 })();

@@ -24,12 +24,24 @@
 </style>
 </head>
 <body>
+<script>try{var t=localStorage.getItem('forgeos_theme');var d=t==='dark'||(!t&&matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.body.classList.add('dark')}catch(e){}</script>
   <div class="app"><main class="main" style="grid-column:1/-1">
     <header class="topbar" style="grid-template-columns:1fr auto">
       <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Settings</h3><p>System identity, timezone, and notification email</p></div></div>
     </header>
 
     <div class="grid2">
+      <section class="panel pad">
+        <div class="section-head"><div><h3>Appearance</h3><p>Theme for this browser</p></div></div>
+        <div class="opt-row"><div><h5>Theme</h5><p>Auto follows your OS light/dark setting</p></div>
+          <select id="theme-sel" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:var(--surface);color:var(--text)">
+            <option value="auto">Auto (OS)</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
+      </section>
+
       <section class="panel pad">
         <div class="section-head"><div><h3>System</h3><p>Identity and time</p></div></div>
         <div id="sys-info" style="margin-bottom:14px"></div>

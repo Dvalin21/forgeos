@@ -14,6 +14,38 @@
 (function () {
   "use strict";
 
+  // ── theme (light/dark) ────────────────────────────────────
+  // localStorage forgeos_theme: "light" | "dark" | unset(=follow OS).
+  // body.dark tokens live in forgeos.css; every page loads nav.js so the
+  // choice applies site-wide from one place.
+  var THEME_KEY = "forgeos_theme";
+  function themeChoice() {
+    try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; }
+  }
+  function themeIsDark() {
+    var t = themeChoice();
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    try { return window.matchMedia("(prefers-color-scheme: dark)").matches; }
+    catch (e) { return false; }
+  }
+  function applyTheme() {
+    if (document.body) document.body.classList.toggle("dark", themeIsDark());
+  }
+  window.forgeosSetTheme = function (t) {
+    try {
+      if (t === "light" || t === "dark") localStorage.setItem(THEME_KEY, t);
+      else localStorage.removeItem(THEME_KEY); // auto = follow OS
+    } catch (e) {}
+    applyTheme();
+  };
+  try {
+    window.matchMedia("(prefers-color-scheme: dark)")
+      .addEventListener("change", function () { if (!themeChoice()) applyTheme(); });
+  } catch (e) {}
+  applyTheme();
+  document.addEventListener("DOMContentLoaded", applyTheme);
+
   // ── global session guard ──────────────────────────────────
   // api() is duplicated across page scripts; only the dashboard handled 401.
   // Wrap fetch ONCE here (nav.js loads on every page) so an expired JWT on
