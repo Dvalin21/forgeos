@@ -62,6 +62,34 @@
     var pct=tot?Math.round(used/tot*100):0;$('#pct').textContent=pct+'%';$('#donut').style.setProperty('--pct',pct+'%');
   }
 
+  // Pools on disk that ForgeOS doesn't know about (pre-existing install):
+  // adopt = keep + register, or start fresh = unmount + wipefs.
+  async function loadUnmanaged(){
+    var r=await api('/api/storage/unmanaged');var box=$('#unmanaged');if(!box)return;
+    var list=(r.data&&r.data.unmanaged)||[];
+    if(!list.length){box.innerHTML='';return}
+    box.innerHTML='<p style="font-weight:700;margin:0 0 8px">Found '+list.length+' existing pool'+(list.length>1?'s':'')+' not registered</p>'+
+      list.map(function(p){
+        return '<div class="volume" style="border-style:dashed"><div class="volume-head"><div><h4>'+esc(p.name||'(unnamed)')+'</h4><p>'+esc(p.raid_level)+' · '+(p.devices||[]).length+' devices'+(p.mountpoint?' · '+esc(p.mountpoint):' · not mounted')+'</p></div>'+
+          '<div style="display:flex;gap:8px"><button class="btn-ghost" data-adopt="'+esc(p.uuid)+'" style="height:36px">Keep it — register</button>'+
+          '<button class="btn-ghost" data-wipe="'+esc(p.uuid)+'" style="height:36px;color:var(--danger,#dc2626)">Start fresh</button></div></div></div>'}).join('');
+    $$('[data-adopt]').forEach(function(b){b.onclick=function(){doAdopt(b.getAttribute('data-adopt'))}});
+    $$('[data-wipe]').forEach(function(b){b.onclick=function(){doWipe(b.getAttribute('data-wipe'))}});
+  }
+  async function doAdopt(uuid){
+    var r=await api('/api/storage/pools/adopt',{method:'POST',body:JSON.stringify({uuid:uuid})});
+    toast(r.ok?'Pool registered':(r.data&&r.data.detail)||'Adopt failed',r.ok?'ok':'err');
+    if(r.ok)refresh();
+  }
+  function doWipe(uuid){
+    modal({title:'Start fresh with this pool?',sub:'This unmounts the pool and wipes ALL its member disks. Data is unrecoverable.',
+      warn:'Erases the pool signature on every device. Only proceed if you no longer need anything on it.',
+      cta:'Wipe pool',danger:true,fields:[],onSubmit:async function(){
+        var r=await api('/api/storage/pools/destroy',{method:'POST',body:JSON.stringify({uuid:uuid,confirm:true})});
+        toast(r.ok?'Pool wiped':(r.data&&r.data.detail)||'Wipe failed',r.ok?'ok':'err');
+        if(r.ok)refresh();return r.ok}});
+  }
+
   // Three distinct, full drive icons — no cylinder, no emoji.
   function driveIcon(media){
     if(media==='nvme')  // M.2 stick: long board, connector notch, pin fingers
@@ -222,7 +250,7 @@
         toast(r.ok?'Pool created':(r.data&&r.data.detail)||'Create failed',r.ok?'ok':'err');if(r.ok){loadPools();loadDrives();loadCapacity()}return r.ok}});
   }
 
-  function refresh(){loadPools();loadCapacity();loadDrives();loadLog();loadLhsrTrends()}
+  function refresh(){loadPools();loadCapacity();loadDrives();loadLog();loadLhsrTrends();loadUnmanaged()}
 
   // ── LHSR Planner ──
   async function loadLhsrPlanner(){

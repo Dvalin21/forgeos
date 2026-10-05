@@ -102,6 +102,117 @@ async def storage_pools(user=Depends(verify_token)):
         })
     return {"pools": pools, "unassigned": []}
 
+def _btrfs_scan() -> list:
+    """All btrfs pools on this machine, parsed from `btrfs filesystem show`.
+    Unlike the config-driven /api/storage/pools, this sees pools that were
+    never registered (pre-existing installs) — the "don't get it" case."""
+    out = _run_args(["btrfs", "filesystem", "show"], timeout=15)
+    pools = []
+    cur = None
+    for line in (out or "").splitlines():
+        m = re.match(r"Label: '([^']*)'\s+uuid: (\S+)", line)
+        if not m:
+            m = re.match(r"Label: (none)\s+uuid: (\S+)", line)
+        if m:
+            if cur:
+                pools.append(cur)
+            cur = {"name": "" if m.group(1) == "none" else m.group(1),
+                   "uuid": m.group(2), "devices": [], "mountpoint": "",
+                   "raid_level": "single"}
+            continue
+        if cur:
+            dm = re.search(r"path\s+(/dev/\S+)", line)
+            if dm:
+                cur["devices"].append(dm.group(1))
+    if cur:
+        pools.append(cur)
+    for pool in pools:
+        if not pool["devices"]:
+            continue
+        mp = _run_args(["findmnt", "-n", "-o", "TARGET", "-S", pool["devices"][0]], timeout=5)
+        if mp:
+            pool["mountpoint"] = mp.splitlines()[0]
+            usage = _run_args(["btrfs", "filesystem", "usage", pool["mountpoint"]], timeout=10)
+            lvl = re.search(r"Data,\s*(\S+)", usage or "")
+            if lvl:
+                pool["raid_level"] = lvl.group(1).rstrip(":").lower()
+    return pools
+
+
+@router.get("/api/storage/unmanaged")
+async def storage_unmanaged(user=Depends(verify_token)):
+    """btrfs pools on disk that are NOT in config — i.e. pools created before
+    ForgeOS installed. The UI offers adopt (register) or destroy (wipe)."""
+    cfg = fc.load()
+    known_uuids = {p.uuid for p in cfg.storage.pools}
+    known_names = {p.name for p in cfg.storage.pools}
+    out = [p for p in _btrfs_scan()
+           if p["uuid"] not in known_uuids and p["name"] not in known_names]
+    return {"unmanaged": out}
+
+
+@router.post("/api/storage/pools/adopt")
+async def adopt_pool(body: dict, user=Depends(verify_token)):
+    """Register an existing on-disk btrfs pool in config so the rest of the
+    app (shares, fstab mounts, UI) can see it. Non-destructive."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    uuid = str(body.get("uuid") or "").strip()
+    if not uuid:
+        raise HTTPException(400, "uuid required")
+    cfg = fc.load()
+    if any(p.uuid == uuid for p in cfg.storage.pools):
+        raise HTTPException(409, "pool already registered")
+    cand = next((p for p in _btrfs_scan() if p["uuid"] == uuid), None)
+    if cand is None:
+        raise HTTPException(404, "no such btrfs pool on disk")
+    name = re.sub(r"[^A-Za-z0-9_-]", "", cand["name"] or "") or ("pool-" + uuid[:8])
+    if len(name) < 2:
+        name = "pool-" + uuid[:8]
+    pool = fc.StoragePool(name=name, raid_level=cand["raid_level"],
+                          devices=cand["devices"], mountpoint=cand["mountpoint"],
+                          uuid=uuid)
+    cfg.storage.pools.append(pool)
+    fc.save(cfg)
+    if _audit:
+        _audit(user["sub"], "storage.pool.adopt", "success", f"{name} {uuid}")
+    return {"ok": True, "pool": name}
+
+
+@router.post("/api/storage/pools/destroy")
+async def destroy_pool(body: dict, user=Depends(verify_token)):
+    """Wipe an existing pool so the user can start fresh: unmount it, wipefs
+    every member device, drop it from config. Destructive — confirm:true and
+    admin role required."""
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    if body.get("confirm") is not True:
+        raise HTTPException(400, "confirm:true required — this erases the pool")
+    uuid = str(body.get("uuid") or "").strip()
+    cand = next((p for p in _btrfs_scan() if p["uuid"] == uuid), None)
+    if cand is None:
+        raise HTTPException(404, "no such btrfs pool on disk")
+    # never wipe the pool the OS itself is booted from
+    root_src = _run_args(["findmnt", "-n", "-o", "SOURCE", "/"], timeout=5)
+    if root_src and any(root_src.startswith(d) for d in cand["devices"]):
+        raise HTTPException(409, "refusing to destroy the pool hosting /")
+    for dev in cand["devices"]:
+        mp = _run_args(["findmnt", "-n", "-o", "TARGET", "-S", dev], timeout=5)
+        if mp:
+            _run_args(["umount", mp.splitlines()[0]], timeout=10)
+    for dev in cand["devices"]:
+        subprocess.run(["wipefs", "-a", dev], check=False,
+                       capture_output=True, timeout=15)
+    cfg = fc.load()
+    kept = [p for p in cfg.storage.pools if p.uuid != uuid]
+    if len(kept) != len(cfg.storage.pools):
+        cfg.storage.pools = kept
+        fc.save(cfg)
+    if _audit:
+        _audit(user["sub"], "storage.pool.destroy", "success", uuid)
+    return {"ok": True}
+
+
 
 def _btrfs_devices(mount: str) -> list:
     """The REAL device list for a mounted btrfs filesystem, parsed from
