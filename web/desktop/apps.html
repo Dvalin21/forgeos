@@ -22,12 +22,12 @@
 /* tabs */
     .tabs{display:flex;gap:6px;padding:6px;background:var(--surface-2);border-radius:14px;border:1px solid var(--line);width:fit-content;margin-bottom:18px}
 .tab{padding:9px 18px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:800;color:var(--muted);transition:.15s;background:transparent;border:0}
-.tab.active{background:var(--surface);color:var(--primary);box-shadow:0 2px 8px rgba(41,98,255,.12)}
-.tab .badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;background:var(--primary-soft);color:var(--primary);font-size:11px;font-weight:900}
+.tab.active{background:var(--surface);color:var(--primary-text);box-shadow:0 2px 8px rgba(41,98,255,.12)}
+.tab .badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;background:var(--primary-soft);color:var(--primary-text);font-size:11px;font-weight:900}
 /* sub-tabs (in-page) */
     .subtabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--line)}
 .subtab{padding:10px 16px;cursor:pointer;font-size:13px;font-weight:700;color:var(--muted);border:0;background:transparent;border-bottom:2px solid transparent;margin-bottom:-1px}
-.subtab.active{color:var(--primary);border-bottom-color:var(--primary)}
+.subtab.active{color:var(--primary-text);border-bottom-color:var(--primary-text)}
 /* unified card grid */
     .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:16px}
 .card{position:relative;display:flex;flex-direction:column;padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--surface);box-shadow:var(--shadow-soft);transition:.15s}
@@ -53,7 +53,7 @@
 .badge-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .card-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px;margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
 .card-actions button{height:34px;white-space:nowrap;overflow:hidden;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font:800 11px var(--font);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:.15s;padding:0 8px}
-.card-actions button:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.card-actions button:hover:not(:disabled){border-color:var(--primary-text);color:var(--primary-text)}
 .card-actions button.danger:hover:not(:disabled){border-color:var(--danger);color:var(--danger)}
 .card-actions button:disabled{opacity:.4;cursor:default}
 .card-actions button svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2}
@@ -66,7 +66,7 @@
 /* wizard / advanced expander */
     .wz-tier{display:flex;gap:6px;padding:5px;background:var(--surface-2);border-radius:12px;border:1px solid var(--line);margin-bottom:18px}
 .wz-tier button{flex:1;padding:9px 14px;border:0;background:transparent;border-radius:8px;font:800 12px var(--font);color:var(--muted);cursor:pointer;transition:.15s}
-.wz-tier button.active{background:var(--surface);color:var(--primary);box-shadow:0 2px 6px rgba(41,98,255,.1)}
+.wz-tier button.active{background:var(--surface);color:var(--primary-text);box-shadow:0 2px 6px rgba(41,98,255,.1)}
 .wz-tier button.advanced.active{color:var(--warn);background:rgba(216,138,0,.08)}
 details.adv{margin:14px 0;border:1px solid var(--line);border-radius:13px;background:var(--surface-2);overflow:hidden}
 details.adv > summary{padding:12px 16px;cursor:pointer;font-weight:800;font-size:13px;display:flex;align-items:center;gap:8px;list-style:none}
@@ -79,13 +79,13 @@ details.adv > .body{padding:0 16px 14px}
 .pair-row input{height:38px!important;padding:0 12px!important}
 .pair-row button{width:38px;height:38px;border-radius:9px;border:1px solid var(--line);background:var(--surface);color:var(--danger);cursor:pointer;font-weight:900}
 .add-pair{height:36px;padding:0 14px;border:1px dashed var(--line);background:transparent;border-radius:10px;font:700 12px var(--font);color:var(--muted);cursor:pointer;width:100%}
-.add-pair:hover{border-color:var(--primary);color:var(--primary)}
+.add-pair:hover{border-color:var(--primary-text);color:var(--primary-text)}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .checkbox-field{display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);cursor:pointer;font-size:13px;font-weight:600;color:var(--text)}
-.checkbox-field input{width:16px;height:16px;accent-color:var(--primary)}
+.checkbox-field input{width:16px;height:16px;accent-color:var(--primary-text)}
 /* compose editor */
     .file-drop{padding:24px;border:2px dashed var(--line);border-radius:13px;background:var(--surface-2);text-align:center;cursor:pointer;color:var(--muted);font-weight:600;font-size:13px;margin-bottom:14px;transition:.15s}
-.file-drop:hover,.file-drop.over{border-color:var(--primary);color:var(--primary);background:var(--primary-soft)}
+.file-drop:hover,.file-drop.over{border-color:var(--primary-text);color:var(--primary-text);background:var(--primary-soft)}
 .file-drop b{display:block;color:var(--text);margin-bottom:4px;font-weight:800;font-size:14px}
 </style>
 </head>
@@ -97,7 +97,7 @@ details.adv > .body{padding:0 16px 14px}
       <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Apps &amp; Services</h3><p>System services, containers, compose stacks, and the app catalog</p></div></div>
       <div class="top-actions">
         <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
-        <button class="btn-ghost" id="app-folder" style="height:38px;padding:0 14px;font-size:12px;margin-right:6px">App folder</button><button class="button" id="check-updates" style="background:var(--primary-soft);color:var(--primary)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2v8M9 7l3 3 3-3M5 16a8 8 0 0 0 14 0"/></svg>Check updates</button>
+        <button class="btn-ghost" id="app-folder" style="height:38px;padding:0 14px;font-size:12px;margin-right:6px">App folder</button><button class="button" id="check-updates" style="background:var(--primary-soft);color:var(--primary-text)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 2v8M9 7l3 3 3-3M5 16a8 8 0 0 0 14 0"/></svg>Check updates</button>
       </div>
     </header>
 

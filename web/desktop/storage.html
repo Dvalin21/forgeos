@@ -26,7 +26,7 @@
 .dot.warn{background:var(--warn);box-shadow:0 0 0 4px rgba(216,138,0,.16)}
 .dot.err{background:var(--danger);box-shadow:0 0 0 4px rgba(207,61,70,.16)}
 .dot.predict{background:#b06bd8;box-shadow:0 0 0 4px rgba(176,107,216,.16)}
-.drive-icon{width:54px;height:54px;border-radius:17px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary);margin-bottom:14px}
+.drive-icon{width:54px;height:54px;border-radius:17px;display:grid;place-items:center;background:var(--primary-soft);color:var(--primary-text);margin-bottom:14px}
 .drive-card h4{margin:0;font-size:15px;letter-spacing:-.02em}
 .drive-card .model{margin:3px 0 0;color:var(--muted);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .drive-meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0}
@@ -39,8 +39,8 @@
 .health-row .lvl.err{color:var(--danger)}
 .health-row .lvl.predict{color:#b06bd8}
 .drive-actions{display:flex;gap:7px;margin-top:14px}
-.drive-actions button{flex:1;height:36px;border-radius:11px;border:1px solid var(--line);background:var(--surface);font:800 11px var(--font);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:.15s}
-.drive-actions button:hover{border-color:var(--primary);color:var(--primary)}
+.drive-actions button{flex:1 1 0;min-width:0;height:36px;padding:0 6px;border-radius:11px;border:1px solid var(--line);background:var(--surface);font:800 11px var(--font);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:.15s;overflow:hidden;white-space:nowrap}
+.drive-actions button:hover{border-color:var(--primary-text);color:var(--primary-text)}
 .drive-actions button svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
 .drive-actions button.danger:hover{border-color:var(--danger);color:var(--danger)}
 .drive-card.failed{border-color:rgba(207,61,70,.4)}
@@ -75,7 +75,7 @@
 .drive-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .role-badge{font:800 10px var(--font);padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em}
 .role-badge.os{background:rgba(124,58,237,.14);color:#7c3aed}
-.role-badge.pool{background:var(--primary-soft);color:var(--primary)}
+.role-badge.pool{background:var(--primary-soft);color:var(--primary-text)}
 .role-badge.spare{background:var(--surface);color:var(--muted)}
 /* storage activity terminal (fits the narrower right column) */
 .term{background:#0d1526;border:1px solid #1e2b45;border-radius:14px;padding:12px 14px;height:150px;overflow:auto;font:500 11.5px "JetBrains Mono",ui-monospace,monospace}
@@ -100,7 +100,7 @@
 /* expanded log opens as a modal (the proven clip-immune pattern) */
 .term-modal{width:min(900px,94vw);max-height:82vh;display:flex;flex-direction:column}
 .term-modal .term{height:auto;max-height:none;flex:1;min-height:300px}
-.log-toggle{font:700 11px var(--font);color:var(--primary);background:none;border:0;cursor:pointer;padding:6px 0 0;display:inline-flex;align-items:center;gap:5px}
+.log-toggle{font:700 11px var(--font);color:var(--primary-text);background:none;border:0;cursor:pointer;padding:6px 0 0;display:inline-flex;align-items:center;gap:5px}
 .log-toggle svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .2s}
 .log-toggle.open svg{transform:rotate(180deg)}
 
@@ -125,7 +125,7 @@
         </div>
         <div class="top-actions">
           <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8"/><path d="M20 4v4h-4"/><path d="M20 12a8 8 0 0 1-13.7 5.7L4 16"/><path d="M4 20v-4h4"/></svg></button>
-          <button class="button" style="background:var(--primary-soft);color:var(--primary)" id="new-pool"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Pool</button>
+          <button class="button" style="background:var(--primary-soft);color:var(--primary-text)" id="new-pool"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Create Pool</button>
         </div>
       </header>
 
@@ -152,7 +152,7 @@
       <!-- LHSR — Hybrid RAID for mixed-size disks -->
       <section class="panel pad" style="margin-top:14px">
         <div class="section-head"><div><h3>LHSR Planner</h3><p>Hybrid RAID layout for mixed-size disks — greedy tiering with btrfs per tier</p></div>
-          <button class="button" style="background:var(--primary-soft);color:var(--primary)" id="lhsr-plan-btn"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Plan Layout</button></div>
+          <button class="button" style="background:var(--primary-soft);color:var(--primary-text)" id="lhsr-plan-btn"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Plan Layout</button></div>
         <div id="lhsr-plan-result" style="margin-top:12px"><p class="empty-state">Select disks and click Plan Layout to compute an LHSR configuration.</p></div>
       </section>
 

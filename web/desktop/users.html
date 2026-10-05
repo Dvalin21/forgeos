@@ -14,7 +14,7 @@
 .pill.off { background: var(--primary-soft); color: var(--muted); }
 .row-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .icon-btn { border: 1px solid var(--line); background: none; border-radius: 8px; padding: 6px; cursor: pointer; color: var(--muted); }
-.icon-btn:hover { color: var(--primary); border-color: var(--primary); }
+.icon-btn:hover { color: var(--primary-text); border-color: var(--primary-text); }
 .icon-btn.danger:hover { color: #dc2626; border-color: #dc2626; }
 .icon-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; display: block; }
 .policy-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
@@ -28,7 +28,7 @@
     <header class="topbar" style="grid-template-columns:1fr auto">
       <div class="section-head" style="margin:0"><div><h3 style="font-size:22px">Users</h3><p>Accounts, roles, and two-factor administration</p></div></div>
       <div class="top-actions">
-        <a class="button" style="background:var(--primary-soft);color:var(--primary);text-decoration:none" href="/profile.html">My profile</a>
+        <a class="button" style="background:var(--primary-soft);color:var(--primary-text);text-decoration:none" href="/profile.html">My profile</a>
         <button class="button" id="add-user"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add user</button>
       </div>
     </header>
