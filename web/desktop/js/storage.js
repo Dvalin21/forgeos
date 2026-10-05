@@ -126,7 +126,7 @@
       '<div class="bar '+(lvl==='ok'?'good':lvl==='warn'?'warn':'danger')+'"><i style="width:'+dr.health+'%"></i></div></div>'+
       '<div class="drive-actions">'+
       '<button data-spin="'+esc(dr.name)+'" title="Spin down"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Spin</button>'+
-      '<button data-replace="'+esc(dr.name)+'" title="Replace"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4"/></svg>Replace</button>'+
+      '<button data-replace="'+esc(dr.name)+'" title="Swap"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4"/></svg>Swap</button>'+
       '<button class="danger" data-smart="'+esc(dr.name)+'" title="SMART detail"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h0"/><circle cx="12" cy="12" r="9"/></svg>Info</button>'+
       '</div></div>';
   }
@@ -198,7 +198,7 @@
     toast(r.ok?dev+' sent to standby':(r.data&&r.data.detail)||'Spin-down failed',r.ok?'ok':'err');
   }
   function doReplace(dev){
-    modal({title:'Replace drive',sub:'Swap '+dev+' for a new disk. btrfs copies the data online — no downtime.',
+    modal({title:'Swap drive',sub:'Swap '+dev+' for a new disk. btrfs copies the data online — no downtime.',
       warn:'btrfs rebuilds redundancy onto the new drive while the pool stays online. If the old drive is already gone, enter its btrfs devid instead of a name.',
       danger:true,cta:'Start replacement',
       fields:[{id:'pool',label:'Array',type:'select',options:poolOpts()},
