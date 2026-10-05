@@ -63,7 +63,7 @@
       height: 100vh;
       padding: 22px 18px;
       border-right: 1px solid var(--line);
-      background: rgba(255,255,255,.78);
+      background:var(--surface);
       backdrop-filter: blur(24px);
       box-shadow: 8px 0 36px rgba(19,35,58,.06);
       z-index: 4;
@@ -112,7 +112,7 @@
       gap: 12px;
       min-height: 46px;
       padding: 10px 14px;
-      color: #3a495f;
+      color:var(--muted);
       text-decoration: none;
       border-radius: 16px;
       font-size: 14px;
@@ -180,7 +180,7 @@
       height: var(--topbar);
       margin: -22px -28px 22px;
       padding: 16px 28px;
-      background: rgba(238,243,248,.78);
+      background:var(--surface-2);
       backdrop-filter: blur(22px);
       border-bottom: 1px solid rgba(var(--ink),.06);
     }
@@ -216,8 +216,8 @@
       border-radius: 16px;
       display: grid;
       place-items: center;
-      background: rgba(255,255,255,.82);
-      color: #516178;
+      background:var(--surface);
+      color:var(--muted);
       box-shadow: var(--shadow-soft);
     }
 
@@ -228,7 +228,7 @@
       padding: 7px 12px 7px 7px;
       border: 1px solid var(--line);
       border-radius: 18px;
-      background: rgba(255,255,255,.82);
+      background:var(--surface);
       box-shadow: var(--shadow-soft);
     }
 
@@ -258,7 +258,7 @@
       overflow: hidden;
       border: 1px solid rgba(var(--ink),.08);
       border-radius: var(--radius);
-      background: rgba(255,255,255,.85);
+      background:var(--surface);
       box-shadow: var(--shadow-soft);
     }
 
@@ -351,7 +351,7 @@
     .button.danger { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
     .button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
     /* Hero (dark gradient) keeps its original white variants, now scoped. */
-    .hero .button.primary { color: #14325f; background: #fff; }
+    .hero .button.primary { color: #14325f; background:var(--surface); }
     .hero .button.ghost { color: #fff; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); }
 
     .status-grid {
@@ -521,7 +521,7 @@
       place-items: center;
       text-align: center;
       border-radius: 50%;
-      background: #fff;
+      background:var(--surface);
       box-shadow: inset 0 0 0 1px var(--line);
     }
     .donut-inner strong { display: block; font-size: 36px; letter-spacing: -.06em; }
@@ -539,7 +539,7 @@
     .volume p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
 
     .table-wrap { overflow: hidden; border: 1px solid var(--line); border-radius: 18px; }
-    table { width: 100%; border-collapse: collapse; background: #fff; }
+    table { width: 100%; border-collapse: collapse; background:var(--surface); }
     th, td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--line); font-size: 13px; }
     th { color: #7a879b; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; background: var(--surface-2); }
     tr:last-child td { border-bottom: 0; }
@@ -690,7 +690,7 @@
   
     .hidden{display:none!important}
     #toasts{position:fixed;right:20px;bottom:20px;z-index:60;display:grid;gap:10px}
-    .toast{padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:#fff;box-shadow:var(--shadow);font-size:13px;font-weight:700;min-width:220px}
+    .toast{padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);font-size:13px;font-weight:700;min-width:220px}
     .toast.ok{border-left:4px solid var(--success)} .toast.err{border-left:4px solid var(--danger)} .toast.info{border-left:4px solid var(--primary)} .toast.warn{border-left:4px solid var(--warn)}
     .modal-back{position:fixed;inset:0;z-index:55;display:grid;place-items:center;padding:24px;background:rgba(19,35,58,.42);backdrop-filter:blur(4px)}
     /* static .backdrop modals (users/vpn/backup) had NO CSS, so the modal fell
@@ -723,7 +723,7 @@
     .svc-opt{padding:14px;border:1.5px solid var(--line);border-radius:15px;cursor:pointer;transition:.15s;background:var(--surface-2)}
     .svc-opt:hover{border-color:var(--primary)} .svc-opt.sel{border-color:var(--primary);background:var(--primary-soft)}
     .svc-opt h5{margin:0;font-size:13px;font-weight:800} .svc-opt p{margin:3px 0 0;color:var(--muted);font-size:11px;font-weight:600}
-    .seg{display:flex;gap:8px} .seg button{flex:1;height:46px;border:1.5px solid var(--line);border-radius:13px;background:var(--surface-2);font:800 13px var(--font);color:#3a495f;cursor:pointer;transition:.15s}
+    .seg{display:flex;gap:8px} .seg button{flex:1;height:46px;border:1.5px solid var(--line);border-radius:13px;background:var(--surface-2);font:800 13px var(--font);color:var(--muted);cursor:pointer;transition:.15s}
     .seg button.sel{color:#fff;border-color:transparent} .seg button.sel.allow{background:linear-gradient(135deg,var(--success),#0bbf78)} .seg button.sel.deny,.seg button.sel.reject{background:linear-gradient(135deg,var(--danger),#ff7a86)}
     .wz-input{height:46px;width:100%;padding:0 14px;border:1.5px solid var(--line);border-radius:13px;background:var(--surface-2);font:600 14px var(--font);color:var(--text);outline:0}
     .wz-input:focus{border-color:var(--primary)}
@@ -774,7 +774,7 @@
     .fld .hint{margin-top:6px;font-size:11px;color:var(--muted);font-weight:600;line-height:1.45}
     .raw-conf{width:100%;min-height:240px;resize:vertical;padding:14px 16px;border:1.5px solid var(--line);border-radius:14px;background:#0f1726;color:#cdd6e6;font:600 12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;outline:0;tab-size:4}
     .raw-conf:focus{border-color:var(--primary)}
-    .raw-err{margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--danger);background:rgba(207,61,70,.08);color:#a02732;font:600 12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
+    .raw-err{margin-top:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--danger);background:rgba(207,61,70,.08);color:var(--danger);font:600 12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;word-break:break-word}
 
 
 /* ── polish layer: density, data-as-mono, motion, focus ── */

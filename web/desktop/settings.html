@@ -32,17 +32,6 @@
 
     <div class="grid2">
       <section class="panel pad">
-        <div class="section-head"><div><h3>Appearance</h3><p>Theme for this browser</p></div></div>
-        <div class="opt-row"><div><h5>Theme</h5><p>Auto follows your OS light/dark setting</p></div>
-          <select id="theme-sel" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:var(--surface);color:var(--text)">
-            <option value="auto">Auto (OS)</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
-        </div>
-      </section>
-
-      <section class="panel pad">
         <div class="section-head"><div><h3>System</h3><p>Identity and time</p></div></div>
         <div id="sys-info" style="margin-bottom:14px"></div>
         <div class="field"><label>Hostname</label><input id="s-host">
@@ -53,6 +42,13 @@
           <div class="hint">Globally-resolvable name for real TLS. Never a .local name.</div></div>
         <div class="field"><label>Timezone</label><input id="s-tz" placeholder="America/Chicago">
           <div class="hint">IANA name; applied via timedatectl immediately on save.</div></div>
+        <div class="opt-row" style="margin-top:6px"><div><h5>Theme</h5><p>Auto follows your OS light/dark setting</p></div>
+          <select id="theme-sel" style="padding:7px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;font-size:13px;background:var(--surface);color:var(--text)">
+            <option value="auto">Auto (OS)</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
         <button class="button" id="s-save">Save system settings</button>
 
       </section>
