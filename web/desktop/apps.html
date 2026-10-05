@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="/css/forgeos.css">
 <style>
 /* apps-specific */
-.toast{padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:#fff;box-shadow:var(--shadow);font-size:13px;font-weight:700;min-width:220px;max-width:420px}
+.toast{padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);font-size:13px;font-weight:700;min-width:220px;max-width:420px}
 .modal{width:min(560px,95vw);padding:24px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);max-height:92vh;overflow:auto}
 .modal.big{width:min(820px,95vw)}
 .modal.huge{width:min(1000px,96vw)}
@@ -18,10 +18,10 @@
 .modal input,.modal select{height:44px}
 .modal textarea{padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;min-height:160px;resize:vertical;line-height:1.5}
 .btn-pri{height:44px;padding:0 18px;border:0;border-radius:13px;cursor:pointer;font:800 13px var(--font);color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary-2))}
-.warn-box{padding:12px 14px;border-radius:13px;background:rgba(207,61,70,.08);border:1px solid rgba(207,61,70,.25);color:#9a2730;font-size:13px;font-weight:600;margin-bottom:14px}
+.warn-box{padding:12px 14px;border-radius:13px;background:rgba(207,61,70,.08);border:1px solid rgba(207,61,70,.25);color:var(--danger);font-size:13px;font-weight:600;margin-bottom:14px}
 /* tabs */
     .tabs{display:flex;gap:6px;padding:6px;background:var(--surface-2);border-radius:14px;border:1px solid var(--line);width:fit-content;margin-bottom:18px}
-.tab{padding:9px 18px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:800;color:#3a495f;transition:.15s;background:transparent;border:0}
+.tab{padding:9px 18px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:800;color:var(--muted);transition:.15s;background:transparent;border:0}
 .tab.active{background:var(--surface);color:var(--primary);box-shadow:0 2px 8px rgba(41,98,255,.12)}
 .tab .badge{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:8px;background:var(--primary-soft);color:var(--primary);font-size:11px;font-weight:900}
 /* sub-tabs (in-page) */
@@ -52,7 +52,7 @@
 .pill.update svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2.4}
 .badge-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
 .card-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:6px;margin-top:auto;padding-top:12px;border-top:1px solid var(--line)}
-.card-actions button{height:34px;white-space:nowrap;overflow:hidden;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font:800 11px var(--font);color:#3a495f;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:.15s;padding:0 8px}
+.card-actions button{height:34px;white-space:nowrap;overflow:hidden;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font:800 11px var(--font);color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:.15s;padding:0 8px}
 .card-actions button:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
 .card-actions button.danger:hover:not(:disabled){border-color:var(--danger);color:var(--danger)}
 .card-actions button:disabled{opacity:.4;cursor:default}

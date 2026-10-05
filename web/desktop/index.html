@@ -62,7 +62,7 @@ a.am-item { text-decoration: none; color: inherit; }
 .toast {
       display: flex; align-items: center; gap: 10px; min-width: 240px; max-width: 380px;
       padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line);
-      background: rgba(255,255,255,.96); box-shadow: var(--shadow); font-size: 13px; font-weight: 700;
+      background:var(--surface); box-shadow: var(--shadow); font-size: 13px; font-weight: 700;
       animation: tin .25s var(--font);
     }
 @keyframes tin { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -99,7 +99,7 @@ a.am-item { text-decoration: none; color: inherit; }
 .dhero p{font-size:13px;font-weight:700;opacity:.85}
 .dbtn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 18px;border-radius:12px;font:800 13px var(--font);border:0;cursor:pointer;transition:.15s}
 .dbtn svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.dbtn.light{background:#fff;color:#1d4ed8}.dbtn.glass{background:rgba(255,255,255,.16);color:#fff}
+.dbtn.light{background:var(--surface);color:#1d4ed8}.dbtn.glass{background:rgba(255,255,255,.16);color:#fff}
 .dbtn:hover{transform:translateY(-1px)}
 .vitals{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px}
 .vital{display:flex;align-items:center;gap:16px;padding:16px 18px}
@@ -119,7 +119,7 @@ a.am-item { text-decoration: none; color: inherit; }
 .dstack>*+*{margin-top:18px}
 .hrow{display:flex;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface-2,#f6f9fd)}
 .hrow+.hrow{margin-top:9px}
-.hico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:#fff;border:1px solid var(--line);flex:none}
+.hico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);flex:none}
 .hico svg{width:19px;height:19px;fill:none;stroke:var(--primary);stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .hrow h4{font-size:13.5px;margin:0}.hrow p{font-size:12px;font-weight:600;color:var(--muted);margin:0}
 .hrow .grow{flex:1}
