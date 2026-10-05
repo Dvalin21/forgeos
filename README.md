@@ -3,6 +3,8 @@
 **Open-source NAS and home server platform for Ubuntu/Debian.**
 Built natively on the OS — not a repackaged distro.
 
+📖 **Full operating guide:** [ForgeOS Wiki](https://github.com/Dvalin21/forgeos/wiki) — page-by-page operator instructions, also mirrored in [`docs/wiki/`](docs/wiki/).
+
 > 📋 **Canonical project state:** [`PRODUCTION_READINESS.md`](PRODUCTION_READINESS.md)
 > tracks every known bug, design concern, and feature gap by ID with status,
 > severity, and the commit that resolved it. Older status documents that
