@@ -62,3 +62,18 @@ All six are **already fixed** in code:
 - GitHub-releases "What's new" link — needs a public repo/tag decision.
 - B1's redundant `verify_ws_token` helper + argv `--` terminator on backup tools (B3 hardening half) — noted, low risk, not blocking.
 - Installer ISO integration of the new web UI changes — the ISO's payload tarball predates these commits; rebuild when you want the ISO to carry them.
+
+## Addendum (same night)
+- **Admin password**: reset on the VM to `Leah@@0527` (verified via
+  `POST /api/auth/login`). The old plaintext was unrecoverable — only a
+  bcrypt hash existed.
+- **Discover/adopt/destroy shipped** (`src/storage_api.py` + storage page):
+  - `GET  /api/storage/unmanaged` — btrfs pools on disk NOT in config
+  - `POST /api/storage/pools/adopt` {uuid} — register an existing pool (admin)
+  - `POST /api/storage/pools/destroy` {uuid, confirm:true} — unmount + wipefs +
+    drop from config (admin); refuses to touch the pool hosting `/`
+  - Storage page shows "Found N existing pools not registered" with
+    **Keep it — register** / **Start fresh** buttons. Verified end-to-end on
+    the VM: cleared config pools → discovery saw tank → adopt → pools list
+    shows tank healthy. Backup at `/etc/forgeos/config.json.bak-tank`.
+  - `tests/test_storage.py`: 41 passed, 1 known pre-existing env failure.
