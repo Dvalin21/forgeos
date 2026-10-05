@@ -22,7 +22,7 @@
 .tree-root{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;padding:4px 8px}
 .tree-node{display:flex;align-items:center;gap:6px;padding:7px 10px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tree-node:hover{background:var(--surface-2)}
-.tree-node.sel{background:var(--primary-soft);color:var(--primary)}
+.tree-node.sel{background:var(--primary-soft);color:var(--primary-text)}
 .tree-node svg{width:14px;height:14px;flex:none;stroke:currentColor;fill:none;stroke-width:2}
 .tree-children{margin-left:14px;border-left:1px dashed var(--line);padding-left:6px}
 .fs-main{background:var(--surface);border:1px solid var(--line);border-radius:18px;display:flex;flex-direction:column;overflow:hidden;position:relative}
@@ -30,11 +30,11 @@
 .fs-crumbs{flex:1;min-width:0;display:flex;align-items:center;gap:4px;font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fs-crumbs a{padding:5px 9px;border-radius:8px;cursor:pointer;color:var(--muted)}
 .fs-crumbs a:hover{background:var(--surface)}
-.fs-crumbs a.cur{background:var(--primary-soft);color:var(--primary)}
+.fs-crumbs a.cur{background:var(--primary-soft);color:var(--primary-text)}
 .fs-crumbs span{color:var(--muted);font-weight:800;padding:0 2px}
 .fs-tool{display:flex;gap:6px;flex-wrap:wrap}
 .fs-tool button{height:36px;padding:0 12px;border-radius:11px;border:1px solid var(--line);background:var(--surface);font:800 12px var(--font);color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;transition:.15s}
-.fs-tool button:hover:not(:disabled){border-color:var(--primary);color:var(--primary)}
+.fs-tool button:hover:not(:disabled){border-color:var(--primary-text);color:var(--primary-text)}
 .fs-tool button:disabled{opacity:.4;cursor:default}
 .fs-tool .danger:hover:not(:disabled){border-color:var(--danger);color:var(--danger)}
 .fs-tool .primary{background:var(--primary);color:#fff;border-color:transparent}
@@ -59,17 +59,17 @@ table.files tr.cut td{opacity:.5}
 .ftype svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2}
 .mode{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted)}
 .owner{font-size:12px;color:var(--muted);font-weight:600}
-.ck{width:14px;height:14px;accent-color:var(--primary);cursor:pointer}
+.ck{width:14px;height:14px;accent-color:var(--primary-text);cursor:pointer}
 /* drag-drop overlay */
     .dz-overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(41,98,255,.08);border:3px dashed var(--primary);border-radius:18px;z-index:5;pointer-events:none}
 .dz-overlay.show{display:flex}
-.dz-overlay .label{padding:18px 26px;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);font-weight:900;color:var(--primary);font-size:16px}
+.dz-overlay .label{padding:18px 26px;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);font-weight:900;color:var(--primary-text);font-size:16px}
 /* perms editor */
     .perm-grid{display:grid;grid-template-columns:auto repeat(3,1fr);gap:8px;align-items:center;margin-bottom:14px}
 .perm-grid .who{font-weight:800;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
 .perm-cell{display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2);cursor:pointer;font-size:13px;font-weight:700;user-select:none}
-.perm-cell input{accent-color:var(--primary)}
-.octal-display{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:var(--primary);background:var(--primary-soft);padding:8px 14px;border-radius:11px;display:inline-block;letter-spacing:.1em}
+.perm-cell input{accent-color:var(--primary-text)}
+.octal-display{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:800;color:var(--primary-text);background:var(--primary-soft);padding:8px 14px;border-radius:11px;display:inline-block;letter-spacing:.1em}
 /* preview */
     .pv-meta{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-bottom:12px;flex-wrap:wrap}
 .pv-meta span b{color:var(--text)}
@@ -103,7 +103,7 @@ table.files tr.cut td{opacity:.5}
       <div class="top-actions">
         <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
         <input type="file" id="upload-input" multiple style="display:none">
-        <button class="button" style="background:var(--primary-soft);color:var(--primary)" id="btn-upload"><svg class="ico" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>Upload</button>
+        <button class="button" style="background:var(--primary-soft);color:var(--primary-text)" id="btn-upload"><svg class="ico" viewBox="0 0 24 24"><path d="M12 16V4M6 10l6-6 6 6M4 20h16"/></svg>Upload</button>
       </div>
     </header>
 

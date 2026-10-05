@@ -114,7 +114,7 @@
     var list = $("#os-drive-list");
     list.innerHTML = _disks.map(function (d) {
       var gb = (d.size_bytes / (1024 * 1024 * 1024)).toFixed(1);
-      var tag = d.is_system ? ' <span style="color:var(--primary)">(current OS)</span>' : '';
+      var tag = d.is_system ? ' <span style="color:var(--primary-text)">(current OS)</span>' : '';
       return '<div class="disk-option" data-path="' + esc(d.path) + '">' +
         '<input type="radio" name="os-drive" value="' + esc(d.path) + '">' +
         '<div><strong>' + esc(d.path) + '</strong>' + tag +

@@ -17,7 +17,7 @@
 .if-card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:15px 16px;background:var(--surface-2)}
 .if-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
 .if-name{display:flex;align-items:center;gap:9px;font-weight:800;font-size:14px}
-.if-ico{width:30px;height:30px;border-radius:9px;background:var(--primary-soft);display:grid;place-items:center;color:var(--primary)}
+.if-ico{width:30px;height:30px;border-radius:9px;background:var(--primary-soft);display:grid;place-items:center;color:var(--primary-text)}
 .if-ico svg{width:17px;height:17px;stroke:currentColor;stroke-width:2;fill:none}
 .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
 .dot.up{background:var(--success);box-shadow:0 0 0 3px rgba(16,166,106,.16)}
@@ -30,7 +30,7 @@
 .mini-metric b{display:block;color:var(--text);font-size:14px;font-variant-numeric:tabular-nums;font-weight:800}
 .if-foot{display:flex;gap:8px;align-items:center;margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
 .badge{font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:7px;text-transform:uppercase;letter-spacing:.4px}
-.badge.dhcp{background:var(--primary-soft);color:var(--primary)}
+.badge.dhcp{background:var(--primary-soft);color:var(--primary-text)}
 .badge.static{background:rgba(0,164,184,.12);color:#0894a6}
 
 .frow{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
@@ -51,7 +51,7 @@ table.rt td.mono{font-family:var(--mono);font-size:11.5px}
 
 /* form inputs — shared CSS ships no generic input class */
 input.fi,select.fi{width:100%;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);font:600 13px var(--font);color:var(--text)}
-input.fi:focus,select.fi:focus{outline:2px solid var(--primary-soft);border-color:var(--primary)}
+input.fi:focus,select.fi:focus{outline:2px solid var(--primary-soft);border-color:var(--primary-text)}
 input.fi:disabled{opacity:.6}
 
 /* modals — .backdrop centering comes from the shared CSS */
@@ -64,18 +64,18 @@ input.fi:disabled{opacity:.6}
 .seg{display:flex;gap:8px}
 .seg label{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border:1px solid var(--line);border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:var(--surface-2)}
 .seg input{margin:0}
-.seg label.on{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
+.seg label.on{border-color:var(--primary-text);background:var(--primary-soft);color:var(--primary-text)}
 .warnbox{display:flex;gap:11px;align-items:flex-start;padding:12px 14px;border-radius:var(--radius-sm);background:rgba(216,138,0,.09);border:1px solid rgba(216,138,0,.24);margin-top:14px}
 .warnbox p{margin:0;font-size:12.5px;color:#7a5200;line-height:1.5}
-.count{font-variant-numeric:tabular-nums;font-weight:800;font-size:30px;color:var(--primary);text-align:center;margin:6px 0 2px}
+.count{font-variant-numeric:tabular-nums;font-weight:800;font-size:30px;color:var(--primary-text);text-align:center;margin:6px 0 2px}
 .count.low{color:var(--danger)}
-.newaddr{display:block;text-align:center;font-family:var(--mono);font-size:14px;font-weight:700;padding:11px;border-radius:var(--radius-sm);background:var(--primary-soft);color:var(--primary);text-decoration:none;margin-top:12px}
+.newaddr{display:block;text-align:center;font-family:var(--mono);font-size:14px;font-weight:700;padding:11px;border-radius:var(--radius-sm);background:var(--primary-soft);color:var(--primary-text);text-decoration:none;margin-top:12px}
 .err{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:1em}
 
 /* read-only phase notice */
 .ro-note{display:flex;gap:11px;align-items:flex-start;padding:12px 15px;border-radius:var(--radius-sm);background:var(--primary-soft);border:1px solid rgba(41,98,255,.2);margin-bottom:18px}
-.ro-note svg{width:18px;height:18px;stroke:var(--primary);stroke-width:2;fill:none;flex-shrink:0;margin-top:1px}
-.ro-note p{margin:0;font-size:12.5px;color:#1c3d7a;line-height:1.5}
+.ro-note svg{width:18px;height:18px;stroke:var(--primary-text);stroke-width:2;fill:none;flex-shrink:0;margin-top:1px}
+.ro-note p{margin:0;font-size:12.5px;color:var(--primary-text);line-height:1.5}
 @media(max-width:1020px){.net-grid{grid-template-columns:1fr}}
 </style>
 </head>
