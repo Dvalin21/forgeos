@@ -150,7 +150,7 @@
         '<div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24">' +
           '<path d="M6 4h12v3H9v4h9v3H9v6H6z"/>' +
         '</svg></div>' +
-        '<div><h1>ForgeNAS</h1><p>Control Center</p></div>' +
+        '<div><h1>ForgeOS</h1><p>Control Center</p></div>' +
         '<span id="brand-ver" title="Installed version" style="margin-left:auto;align-self:flex-start;font-size:10px;font-weight:700;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px">…</span>' +
       '</div>';
 
