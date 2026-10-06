@@ -125,6 +125,51 @@ patch_menu() {
     # left untouched — see iso/README.md on why that's expected to just work.
     cat "${stanza_file}" "${extracted}" > "${extracted}.new"
     mv "${extracted}.new" "${extracted}"
+    # ponytail: strip every stock speakup / dark-contrast boot entry from the
+    # menu we pass to the installer. When present, those entries trigger a
+    # dead "Starting speech synthesis…press enter to continue anyway"
+    # probe before the preseeded install even starts. Remove whole blocks
+    # (label … / menuentry … }) so we don't leave broken syntax behind;
+    # also drop now-empty Speech-enabled / Accessible dark submenu blocks.
+    python3 - "${extracted}" <<'PYSTRIP'
+import sys
+
+p = sys.argv[1]
+lines = open(p).read().splitlines(keepends=True)
+out = []
+block = None
+
+def flush():
+    global block
+    if block is None:
+        return
+    t = ''.join(block)
+    if ('speakup' not in t and 'theme=dark' not in t
+            and 'Speech-enabled' not in t and 'Accessible dark' not in t):
+        out.extend(block)
+    block = None
+
+piches = (p).endswith('uefi.cfg')
+
+def starts_entry(line):
+    s = line.lstrip()
+    return s.startswith(('label ', 'menuentry ', 'menu begin', 'submenu '))
+
+for line in lines:
+    if starts_entry(line):
+        flush()
+        block = [line]
+        continue
+    if block is None:
+        out.append(line)
+        continue
+    block.append(line)
+    if piches and line.strip() == '}':
+        flush()
+flush()
+open(p, 'w').write(''.join(out))
+PYSTRIP
+    rm -f "${extracted}.bak"
     echo "${extracted}"
 }
 
