@@ -30,6 +30,7 @@ this browser's localStorage; closing the tab keeps you signed in.
 | [My Profile](My-Profile) | Your password + two-factor enrollment |
 | [Settings](Settings) | Hostname/timezone/theme/SMTP |
 | [Setup Wizard](Setup-Wizard) | First-boot configuration |
+| [Installation](Installation) | ISO installer vs script install walkthrough |
 | [Activity Log](Activity-Log) | Who did what, when |
 
 ## Common controls
