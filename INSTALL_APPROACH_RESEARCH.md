@@ -35,10 +35,9 @@ The built `forgeos-installer-amd64.iso` (Aug 26, 756MB payload) boots.
   root cause is the same: the installer is not running with the preseed
   critical-priority appliance, so every debconf field asks.
 
-Next action on the ISO path: verify whether the entry is being booted at
-all (`preseed/file` path resolvable vs `/int viewer: we can no longer
-determine from serial logs because the text console is on VGA) and
-either (a) restore `priority=critical` in the **actually-used** boot
+Next action on the ISO path: verify whether the preseed entry is being
+actually applied (serial is not enough — the installer text console is on
+VGA). Either (a) restore `priority=critical` in the actually-used boot
 entry in `iso/build-iso.sh` + the draft stanzas, or (b) switch to the
 simpler model below.
 
