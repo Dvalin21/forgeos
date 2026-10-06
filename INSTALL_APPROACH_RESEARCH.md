@@ -27,13 +27,18 @@ The built `forgeos-installer-amd64.iso` (Aug 26, 756MB payload) boots.
   3. Until `priority=critical` is restored, the installer walks every high
      priority debconf template (locale, timezone, network…) even though
      `preseed.cfg` sets them.
-- A stray Dark-contrast/speakup chain also triggers a speech-synthesis
-     probe on first boot of the same media — cosmetic but worth removing.
-- A patched ISO rebuilding the stanza with `priority=critical` in both
-  menu files was produced and is at `/tmp/forgeos-installer-patched.iso`;
-  on a fresh VM it still shows the speak-up prompt, then locale. The
-  root cause is the same: the installer is not running with the preseed
-  critical-priority appliance, so every debconf field asks.
+- Tonight's v3 build removed every remaining speakup entry from the
+  patched isolinux/grub menus (`grep -c speakup` in both patched files is
+  now 0; the ISO's default entry is our only quiet path). Still, the
+  Debian installer itself opens with a no-sound-card speech-probe screen
+  before the preseed loads — this is stock d-i GUI behavior and is not
+  removed by menu edits. It is cosmetic; press Enter.
+- Root cause already fixed for the *missing* part of the wizard: the
+  Aug-26 ISO dropped `priority=critical`, which is why the French media
+  walked you through 80 d-i questions. Every build from
+  `iso/build-iso.sh` since tonight has the token back in both the BIOS
+  (`txt.cfg`) and UEFI (`grub.cfg`) stanzas; `forgeos-installer-amd64-v3.iso`
+  is the first to have both the token and the stripped speakup chain.
 
 Next action on the ISO path: verify whether the preseed entry is being
 actually applied (serial is not enough — the installer text console is on
