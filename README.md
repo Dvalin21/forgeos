@@ -272,6 +272,20 @@ sudo bash install/v2/bootstrap.sh --unattended \
   --domain nas.local --profile medium --wireguard
 ```
 
+
+### ISO Install (Option B — quiet preseed)
+
+If you would rather boot a thumb drive instead of running the script on an existing Debian install:
+
+```bash
+# Build it (or grab the built ISO)
+bash iso/build-iso.sh /path/to/debian-13.7.0-amd64-netinst.iso
+# Write to USB
+sudo dd if=forgeos-installer-amd64-v3.iso of=/dev/sdX bs=4M status=progress oflag=direct
+```
+
+Boot the stick, press Enter through the one stock speech-probe prompt, and the preseeded Debian installer takes over. When it finishes and reboots to the installed system, point a browser at `https://<nas-ip>/setup.html` — the setup wizard finishes the ForgeOS configuration.
+
 ---
 
 ## Post-Install Access
