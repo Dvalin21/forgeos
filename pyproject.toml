@@ -83,6 +83,7 @@ py-modules = [
     "forgeos_osbackup_cli",
     "forgeos_pages_api",
     "forgeos_ports",
+    "forgeos_scrub",
     "forgeos_smtp",
     "forgeos_storage_cli",
     "forgeos_toggles",

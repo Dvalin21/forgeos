@@ -7,6 +7,8 @@
   forgeos-storage status                pools + mount state
   forgeos-storage lhsr plan DISK...     compute LHSR layout for mixed-size disks
   forgeos-storage lhsr create DISK...   create LHSR pool (DESTRUCTIVE)
+  forgeos-storage scrub run             scrub every configured pool now (timer entrypoint)
+  forgeos-storage scrub schedule        install/remove the scheduled-scrub timer
 
 A user should NEVER run mkfs/parted by hand — this is the safe path. Every
 create re-checks the guards (system disk untouchable, etc.) right before
@@ -20,6 +22,56 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import forgeos_config as fc            # noqa: E402
 import forgeos_diskprep as dp          # noqa: E402
+
+
+def _scrub_handler(args) -> int:
+    """Scheduled-scrub CLI. `run` is the timer entrypoint; `schedule` manages
+    the timer itself. Both stay out of the API process on purpose."""
+    import forgeos_scrub as fs
+
+    runner = fs.ScrubRunner()
+    cfg = fc.load()
+
+    if args.scrub_cmd == "run":
+        targets = fs.target_pools(cfg, resolver=lambda n: _live_mount(cfg, n))
+        if not targets:
+            print("No configured pool is mounted — nothing to scrub.")
+            return 0
+        print(f"Scrubbing {len(targets)} pool(s)...")
+        result = runner.scrub_pools(targets)
+        for pool in result["checked"]:
+            print(f"  {pool}: {'problem found' if pool in result['failed'] else 'clean'}")
+        for pool, detail in result["errors"].items():
+            print(f"  ! {pool}: {detail}")
+        return 0 if result["ok"] else 1
+
+    if args.status:
+        state = runner.timer_status()
+        print(f"scrub timer: {state['state']}")
+        print(f"schedule:    {fs.oncalendar(cfg.storage.scrub.schedule)}")
+        return 0
+    if args.enabled == "on":
+        runner.setup_timer(fs.oncalendar(args.schedule or cfg.storage.scrub.schedule))
+        print(f"Scheduled scrub enabled ({fs.oncalendar(args.schedule or cfg.storage.scrub.schedule)}).")
+    else:
+        runner.disable_timer()
+        print("Scheduled scrub disabled.")
+    return 0
+
+
+def _live_mount(cfg, name: str) -> str:
+    """Pool name -> its live mountpoint, or "" when it is not mounted.
+    `btrfs scrub` needs a live path, so an unmounted pool is skipped rather
+    than reported as scrubbed. Mirrors storage_api._pool_mount's check."""
+    for pool in cfg.storage.pools:
+        if pool.name == name:
+            mp = pool.resolved_mountpoint()
+            try:
+                if mp and Path(mp).is_mount():
+                    return mp
+            except OSError:
+                return ""
+    return ""
 
 
 def _resolve(disk_idents):
@@ -143,7 +195,22 @@ def main(argv=None) -> int:
     lhsr_create.add_argument("--yes", action="store_true",
                              help="skip confirmation prompt")
 
+    # Scheduled data scrub. `run` is what the systemd timer ExecStart's; the
+    # API never calls it, so a timer firing can't be blocked by (or block) the
+    # web request path.
+    scrub_parser = sub.add_parser("scrub", help="btrfs data scrub (checksums + repair)")
+    scrub_sub = scrub_parser.add_subparsers(dest="scrub_cmd", required=True)
+    scrub_sub.add_parser("run", help="scrub every configured pool now (timer entrypoint)")
+    scrub_run = scrub_sub.add_parser("schedule", help="install/remove the scrub timer")
+    scrub_run.add_argument("--enabled", choices=["on", "off"], default="on")
+    scrub_run.add_argument("--schedule", default="monthly",
+                           help="daily|weekly|monthly or a raw systemd OnCalendar")
+    scrub_run.add_argument("--status", action="store_true", help="print timer state and exit")
+
     args = ap.parse_args(argv)
+
+    if args.cmd == "scrub":
+        return _scrub_handler(args)
 
     if args.cmd == "disks":
         for d in dp.inspect_disks():

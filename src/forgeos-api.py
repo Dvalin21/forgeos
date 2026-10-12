@@ -943,7 +943,7 @@ except ImportError as e:
 # ────────────────────────────────────────────────────────────
 try:
     from storage_api import router as storage_router, set_helpers as set_storage_helpers
-    set_storage_helpers(run_args=_run_args, audit=_audit)
+    set_storage_helpers(run_args=_run_args, audit=_audit, get_db=_get_db)
     app.include_router(storage_router)
     logger.info("Storage API loaded")
 except ImportError as e:
@@ -1023,7 +1023,10 @@ except ImportError as e:
 # NOTIFICATIONS — extracted to notifications_api.py (Sprint 1, commit 7)
 # ────────────────────────────────────────────────────────────
 try:
-    from notifications_api import router as notifications_router
+    from notifications_api import router as notifications_router, set_helpers as set_notification_helpers
+    # Notifications persist to SQLite so they survive an API restart — the box
+    # that warned you is the box you want to ask afterwards.
+    set_notification_helpers(get_db=_get_db)
     app.include_router(notifications_router)
     logger.info("Notifications API loaded")
 except ImportError as e:

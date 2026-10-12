@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import sqlite3
 import subprocess
 from pathlib import Path
 from typing import Callable, Optional
@@ -40,15 +41,19 @@ router = APIRouter()
 # Injected by main module — see set_helpers().
 _run_args: Optional[Callable[..., str]] = None
 _audit: Optional[Callable[..., None]] = None
+# Optional: only the scrub-schedule endpoints read the audit log.
+_get_db: Optional[Callable[[], sqlite3.Connection]] = None
 
 
 def set_helpers(
     run_args: Callable[..., str],
     audit: Callable[..., None],
+    get_db: Optional[Callable[[], sqlite3.Connection]] = None,
 ) -> None:
-    global _run_args, _audit
+    global _run_args, _audit, _get_db
     _run_args = run_args
     _audit = audit
+    _get_db = get_db
 
 
 def _dev(name: str) -> str:
@@ -243,6 +248,124 @@ def _reconcile_pool_devices(cfg) -> bool:
 
 # scrub results we've already logged, so polling doesn't spam the audit log
 _scrub_logged: set = set()
+
+
+@router.get("/api/storage/scrub-schedule")
+async def scrub_schedule(user=Depends(verify_token)):
+    """Scheduled-scrub configuration + whether the timer is actually running,
+    plus when each pool was last scrubbed.
+
+    "Last scrubbed" is derived from the audit trail (`storage.pool.scrub_done`
+    / `..._scheduled`) rather than a second bookkeeping store: the audit log is
+    already the durable record, and deriving avoids two things disagreeing."""
+    import forgeos_scrub as fs
+    cfg = fc.load()
+    scrub = cfg.storage.scrub
+    try:
+        timer = fs.ScrubRunner().timer_status()
+    except Exception as exc:                                # noqa: BLE001
+        timer = {"active": False, "state": f"unavailable ({type(exc).__name__})"}
+    return {
+        "enabled": scrub.enabled,
+        "schedule": scrub.schedule,
+        "calendar": fs.oncalendar(scrub.schedule),
+        "pools": scrub.pools,
+        "timer": timer,
+        "scrub_running": _any_scrub_running(),
+        "last_scrub": _last_scrub_times(),
+    }
+
+
+def _any_scrub_running() -> bool:
+    """Is a scrub in progress on any configured pool? Cheap: `btrfs scrub status`
+    is a local read of already-recorded state, and the count of pools on a
+    home NAS is small."""
+    try:
+        for pool in fc.load().storage.pools:
+            mp = pool.resolved_mountpoint()
+            if not mp or not Path(mp).is_mount():
+                continue
+            out = _run_args(["btrfs", "scrub", "status", mp], timeout=10) or ""
+            if re.search(r"Status:\s+running", out):
+                return True
+    except Exception:                                       # noqa: BLE001
+        return False
+    return False
+
+
+@router.post("/api/storage/scrub-schedule")
+async def set_scrub_schedule(body: dict, user=Depends(verify_token)):
+    """Enable/disable or reschedule automatic data scrubbing.
+
+    Scrubbing is what makes the storage promise true (checksum verify + repair
+    from the good copy on a redundant profile). It is on by default OFF because
+    it costs disk I/O and time; the point of this endpoint is that an operator
+    can turn it on once and then stop thinking about it."""
+    import forgeos_scrub as fs
+    from fastapi import HTTPException
+    if user.get("role") != "admin":
+        raise HTTPException(403, "Admin required")
+    cfg = fc.load()
+    scrub = cfg.storage.scrub
+    if "enabled" in body:
+        scrub.enabled = bool(body["enabled"])
+    if "schedule" in body:
+        try:
+            scrub.schedule = scrub.__class__.model_validate(
+                {"schedule": str(body["schedule"])}).schedule
+        except Exception as exc:                            # noqa: BLE001
+            raise HTTPException(400, f"Bad schedule: {exc}")
+    if "pools" in body:
+        want = body["pools"]
+        if not isinstance(want, list):
+            raise HTTPException(400, "pools must be a list")
+        known = {p.name.lower() for p in cfg.storage.pools}
+        for name in want:
+            if re.sub(r"[^a-zA-Z0-9_-]", "", str(name)).lower() not in known:
+                raise HTTPException(400, f"No such pool: {name}")
+        scrub.pools = [str(n) for n in want]
+    fc.save(cfg)
+
+    runner = fs.ScrubRunner()
+    try:
+        if scrub.enabled:
+            runner.setup_timer(fs.oncalendar(scrub.schedule))
+            _audit(user["sub"], "storage.scrub.schedule", "success",
+                   f"scrub scheduled {fs.oncalendar(scrub.schedule)}")
+        else:
+            runner.disable_timer()
+            _audit(user["sub"], "storage.scrub.schedule", "success", "scrub schedule disabled")
+    except Exception as exc:                                # noqa: BLE001
+        raise HTTPException(500, f"Could not update the scrub timer: {exc}")
+    return {"ok": True, "enabled": scrub.enabled, "schedule": scrub.schedule,
+            "calendar": fs.oncalendar(scrub.schedule), "pools": scrub.pools}
+
+
+def _last_scrub_times() -> dict:
+    """Most recent scrub timestamp per pool, read out of the audit log.
+    The scheduled runner writes `storage.pool.scrub_scheduled` and the UI poll
+    writes `storage.pool.scrub_done`; both count as evidence of a scrub."""
+    out: dict[str, str] = {}
+    if _get_db is None:
+        return out
+    try:
+        conn = _get_db()
+        rows = conn.execute(
+            "SELECT detail, timestamp FROM audit_log "
+            "WHERE action LIKE 'storage.pool.scrub%' ORDER BY timestamp DESC"
+        ).fetchall()
+    except Exception:                                       # noqa: BLE001
+        return out
+    for detail, ts in rows:
+        # Two writers, two shapes:
+        #   manual poll   — "tank scrub finished — no errors found"
+        #   scheduled run — "scrubbed: tank, archive; problems: archive"
+        names = re.findall(r"[A-Za-z0-9_-]+", (detail or "").split("scrub finished")[0])
+        if detail and detail.startswith("scrubbed:"):
+            names = re.findall(r"[A-Za-z0-9_-]+", detail.split("scrubbed:")[1].split(";")[0])
+        for name in names:
+            out.setdefault(name, ts)
+    return out
 
 
 @router.get("/api/storage/scrub-status/{pool}")

@@ -794,8 +794,46 @@ class InstallConfig(BaseModel):
     configured: bool = False
 
 
+class ScrubConfig(BaseModel):
+    """Automatic data-scrubbing (btrfs scrub) for configured pools.
+
+    Without this, scrubbing is a button a human has to remember to press, so
+    the "healthy" the UI shows is a snapshot rather than a promise. With it,
+    btrfs verifies checksums — and repairs from the good copy on a redundant
+    profile — on a schedule, before a second copy rots too.
+
+    Note the honest limit: on a `single` profile (or any LHSR tier rendered
+    single) a scrub can DETECT corruption but has no second copy to repair
+    from. Detection still happens; only the repair does not.
+    """
+
+    enabled: bool = False
+    schedule: str = "monthly"     # daily | weekly | monthly, or a raw OnCalendar
+    pools: list[str] = Field(default_factory=list)   # empty = every configured pool
+
+    @field_validator("schedule")
+    @classmethod
+    def _valid_schedule(cls, v: str) -> str:
+        s = (v or "").strip()
+        if not s:
+            raise ValueError("schedule required")
+        return s
+
+    @field_validator("pools")
+    @classmethod
+    def _valid_pool_names(cls, v: list[str]) -> list[str]:
+        out = []
+        for name in v or []:
+            s = re.sub(r"[^a-zA-Z0-9_-]", "", str(name))
+            if not s:
+                raise ValueError("pool name required")
+            out.append(s)
+        return out
+
+
 class StorageConfig(BaseModel):
     pools: list[StoragePool] = Field(default_factory=list)
+    scrub: ScrubConfig = Field(default_factory=ScrubConfig)
 
     @field_validator("pools")
     @classmethod
@@ -835,7 +873,7 @@ class AuthConfig(BaseModel):
     require_totp_new_users: bool = False
 
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 
 class ForgeOSConfig(BaseModel):
@@ -984,6 +1022,13 @@ def _migrate_v11_to_v12(data: dict) -> dict:
     return data
 
 
+def _migrate_v12_to_v13(data: dict) -> dict:
+    """v13: automatic data-scrubbing config. Additive."""
+    data.setdefault("storage", {}).setdefault("scrub", {})
+    data["version"] = 13
+    return data
+
+
 _MIGRATIONS = {
     1: _migrate_v1_to_v2,
     2: _migrate_v2_to_v3,
@@ -996,6 +1041,7 @@ _MIGRATIONS = {
     9: _migrate_v9_to_v10,
     10: _migrate_v10_to_v11,
     11: _migrate_v11_to_v12,
+    12: _migrate_v12_to_v13,
 }
 
 
