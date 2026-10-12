@@ -20,9 +20,11 @@
         return '<div class="field"><label>'+esc(x.label)+'</label><select id="mf-'+x.id+'">'+op+'</select></div>'}
       return '<div class="field"><label>'+esc(x.label)+'</label><input id="mf-'+x.id+'" type="'+(x.type||'text')+'" placeholder="'+esc(x.ph||'')+'" value="'+esc(x.val||'')+'"></div>'}).join('');
     back.innerHTML='<div class="modal"><h3>'+esc(o.title)+'</h3><p class="sub">'+esc(o.sub||'')+'</p>'+(o.warn?'<div class="warn-box">'+esc(o.warn)+'</div>':'')+f+
+      (o.extra||'')+
       '<div class="row"><button class="btn-ghost" data-x>Cancel</button><button class="'+(o.danger?'btn-pri btn-danger':'btn-pri')+'" data-go>'+esc(o.cta||'Confirm')+'</button></div></div>';
     document.body.appendChild(back);var close=function(){back.remove()};
     back.addEventListener('click',function(e){if(e.target===back||e.target.hasAttribute('data-x'))close()});
+    if(o.onMount)o.onMount(back);
     $('[data-go]',back).addEventListener('click',function(){var v={};(o.fields||[]).forEach(function(x){v[x.id]=($('#mf-'+x.id,back)||{}).value});
       Promise.resolve(o.onSubmit(v)).then(function(ok){if(ok!==false)close()})});
     var fi=back.querySelector('input,select');if(fi)fi.focus();
@@ -33,8 +35,8 @@
     var pr=await api('/api/storage/pools'); var p=pr.data; var box=$('#pool-list');POOLS=(p&&p.pools)||[];
     if(!pr.ok&&!p){box.innerHTML='<p class="empty-state">Could not read pools — is the storage API up? <a href="#" onclick="location.reload();return false">Retry</a></p>';$('#array-chip').textContent='Error';return}
     if(POOLS.length){
-      var worst='ok',ord={ok:0,predict:1,warn:2,rebuilding:2,err:3};
-      POOLS.forEach(function(x){if((ord[x.health]||0)>(ord[worst]||0))worst=x.health});
+      var v=ForgeHealth.storage(POOLS,[]);
+      var worst=v.pool.worst;
       $('#array-chip').textContent=POOLS.length+' array'+(POOLS.length>1?'s':'')+' · '+(worst==='ok'?'Healthy':worst);
       box.innerHTML=POOLS.map(function(x){
         var lvl=(x.raid_level||'').toUpperCase().replace('RAID','RAID ');
@@ -101,8 +103,23 @@
   }
   function mediaLabel(m){return m==='nvme'?'NVMe':m==='ssd'?'SSD':'HDD';}
 
+  // Plain words for drive health, so a non-techie doesn't have to interpret a
+  // percentage. Vocabulary deliberately matches DSM's (Healthy / Degraded /
+  // Crashed / abnormal) so it reads the way the box they know reads.
+  // ponytail: thresholds only; no per-attribute SMART interpretation. A real
+  // reading of reallocated/pending sectors is a follow-up, not a guess.
+  var SMART_OK=90, SMART_WARN=60;
+  function driveVerdict(dr){
+    var h=(typeof dr.health==='number')?dr.health:null;
+    if(h===null) return {lvl:'warn',word:'Not checked',say:'This drive has not been checked yet'};
+    if(h>=SMART_OK) return {lvl:'ok',word:'Healthy',say:'The drive is healthy.'};
+    if(h>=SMART_WARN) return {lvl:'warn',word:'Degraded',say:'Drive health is abnormal. Keep an eye on it and make sure your backups are current.'};
+    return {lvl:'err',word:'Crashed',say:'Drive health status is abnormal. We recommend replacing the drive.'};
+  }
+
   function driveCard(dr){
-    var lvl=dr.health>=90?'ok':dr.health>=60?'warn':'err';
+    var v=driveVerdict(dr);
+    var lvl=v.lvl;
     var name=esc(dr.name.replace('/dev/',''));
     var temp=dr.temp?dr.temp+' °C':'—';var tcls=dr.temp>=55?'err':dr.temp>=45?'warn':'ok';
     var media=dr.media||'hdd';
@@ -121,9 +138,12 @@
       '<div class="drive-meta"><div class="cell"><span>Capacity</span><strong>'+esc(dr.size||'—')+'</strong></div>'+
       '<div class="cell"><span>Media</span><strong>'+mediaLabel(media)+'</strong></div>'+
       '<div class="cell"><span>Temp</span><strong class="lvl '+tcls+'" style="color:var(--'+(tcls==='ok'?'success':tcls==='warn'?'warn':'danger')+')">'+temp+'</strong></div>'+
-      '<div class="cell"><span>Health</span><strong>'+dr.health+'%</strong></div></div>'+
-      '<div class="drive-health"><div class="health-row"><span>SMART status</span><span class="lvl '+lvl+'">'+(lvl==='ok'?'Passed':lvl==='warn'?'Warning':'Failing')+'</span></div>'+
-      '<div class="bar '+(lvl==='ok'?'good':lvl==='warn'?'warn':'danger')+'"><i style="width:'+dr.health+'%"></i></div></div>'+
+      '<div class="cell"><span>Health</span><strong class="lvl '+lvl+'" style="color:var(--'+(lvl==='ok'?'success':lvl==='warn'?'warn':'danger')+')">'+v.word+'</strong></div></div>'+
+      // The sentence, not a raw smartctl dump: the "Info" button still opens
+      // the full report for anyone who wants the numbers.
+      '<div class="drive-health"><div class="health-row"><span>SMART status</span><span class="lvl '+lvl+'">'+v.word+'</span></div>'+
+      '<p style="margin:2px 0 0;font-size:11.5px;color:var(--muted);line-height:1.4">'+esc(v.say)+'</p>'+
+      '<div class="bar '+(lvl==='ok'?'good':lvl==='warn'?'warn':'danger')+'"><i style="width:'+(typeof dr.health==='number'?dr.health:0)+'%"></i></div></div>'+
       '<div class="drive-actions">'+
       '<button data-spin="'+esc(dr.name)+'" title="Spin down"><svg viewBox="0 0 24 24"><path d="M12 6v6l4 2"/><circle cx="12" cy="12" r="9"/></svg>Spin</button>'+
       '<button data-replace="'+esc(dr.name)+'" title="Swap"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4"/></svg>Swap</button>'+
@@ -213,10 +233,85 @@
     setTimeout(function(){var m=$('.modal');if(m&&d)m.insertAdjacentHTML('beforeend','<pre style="max-height:300px;overflow:auto;background:var(--surface-2);padding:12px;border-radius:12px;font:500 11px JetBrains Mono,monospace;white-space:pre-wrap">'+esc((d.output||'').slice(0,4000))+'</pre>')},30);
   }
   function doRebuild(pool){
-    modal({title:'Consistency check',sub:'Run a btrfs scrub on '+pool+'. Reads every block and verifies checksums, repairing from the good copy. Safe online; uses disk I/O.',cta:'Start check',
-      fields:[],onSubmit:async function(){var r=await api('/api/storage/pool/rebuild',{method:'POST',body:JSON.stringify({pool:pool})});
+    // A `single` profile has no second copy, so the check can find corruption
+    // but cannot repair it. Say so up front rather than letting a green chip
+    // imply a guarantee the pool cannot make.
+    var po=POOLS.filter(function(p){return p.name===pool})[0]||{};
+    var lvl=String(po.raid_level||'').toLowerCase();
+    SCRUB.detectOnly = lvl==='single'||lvl==='raid0';
+    // Cost-explaining confirm, plus the schedule alternative. A scrub is not
+    // free (it reads every block) and it is not urgent if a schedule exists —
+    // so say what it costs and offer "just run it" vs "run it on a schedule".
+    var sub='A consistency check reads every block on '+pool+' and verifies the checksums, '+
+            'repairing anything wrong from the good copy. The box stays online the whole time, '+
+            'but it will be slower and busier while it runs — usually a few hours on a large pool.';
+    var warn=SCRUB.detectOnly?'This pool has no second copy, so a check can DETECT corruption '+
+            'but cannot repair it. Your data is still protected by your backups.':'';
+    modal({title:'Run a consistency check',sub:sub,warn:warn,cta:'Run now',
+      fields:[],
+      extra:'<div style="margin:14px 0 4px;padding-top:12px;border-top:1px solid var(--line)">'+
+            '<div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">Or let ForgeOS run it for you:</div>'+
+            '<div class="row" style="gap:8px;flex-wrap:wrap">'+
+              SCRUB.scheduleOptions.map(function(s){
+                return '<button class="btn-ghost" data-sched="'+esc(s.value)+'">'+esc(s.label)+'</button>';
+              }).join('')+
+            '</div></div>',
+      onSubmit:async function(){var r=await api('/api/storage/pool/rebuild',{method:'POST',body:JSON.stringify({pool:pool})});
         toast(r.ok?'Scrub started — results will appear in the activity log':(r.data&&r.data.detail)||'Could not start',r.ok?'ok':'err');
-        if(r.ok)pollScrub(pool);return r.ok}});
+        if(r.ok)pollScrub(pool);return r.ok},
+      onMount:function(back){
+        back.querySelectorAll('[data-sched]').forEach(function(b){
+          b.onclick=async function(){
+            var v=b.getAttribute('data-sched');
+            var res=await api('/api/storage/scrub-schedule',{method:'POST',body:JSON.stringify({enabled:true,schedule:v})});
+            toast(res.ok?'Scheduled — checks now run '+v:((res.data&&res.data.detail)||'Could not schedule'),res.ok?'ok':'err');
+            if(res.ok){loadScrubSchedule();pollScrubState();}
+            back.remove();
+          };
+        });
+      }});
+  }
+  // The scrub schedule + when each pool was last checked. Feeds the label
+  // under the Pool Overview chip: a green chip should mean "checked recently",
+  // which means something only once the schedule exists.
+  var SCRUB={enabled:false,schedule:'monthly',calendar:'',timer:null,last:{},detectOnly:false,
+             scheduleOptions:[{value:'weekly',label:'Every week'},{value:'monthly',label:'Every month'},{value:'daily',label:'Every day'}]};
+  async function loadScrubSchedule(){
+    var r=await api('/api/storage/scrub-schedule');var d=r.data;
+    if(!r.ok||!d)return;
+    SCRUB.enabled=!!d.enabled;SCRUB.schedule=d.schedule;SCRUB.calendar=d.calendar;
+    SCRUB.timer=d.timer||null;SCRUB.last=d.last_scrub||{};
+    var el=$('#scrub-status');if(!el)return;
+    // Most recent check across any pool. Deliberately NOT keyed off POOLS[0]:
+    // this runs concurrently with loadPools() on first paint, so POOLS may
+    // still be empty and the panel would say "never checked" forever.
+    var last=null;
+    Object.keys(SCRUB.last).forEach(function(k){if(!last||SCRUB.last[k]>last)last=SCRUB.last[k];});
+    var when=last?('Last checked '+String(last).replace('T',' ').slice(0,16)):'';
+    if(SCRUB.enabled){
+      el.innerHTML=when?(when+' · '):'';
+      el.innerHTML+=esc('Scheduled '+SCRUB.schedule)+' · next check '+esc(SCRUB.calendar)+
+        (SCRUB.timer&&SCRUB.timer.active?'':' · <b style="color:var(--warn)">timer not running</b>');
+    } else {
+      el.innerHTML=when?(when+' · not scheduled'):'Not scheduled · no pool has been checked yet';
+    }
+  }
+  // Ambient progress, mirrored into the sidebar tray by nav.js.
+  var SCRUB_STATE={running:false,label:''};
+  async function pollScrubState(){
+    for(var i=0;i<POOLS.length;i++){
+      var r=await api('/api/storage/scrub-status/'+encodeURIComponent(POOLS[i].name));
+      var d=r.data;if(!d)continue;
+      if(d.status==='running'){
+        SCRUB_STATE.running=true;
+        SCRUB_STATE.label='Checking '+POOLS[i].name+'…';
+        ForgeScrubTray.set(SCRUB_STATE);
+        setTimeout(pollScrubState,5000);
+        return;
+      }
+    }
+    SCRUB_STATE.running=false;SCRUB_STATE.label='';
+    ForgeScrubTray.set(SCRUB_STATE);
   }
   // poll scrub status until finished; each poll records completion to the log
   function pollScrub(pool,tries){
@@ -250,7 +345,7 @@
         toast(r.ok?'Pool created':(r.data&&r.data.detail)||'Create failed',r.ok?'ok':'err');if(r.ok){loadPools();loadDrives();loadCapacity()}return r.ok}});
   }
 
-  function refresh(){loadPools();loadCapacity();loadDrives();loadLog();loadLhsrTrends();loadUnmanaged()}
+  function refresh(){loadPools();loadCapacity();loadDrives();loadLog();loadLhsrTrends();loadUnmanaged();loadScrubSchedule();pollScrubState()}
 
   // ── LHSR Planner ──
   async function loadLhsrPlanner(){

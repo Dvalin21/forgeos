@@ -181,6 +181,10 @@
       '<div class="sidebar-footer">' +
         '<strong id="sf-title">NAS Health: <span data-live="health">checking…</span></strong>' +
         '<span id="sf-detail">Reading pool state, SMART status, and snapshot replication…</span>' +
+        // Ambient background-task line (DSM's background-task tray, minus the
+        // window manager). Present on every page so a long check never has to
+        // be babysitted from the Storage page.
+        '<span id="sf-tray" class="sf-tray" hidden></span>' +
       "</div>";
 
     aside.innerHTML = html;
@@ -251,18 +255,15 @@
         var pools = (pdata && pdata.pools) || [];
         return fetch("/api/storage/drives", H).then(function (r) { return r.json().catch(function () { return null; }); }).then(function (ddata) {
           var drv = (ddata && ddata.drives) || [];
-          var poolBad = pools.some(function (x) { return x.health && x.health !== "ok"; });
-          var goodDrives = drv.filter(function (x) { return typeof x.health === "number" ? x.health >= 90 : true; }).length;
-          var ok = drv.length && goodDrives === drv.length && !poolBad;
+          // One verdict, shared with the dashboard hero and the Storage chip
+          // (js/health.js). Previously this re-derived it and could disagree
+          // with them — e.g. it treated a drive with no SMART reading as
+          // healthy while the dashboard counted it as failed.
+          var v = ForgeHealth.storage(pools, drv);
           var titleEl = document.querySelector("#sf-title [data-live=\"health\"]");
           var detEl = document.querySelector("#sf-detail");
-          if (titleEl) titleEl.textContent = poolBad || drv.length !== goodDrives ? "Attention" : pools.length ? "All good" : "Ready";
-          if (detEl) {
-            var parts = [];
-            if (pools.length) parts.push(pools.length + " pool" + (pools.length === 1 ? "" : "s"));
-            if (drv.length) parts.push(goodDrives + "/" + drv.length + " drives healthy");
-            detEl.textContent = parts.length ? parts.join(" · ") : "No storage data";
-          }
+          if (titleEl) titleEl.textContent = v.label;
+          if (detEl) detEl.textContent = ForgeHealth.detail(pools, drv);
         });
       }).then(function () { done = true; }, function () {
         done = true;
@@ -327,11 +328,80 @@
     }, { passive: true });
   }
 
+  // ── ambient background-task tray ──────────────────────────
+  // One small line in the sidebar footer for work happening in the
+  // background (today: the data scrub). Pages push state into it rather than
+  // each inventing their own progress UI, which is what DSM's background-task
+  // tray does — minus the window manager.
+  var tray = {
+    set: function (state) {
+      var el = document.querySelector("#sf-tray");
+      if (!el) return;
+      if (!state || !state.running || !state.label) { el.hidden = true; el.textContent = ""; return; }
+      var pct = typeof state.progress === "number" ? Math.max(2, Math.min(100, state.progress)) : 0;
+      el.hidden = false;
+      el.textContent = state.label;                 // textContent: never innerHTML
+      if (pct) {                                     // a pool label, but treat it as untrusted anyway
+        var bar = document.createElement("span");
+        bar.className = "sf-tray-bar";
+        var fill = document.createElement("i");
+        fill.style.width = pct + "%";
+        bar.appendChild(fill);
+        el.appendChild(bar);
+      }
+    }
+  };
+  window.ForgeScrubTray = tray;
+
+  // Keeps the tray honest on pages that never touch storage.js: one cheap
+  // poll for a running scrub, so a scheduled run is visible everywhere and not
+  // only to whoever started it.
+  function trayPoll() {
+    var tk = "";
+    try { tk = localStorage.getItem("forgeos_token") || ""; } catch (x) {}
+    fetch("/api/storage/scrub-schedule", { headers: { "Authorization": "Bearer " + tk } })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (d) {
+        if (!d || !d.pools || !d.pools.length) { tray.set(null); return; }
+        // Only the running flag is reported cheaply; the progress number comes
+        // from the per-pool status endpoint when one is actually running.
+        tray.set(d.scrub_running ? { running: true, label: "Data check in progress…" } : null);
+      })
+      .catch(function () {});
+  }
+
+  // ── honest loading watchdog ────────────────────────────
+  // Pages ship static "Loading…" text inside their containers. If the fetch
+  // that replaces it never resolves (API down, JS error, hung socket) the user
+  // is left staring at "Loading…" forever — which reads as "still working" and
+  // is the one thing that must never lie on a NAS. One watchdog here covers
+  // every page, instead of a per-page timeout nobody would remember to add.
+  var LOADING_CEILING = 12000;   // a normal read is well under this
+  function loadingWatchdog() {
+    setTimeout(function () {
+      var nodes = document.querySelectorAll(
+        "#shares,#rules,#jails,#vhosts,#db-list,#if-grid,#catalog-grid," +
+        "#containers-grid,#services-grid,#rt-body,#domain-list,#connections,#apps-grid");
+      Array.prototype.forEach.call(nodes, function (el) {
+        if (!el) return;
+        if (!/^Loading/i.test((el.textContent || "").trim())) return;  // already loaded
+        el.classList.add("empty-state");
+        el.textContent = "Could not load this — the API did not answer. ";
+        var a = document.createElement("a");
+        a.href = "#";
+        a.textContent = "Try again";
+        a.onclick = function (ev) { ev.preventDefault(); location.reload(); };
+        el.appendChild(a);
+      });
+    }, LOADING_CEILING);
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", function () { mount(); wireNavScroll(); shortPoll(); setInterval(shortPoll, 60000); });
+    document.addEventListener("DOMContentLoaded", function () { mount(); wireNavScroll(); shortPoll(); trayPoll(); loadingWatchdog(); setInterval(shortPoll, 60000); setInterval(trayPoll, 60000); });
   } else {
     mount();
     wireNavScroll();
-    shortPoll(); setInterval(shortPoll, 60000);
+    shortPoll(); trayPoll(); loadingWatchdog();
+    setInterval(shortPoll, 60000); setInterval(trayPoll, 60000);
   }
 })();

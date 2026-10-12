@@ -199,25 +199,27 @@
       var tp = totSize ? Math.round(100 * totUsed / totSize) : 0;
       setRing("disk", tp, tp < 1 ? "<1%" : tp + "%", fmtBytes(totSize - totUsed) + " free");
     } else { vl.innerHTML = "<div class='vol-empty'>No storage pools yet.</div>"; }
-    if (pools.length) {
+if (pools.length) {
       var p = pools[0];
-      var bad = pools.some(function (x) { return x.health && x.health !== "ok"; });
+      var pv = ForgeHealth.worstPool(pools);
       var nd = (p.devices || []).length;
       var raid = (p.raid_level || "").toUpperCase();
       setLive("st-sub", raid === "RAID1" ? "Mirrored across " + nd + " disks"
                        : raid ? raid + " across " + nd + " disks" : "Single-disk pool");
-      setLive("st-chip", bad ? "Attention" : "Online");
+      setLive("st-chip", pv.bad ? "Needs attention" : "Online");
       setHealth("pool", "pool", "Storage pool",
-        (raid ? raid + " \u00b7 " : "") + nd + " disk" + (nd === 1 ? "" : "s") +
-        (bad ? " \u2014 " + p.health : " online"),
-        bad ? "bad" : "ok");
+        (raid ? raid + " · " : "") + nd + " disk" + (nd === 1 ? "" : "s") +
+        (pv.bad ? " — " + pv.worst : " online"),
+        pv.bad ? "bad" : "ok");
     } else { setLive("st-sub", "No pool configured"); setLive("st-chip", "—"); }
     if (drv.length) {
-      var pass = drv.filter(function (x) { return x.health >= 90; }).length;
+      // shared tally (js/health.js) — a drive with no SMART reading counts as
+      // unknown, never as healthy, and the sidebar/Storage page agree.
+      var dc = ForgeHealth.driveCount(drv);
       setHealth("drives", "drive", "Drives",
-        pass === drv.length ? "All " + drv.length + " drives passed their health checks"
-                            : pass + " of " + drv.length + " drives healthy — check Storage",
-        pass === drv.length ? "ok" : "bad");
+        dc.bad ? dc.healthy + " of " + dc.total + " drives healthy — check Storage"
+               : "All " + dc.total + " drives passed their health checks",
+        dc.bad ? "bad" : "ok");
     }
     paintHealth();
   }

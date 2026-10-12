@@ -18,6 +18,7 @@ import pytest
 _ROOT = Path(__file__).resolve().parent.parent
 _HARNESS = _ROOT / "tests" / "frontend" / "network_init.test.js"
 _NAV_HARNESS = _ROOT / "tests" / "frontend" / "nav_scroll.test.js"
+_HEALTH_HARNESS = _ROOT / "tests" / "frontend" / "health_truth.test.js"
 
 
 def _node_with_jsdom() -> bool:
@@ -45,3 +46,27 @@ def test_nav_scroll_position_logic():
     r = subprocess.run(["node", str(_NAV_HARNESS)], cwd=str(_ROOT),
                        capture_output=True, text=True, timeout=60)
     assert r.returncode == 0, f"nav.js scroll test failed:\n{r.stderr}\n{r.stdout}"
+
+
+def _node_available() -> bool:
+    return shutil.which("node") is not None
+
+
+@pytest.mark.skipif(not _node_available(), reason="node unavailable")
+def test_storage_health_is_one_shared_verdict():
+    """js/health.js is the single storage-health verdict. Sidebar, dashboard
+    and Storage chip all read it; if they ever disagree again the green chip
+    lies about the box, so the rules are pinned here."""
+    r = subprocess.run(["node", str(_HEALTH_HARNESS)], cwd=str(_ROOT),
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, f"health.js verdict test failed:\n{r.stderr}\n{r.stdout}"
+
+
+def test_health_js_loaded_on_every_page():
+    """ForgeHealth must exist before any page calls it. A page missing the
+    script tag throws ReferenceError at runtime — invisible to every Python
+    test, fatal in the browser."""
+    pages = sorted((_ROOT / "web" / "desktop").glob("*.html"))
+    assert pages, "no desktop pages found"
+    missing = [p.name for p in pages if "js/health.js" not in p.read_text()]
+    assert missing == [], f"pages not loading health.js: {missing}"

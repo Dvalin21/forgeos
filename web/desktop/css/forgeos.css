@@ -164,6 +164,32 @@
     .sidebar-footer strong { display: block; margin-bottom: 8px; font-size: 13px; }
     .sidebar-footer span { color: var(--muted); font-size: 12px; line-height: 1.45; }
 
+    /* Ambient background-task line in the sidebar footer. Only visible while
+       something is running, so it costs no attention when idle. */
+    .sidebar-footer .sf-tray {
+      display: block;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--line);
+      color: var(--text);
+      font-weight: 600;
+    }
+    .sidebar-footer .sf-tray[hidden] { display: none; }
+    .sidebar-footer .sf-tray .sf-tray-bar {
+      display: block;
+      height: 4px;
+      margin-top: 6px;
+      border-radius: 999px;
+      background: var(--line);
+      overflow: hidden;
+    }
+    .sidebar-footer .sf-tray .sf-tray-bar > i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--primary, #2962ff);
+    }
+
     .main {
       min-width: 0;
       padding: 22px 28px 34px;
@@ -379,6 +405,33 @@
       justify-content: space-between;
       gap: 16px;
       margin-bottom: 16px;
+    }
+
+    /* Collapsed specialist panels (LHSR planner, SMART trends). Native
+       <details> — no JS, keyboard accessible, and the page reads short until
+       someone actually needs the power tool. */
+    .storage-collapse { margin-top: 14px; }
+    .storage-collapse > summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      cursor: pointer;
+      list-style: none;
+      margin-bottom: 0;
+    }
+    .storage-collapse > summary::-webkit-details-marker { display: none; }
+    .storage-collapse > summary h3::after {
+      content: " ▸";
+      color: var(--muted);
+      font-weight: 400;
+    }
+    .storage-collapse[open] > summary h3::after { content: " ▾"; }
+    .storage-collapse[open] > summary { margin-bottom: 14px; }
+    .storage-collapse > summary:focus-visible {
+      outline: 2px solid var(--primary, #2962ff);
+      outline-offset: 3px;
+      border-radius: 8px;
     }
 
     .section-head h3 { margin: 0; font-size: 18px; letter-spacing: -.03em; }
