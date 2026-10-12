@@ -544,6 +544,37 @@ class TestPruneContainers:
         assert ["container", "prune", "-f"] in calls
 
 
+class TestRouteOwnership:
+    """forgeos_pages_api used to define /api/docker/{wipe,update-check,run} a
+    SECOND time. Both routers are mounted (forgeos-api.py: docker_lxc first,
+    pages second) so the pages copies were dead code that would have silently
+    started serving if the include order ever changed. They are deleted; this
+    pins that exactly one implementation owns each path."""
+
+    def test_no_duplicate_docker_routes(self):
+        import docker_lxc_api as d
+        import forgeos_pages_api as p
+        owned = {}
+        for mod in (d, p):
+            for r in mod.router.routes:
+                path = getattr(r, "path", "")
+                methods = frozenset(getattr(r, "methods", set()) or set())
+                if not path.startswith("/api/docker") or not methods:
+                    continue
+                owned.setdefault((path, methods), []).append(mod.__name__)
+        dupes = {k: v for k, v in owned.items() if len(v) > 1}
+        assert dupes == {}, f"duplicate /api/docker routes: {dupes}"
+
+    def test_served_handler_is_docker_lxc(self, test_client, auth_headers):
+        # Both implementations rejected a bad name with different 400 text:
+        # docker_lxc's _valid_ref -> "invalid container: ''" ; the deleted
+        # pages copy's _container_safe -> "Invalid container name".
+        r = test_client.post("/api/docker/wipe", headers=auth_headers,
+                             json={"name": ""})
+        assert r.status_code == 400
+        assert r.json()["detail"] == "invalid container: ''"
+
+
 class TestAppsRootAllowlist:
     """apps_root validator: denylist -> resolve + allowlist. The old denylist
     was bypassable (/etc/../etc -> /etc; /bin /lib /sys never listed)."""
