@@ -85,6 +85,10 @@ yarn-error.log*
 # ── Prototypes (keep local, do not push) ──────────────────────
 web/desktop/index5-integrated.html
 
+# ── Clean-room research (local only, NEVER commit or push) ───
+# DSM/Synology-derived behavior research. Keep out of history entirely.
+docs/DSM-UI-RESEARCH.md
+
 # ── Backup / temp files ───────────────────────────────────────
 *.bak
 *.backup

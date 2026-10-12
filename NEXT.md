@@ -1,97 +1,146 @@
-# ForgeOS review — continuation (2026-08-26)
+# ForgeOS — NEXT (updated 2026-10-12)
 
-## Status
+## HEAD
 
-Read-only review of `v2-rearchitect` HEAD `3cebb1c`. No files modified, no commits made.
+Branch `v2-rearchitect` @ `8ac5c79`. **Working tree has uncommitted work (see below).**
+Detail: `PRODUCTION_REVIEW.md` (verdict: NOT PRODUCTION READY, 5.5/10).
 
-Test suite: **970 pass / 1 fail / 2 skipped** (2026-08-26 post-fix run). Prior review had 965/8/10/2.
+## Uncommitted work (2026-10-12 session) — NOT yet on the VM
 
-## Real product bugs (FIXED — verify with full suite)
+Suite: **1026 pass / 6 fail / 2 skip**. The 6 failures are the pre-existing
+environmental ones (unchanged, all test-infra, zero product bugs):
 
-All three real bugs from the prior review are now fixed and verified by the targeted test files (test_v2_osbackup_runtime, test_net_write, test_v2_security_generator, test_pages, test_system, test_forgeos_atomic all green).
+- `tests/test_auth_session_revocation.py::TestEpochEnforcement` ×3 — conftest `_DATA_DIR` not isolated
+- `tests/test_auth_session_revocation.py::TestChangePasswordRevokesSessions` ×1 — same cause
+- `tests/test_storage.py::TestAuditPrefixFilter::test_prefix_filters_to_storage` — same cause
+- `tests/test_docker_api.py::TestRun::test_create_builds_correct_args` — `_used_host_ports()` not mocked
 
-- **Bug A** — FIXED. Added `from forgeos_atomic import atomic_write as _atomic_write` at top of `src/forgeos_osbackup.py:18`.
-- **Bug B** — FIXED. Added `from system_api import get_cpu_usage, get_memory, get_load, get_temps` to the system_api import block in `src/forgeos-api.py:913`.
-- **Bug C** — FIXED. In `src/forgeos_pages_api.py:726-728`, root folder chmod now guarded by `if apply_dirs:` — when only `apply_files=True`, the root dir keeps its x-bit and `os.walk` descends correctly.
-- **Bug D** — DEBUNKED (was never a bug). Drop.
+### Deployed to the VM — FULLY verified 2026-10-12 (afternoon)
 
-### Verification status (2026-08-26, post-fix)
-- test_net_write: 17 passed
-- test_v2_security_generator: 6 passed
-- test_v2_osbackup_runtime: 12 passed
-- test_v2_rear: 15 passed
-- test_system: 28 passed
-- test_forgeos_atomic: 8 passed
-- test_pages: 33 passed (includes `test_apply_files_only_leaves_dirs` which was failing due to Bug C)
-- Full suite (excluding TestEpochEnforcement): **970 pass / 1 fail / 2 skipped** (0:03:10)
-  - 1 failure: `test_notifications.py::TestAuthBoundary::test_alert_webhook_deleted` — test expects 404, gets 405. NEXT.md previously classified as "Test expects wrong HTTP status." CONFIRMED: not a product bug.
+Backup: `/opt/forgeos.bak-20261012`. Python `py_compile` pre-flight on the box
+before install. `forgeos-api` active, `/health` ok, journal clean.
+Local suite: **1031 pass / 6 fail (all pre-existing) / 2 skip**.
 
-## Test failure classification
+Verified live on 10.0.0.69:
+- `GET /api/storage/scrub-schedule` → 200 with `last_scrub` derived from the
+  audit log
+- `POST /api/docker/wipe` → `invalid container: ''` = docker_lxc's handler
+  serves, so the shadowing fix is live
+- notification posted → API restarted → **SURVIVED**
+- `POST /api/storage/scrub-schedule {"enabled":true,"schedule":"weekly"}` → 200,
+  timer active, `list-timers` shows **Sun 2026-10-18 02:30 CDT**
+- `forgeos-storage scrub run` as root → `tank: clean`; `btrfs scrub status`
+  confirms a REAL scrub (`Status: finished`, `Error summary: no errors found`,
+  704 KiB — the pool really is nearly empty, so 0.5s is honest, not a no-op)
+- after that run the audit row appeared and `last_scrub` moved to the
+  scheduled timestamp — the whole schedule→run→record→display chain works
+- Storage page: 2 collapsed `<details>`, `#scrub-status`, `health.js` tag,
+  `ForgeScrubTray` + `loadingWatchdog` in nav.js, `health.js` present on
+  index/storage/shares
 
-**Environmental (conftest gap, not product bugs):**
-- 3× `TestEpochEnforcement` failures + `test_prefix_filters_to_storage` — `_DATA_DIR` not isolated by conftest; `_get_db()` tries to open `/var/lib/forgeos/forgeos.db` which doesn't exist in sandbox. Pass when `FORGEOS_DATA_DIR` pointed at temp dir.
-- 10× `PermissionError` in `test_pages.py` — tests run as non-root; chmod to 644 strips x-bit on dirs, `os.stat` on those dirs fails. Test-infra issue.
+**The VM is now left with scrub scheduling ENABLED (weekly).** One click in the
+Storage page turns it off.
 
-**Real product bug surfaced by test:**
-- `test_apply_files_only_leaves_dirs` — caused by Bug C above.
+#### Bugs the hardware found that the tests did not
 
-**Test expects wrong HTTP status:**
-- `test_alert_webhook_deleted` — expects 404, gets 405. `/api/alert-webhook` genuinely doesn't exist (v1 deletion confirmed). FastAPI returns 405 for non-existent path + method. Test assertion wrong.
+1. **API could not install its own timer.** `ProtectSystem=strict` makes
+   `/etc/systemd/system` read-only and the allowlist didn't cover it. Fixed the
+   way this codebase already handles `/etc/resolv.conf` + `/etc/hostname`: a
+   narrow per-FILE `ReadWritePaths` carve-out in
+   `install/v2/forgeos_install.py:144` (plus the LHSR snapshot pair — same
+   latent bug). Traps baked into `/tmp/vm_fix_units.sh`: the unit files must
+   exist BEFORE the restart or a `-` entry for a missing path never becomes
+   writable (the documented "dbserver bug"), and on installed boxes the live
+   unit must be patched by hand.
+2. **Console scripts don't run `/opt/forgeos`.** They import from
+   `/usr/local/lib/python3.13/dist-packages`, so the deployed
+   `forgeos-storage scrub run` was unreachable and the Sunday timer would have
+   failed. **An upgrade must reinstall the package, not just copy files.**
+3. **The scheduled runner's default audit was a no-op lambda** — a real scrub
+   ran, reported clean, and recorded nothing, so "last checked" would have
+   stayed frozen at the last manual scrub. Now writes to `audit_log` directly
+   (`forgeos_scrub._default_audit`); pinned by `TestDefaultAudit`, which uses
+   the DEFAULT runner instead of an injected fake.
 
-**Test needs additional mocking (pre-existing gap):**
-- `test_create_builds_correct_args` — returns 409 not 200. `_docker_fake` doesn't mock `_used_host_ports()`, so port 8080 appears "in use."
+### Shipped-in-tree
 
-## LHSR Hybrid RAID (NEW — ported from LHSR kernel project)
+1. **Docker route shadowing fixed.** `forgeos_pages_api.py` defined
+   `/api/docker/{wipe,update-check,run}` a second time; docker_lxc's copies
+   were the ones serving. Dead duplicates deleted (3 handlers). Proven by the
+   distinct 400 text (`invalid container: ''` vs `Invalid container name`).
+   Pinned by `TestRouteOwnership`.
+   NOTE: `POST /api/docker/update` (pages) is NOT shadowed and is called by
+   nothing — live but dead. Delete or wire it (operator call).
+2. **One storage-health truth.** New `web/desktop/js/health.js`, consumed by
+   `nav.js` + `js/index.js` + `storage.js`, loaded on all 19 pages. Fixes a
+   live contradiction: the sidebar counted a drive with no SMART reading as
+   healthy while the dashboard counted it failed.
+3. **Scheduled data scrub.** `ScrubConfig` (schema v12→v13), `forgeos_scrub.py`
+   (ReaR-timer shape), `forgeos-storage scrub run|schedule`, GET/POST
+   `/api/storage/scrub-schedule`, cost-explaining confirm modal with a
+   schedule alternative, ambient sidebar tray, "last scrubbed" derived from the
+   audit log. 22 tests.
+4. **`lhsr_exec` landmine defused.** It unmounted every tier BEFORE handing the
+   tier mountpoints to mergerfs (span built over empty dirs, tier data
+   unreachable); `force` was read by nothing so nothing stood between a
+   mistyped device / the system disk and `sgdisk --zap-all`; fstab appended
+   non-idempotently. Fixed + 7 tests (the mount-order test was verified to
+   FAIL against the old code).
+5. **SMART as plain words** (Healthy/Degraded/Crashed + sentence), DSM
+   vocabulary, raw smartctl still one click away.
+6. **Loading watchdog** — 16 static "Loading…" placeholders now degrade to an
+   honest "Could not load this — the API did not answer. Try again" instead of
+   lying forever. One watchdog in nav.js, not 16 edits.
+7. **Notifications persist** to SQLite and survive an API restart (was a
+   module-level deque). Rules/routing centre deliberately deferred.
+8. **Storage page collapsed** — LHSR Planner + Disk Health Trends are now
+   `<details>`; the page reads short for a non-techie.
 
-All real product bugs fixed. Now adding LHSR (Hybrid RAID) support — porting the useful parts of the LHSR kernel project's userspace tools into ForgeOS:
+### Blocked
+- **Version chip → release notes** needs the public-repo decision (GitHub URL
+  would 404 otherwise). Not implemented, on purpose.
 
-### New files (6):
-- `src/forgeos_lhsr.py` — Greedy tiering layout engine (ported from `shr.c`)
-- `src/forgeos_lhsr_health.py` — Composite health scoring (ported from `lhsr-health.c`)
-- `src/forgeos_lhsr_trend.py` — SQLite trend database with linear regression (ported from `lhsr-trend.c`)
-- `src/forgeos_lhsr_exec.py` — Execution layer: partition, mkfs.btrfs per tier, mergerfs spanning
-- `src/forgeos_lhsr_scheduler.py` — systemd timer for automatic SMART snapshots
-- `src/lhsr_api.py` — REST API endpoints for all LHSR functions
-- `src/setup_api.py` — First-boot setup wizard API
+## Next
 
-### Modified files (5):
-- `src/forgeos-api.py` — Registers LHSR and Setup routers
-- `src/forgeos_config.py` — Added LhsrConfig, LhsrGroup, InstallConfig (schema v12)
-- `src/forgeos_storage_cli.py` — Added `lhsr plan` and `lhsr create` subcommands
-- `web/desktop/storage.html` + `js/storage.js` — Added LHSR Planner and Health Trends panels
-- `web/desktop/setup.html` + `js/setup.js` — New first-boot setup wizard
+1. **Decide the push.** Nothing is committed. Working tree = 3 fixes + 5
+   features + 41 new tests, all VM-verified. Suggested split (one fault per
+   commit, rules say):
+   - `fix(mcp): drop duplicate docker routes shadowed by docker_lxc_api`
+   - `feat(storage): scheduled btrfs scrub (config v13, timer, API, UI)`
+   - `fix(installer): allow the API to write its own timer units`
+   - `feat(ui): one storage-health verdict, plain-words SMART, honest loading`
+   - `fix(lhsr): do not unmount tiers before mergerfs; guard destructive exec`
+   - `feat(ui): collapsible storage panels; notifications persist`
+2. Hardware verification on real iron (installer, LHSR exec on real disks,
+   WireGuard, backup restore, mDNS).
+3. **V-022 can be closed** — v1 bash installer was deleted in `a3f55c4`;
+   `PRODUCTION_REVIEW.md:45` and `PRODUCTION_READINESS.md:394` still list it
+   OPEN and are wrong.
+4. **V-012 is smaller than recorded** — `forgeos_config.load()` already
+   migrates in-memory (`forgeos_config.py:1031`); only the persist-back is
+   missing and only `forgeos-generate` calls `load_and_upgrade()`. Re-grade it.
+5. Decide `POST /api/docker/update` (pages) — live, uncalled, shadow-free.
+6. `POST /api/storage/drive/fail` is a 409 stub behind a UI button.
+7. conftest `_DATA_DIR` isolation (fixes 5 of the 6 failures), then the docker
+   `_used_host_ports()` mock.
 
-### Naming convention:
-- LHSR1 = single parity (RAID5-like)
-- LHSR2 = dual parity (RAID6-like)
-- No Synology SHR naming anywhere in ForgeOS
+## Known gap class found 2026-10-12 — backend with no UI
 
-### What works:
-- `forgeos-storage lhsr plan /dev/sdb /dev/sdc /dev/sdd` — computes layout
-- `POST /api/lhsr/plan` — JSON API for layout computation
-- `GET /api/lhsr/health/sdb` — composite health score (0-100)
-- `GET /api/lhsr/trends` — SMART trend data with predictive warnings
-- `POST /api/lhsr/trends/snapshot` — record SMART snapshot
-- `POST /api/lhsr/scheduler` — install/remove SMART snapshot timer
-- Web UI: LHSR Planner + Disk Health Trends panels on Storage page
-- Setup Wizard: 6-step first-boot configuration (network, system, OS drive, LHSR groups, monitoring, review)
+Audited every route against every `web/desktop/js/*.js` call. Real gaps (the
+capability exists in the API, nothing in the UI can reach it):
 
-### Architecture:
-```
-Filesystem (userspace)
-     ↓
-mergerfs (spans tiers into one mountpoint)
-     ↓
-Tier 0 (btrfs RAID5)   Tier 1 (btrfs RAID1)   ...
-     ↓                       ↓
-Partitions on disks     Partitions on disks
-     ↓                       ↓
-Physical disks          Physical disks
-```
+- **LXC**: only the container LIST is called. start/stop/restart/destroy/
+  snapshot/exec/info are unreachable, and **there is no create endpoint at all**
+  — LXC containers cannot be created through ForgeOS by any route.
+- **Docker Compose**: up/down/start/stop/restart/pull/build, compose-file
+  GET/PUT, services, logs, project CRUD — all unreachable.
+- **Docker images**: list + delete unreachable.
+- **RustFS/S3** (`rustfs_api.py`, 11 endpoints): entirely unreachable (the Apps
+  page only edits a config.yaml textarea).
+- **NFS**: config + generator exist, zero UI, no wiki page.
+- **LHSR health** per-device, **Snapper snapshot list**, `/api/storage/drive/fail`.
 
-btrfs handles per-tier redundancy, mergerfs handles cross-tier spanning. No custom kernel module needed.
+## Prior checkpoint
 
-### TODO:
-- `lhsr create` execution (partitioning, mkfs, LVM setup) — plan works, disk manipulation wired but untested on real hardware
-- Installer ISO integration (add LHSR choices to install flow)
-- Real-hardware testing of mergerfs + btrfs tier spanning
+`git show 379c362 -- NEXT.md` (2026-08-26: Bugs A–C fixed, LHSR ported, 970/1/2).
+Superseded by `PRODUCTION_REVIEW.md` 2026-10-06 (989/6/2).
