@@ -104,6 +104,25 @@ def execute_layout(
     """
     run = runner or _run
 
+    # Step 0: refuse to touch a disk that isn't ours to destroy.
+    # `sgdisk --zap-all` below is unconditional, so WITHOUT this guard a
+    # mistyped --dev path (or the system disk) gets wiped. `force` only waives
+    # the "already has a partition table" refusal — it never waives the
+    # system/mounted/in-array guards, which are absolute.
+    from forgeos_diskprep import DiskGuardError, guard_destructible, inspect_disks
+    by_path = {d.path: d for d in inspect_disks()}
+    for disk in layout.disks:
+        info = by_path.get(disk.path)
+        if info is None:
+            raise LhsrExecError(
+                f"{disk.path} was not found as a block device — refusing to "
+                f"partition it. Check the device list."
+            )
+        try:
+            guard_destructible(info, force=force)
+        except DiskGuardError as exc:
+            raise LhsrExecError(f"REFUSED: {exc}") from exc
+
     # Step 1: Partition all disks
     logger.info("Step 1: Partitioning disks")
     tier_partitions: dict[int, list[str]] = {}
@@ -158,11 +177,11 @@ def execute_layout(
     combined_mp = "/srv/nas/lhsr"
     Path(combined_mp).mkdir(parents=True, exist_ok=True)
 
-    # Unmount individual tiers
-    for mp in tier_mountpoints.values():
-        run(["umount", mp])
-
-    # Mount with mergerfs
+    # Mount with mergerfs. The tier filesystems STAY MOUNTED — mergerfs merges
+    # the branch mountpoints, so unmounting them first would hand it empty
+    # directories and the span would serve nothing (the tier data would be
+    # unmounted and unreachable). This was inverted and is the single most
+    # destructive thing this function did.
     tier_mounts = [tier_mountpoints[i] for i in range(layout.tier_count)]
     source_str = ":".join(tier_mounts)
     run([
@@ -181,13 +200,29 @@ def execute_layout(
 
     fstab_lines = ["\n# ForgeOS LHSR"]
     for i, uuid in enumerate(tier_uuids):
-        fstab_lines.append(f"UUID={uuid}  /srv/nas/lhsr_tier_{i}  btrfs  defaults,noatime  0  0")
+        if uuid:
+            fstab_lines.append(f"UUID={uuid}  /srv/nas/lhsr_tier_{i}  btrfs  defaults,noatime  0  0")
+        else:
+            # An empty UUID would write a poison `UUID=` line that breaks boot.
+            logger.warning("Tier %d has no UUID — leaving it out of fstab", i)
 
     tier_mounts_str = ":".join([f"/srv/nas/lhsr_tier_{i}" for i in range(layout.tier_count)])
     fstab_lines.append(f"{tier_mounts_str}  /srv/nas/lhsr  fuse.mergerfs  defaults,allow_other,use_ino,category.create=mfs  0  0")
 
-    with open("/etc/fstab", "a") as f:
-        f.write("\n".join(fstab_lines) + "\n")
+    # Idempotent: strip any previous ForgeOS LHSR block before appending, so a
+    # re-run replaces the stanza instead of stacking a second copy (the tier
+    # list grows when disks are added and stale lines keep dead UUIDs).
+    block = "\n".join(fstab_lines) + "\n"
+    try:
+        with open("/etc/fstab") as f:
+            existing = f.read()
+        if "# ForgeOS LHSR" in existing:
+            head = existing.split("# ForgeOS LHSR")[0].rstrip("\n")
+            block = head + "\n" + block
+        with open("/etc/fstab", "w") as f:
+            f.write(block)
+    except OSError as exc:
+        raise LhsrExecError(f"Could not update /etc/fstab: {exc}")
 
     return {
         "mountpoint": combined_mp,
