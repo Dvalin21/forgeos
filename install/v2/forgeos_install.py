@@ -141,7 +141,7 @@ SyslogIdentifier=forgeos-api
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
-ReadWritePaths=/etc/forgeos /var/log/forgeos /var/lib/forgeos {opt} /srv -/etc/samba -/etc/nginx -/etc/fail2ban -/etc/letsencrypt -/var/log/letsencrypt -/var/lib/letsencrypt -/etc/exports.d -/etc/wireguard -/etc/rear -/etc/ufw -/etc/default/ufw -/etc/snapper -/etc/apt/apt.conf.d -/etc/avahi/services -/etc/postgresql -/etc/mysql -/run -/etc/systemd/network -/etc/resolv.conf -/etc/hostname
+ReadWritePaths=/etc/forgeos /var/log/forgeos /var/lib/forgeos {opt} /srv -/etc/samba -/etc/nginx -/etc/fail2ban -/etc/letsencrypt -/var/log/letsencrypt -/var/lib/letsencrypt -/etc/exports.d -/etc/wireguard -/etc/rear -/etc/ufw -/etc/default/ufw -/etc/snapper -/etc/apt/apt.conf.d -/etc/avahi/services -/etc/postgresql -/etc/mysql -/run -/etc/systemd/network -/etc/resolv.conf -/etc/hostname -/etc/systemd/system/forgeos-scrub.service -/etc/systemd/system/forgeos-scrub.timer -/etc/systemd/system/forgeos-lhsr-snapshot.service -/etc/systemd/system/forgeos-lhsr-snapshot.timer
 
 [Install]
 WantedBy=multi-user.target
