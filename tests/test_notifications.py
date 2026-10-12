@@ -70,3 +70,61 @@ class TestDriveAlerts:
         assert d["alerts"]["sdb"]["level"] == "critical"
         n = test_client.get("/api/notifications", headers=auth_headers).json()
         assert n["notifications"][0]["level"] == "critical"
+
+
+class TestPersistence:
+    """Notifications used to live in a module-level deque, so an API restart
+    wiped them — precisely the moment someone comes back to ask "did it warn
+    me?". They now persist to SQLite and are read back from there."""
+
+    @pytest.fixture
+    def db(self, tmp_path, monkeypatch):
+        import sqlite3
+        import notifications_api
+        # check_same_thread=False mirrors the app's real connection
+        # (forgeos-api._get_db): FastAPI serves endpoints on worker threads.
+        conn = sqlite3.connect(str(tmp_path / "forgeos.db"), check_same_thread=False)
+        notifications_api.set_helpers(get_db=lambda: conn)
+        yield conn
+        notifications_api.set_helpers(get_db=None)
+        conn.close()
+
+    def test_survives_a_restart(self, test_client, auth_headers, db, monkeypatch):
+        import notifications_api
+        r = test_client.post("/api/notify", headers=auth_headers,
+                             json={"level": "warning", "title": "Scrub found errors",
+                                   "message": "tank: csum mismatch"})
+        assert r.status_code == 200
+
+        # simulate the restart: memory stores emptied, DB untouched
+        notifications_api._notifications.clear()
+
+        r = test_client.get("/api/notifications", headers=auth_headers)
+        titles = [n["title"] for n in r.json()["notifications"]]
+        assert "Scrub found errors" in titles
+
+    def test_drive_alert_state_survives(self, test_client, auth_headers, db,
+                                        monkeypatch):
+        import notifications_api
+        test_client.post("/api/drive-alert", headers=auth_headers,
+                         json={"device": "sdc", "level": "critical",
+                               "message": "predict failure"})
+        notifications_api._drive_alerts.clear()
+        r = test_client.get("/api/drive-alerts", headers=auth_headers)
+        assert "sdc" in r.json()["alerts"]
+        assert r.json()["alerts"]["sdc"]["message"] == "predict failure"
+
+    def test_log_stays_bounded(self, test_client, auth_headers, db):
+        for i in range(130):
+            test_client.post("/api/notify", headers=auth_headers,
+                             json={"title": f"n{i}", "message": "x"})
+        n = db.execute("SELECT COUNT(*) FROM notifications").fetchone()[0]
+        assert n <= 100, f"durable log must stay bounded, got {n}"
+
+    def test_works_without_a_database(self, test_client, auth_headers):
+        # no injected connection: must behave exactly as before, not crash
+        r = test_client.post("/api/notify", headers=auth_headers,
+                             json={"title": "in-memory only"})
+        assert r.status_code == 200
+        r = test_client.get("/api/notifications", headers=auth_headers)
+        assert any(n["title"] == "in-memory only" for n in r.json()["notifications"])
