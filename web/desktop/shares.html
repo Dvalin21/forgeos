@@ -5,6 +5,18 @@
 <meta name=viewport content='width=device-width, initial-scale=1'>
 <title>Shares · ForgeOS</title>
 <link rel="stylesheet" href="/css/forgeos.css">
+<style>
+/* form inputs — shared CSS ships no generic input class */
+input.fi,select.fi{width:100%;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);font:600 13px var(--font);color:var(--text)}
+input.fi:focus,select.fi:focus{outline:2px solid var(--primary-soft);border-color:var(--primary-text)}
+input.fi:disabled{opacity:.6}
+/* .chip colour variants — shared CSS only ships the base .chip */
+.chip.ok{background:rgba(16,166,106,.12);color:var(--success)}
+.nfs-add{display:flex;gap:8px;margin-top:10px}
+.nfs-add input.fi{flex:1}
+.nfs-add select.fi{width:170px}
+@media (max-width:640px){.nfs-add{flex-wrap:wrap}.nfs-add input.fi,.nfs-add select.fi{width:100%}}
+</style>
 
 </head>
 
@@ -26,26 +38,25 @@
     </section>
 
     <section class="panel pad" style="margin-bottom:18px">
-      <div class="section-head"><div><h3>NFS shares &mdash; Linux &amp; macOS</h3><p>Offer folders to Linux and macOS computers over NFS. Leave this off if only Windows machines use this NAS.</p></div><span class="chip" id="nfs-state">&mdash;</span></div>
+      <div class="section-head"><div><h3>NFS shares &mdash; Linux &amp; macOS</h3><p>Offer folders to Linux and macOS computers over NFS.</p></div><span class="chip" id="nfs-state">&mdash;</span></div>
 
-      <div id="nfs-off">
-        <p class="empty-state" style="margin:0">NFS is off. Turn it on to share folders with Linux and macOS computers.</p>
-        <div style="margin-top:12px"><button class="btn-pri" id="nfs-enable">Turn on NFS</button></div>
+      <div class="opt-row">
+        <div><h5>NFS service</h5><p>Share folders with Linux and macOS computers. Leave off if only Windows machines use this NAS.</p></div>
+        <div class="switch" id="nfs-switch"><i></i></div>
       </div>
 
-      <div id="nfs-on" class="hidden">
-        <label class="field" style="display:block;margin-bottom:14px">
-          <span style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px">Who may connect</span>
-          <input class="input" id="nfs-cidr" placeholder="10.0.0.0/24" spellcheck="false">
-          <span style="display:block;font-size:11px;color:var(--muted);margin-top:5px">The network allowed to mount these folders. Use your LAN range, not 0.0.0.0/0.</span>
-        </label>
+      <div id="nfs-body" class="hidden">
+        <div class="opt-row" style="align-items:flex-start">
+          <div style="min-width:0"><h5>Who may connect</h5><p>The network allowed to mount these folders. Use your LAN range &mdash; never 0.0.0.0/0.</p></div>
+          <input class="fi" id="nfs-cidr" placeholder="10.0.0.0/24" spellcheck="false" style="max-width:190px">
+        </div>
 
-        <div class="section-head" style="margin:0 0 8px"><div><h3 style="font-size:14px">Exported folders</h3></div></div>
-        <div id="nfs-list"><p class="empty-state">No folders exported yet.</p></div>
+        <div class="section-head" style="margin:16px 0 8px"><div><h3 style="font-size:14px">Exported folders</h3><p>Each folder here is mountable by a Linux or macOS client.</p></div></div>
+        <div id="nfs-list"></div>
 
-        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <input class="input" id="nfs-path" placeholder="/srv/nas/tank/media" spellcheck="false" style="flex:1;min-width:220px">
-          <select class="input" id="nfs-type" style="width:auto">
+        <div class="nfs-add">
+          <input class="fi" id="nfs-path" placeholder="/srv/nas/tank/media" spellcheck="false">
+          <select class="fi" id="nfs-type">
             <option value="rw">Read &amp; write</option>
             <option value="ro">Read only</option>
             <option value="public">Public (everyone)</option>
@@ -55,7 +66,6 @@
         </div>
 
         <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
-          <button class="btn-ghost" id="nfs-off-btn">Turn off NFS</button>
           <button class="btn-pri" id="nfs-save">Save &amp; apply</button>
         </div>
       </div>

@@ -224,7 +224,7 @@
 
   // ══════════ CONTAINERS LIST ══════════
   function renderContainers(){
-    var box=$('#containers-grid');if(!STATE.containers.length){box.innerHTML='<div class="empty">No containers. Use <b>+ New container</b> or install from the Catalog.</div>';return}
+    var box=$('#containers-grid');if(!STATE.containers.length){box.innerHTML='<div class="empty-state">No containers. Use <b>+ New container</b> or install from the Catalog.</div>';return}
     box.innerHTML=STATE.containers.map(function(c){
       var st=c.running?'ok':c.status==='exited'?'err':'idle',stText=c.running?'Running':(c.status||'Stopped');
       var upd=STATE.updateMap[c.name]===true;
@@ -426,12 +426,29 @@
     if(typeof im.size==='number')return fmtSize(im.size);
     return im.VirtualSize||'—';
   }
+  // Ground truth for "is this image in use" is the CONTAINER list, not the
+  // image list. Docker's `images --format json` reports Containers='N/A'
+  // even for an image a running container is built from (verified on the
+  // box: navidrome + photoprism both running, both reported 'N/A'), so
+  // trusting that field marks every image as unused — and offers to delete
+  // something in use. refresh() already loaded the containers; use them.
   function imageInUse(im){
-    if(im.InUse!=null)return !!im.InUse;
-    if(im.in_use!=null)return !!im.in_use;
-    // docker reports the container name here, or the string "N/A"
-    var c=im.Containers!=null?im.Containers:im.containers;
-    return !!(c&&c!=='N/A');
+    var ref = imageName(im);
+    var id = String(im.ID || im.Id || im.id || '').replace(/^sha256:/, '');
+    return STATE.containers.some(function (c) {
+      if (c.runtime !== 'docker') return false;
+      var ci = String(c.image || '');
+      return ci === ref || ci === id || ci === 'sha256:' + id;
+    });
+  }
+  function imageUsers(im){
+    var ref = imageName(im);
+    var id = String(im.ID || im.Id || im.id || '').replace(/^sha256:/, '');
+    return STATE.containers.filter(function (c) {
+      if (c.runtime !== 'docker') return false;
+      var ci = String(c.image || '');
+      return ci === ref || ci === id || ci === 'sha256:' + id;
+    }).map(function (c) { return c.name; });
   }
   function imageTags(im){
     if(im.Repository)return (im.Tag&&im.Tag!=='<none>')?[im.Repository+':'+im.Tag]:[];
@@ -441,16 +458,16 @@
     var box=$('#images-grid');if(!box)return;
     var r=await api('/api/docker/images');
     var imgs=Array.isArray(r.data)?r.data:((r.data&&r.data.images)||[]);
-    if(!r.ok&&!imgs.length){box.innerHTML='<div class="empty">Could not read images — is Docker running?</div>';return}
-    if(!imgs.length){box.innerHTML='<div class="empty">No images on this box yet. One appears here after you install something from the Catalog or run a container.</div>';return}
+    if(!r.ok&&!imgs.length){box.innerHTML='<div class="empty-state">Could not read images — is Docker running?</div>';return}
+    if(!imgs.length){box.innerHTML='<div class="empty-state">No images on this box yet. One appears here after you install something from the Catalog or run a container.</div>';return}
     box.innerHTML=imgs.map(function(im){
       var name=imageName(im),tags=imageTags(im);
       return '<div class="card" data-card-img="'+esc(name)+'">'+
         '<div class="card-head"><div class="card-icon" style="background:var(--surface-2);border:1px solid var(--line)"><svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.9"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>'+
         '<div style="min-width:0"><h4>'+esc(name)+'</h4><p class="meta">'+esc(imageSize(im))+'</p></div></div>'+
-        '<div class="badge-row">'+(imageInUse(im)?'<span class="pill ok">In use</span>':'<span class="pill idle">Not used</span>')+
+        '<div class="badge-row">'+(imageInUse(im)?'<span class="pill ok">In use</span><span class="pill idle">'+esc(imageUsers(im).join(', '))+'</span>':'<span class="pill idle">Not used</span>')+
         (tags.length>1?'<span class="pill idle">+'+(tags.length-1)+' more tags</span>':'')+'</div>'+
-        '<div class="card-actions"><button class="danger" data-img-del="'+esc(name)+'">Remove</button></div></div>';
+        '<div class="card-actions"><button class="danger" data-img-del="'+esc(name)+'"'+(imageInUse(im)?' title="A container is using this image"'+(imageUsers(im).length?' ('+esc(imageUsers(im).join(', '))+')':'')+'"':'')+'>Remove</button></div></div>';
     }).join('');
     $$('[data-img-del]').forEach(function(b){
       b.onclick=function(){deleteImage(b.getAttribute('data-img-del'))};

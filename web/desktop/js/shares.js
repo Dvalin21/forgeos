@@ -250,10 +250,11 @@
     if (!r.ok) { if (st) st.textContent = 'Unavailable'; return; }
     var d = r.data || {};
     _nfs = { exports: (d.exports || []).map(function (e) { return { path: e.path, type: e.type }; }) };
-    if (st) { st.textContent = d.enabled ? 'On' : 'Off'; st.className = 'chip ' + (d.enabled ? 'ok' : 'idle'); }
-    var off = $('#nfs-off'), on = $('#nfs-on');
-    if (off) off.classList.toggle('hidden', !!d.enabled);
-    if (on) on.classList.toggle('hidden', !d.enabled);
+    if (st) { st.textContent = d.enabled ? 'On' : 'Off'; st.className = 'chip ' + (d.enabled ? 'ok' : ''); }
+    var sw = $('#nfs-switch');
+    if (sw) sw.classList.toggle('on', !!d.enabled);
+    var body = $('#nfs-body');
+    if (body) body.classList.toggle('hidden', !d.enabled);
     var cidr = $('#nfs-cidr');
     if (cidr && !cidr.dataset.touched) cidr.value = d.lan_cidr || '';
     renderNfsList();
@@ -266,10 +267,13 @@
       return;
     }
     box.innerHTML = _nfs.exports.map(function (e, i) {
-      return '<div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:8px">' +
-        '<div style="min-width:0;flex:1"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.path) + '</div>' +
-        '<div class="meta">' + esc(nfsTypeLabel(e.type)) + '</div></div>' +
-        '<button class="circle-btn" data-nfs-del="' + i + '" title="Remove ' + esc(e.path) + '" aria-label="Remove ' + esc(e.path) + '">' + DEL_SVG + '</button>' +
+      // same row shape as the SMB list above: icon, name/path, tags, delete
+      return '<div class="share-row">' +
+        '<div class="share-ico">' + FOLDER_SVG + '</div>' +
+        '<div><div class="share-name">' + esc(e.path) + '</div>' +
+        '<div class="share-path">' + esc(nfsTypeLabel(e.type)) + '</div></div>' +
+        '<div class="share-tags"><span class="chip">NFS</span></div>' +
+        '<button class="share-del" data-nfs-del="' + i + '" title="Stop exporting ' + esc(e.path) + '">' + DEL_SVG + '</button>' +
         '</div>';
     }).join('');
     $$('[data-nfs-del]').forEach(function (b) {
@@ -313,8 +317,8 @@
     var rr = $('#raw-reload'); if (rr) rr.onclick = function () { loadRawConfig(); toast('Reloaded', 'info'); };
     var rs = $('#raw-save'); if (rs) rs.onclick = saveRawConfig;
 
-    var ne = $('#nfs-enable'); if (ne) ne.onclick = function () { nfsToggle(true); };
-    var no = $('#nfs-off-btn'); if (no) no.onclick = function () { nfsToggle(false); };
+    var nsw = $('#nfs-switch');
+    if (nsw) nsw.onclick = function () { nfsToggle(!nsw.classList.contains('on')); };
     var na = $('#nfs-add'); if (na) na.onclick = nfsAdd;
     var nsv = $('#nfs-save'); if (nsv) nsv.onclick = nfsSave;
     var npath = $('#nfs-path');
