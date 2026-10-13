@@ -113,7 +113,7 @@ def file_root():
 
 
 @pytest.fixture
-def test_client() -> TestClient:
+def test_client() -> Generator[TestClient, None, None]:
     """Test client against the full forgeos-api app.
 
     Note: the source file is forgeos-api.py (with a hyphen), so we
@@ -127,4 +127,24 @@ def test_client() -> TestClient:
     mod = importlib_util.module_from_spec(spec)
     spec.loader.exec_module(mod)
 
-    return TestClient(mod.app)
+    # The SQLite store (tasks, backup jobs, audit) lives under _DATA_DIR,
+    # which forgeos-api reads from FORGEOS_DATA_DIR at IMPORT time and
+    # defaults to /var/lib/forgeos. Un-isolated, every test that touched
+    # audit/jobs failed with "unable to open database file" — which is why
+    # the session-revocation and audit-prefix tests had been failing as
+    # "environmental" since October. Point it at a fresh dir per test and
+    # drop the cached connection so _get_db() reopens in the new place.
+    #
+    # Patching the module attribute (rather than the env var) works for the
+    # injected helpers too: routers were handed the _get_db FUNCTION object,
+    # which reads _DATA_DIR from module globals at call time.
+    data_dir = tempfile.mkdtemp(prefix="forgeos-test-data-")
+    try:
+        mod._DATA_DIR = Path(data_dir)
+        mod._DB = None
+        yield_client = TestClient(mod.app)
+        yield yield_client
+    finally:
+        mod._DB = None
+        import shutil as _sh
+        _sh.rmtree(data_dir, ignore_errors=True)
