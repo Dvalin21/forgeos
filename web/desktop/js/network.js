@@ -40,7 +40,7 @@
   function renderInterfaces(list){
     IFACES = list || [];
     var grid = $('if-grid');
-    if (!list || !list.length){ grid.innerHTML = '<div class="empty">No interfaces detected.</div>'; return; }
+    if (!list || !list.length){ grid.innerHTML = '<div class="empty-state">No interfaces detected.</div>'; return; }
     var up = list.filter(function(i){ return i.state === 'UP'; }).length;
     $('if-chip').textContent = list.length + ' adapter' + (list.length !== 1 ? 's' : '') + ' · ' + up + ' up';
     grid.innerHTML = list.map(function(i){
@@ -81,7 +81,7 @@
 
   function renderGlobal(g){
     var body = $('global-body');
-    if (!g){ body.innerHTML = '<div class="empty">Unavailable.</div>'; return; }
+    if (!g){ body.innerHTML = '<div class="empty-state">Unavailable.</div>'; return; }
     GLOBAL = g;
     body.innerHTML = ''
       + inp('Hostname', 'g-host', g.hostname || '')
@@ -112,7 +112,7 @@
     if (!d || !d.configured){
       chip.textContent = 'Not configured';
       chip.className = 'chip';
-      body.innerHTML = '<div class="empty">No dynamic DNS provider configured yet — keep a hostname (e.g. nas.example.com) pointed at this server as your public IP changes.</div>'
+      body.innerHTML = '<div class="empty-state">No dynamic DNS provider configured yet — keep a hostname (e.g. nas.example.com) pointed at this server as your public IP changes.</div>'
         + '<div class="mfoot" style="padding:14px 0 0;border-top:1px solid var(--line);margin-top:6px">'
         + '<button class="btn-pri" id="ddns-setup" type="button">Set up</button></div>';
       return;
@@ -164,7 +164,7 @@
     $('rt-chip').textContent = (list ? list.length : 0) + ' route' + ((list && list.length !== 1) ? 's' : '');
     body.innerHTML = '<table class="rt"><thead><tr>'
       + '<th>Destination</th><th>Gateway</th><th>Interface</th><th>Metric</th><th>Source</th><th></th>'
-      + '</tr></thead><tbody>' + (rows || '<tr><td colspan="6" class="empty">No routes found.</td></tr>') + '</tbody></table>'
+      + '</tr></thead><tbody>' + (rows || '<tr><td colspan="6" class="empty-state">No routes found.</td></tr>') + '</tbody></table>'
       + '<div class="mfoot" style="padding:12px 0 0;border-top:1px solid var(--line);margin-top:8px">'
       + '<button class="btn-pri" id="rt-add" type="button">Add route</button></div>';
   }
@@ -181,12 +181,12 @@
     var ifaces = res[0], glob = res[1], ddns = res[2], routes = res[3], managed = res[4];
 
     if (ifaces.ok && ifaces.data){ renderInterfaces(ifaces.data.interfaces || []); }
-    else { $('if-grid').innerHTML = '<div class="empty">Failed to load interfaces.</div>'; }
+    else { $('if-grid').innerHTML = '<div class="empty-state">Failed to load interfaces.</div>'; }
 
-    if (glob.ok && glob.data){ renderGlobal(glob.data); } else { $('global-body').innerHTML = '<div class="empty">Failed to load.</div>'; }
-    if (ddns.ok && ddns.data){ renderDdns(ddns.data); } else { $('ddns-body').innerHTML = '<div class="empty">Failed to load.</div>'; }
+    if (glob.ok && glob.data){ renderGlobal(glob.data); } else { $('global-body').innerHTML = '<div class="empty-state">Failed to load.</div>'; }
+    if (ddns.ok && ddns.data){ renderDdns(ddns.data); } else { $('ddns-body').innerHTML = '<div class="empty-state">Failed to load.</div>'; }
     MANAGED = (managed.ok && managed.data) ? (managed.data.routes || []) : [];
-    if (routes.ok && routes.data){ renderRoutes(routes.data.routes || []); } else { $('rt-body').innerHTML = '<div class="empty">Failed to load routes.</div>'; }
+    if (routes.ok && routes.data){ renderRoutes(routes.data.routes || []); } else { $('rt-body').innerHTML = '<div class="empty-state">Failed to load routes.</div>'; }
 
     // top-of-page reachability chip: green if we have a default gateway
     if (glob.ok && glob.data && glob.data.gateway){

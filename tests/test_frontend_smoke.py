@@ -94,38 +94,44 @@ def test_shares_nfs_panel_wired_end_to_end():
 
 
 def test_every_class_used_is_actually_defined():
-    """Regression: the NFS panel shipped with .field/.input/.card/.meta and
-    the Images tab with .empty — none exist in forgeos.css, so those controls
-    rendered with browser default font and size and looked nothing like the
-    rest of the UI.
+    """A class that resolves to no CSS rule renders with browser defaults, so
+    a whole panel can look like it came from a different product. That is not
+    a review catch - it only surfaces as "why does this look different".
 
-    A class that resolves to nothing is invisible in review and surfaces only
-    as "why does this look different". Shared CSS ships no generic input or
-    card class on purpose; each page defines what it needs in its own <style>
-    block. This pins that.
+    The NFS panel shipped with .field/.input/.card/.meta and the Images tab
+    with .empty, none of which exist in forgeos.css. All pages here that take
+    inputs define what they need in their own <style> block; this pins the
+    arrangement.
 
-    Scoped to apps + shares, the pages this work touched. A sweep of all nine
-    desktop pages finds 14 undefined class names pre-dating this work
-    (backup, data-connect, firewall, network, reverse-proxy, security, setup,
-    shares' own modal, storage) — a project-wide pattern worth its own fix
-    rather than 14 allowlist entries here."""
+    Allowlist is JS hooks, not style classes - adding CSS for these would be
+    dead code:
+      dman, dns-f  markers layered on raw-conf / wz-input, both styled
+      group-name   inside setup.html's .field, which styles .field input
+      lhsr-disk    checkbox marker read via .lhsr-disk:checked
+      row          every use carries the same layout inline
+    """
     css = (_ROOT / "web" / "desktop" / "css" / "forgeos.css").read_text()
-    shared = set(re.findall(r"\.([a-zA-Z][\w-]*)", css))
+    allow = {"dman", "dns-f", "group-name", "lhsr-disk", "row"}
 
-    # class="row" on the share modal's button bar is pre-existing and carries
-    # its layout inline, so it has no rule to resolve to.
-    allow = {"row"}
+    def classes_in_css(text):
+        out = set()
+        for block in text.split("}"):
+            if "{" not in block:
+                continue
+            out |= set(re.findall(r"\.([a-zA-Z_][\w-]*)", block.split("{")[0]))
+        return out
+
+    shared = classes_in_css(css)
+    pages = sorted((_ROOT / "web" / "desktop").glob("*.html"))
+    assert pages, "no desktop pages found"
 
     problems = {}
-    for name in ("apps.html", "shares.html"):
-        page = _ROOT / "web" / "desktop" / name
-        t = page.read_text()
-        local = set(re.findall(
-            r"\.([a-zA-Z][\w-]*)",
-            "\n".join(re.findall(r"<style>(.*?)</style>", t, re.S))))
-        js = page.parent / "js" / name.replace(".html", ".js")
+    for page in pages:
+        text = page.read_text()
+        local = classes_in_css("\n".join(
+            re.findall(r"<style>(.*?)</style>", text, re.S)))
         used = set()
-        for f in (page, js):
+        for f in (page, page.parent / "js" / page.name.replace(".html", ".js")):
             if not f.exists():
                 continue
             for group in re.findall(r'class="([^"]+)"', f.read_text()):
@@ -133,7 +139,7 @@ def test_every_class_used_is_actually_defined():
                          if re.fullmatch(r"[a-z][a-z0-9-]*", c)}
         missing = sorted(used - local - shared - allow)
         if missing:
-            problems[name] = missing
+            problems[page.name] = missing
 
     assert problems == {}, (
         f"classes used but defined nowhere - they render unstyled: {problems}")

@@ -374,6 +374,7 @@
       box-shadow: 0 12px 24px rgba(41,98,255,.22);
     }
     .button.ghost { background: var(--primary-soft); color: var(--primary-text); box-shadow: none; }
+    .button.sm { height: 30px; padding: 0 11px; font-size: 12px; border-radius: 8px; }
     .button.danger { background: var(--danger-soft); color: var(--danger); box-shadow: none; }
     .button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
     /* Hero (dark gradient) keeps its original white variants, now scoped. */
@@ -399,6 +400,7 @@
     .status-pill span { display: block; color: rgba(255,255,255,.68); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; }
     .status-pill strong { display: block; margin-top: 6px; font-size: 20px; }
 
+    .section-title { font-size: 15px; font-weight: 800; color: var(--text); }
     .section-head {
       display: flex;
       align-items: center;
@@ -602,6 +604,7 @@
     .status.ok { color: var(--success); }
     .status.warn { color: var(--warn); }
     .status.danger { color: var(--danger); }
+    .status.dim { color: var(--muted); }
 
     .app-grid {
       display: grid;
@@ -809,6 +812,13 @@
     .tag.vis{background:rgba(41,98,255,.12);color:var(--primary-text)}
     .tag.hid{background:var(--surface-3);color:var(--muted)}
     .tag.gst{background:rgba(216,138,0,.14);color:var(--warn)}
+    /* icon-only button; backup.html and users.html carried identical copies,
+       data-connect and reverse-proxy had none at all. Token colours, so a
+       page-local copy still wins where one exists. */
+    .icon-btn { border: 1px solid var(--line); background: none; border-radius: 8px; padding: 6px; cursor: pointer; color: var(--muted); }
+    .icon-btn:hover { color: var(--primary-text); border-color: var(--primary-text); background: var(--primary-soft); }
+    .icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+    .icon-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; display: block; }
     .share-del{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:var(--muted);transition:.15s;flex:none}
     .share-del:hover{border-color:var(--danger);color:var(--danger)}
     .share-edit{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;display:grid;place-items:center;color:var(--muted);transition:.15s;flex:none}
