@@ -411,6 +411,11 @@ class TestRun:
 
     def test_create_builds_correct_args(self, test_client, auth_headers,
                                         monkeypatch):
+        import docker_lxc_api as d
+        # The port-conflict check shells out to `ss` for real, so without this
+        # the test fails whenever 8080 happens to be bound ON THE TEST HOST —
+        # a false negative that says nothing about the product.
+        monkeypatch.setattr(d, "_used_host_ports", lambda: set())
         calls = _docker_fake(monkeypatch,
                              images={"nginx:1": {"Id": "sha256:x", "Config": {}}})
         r = test_client.post("/api/docker/run", headers=auth_headers, json={
