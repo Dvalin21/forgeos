@@ -96,6 +96,7 @@ py-modules = [
     "notifications_api",
     "rustfs_api",
     "samba_api",
+    "nfs_api",
     "security_api",
     "setup_api",
     "storage_api",

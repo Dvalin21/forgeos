@@ -977,6 +977,19 @@ except ImportError as e:
     raise
 
 
+# NFS — exports for Linux/macOS clients. The config model and generator
+# existed but nothing could reach them: NFS could not be configured or
+# enabled through ForgeOS at all.
+try:
+    from nfs_api import router as nfs_router, set_helpers as set_nfs_helpers
+    set_nfs_helpers(audit=_audit)
+    app.include_router(nfs_router)
+    logger.info("NFS API loaded")
+except ImportError as e:
+    logger.error("NFS API failed to load: %s", e)
+    raise
+
+
 # ────────────────────────────────────────────────────────────
 # FIREWALL — config-DB backed (firewall_api.py, security P1)
 # ────────────────────────────────────────────────────────────

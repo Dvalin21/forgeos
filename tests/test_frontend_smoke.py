@@ -9,6 +9,7 @@ Skips cleanly when node or jsdom isn't available so a fresh gate clone (which
 installs Python deps only) stays green; it runs wherever the JS tooling is
 present (dev, CI with `npm ci`).
 """
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -70,3 +71,23 @@ def test_health_js_loaded_on_every_page():
     assert pages, "no desktop pages found"
     missing = [p.name for p in pages if "js/health.js" not in p.read_text()]
     assert missing == [], f"pages not loading health.js: {missing}"
+
+
+def test_shares_nfs_panel_wired_end_to_end():
+    """The NFS panel is markup + handlers + API. Any one of the three missing
+    renders a dead button that looks alive. Pin all three at once."""
+    html = (_ROOT / "web" / "desktop" / "shares.html").read_text()
+    js = (_ROOT / "web" / "desktop" / "js" / "shares.js").read_text()
+
+    # 1. every id shares.js reaches for must exist in the markup
+    ids = set(re.findall(r"\$\('#([a-z0-9-]+)'\)", js))
+    absent = sorted(i for i in ids if f'id="{i}"' not in html)
+    assert absent == [], f"shares.js queries ids not present in shares.html: {absent}"
+
+    # 2. the panel is wired and called on load
+    assert "loadNfs()" in js, "NFS never loads on page open"
+    for hook in ("nfs-enable", "nfs-off-btn", "nfs-add", "nfs-save"):
+        assert f"$('#{hook}')" in js, f"{hook} has no handler"
+
+    # 3. it talks to the endpoints that actually exist
+    assert "'/api/nfs'" in js and "'/api/nfs/toggle'" in js

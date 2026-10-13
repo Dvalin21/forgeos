@@ -25,6 +25,42 @@
       <div id="shares"><p class="empty-state">Loading shares&hellip;</p></div>
     </section>
 
+    <section class="panel pad" style="margin-bottom:18px">
+      <div class="section-head"><div><h3>NFS shares &mdash; Linux &amp; macOS</h3><p>Offer folders to Linux and macOS computers over NFS. Leave this off if only Windows machines use this NAS.</p></div><span class="chip" id="nfs-state">&mdash;</span></div>
+
+      <div id="nfs-off">
+        <p class="empty-state" style="margin:0">NFS is off. Turn it on to share folders with Linux and macOS computers.</p>
+        <div style="margin-top:12px"><button class="btn-pri" id="nfs-enable">Turn on NFS</button></div>
+      </div>
+
+      <div id="nfs-on" class="hidden">
+        <label class="field" style="display:block;margin-bottom:14px">
+          <span style="display:block;font-size:12px;color:var(--muted);margin-bottom:5px">Who may connect</span>
+          <input class="input" id="nfs-cidr" placeholder="10.0.0.0/24" spellcheck="false">
+          <span style="display:block;font-size:11px;color:var(--muted);margin-top:5px">The network allowed to mount these folders. Use your LAN range, not 0.0.0.0/0.</span>
+        </label>
+
+        <div class="section-head" style="margin:0 0 8px"><div><h3 style="font-size:14px">Exported folders</h3></div></div>
+        <div id="nfs-list"><p class="empty-state">No folders exported yet.</p></div>
+
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <input class="input" id="nfs-path" placeholder="/srv/nas/tank/media" spellcheck="false" style="flex:1;min-width:220px">
+          <select class="input" id="nfs-type" style="width:auto">
+            <option value="rw">Read &amp; write</option>
+            <option value="ro">Read only</option>
+            <option value="public">Public (everyone)</option>
+            <option value="backup">Backup</option>
+          </select>
+          <button class="button" id="nfs-add">Add</button>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+          <button class="btn-ghost" id="nfs-off-btn">Turn off NFS</button>
+          <button class="btn-pri" id="nfs-save">Save &amp; apply</button>
+        </div>
+      </div>
+    </section>
+
     <section class="panel pad">
       <div class="section-head"><div><h3>Active connections</h3><p>Clients currently connected to this NAS (live <code>smbstatus</code>).</p></div><button class="circle-btn" id="refresh-conn" title="Refresh connections"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button></div>
       <pre id="connections" class="conn-pre">Loading&hellip;</pre>

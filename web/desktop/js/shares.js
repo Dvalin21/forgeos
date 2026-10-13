@@ -230,12 +230,99 @@
     }
   }
 
+  // ── NFS (Linux/macOS clients) ──
+  // Edits are staged locally and saved as ONE PUT, which is one exportfs -ra
+  // and one audit row. Pushing each row the moment it's added would spray
+  // reloads and leave the box half-configured if the user abandons the page.
+  var _nfs = { exports: [] };
+
+  var NFS_TYPES = [
+    { id: 'rw', label: 'Read & write' },
+    { id: 'ro', label: 'Read only' },
+    { id: 'public', label: 'Public (everyone)' },
+    { id: 'backup', label: 'Backup' }
+  ];
+  function nfsTypeLabel(t) { var x = NFS_TYPES.filter(function (y) { return y.id === t; })[0]; return x ? x.label : t; }
+
+  async function loadNfs() {
+    var r = await api('/api/nfs');
+    var st = $('#nfs-state');
+    if (!r.ok) { if (st) st.textContent = 'Unavailable'; return; }
+    var d = r.data || {};
+    _nfs = { exports: (d.exports || []).map(function (e) { return { path: e.path, type: e.type }; }) };
+    if (st) { st.textContent = d.enabled ? 'On' : 'Off'; st.className = 'chip ' + (d.enabled ? 'ok' : 'idle'); }
+    var off = $('#nfs-off'), on = $('#nfs-on');
+    if (off) off.classList.toggle('hidden', !!d.enabled);
+    if (on) on.classList.toggle('hidden', !d.enabled);
+    var cidr = $('#nfs-cidr');
+    if (cidr && !cidr.dataset.touched) cidr.value = d.lan_cidr || '';
+    renderNfsList();
+  }
+
+  function renderNfsList() {
+    var box = $('#nfs-list'); if (!box) return;
+    if (!_nfs.exports.length) {
+      box.innerHTML = '<p class="empty-state" style="margin:0">No folders exported yet. Add one below.</p>';
+      return;
+    }
+    box.innerHTML = _nfs.exports.map(function (e, i) {
+      return '<div class="card" style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:8px">' +
+        '<div style="min-width:0;flex:1"><div style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(e.path) + '</div>' +
+        '<div class="meta">' + esc(nfsTypeLabel(e.type)) + '</div></div>' +
+        '<button class="circle-btn" data-nfs-del="' + i + '" title="Remove ' + esc(e.path) + '" aria-label="Remove ' + esc(e.path) + '">' + DEL_SVG + '</button>' +
+        '</div>';
+    }).join('');
+    $$('[data-nfs-del]').forEach(function (b) {
+      b.onclick = function () { _nfs.exports.splice(parseInt(b.getAttribute('data-nfs-del'), 10), 1); renderNfsList(); };
+    });
+  }
+
+  function nfsAdd() {
+    var p = $('#nfs-path'), t = $('#nfs-type');
+    var path = (p.value || '').trim();
+    if (path.charAt(0) !== '/') { toast('The folder must be a full path, starting with /', 'err'); return; }
+    if (_nfs.exports.some(function (e) { return e.path === path; })) { toast('That folder is already on the list', 'err'); return; }
+    _nfs.exports.push({ path: path, type: t.value });
+    p.value = '';
+    renderNfsList();
+    p.focus();
+  }
+
+  async function nfsSave() {
+    var cidr = ($('#nfs-cidr').value || '').trim();
+    if (cidr && cidr !== '0.0.0.0/0' && !/^\d+\.\d+\.\d+\.\d+\/\d{1,2}$/.test(cidr)) {
+      toast('Use a network like 10.0.0.0/24', 'err'); return;
+    }
+    var r = await api('/api/nfs', { method: 'PUT', body: JSON.stringify({ exports: _nfs.exports, lan_cidr: cidr }) });
+    if (!r.ok) { toast((r.data && r.data.detail) || 'Could not save the NFS shares', 'err'); return; }
+    toast('NFS shares applied', 'ok');
+    loadNfs();
+  }
+
+  async function nfsToggle(enabled) {
+    var r = await api('/api/nfs/toggle', { method: 'POST', body: JSON.stringify({ enabled: enabled }) });
+    if (!r.ok) { toast((r.data && r.data.detail) || 'Could not change NFS', 'err'); return; }
+    toast(enabled ? 'NFS is on' : 'NFS is off', 'ok');
+    loadNfs();
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
     var add = $('#add-share'); if (add) add.onclick = function () { shareModal(null); };
     var rf = $('#refresh'); if (rf) rf.onclick = function () { loadShares(); loadConnections(); toast('Refreshed', 'info'); };
     var rc = $('#refresh-conn'); if (rc) rc.onclick = function () { loadConnections(); toast('Connections refreshed', 'info'); };
     var rr = $('#raw-reload'); if (rr) rr.onclick = function () { loadRawConfig(); toast('Reloaded', 'info'); };
     var rs = $('#raw-save'); if (rs) rs.onclick = saveRawConfig;
-    loadShares(); loadConnections(); loadRawConfig();
+
+    var ne = $('#nfs-enable'); if (ne) ne.onclick = function () { nfsToggle(true); };
+    var no = $('#nfs-off-btn'); if (no) no.onclick = function () { nfsToggle(false); };
+    var na = $('#nfs-add'); if (na) na.onclick = nfsAdd;
+    var nsv = $('#nfs-save'); if (nsv) nsv.onclick = nfsSave;
+    var npath = $('#nfs-path');
+    if (npath) npath.addEventListener('keydown', function (e) { if (e.key === 'Enter') nfsAdd(); });
+    var ncidr = $('#nfs-cidr');
+    // stop clobbering a half-typed range on every background refresh
+    if (ncidr) ncidr.addEventListener('input', function () { ncidr.dataset.touched = '1'; });
+
+    loadShares(); loadConnections(); loadRawConfig(); loadNfs();
   });
 })();
