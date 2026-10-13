@@ -118,6 +118,7 @@ details.adv > .body{padding:0 16px 14px}
     <section id="tab-containers" class="hidden">
       <div class="subtabs">
         <button class="subtab active" data-st="ctrs">Containers</button>
+        <button class="subtab" data-st="imgs">Images</button>
         
         <div style="flex:1"></div>
         <button class="btn-pri" id="new-ctr" style="height:36px;padding:0 14px;font-size:12px;margin-bottom:6px">+ New container</button>
@@ -130,6 +131,13 @@ details.adv > .body{padding:0 16px 14px}
         <button class="btn-ghost" data-prune="networks" style="height:32px;padding:0 12px;font-size:12px">Prune networks</button>
         <button class="btn-ghost" data-prune="system" style="height:32px;padding:0 12px;font-size:12px">Prune system</button>
       </div><div class="grid-cards" id="containers-grid"><div class="empty-state">Loading containers…</div></div></div>
+
+      <div id="sub-imgs" class="hidden"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px">
+        <span style="font-size:12px;color:var(--muted)">Images stored on this box. Removing one frees its disk space — a container built from it will have to pull it again next time it starts.</span>
+        <div style="flex:1"></div>
+        <button class="btn-ghost" id="images-refresh" style="height:32px;padding:0 12px;font-size:12px">Refresh</button>
+      </div>
+      <div class="grid-cards" id="images-grid"><div class="empty-state">Loading images…</div></div></div>
     </section>
 
     <section id="tab-services" class="hidden">

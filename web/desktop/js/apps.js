@@ -398,7 +398,74 @@
 
   // ══════════ TABS + REFRESH ══════════
   function switchTab(t){$$('.tab').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-t')===t)});['catalog','containers','services'].forEach(function(x){$('#tab-'+x).classList.toggle('hidden',x!==t)})}
-  function switchSub(st){$$('.subtab').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-st')===st)});$('#sub-ctrs').classList.toggle('hidden',st!=='ctrs')}
+  function switchSub(st){$$('.subtab').forEach(function(b){b.classList.toggle('active',b.getAttribute('data-st')===st)});$('#sub-ctrs').classList.toggle('hidden',st!=='ctrs');$('#sub-imgs').classList.toggle('hidden',st!=='imgs');if(st==='imgs')loadImages()}
+  // ── Images ────────────────────────────────────────────────
+  // GET/DELETE /api/docker/images existed in the API from the start with
+  // nothing in the UI able to reach them, so the only way to reclaim image
+  // disk was a shell. Listed lazily: most visits to Apps never open this tab.
+  function fmtSize(bytes){
+    var b=Number(bytes)||0;
+    if(b>=1e9)return (b/1e9).toFixed(2)+' GB';
+    if(b>=1e6)return (b/1e6).toFixed(0)+' MB';
+    if(b>=1e3)return (b/1e3).toFixed(0)+' KB';
+    return b+' B';
+  }
+  // `docker images --format json` (what the API shells out to) emits
+  // Repository/Tag/Size-as-a-string/ID - NOT the classic RepoTags + numeric
+  // Size of the HTTP API. Handle both so a docker version change degrades
+  // instead of rendering a list of blanks.
+  function imageName(im){
+    if(im.Repository)return im.Repository+(im.Tag&&im.Tag!=='<none>'?':'+im.Tag:'');
+    var tags=(im.RepoTags||im.repo_tags||[]).filter(function(t){return t&&t!=='<none>:<none>'});
+    if(tags.length)return tags[0];
+    return String(im.ID||im.Id||im.id||'?').replace(/^sha256:/,'').slice(0,12);
+  }
+  function imageSize(im){
+    if(typeof im.Size==='string'&&im.Size)return im.Size;          // "250MB"
+    if(typeof im.Size==='number')return fmtSize(im.Size);
+    if(typeof im.size==='number')return fmtSize(im.size);
+    return im.VirtualSize||'—';
+  }
+  function imageInUse(im){
+    if(im.InUse!=null)return !!im.InUse;
+    if(im.in_use!=null)return !!im.in_use;
+    // docker reports the container name here, or the string "N/A"
+    var c=im.Containers!=null?im.Containers:im.containers;
+    return !!(c&&c!=='N/A');
+  }
+  function imageTags(im){
+    if(im.Repository)return (im.Tag&&im.Tag!=='<none>')?[im.Repository+':'+im.Tag]:[];
+    return (im.RepoTags||im.repo_tags||[]).filter(function(t){return t&&t!=='<none>:<none>'});
+  }
+  async function loadImages(){
+    var box=$('#images-grid');if(!box)return;
+    var r=await api('/api/docker/images');
+    var imgs=Array.isArray(r.data)?r.data:((r.data&&r.data.images)||[]);
+    if(!r.ok&&!imgs.length){box.innerHTML='<div class="empty">Could not read images — is Docker running?</div>';return}
+    if(!imgs.length){box.innerHTML='<div class="empty">No images on this box yet. One appears here after you install something from the Catalog or run a container.</div>';return}
+    box.innerHTML=imgs.map(function(im){
+      var name=imageName(im),tags=imageTags(im);
+      return '<div class="card" data-card-img="'+esc(name)+'">'+
+        '<div class="card-head"><div class="card-icon" style="background:var(--surface-2);border:1px solid var(--line)"><svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.9"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></div>'+
+        '<div style="min-width:0"><h4>'+esc(name)+'</h4><p class="meta">'+esc(imageSize(im))+'</p></div></div>'+
+        '<div class="badge-row">'+(imageInUse(im)?'<span class="pill ok">In use</span>':'<span class="pill idle">Not used</span>')+
+        (tags.length>1?'<span class="pill idle">+'+(tags.length-1)+' more tags</span>':'')+'</div>'+
+        '<div class="card-actions"><button class="danger" data-img-del="'+esc(name)+'">Remove</button></div></div>';
+    }).join('');
+    $$('[data-img-del]').forEach(function(b){
+      b.onclick=function(){deleteImage(b.getAttribute('data-img-del'))};
+    });
+  }
+  function deleteImage(name){
+    // Docker refuses to delete an image a running/stopped container was built
+    // from, so say so up front rather than letting it fail as a raw stderr.
+    if(!confirm('Remove the image "'+name+'"?\n\nThis frees its disk space. Any container built from it will have to pull it again. If a container still uses it, Docker will refuse.'))return;
+    api('/api/docker/images/'+encodeURIComponent(name),{method:'DELETE'}).then(function(r){
+      toast(r.ok?'Image removed':((r.data&&r.data.detail)||'Could not remove that image'),r.ok?'ok':'err');
+      loadImages();
+    });
+  }
+
   function parseLabels(raw){ // docker ps --format json emits Labels as "k=v,k=v"
     if(!raw)return{};if(typeof raw==='object')return raw;
     var o={};String(raw).split(',').forEach(function(kv){var i=kv.indexOf('=');if(i>0)o[kv.slice(0,i)]=kv.slice(i+1)});return o}
@@ -420,6 +487,7 @@
     $('#new-ctr').onclick=function(){containerWizard()};
     var af=$('#app-folder');if(af)af.onclick=appFolderModal;
     $$('[data-prune]').forEach(function(b){b.onclick=function(){pruneModal(b.getAttribute('data-prune'))}});
+    var ir=$('#images-refresh');if(ir)ir.onclick=function(){loadImages();toast('Refreshed','info')};
     refresh();
   });
 })();
