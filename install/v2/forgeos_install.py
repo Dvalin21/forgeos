@@ -94,6 +94,18 @@ RUNTIME_DIRS = [
     "/etc/avahi/services",
     "/etc/postgresql",
     "/etc/mysql",
+    # the nfs generator writes /etc/exports.d/forgeos.exports and the unit
+    # only carves out '-/etc/exports.d'. Missing dir => the bind is skipped =>
+    # /etc stays read-only for the service => every NFS save silently fails.
+    "/etc/exports.d",
+    "/etc/apt/apt.conf.d",
+    # Same trap, different dir. The fail2ban package normally creates its own
+    # subdirs, so the '/etc/fail2ban' bind happens to work — but only if the
+    # package is installed before the service first starts. Pre-creating the
+    # parent removes the ordering dependency; empty dirs are harmless to the
+    # owning packages. The unit carves out '/etc/fail2ban', which covers both
+    # filter.d and jail.d beneath it.
+    "/etc/fail2ban",
 ]
 
 DBCHECK_SERVICE_UNIT = """# ForgeOS Data Connect integrity check — GENERATED

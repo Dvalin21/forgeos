@@ -528,3 +528,47 @@ def test_cache_headers(test_client, auth_headers):
     # non-API paths (the UI) revalidate — branch applies even to 404s
     r = test_client.get("/index.html")
     assert r.headers.get("cache-control") == "no-cache"
+
+
+def _carved_out(target):
+    """The deepest RUNTIME_DIRS ancestor of `target` that the unit also lists.
+
+    ReadWritePaths is a bind mount, so carving '/etc/fail2ban' covers
+    '/etc/fail2ban/jail.d' beneath it. Matching on the exact dir only would
+    force a pointless per-subdir carve-out for every generator."""
+    best = None
+    for d in fi.RUNTIME_DIRS:
+        if (target == d or target.startswith(d.rstrip("/") + "/")) and d in fi._API_SERVICE_UNIT:
+            if best is None or len(d) > len(best):
+                best = d
+    return best
+
+
+def test_generator_etc_targets_are_writable_by_the_service():
+    """Regression: the nfs generator writes /etc/exports.d/forgeos.exports,
+    but the unit only carves out '-/etc/exports.d' and NOTHING created that
+    dir. ProtectSystem=strict then leaves /etc read-only for the service's
+    whole lifetime, so every NFS save failed while the API still answered 200.
+
+    The trap repeats: a generator gains a new /etc target, the unit gains a
+    carve-out, but RUNTIME_DIRS does not. Pin the pair mechanically instead
+    of hoping the next person remembers."""
+    import glob
+    import re
+
+    targets = set()
+    for src in glob.glob(str(Path(__file__).resolve().parent.parent
+                             / "src" / "generators" / "*.py")):
+        targets |= set(re.findall(r'path=["\'](/etc/[^"\']+)["\']',
+                                 Path(src).read_text()))
+
+    assert targets, "no generator /etc targets found — the scan is broken"
+
+    unwritable = {t: sorted(fi.RUNTIME_DIRS) for t in sorted(targets)
+                  if _carved_out(t) is None}
+    assert unwritable == {}, (
+        "generators write here, but no ancestor dir is both pre-created by the "
+        "installer and carved out by the unit, so ProtectSystem=strict makes "
+        f"the write fail at runtime: {list(unwritable)}\n"
+        "Add each to RUNTIME_DIRS and to the unit's ReadWritePaths."
+    )
