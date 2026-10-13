@@ -1,19 +1,30 @@
-# ForgeOS — NEXT (updated 2026-10-12)
+# ForgeOS — NEXT (updated 2026-10-12, post-green-suite)
 
 ## HEAD
 
-Branch `v2-rearchitect` @ `8ac5c79`. **Working tree has uncommitted work (see below).**
-Detail: `PRODUCTION_REVIEW.md` (verdict: NOT PRODUCTION READY, 5.5/10).
+Branch `v2-rearchitect` @ `051b74a`.
 
-## Uncommitted work (2026-10-12 session) — NOT yet on the VM
+## Suite: GREEN — 1037 passed / 0 failed / 2 skipped
 
-Suite: **1026 pass / 6 fail / 2 skip**. The 6 failures are the pre-existing
-environmental ones (unchanged, all test-infra, zero product bugs):
+First clean run in the project's recorded history. The 6 long-standing
+"environmental" failures were never environmental: they were unisolated.
+- `92213f7` conftest never isolated forgeos-api's SQLite `_DATA_DIR`
+  (read from FORGEOS_DATA_DIR at import, defaulting to /var/lib/forgeos),
+  so every test touching audit/tasks/jobs hit the real system path.
+  Fixes TestEpochEnforcement ×3, TestChangePasswordRevokesSessions,
+  TestAuditPrefixFilter — i.e. the session-revocation and audit-filtering
+  paths, previously untested.
+- `051b74a` the docker run test read the TEST HOST's real port state via
+  `ss` and failed whenever 8080 was bound.
+- `8bf1baf` removed the last uncalled `/api/docker` route from
+  forgeos_pages_api; the Apps page updates containers through
+  `/api/docker/containers/{name}/update` (docker_lxc_api).
 
-- `tests/test_auth_session_revocation.py::TestEpochEnforcement` ×3 — conftest `_DATA_DIR` not isolated
-- `tests/test_auth_session_revocation.py::TestChangePasswordRevokesSessions` ×1 — same cause
-- `tests/test_storage.py::TestAuditPrefixFilter::test_prefix_filters_to_storage` — same cause
-- `tests/test_docker_api.py::TestRun::test_create_builds_correct_args` — `_used_host_ports()` not mocked
+## Working tree
+Clean apart from pre-existing untracked files (3 ISOs, 2 qcow2s,
+PRODUCTION_REVIEW.md, not-sam-notes/) — none are ours.
+
+## Deployed to the VM — FULLY verified 2026-10-12 (afternoon)
 
 ### Deployed to the VM — FULLY verified 2026-10-12 (afternoon)
 
@@ -62,7 +73,7 @@ Storage page turns it off.
    (`forgeos_scrub._default_audit`); pinned by `TestDefaultAudit`, which uses
    the DEFAULT runner instead of an injected fake.
 
-### Shipped-in-tree
+### The work (all committed)
 
 1. **Docker route shadowing fixed.** `forgeos_pages_api.py` defined
    `/api/docker/{wipe,update-check,run}` a second time; docker_lxc's copies
@@ -102,27 +113,17 @@ Storage page turns it off.
 
 ## Next
 
-1. **Decide the push.** Nothing is committed. Working tree = 3 fixes + 5
-   features + 41 new tests, all VM-verified. Suggested split (one fault per
-   commit, rules say):
-   - `fix(mcp): drop duplicate docker routes shadowed by docker_lxc_api`
-   - `feat(storage): scheduled btrfs scrub (config v13, timer, API, UI)`
-   - `fix(installer): allow the API to write its own timer units`
-   - `feat(ui): one storage-health verdict, plain-words SMART, honest loading`
-   - `fix(lhsr): do not unmount tiers before mergerfs; guard destructive exec`
-   - `feat(ui): collapsible storage panels; notifications persist`
-2. Hardware verification on real iron (installer, LHSR exec on real disks,
-   WireGuard, backup restore, mDNS).
-3. **V-022 can be closed** — v1 bash installer was deleted in `a3f55c4`;
+1. Hardware verification on real iron (installer, LHSR exec on real disks,
+   WireGuard, backup restore, mDNS) — the biggest remaining gap, and the
+   only one that needs hardware you own.
+2. **V-022 can be closed** — v1 bash installer was deleted in `a3f55c4`;
    `PRODUCTION_REVIEW.md:45` and `PRODUCTION_READINESS.md:394` still list it
    OPEN and are wrong.
-4. **V-012 is smaller than recorded** — `forgeos_config.load()` already
+3. **V-012 is smaller than recorded** — `forgeos_config.load()` already
    migrates in-memory (`forgeos_config.py:1031`); only the persist-back is
    missing and only `forgeos-generate` calls `load_and_upgrade()`. Re-grade it.
-5. Decide `POST /api/docker/update` (pages) — live, uncalled, shadow-free.
-6. `POST /api/storage/drive/fail` is a 409 stub behind a UI button.
-7. conftest `_DATA_DIR` isolation (fixes 5 of the 6 failures), then the docker
-   `_used_host_ports()` mock.
+4. `POST /api/storage/drive/fail` is a 409 stub behind a UI button.
+5. Backend-with-no-UI backlog (below) — a build project, not a fix.
 
 ## Known gap class found 2026-10-12 — backend with no UI
 
