@@ -64,9 +64,10 @@ All six are **already fixed** in code:
 - Installer ISO integration of the new web UI changes — the ISO's payload tarball predates these commits; rebuild when you want the ISO to carry them.
 
 ## Addendum (same night)
-- **Admin password**: reset on the VM to `***REDACTED***` (verified via
-  `POST /api/auth/login`). The old plaintext was unrecoverable — only a
-  bcrypt hash existed.
+- **Admin password**: reset on the VM (verified via `POST /api/auth/login`).
+  The old plaintext was unrecoverable — only a bcrypt hash existed.
+  The replacement value is deliberately NOT recorded here; it lives in
+  `~/.config/forgeos/vm_sudo` on the operator machine.
 - **Discover/adopt/destroy shipped** (`src/storage_api.py` + storage page):
   - `GET  /api/storage/unmanaged` — btrfs pools on disk NOT in config
   - `POST /api/storage/pools/adopt` {uuid} — register an existing pool (admin)
