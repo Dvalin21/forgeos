@@ -107,6 +107,9 @@ async def storage_pools(user=Depends(verify_token)):
         })
     return {"pools": pools, "unassigned": []}
 
+_INCUS_POOL_ROOT = "/var/lib/incus/storage-pools"
+
+
 def _btrfs_scan() -> list:
     """All btrfs pools on this machine, parsed from `btrfs filesystem show`.
     Unlike the config-driven /api/storage/pools, this sees pools that were
@@ -152,7 +155,14 @@ async def storage_unmanaged(user=Depends(verify_token)):
     known_uuids = {p.uuid for p in cfg.storage.pools}
     known_names = {p.name for p in cfg.storage.pools}
     out = [p for p in _btrfs_scan()
-           if p["uuid"] not in known_uuids and p["name"] not in known_names]
+           if p["uuid"] not in known_uuids and p["name"] not in known_names
+           # An Incus storage pool is NOT an unmanaged ForgeOS pool. Offering
+           # "destroy (wipe)" on one deletes the storage of every container
+           # and VM on it (INCUS-NIGHTLY-REPORT §5.2).
+           # ponytail: default pool root only — a pool created at a custom
+           # path still slips through; parse `incus storage show` if custom
+           # pool locations ever ship.
+           and not p["mountpoint"].startswith(_INCUS_POOL_ROOT + "/")]
     return {"unmanaged": out}
 
 

@@ -718,3 +718,23 @@ class TestInUseRole:
         assert by["/dev/sdb"]["role"] == "pool"
         assert by["/dev/sdc"]["role"] == "os"
         assert by["/dev/sdd"]["role"] == "spare"
+
+
+class TestUnmanagedExcludesIncus:
+    """INCUS-NIGHTLY-REPORT §5.2: an Incus storage pool must never be offered
+    as "unmanaged" — the UI's destroy action would wipe the storage of every
+    container and VM living on it."""
+
+    def test_incus_pool_not_offered_for_wipe(self, test_client, auth_headers, monkeypatch):
+        import storage_api
+        monkeypatch.setattr(storage_api, "_btrfs_scan", lambda: [
+            {"name": "incus-pool", "uuid": "u-incus", "devices": ["/dev/sdc"],
+             "mountpoint": "/var/lib/incus/storage-pools/incus-pool",
+             "raid_level": "single"},
+            {"name": "legacy-tank", "uuid": "u-legacy", "devices": ["/dev/sdb"],
+             "mountpoint": "/srv/nas/tank", "raid_level": "single"},
+        ])
+        r = test_client.get("/api/storage/unmanaged", headers=auth_headers)
+        assert r.status_code == 200
+        names = {p["name"] for p in r.json()["unmanaged"]}
+        assert names == {"legacy-tank"}

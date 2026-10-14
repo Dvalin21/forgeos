@@ -446,3 +446,19 @@ class TestProxyKeepaliveHang:
         confd = files[f"{CONFD_DIR}/forgeos.conf"]
         assert "map $http_upgrade $forgeos_connection_upgrade" in confd
         assert "default upgrade;" in confd
+
+
+def test_websocket_vhost_gets_console_location_with_long_timeout():
+    # INCUS-NIGHTLY-REPORT §5.7: an Incus console session is idle for
+    # minutes; the 60s proxy_read_timeout drops it. The console needs its
+    # own location with a long timeout, WS upgrade headers intact.
+    cfg = _cfg(fc.NginxVhost(name="ui", domain="nas.local",
+                             upstream_port=5080, websocket=True))
+    content = _first_vhost(cfg)
+    assert "location /api/incus/ {" in content
+    assert "proxy_read_timeout 3600s;" in content
+
+
+def test_non_websocket_vhost_has_no_console_location():
+    cfg = _cfg(fc.NginxVhost(name="ui", domain="nas.local", upstream_port=5080))
+    assert "location /api/incus/ {" not in _first_vhost(cfg)

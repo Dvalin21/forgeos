@@ -91,7 +91,9 @@ class TestReadEndpoints:
             '"mtu":1500,'
             '"addr_info":[{"family":"inet","local":"10.0.0.69","prefixlen":24},'
             '{"family":"inet6","local":"fe80::1","prefixlen":64,"scope":"link"}]},'
-            '{"ifname":"docker0","operstate":"DOWN","addr_info":[]}]'
+            '{"ifname":"docker0","operstate":"DOWN","addr_info":[]},'
+            '{"ifname":"incusbr0","operstate":"UP",'
+            '"addr_info":[{"family":"inet","local":"10.141.33.1","prefixlen":24}]}]'
         )
         # `ip -s -j link` carries stats64 (real values from the target VM)
         link_json = (
@@ -117,7 +119,10 @@ class TestReadEndpoints:
         r = test_client.get("/api/net/interfaces", headers=auth_headers)
         assert r.status_code == 200
         names = [i["name"] for i in r.json()["interfaces"]]
-        assert names == ["ens18"]                  # lo + docker0 hidden
+        assert names == ["ens18"]      # lo, docker0 AND incusbr0 hidden —
+        # incusbr0 carries an address and defaults to UP: if _HIDE_IFACE_RE
+        # ever stops matching it, the Network page offers to reconfigure the
+        # bridge every container depends on (incidents/INCUS-NIGHTLY-REPORT §5.1)
         eth = r.json()["interfaces"][0]
         assert eth["ipv4"] == ["10.0.0.69/24"]
         assert eth["mac"] == "bc:24:11:f2:3b:1e"

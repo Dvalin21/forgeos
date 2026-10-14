@@ -57,7 +57,7 @@ RESOLV_CONF = Path("/etc/resolv.conf")
 INTERFACES_D = Path("/etc/network/interfaces.d")
 
 # Loopback and virtual bridges we don't surface as configurable NICs.
-_HIDE_IFACE_RE = re.compile(r"^(lo|docker\d+|br-[0-9a-f]+|veth|virbr|wg\d+)")
+_HIDE_IFACE_RE = re.compile(r"^(lo|docker\d+|br-[0-9a-f]+|veth|virbr|wg\d+|incusbr\d+)")
 
 
 # ════════════════════════════════════════════════════════════════════

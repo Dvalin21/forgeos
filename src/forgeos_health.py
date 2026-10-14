@@ -23,6 +23,7 @@ DEFAULT_SERVICES: dict[str, str] = {
     "forgeos-rustfs": "RustFS",
     "nfs-kernel-server": "NFS",
     "wg-quick@wg0": "WireGuard",
+    "incus": "Incus",
 }
 
 

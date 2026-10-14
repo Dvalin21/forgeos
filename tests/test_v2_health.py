@@ -84,3 +84,10 @@ def test_watcher_recovery_notice():
 
 def test_default_services_excludes_mail():
     assert not any("postfix" in u or "dovecot" in u for u in fh.DEFAULT_SERVICES)
+
+
+def test_default_services_includes_incus():
+    # A downed hypervisor must alert — INCUS-NIGHTLY-REPORT §5.6. Safe on
+    # boxes without Incus: transitions alert, a permanently-inactive unit
+    # only ever establishes a baseline.
+    assert "incus" in fh.DEFAULT_SERVICES

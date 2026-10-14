@@ -686,14 +686,6 @@ except ImportError as e:
     logger.warning("Docker API not available: %s", e)
 
 try:
-    from lxc_api import router as lxc_router, set_helpers as set_lxc_helpers
-    set_lxc_helpers(audit=_audit)
-    app.include_router(lxc_router)
-    logger.info("LXC / Incus Management API loaded")
-except ImportError as e:
-    logger.warning("LXC API not available: %s", e)
-
-try:
     from forgeos_pages_api import router as pages_router, set_audit
     set_audit(_audit)
     app.include_router(pages_router)
@@ -1280,67 +1272,6 @@ async def ws_docker_exec(ws: WebSocket, container: str):
             pass
         except Exception as e:
             logger.warning("ws_docker_exec proc_to_ws: %s", e)
-    
-    await asyncio.gather(
-        asyncio.create_task(ws_to_proc()),
-        asyncio.create_task(proc_to_ws()),
-        return_exceptions=True,
-    )
-    try:
-        proc.kill()
-    except Exception:
-        pass
-
-# ────────────────────────────────────────────────────────────
-# WEBSOCKET — LXC CONTAINER TERMINAL
-# ────────────────────────────────────────────────────────────
-@app.websocket("/ws/lxc/exec/{container}")
-async def ws_lxc_exec(ws: WebSocket, container: str):
-    """WebSocket terminal for LXC container exec."""
-    payload = check_ws_payload(_ws_token(ws))
-    if payload is None:
-        await ws.close(code=4001, reason="Unauthorized")
-        return
-    if payload.get("role") != "admin":
-        await ws.close(code=4003, reason="Admin required")
-        return
-    await ws.accept(subprotocol="forgeos")
-    # Start lxc exec with PTY
-    proc = await asyncio.create_subprocess_exec(
-        "lxc", "exec", container, "--", "bash", "-l",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    
-    assert proc.stdin is not None and proc.stdout is not None
-    stdin = proc.stdin
-    stdout = proc.stdout
-
-    # Forward WebSocket to process
-    async def ws_to_proc():
-        try:
-            while True:
-                data = await ws.receive_text()
-                stdin.write(data.encode())
-                await stdin.drain()
-        except WebSocketDisconnect:
-            proc.kill()
-        except Exception as e:
-            logger.warning("ws_lxc_exec ws_to_proc: %s", e)
-            proc.kill()
-
-    async def proc_to_ws():
-        try:
-            while True:
-                data = await stdout.read(4096)
-                if not data:
-                    break
-                await ws.send_text(data.decode("utf-8", errors="replace"))
-        except WebSocketDisconnect:
-            pass
-        except Exception as e:
-            logger.warning("ws_lxc_exec proc_to_ws: %s", e)
     
     await asyncio.gather(
         asyncio.create_task(ws_to_proc()),

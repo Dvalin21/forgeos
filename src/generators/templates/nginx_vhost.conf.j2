@@ -35,6 +35,25 @@
 {% endif %}
     }
 {% endmacro %}
+{% macro console_location(v) %}
+{% if v.websocket %}
+    # Incus console: a VM/container console session is idle for minutes at a
+    # stretch, and the 60s proxy_read_timeout drops it (INCUS-NIGHTLY-REPORT
+    # §5.7). Own location so console sockets carry a long timeout without
+    # raising it for ordinary API calls.
+    location /api/incus/ {
+        proxy_pass {{ v.upstream_scheme }}://forgeos_{{ v.name }};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 3600s;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $forgeos_connection_upgrade;
+    }
+{% endif %}
+{% endmacro %}
 upstream forgeos_{{ v.name }} {
     server {{ v.upstream_host }}:{{ v.upstream_port }};
     keepalive 32;
@@ -51,6 +70,7 @@ server {
     access_log /var/log/nginx/{{ v.name }}-access.log;
     error_log  /var/log/nginx/{{ v.name }}-error.log warn;
 {{ proxy_body(v) }}
+{{ console_location(v) }}
 {% endif %}
 }
 
@@ -83,6 +103,7 @@ server {
     access_log /var/log/nginx/{{ v.name }}-access.log;
     error_log  /var/log/nginx/{{ v.name }}-error.log warn;
 {{ proxy_body(v) }}
+{{ console_location(v) }}
     location /_forgeos_health {
         allow 127.0.0.1;
         deny all;
