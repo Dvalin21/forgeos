@@ -188,10 +188,12 @@ def test_execute_pool_mounts_by_uuid(stub_tools, tmp_path):
                           blkid=lambda d: "ABCD-1234",
                           fstab_path=fstab)
     assert res["uuid"] == "ABCD-1234"
-    # mount used -U <uuid>, never a /dev/sdX path
-    mount_cmd = [c for c in cmds if c and c[0] == "mount"][0]
-    assert "-U" in mount_cmd and "ABCD-1234" in mount_cmd
-    assert not any(x.startswith("/dev/sd") for x in mount_cmd)
+    # mount goes through systemd-mount (PID 1, host namespace) by by-uuid,
+    # never an in-sandbox `mount -U` — the API's ns/mnt differs from PID 1's,
+    # so an in-process mount is invisible to samba/docker/host.
+    mount_cmd = [c for c in cmds if c and c[0] == "systemd-mount"][0]
+    assert "ABCD-1234" in " ".join(mount_cmd)
+    assert not any(c and c[0] == "mount" for c in cmds)
     # fstab got a UUID line
     assert "ABCD-1234" in open(fstab).read()
 
@@ -240,3 +242,55 @@ def test_missing_btrfs_tool_reported_cleanly(monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda t: None)
     with pytest.raises(dp.DiskGuardError, match="btrfs-progs"):
         dp._require_tools("mkfs.btrfs")
+
+
+def test_execute_pool_ignores_disks_outside_the_plan(stub_tools, tmp_path):
+    """Every real box has a system disk in the fresh inspection list. The
+    re-check must guard ONLY the plan's devices — guarding the whole list
+    refused every pool create on real hardware (a /dev/sda request came back
+    "…/dev/sde holds the system"). Found by a live clean-install box."""
+    plan = dp.plan_pool("tank", "single", [_disk("sda")])
+    disks = [_disk("sda"), _disk("sde", is_system=True), _disk("sr0")]
+    cmds = []
+    res = dp.execute_pool(plan, disks, runner=lambda c: cmds.append(c),
+                          blkid=lambda d: "U-9", fstab_path=str(tmp_path / "fstab"))
+    assert res["uuid"] == "U-9"
+    assert any(c and c[0] == "mkfs.btrfs" for c in cmds)
+
+
+def test_execute_pool_still_refuses_when_target_becomes_system(stub_tools):
+    # ...and the flip side stays guarded: a plan target that became the
+    # system disk between plan and execute is still refused.
+    plan = dp.plan_pool("tank", "single", [_disk("sda")])
+    disks = [_disk("sda", is_system=True), _disk("sde", is_system=True)]
+    with pytest.raises(dp.DiskGuardError, match="system"):
+        dp.execute_pool(plan, disks, runner=lambda c: None, blkid=lambda d: "U")
+
+
+def test_remove_fstab_drops_the_pool_line(tmp_path):
+    # a destroyed pool whose fstab line survives fails to mount every boot
+    fs = tmp_path / "fstab"
+    fs.write_text("UUID=keep1 / btrfs defaults 0 0\n"
+                  "UUID=gone9 /srv/nas/pool btrfs defaults,compress=zstd 0 2\n"
+                  "UUID=keep2 /srv/nas/other btrfs defaults 0 2\n")
+    dp._remove_fstab("gone9", str(fs))
+    left = fs.read_text()
+    assert "gone9" not in left and "keep1" in left and "keep2" in left
+    # idempotent
+    dp._remove_fstab("gone9", str(fs))
+    assert fs.read_text() == left
+
+
+def test_execute_pool_cleans_nothing_on_failure(stub_tools, tmp_path):
+    """A failure mid-execute (record fails) must still leave the fstab line
+    for the operator to see — pools are recorded from fstab+disk evidence,
+    and the loud failure is the designed behavior."""
+    plan = dp.plan_pool("tank", "single", [_disk("sda")])
+    fs = tmp_path / "fstab"
+    def rec(r):
+        raise RuntimeError("config save failed")
+    with pytest.raises(dp.DiskGuardError, match="recording it in the config-DB FAILED"):
+        dp.execute_pool(plan, [_disk("sda")],
+                        runner=lambda c: None, blkid=lambda d: "U-x",
+                        fstab_path=str(fs), record=rec)
+    assert "U-x" in fs.read_text()

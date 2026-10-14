@@ -344,10 +344,35 @@ def _container_safe(name: str) -> str:
     return name
 
 
+# Units this API may control. `systemctl` driven from a web request is a
+# privilege-escalation surface if unbounded (stop sshd, mask systemd…), so
+# the set is explicit. wg-quick@<iface> instances are prefix-matched because
+# the interface name varies. Keep in step with system_api's /api/services
+# list — a unit the UI shows must be controllable here.
+SERVICE_WHITELIST = {
+    "docker", "smbd", "nmbd", "nginx", "fail2ban", "smartd",
+    "postfix", "redis-server", "avahi-daemon", "incus",
+    "nfs-kernel-server", "forgeos-api", "forgeos-mdns-alias",
+    "forgeos-rustfs", "forgeos-scrub", "forgeos-scrub.timer",
+    "forgeos-lhsr-snapshot", "forgeos-lhsr-snapshot.timer",
+}
+_WG_PREFIX = "wg-quick@"
+
+
 def _svc_safe(name: str) -> str:
-    if name not in SERVICE_WHITELIST:
+    if name not in SERVICE_WHITELIST and not name.startswith(_WG_PREFIX):
         raise HTTPException(403, f"Service '{name}' is not managed via this API")
     return name
+
+
+def _systemctl_async(args: list[str]) -> None:
+    """Fire-and-forget systemctl. A blocking call from inside the very unit
+    it restarts is SIGKILLed when systemd tears down the old cgroup — rc=-9
+    with empty stderr, so the action succeeded but the caller saw a failure.
+    --no-block does not help (the job starts immediately). The HTTP response
+    has to be out before the unit dies, so detach the call."""
+    subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True)
 
 
 @router.post("/api/service/{action}")
@@ -357,11 +382,9 @@ async def service_control(action: str, body: dict, user=Depends(verify_token)):
     if action not in ("start", "stop", "restart", "enable", "disable"):
         raise HTTPException(400, "Invalid action")
     name = _svc_safe(body.get("name", ""))
-    r = _run(["systemctl", action, name], timeout=20)
-    if r.returncode != 0:
-        raise HTTPException(400, r.stderr.strip() or f"{action} failed")
+    _systemctl_async(["systemctl", action, name])
     _audit(user["sub"], f"service.{action}", "success", name)
-    return {"ok": True, "message": r.stdout.strip()}
+    return {"ok": True, "message": f"{name}: {action} requested"}
 
 
 # ── Docker container create (full options) ───────────────────

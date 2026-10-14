@@ -250,3 +250,30 @@ in `/opt/forgeos` — they are pip console scripts / repo-tree artifacts
 since the layout correction, and the check false-alarmed until updated.
 
 The §8 list is now fully closed: 1–5 fixed in `d90493c`, 6 verified here.
+
+---
+
+## 10 · Full functional test of the clean-install box (2026-10-14, evening)
+
+Exercised the fresh box end-to-end (101-endpoint read battery + write
+paths). 80/87 parameterless GETs return 200 — the 7 non-200s are correct
+behavior (5× 422 missing-param validation, 1× 404 no compose file, 1×
+RustFS-down 500; RustFS is not enabled on a fresh box). All 21 UI pages
+serve. WebSockets: `/ws/metrics` streams, `/ws/logs` connects idle, no-token
+connections refused. TOTP enroll→verify→backup codes verified against
+pyotp. User create/login/RBAC(403)/delete verified.
+
+**Five real bugs found and fixed** — all would have shipped silently:
+
+| # | Bug | Blast radius |
+|---|---|---|
+| 1 | `execute_pool` guarded the whole fresh disk list, not the plan's devices → every pool create refused ("/dev/sda" → "/dev/sde holds the system") | pool creation 100% broken on any box |
+| 2 | Pool mounts made inside the API's private mount namespace — invisible to samba/docker/host | pools looked mounted, were unreadable everywhere else |
+| 3 | `/etc/fstab` not in the unit's ReadWritePaths → pool create died after mkfs+mount | half-created pools (fs on disk, no config, no fstab) |
+| 4 | `SERVICE_WHITELIST` referenced, never defined → entire service-control endpoint was a NameError 500 | every start/stop/restart dead |
+| 5 | `vm.sh deploy` never restarted the API despite its documented contract | every deploy silently ran old code |
+
+Fix details in commit `fix: five live-testing findings on the clean-install
+box`. Post-fix, verified live: pool create→mount(fstab+config)→destroy
+(unmount+wipefs+fstab cleanup), service restart of docker/nginx/self,
+RustFS noted as the one endpoint needing a running service.

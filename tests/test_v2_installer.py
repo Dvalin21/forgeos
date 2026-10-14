@@ -600,3 +600,15 @@ def test_deploy_web_copies_only_entrypoint_and_web(tmp_path):
     landed = sorted(p.relative_to(opt).as_posix()
                     for p in opt.rglob("*") if p.is_file())
     assert landed == ["forgeos-api.py", "web/desktop/index.html"], landed
+
+
+def test_unit_makes_fstab_writable():
+    """execute_pool appends the pool's fstab line; the sandbox unit has /etc
+    read-only except its ReadWritePaths, so without a carve-out every pool
+    create mkfs'd + mounted and then died on fstab — leaving a half-created
+    pool (found on the clean-install box during live testing)."""
+    src = Path(__file__).resolve().parent.parent / "install" / "v2" / "forgeos_install.py"
+    text = src.read_text()
+    rw = [l for l in text.splitlines() if l.startswith("ReadWritePaths=")]
+    assert rw, "no ReadWritePaths line in the unit template"
+    assert "/etc/fstab" in rw[0], "execute_pool writes /etc/fstab — carve it out"

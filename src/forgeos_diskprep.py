@@ -275,7 +275,11 @@ def execute_pool(plan: PoolPlan, disks: list[DiskInfo], *, force: bool = False,
     get_uuid = blkid or _btrfs_uuid
 
     # Fresh guard re-check — never trust a stale plan against current disks.
-    guard_pool_request(plan.name, plan.raid_level, disks, force=force)
+    # Re-resolve the PLAN's devices against the fresh inspection and guard
+    # ONLY those: guarding the whole fresh list refuses every box that has a
+    # system disk (exactly what happened — sda request refused for sde).
+    targets = [find_disk(disks, p) for p in plan.devices]
+    guard_pool_request(plan.name, plan.raid_level, targets, force=force)
     _require_tools("mkfs.btrfs", "mount", "blkid")
 
     # 1. mkfs.btrfs across all devices
@@ -286,11 +290,18 @@ def execute_pool(plan: PoolPlan, disks: list[DiskInfo], *, force: bool = False,
     # 2. mountpoint
     run(["mkdir", "-p", plan.mountpoint])
 
-    # 3. resolve the btrfs FS UUID and mount BY UUID (never /dev/sdX)
+    # 3. resolve the btrfs FS UUID and mount BY UUID (never /dev/sdX).
     uuid = get_uuid(plan.devices[0])
     if not uuid:
         raise DiskGuardError("could not resolve btrfs UUID after mkfs")
-    run(["mount", "-U", uuid, plan.mountpoint])
+    # The API runs in a private mount namespace (the unit's sandbox: its
+    # ns/mnt differs from PID 1's). An in-process `mount` would be invisible
+    # to samba, docker and the host — the pool would look mounted in the UI
+    # and be unreadable everywhere else. systemd-mount asks PID 1 to do it,
+    # same namespace as everything else on the box. by-uuid resolves the
+    # same UUID fstab will use after reboot.
+    run(["systemd-mount", "--no-ask-password",
+         f"/dev/disk/by-uuid/{uuid}", plan.mountpoint])
 
     # 4. persist to fstab by UUID so it survives reboots / device reorder
     _append_fstab(uuid, plan.mountpoint, fstab_path)
@@ -338,3 +349,18 @@ def _append_fstab(uuid: str, mountpoint: str, fstab: str = "/etc/fstab") -> None
         pass
     with open(fstab, "a") as f:
         f.write(line)
+
+
+def _remove_fstab(uuid: str, fstab: str = "/etc/fstab") -> None:
+    """Drop a pool's fstab line. Pairs with _append_fstab: a destroyed pool
+    whose fstab line survives fails to mount at every boot (noauto? no —
+    fstab, so systemd tries and the box lands in emergency mode)."""
+    try:
+        with open(fstab, "r") as f:
+            lines = f.readlines()
+    except FileNotFoundError:
+        return
+    kept = [l for l in lines if uuid not in l]
+    if len(kept) != len(lines):
+        with open(fstab, "w") as f:
+            f.writelines(kept)

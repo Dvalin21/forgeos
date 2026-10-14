@@ -335,3 +335,50 @@ class TestChownScoped:
         r = test_client.post("/api/files/chown", headers=auth_headers,
                              json={"path": "/etc", "owner": "root", "recursive": True})
         assert r.status_code == 403
+
+
+class TestServiceControl:
+    """POST /api/service/{action} — found dead on the clean-install box:
+    _svc_safe referenced SERVICE_WHITELIST, which was never defined, so every
+    call was a NameError 500. The whitelist is a security boundary: systemctl
+    from a web request must not reach sshd/systemd."""
+    def _login(self, test_client, auth_headers):
+        import json as _json
+        return auth_headers
+
+    def test_restart_whitelisted_service(self, test_client, auth_headers, monkeypatch):
+        import forgeos_pages_api as fp
+        seen = []
+        monkeypatch.setattr(fp, "_systemctl_async", lambda a: seen.append(a))
+        r = test_client.post("/api/service/restart",
+                             json={"name": "nginx"}, headers=auth_headers)
+        assert r.status_code == 200, r.text
+        assert seen == [["systemctl", "restart", "nginx"]]
+
+    def test_rejects_non_whitelisted(self, test_client, auth_headers, monkeypatch):
+        import forgeos_pages_api as fp
+        monkeypatch.setattr(fp, "_systemctl_async", lambda a: None)
+        r = test_client.post("/api/service/restart",
+                             json={"name": "sshd"}, headers=auth_headers)
+        assert r.status_code == 403, r.text
+
+    def test_rejects_systemd_itself(self, test_client, auth_headers, monkeypatch):
+        import forgeos_pages_api as fp
+        monkeypatch.setattr(fp, "_systemctl_async", lambda a: None)
+        r = test_client.post("/api/service/stop",
+                             json={"name": "systemd"}, headers=auth_headers)
+        assert r.status_code == 403, r.text
+
+    def test_wireguard_instances_allowed(self, test_client, auth_headers, monkeypatch):
+        import forgeos_pages_api as fp
+        monkeypatch.setattr(fp, "_systemctl_async", lambda a: None)
+        r = test_client.post("/api/service/restart",
+                             json={"name": "wg-quick@wg0"}, headers=auth_headers)
+        assert r.status_code == 200, r.text
+
+    def test_invalid_action_rejected(self, test_client, auth_headers, monkeypatch):
+        import forgeos_pages_api as fp
+        monkeypatch.setattr(fp, "_systemctl_async", lambda a: None)
+        r = test_client.post("/api/service/hack",
+                             json={"name": "nginx"}, headers=auth_headers)
+        assert r.status_code == 400, r.text

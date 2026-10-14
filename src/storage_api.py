@@ -214,10 +214,25 @@ async def destroy_pool(body: dict, user=Depends(verify_token)):
     for dev in cand["devices"]:
         mp = _run_args(["findmnt", "-n", "-o", "TARGET", "-S", dev], timeout=5)
         if mp:
-            _run_args(["umount", mp.splitlines()[0]], timeout=10)
+            target = mp.splitlines()[0]
+            # The pool was mounted by PID 1 (systemd-mount), so unmount the
+            # same way — an in-sandbox umount wouldn't see it. Best effort:
+            # an already-unmounted pool must not block the wipe.
+            _run_args(["systemd-mount", "--umount", target], timeout=15)
+            _run_args(["umount", target], timeout=10)
     for dev in cand["devices"]:
         subprocess.run(["wipefs", "-a", dev], check=False,
                        capture_output=True, timeout=15)
+    # The fstab line MUST die with the pool — a wiped UUID in fstab fails to
+    # mount at every boot (see _remove_fstab).
+    dp._remove_fstab(uuid)
+    # mountpoint dir, best effort (gone if the operator put anything in it)
+    import os
+    for p in {cand.get("mountpoint", "")}:
+        try:
+            os.rmdir(p)
+        except OSError:
+            pass
     cfg = fc.load()
     kept = [p for p in cfg.storage.pools if p.uuid != uuid]
     if len(kept) != len(cfg.storage.pools):

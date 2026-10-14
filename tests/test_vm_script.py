@@ -67,13 +67,18 @@ def test_vm_password_never_appears_in_the_repo():
 
 
 def test_vm_script_verifies_before_reporting_success():
-    """deploy must end in check(). That ordering is the whole point: a failed
-    copy cannot print success."""
+    """deploy must verify (cmd_check) AND restart the API before reporting
+    success. Both orderings are the whole point: a failed copy cannot print
+    success, and a copy without a restart silently changes nothing (the
+    header documents deploy as copy + restart + verify — it used to only
+    copy, which read as success while the box ran old code)."""
     text = _SCRIPT.read_text()
     start = text.index("cmd_deploy() {")
     nxt = text.index("\ncmd_", start + 1) if "\ncmd_" in text[start + 1:] else start
     dep = text[start:start + (nxt - start if nxt != start else len(text))]
-    body = dep.rstrip().rstrip("}").rstrip()
-    assert body.endswith("cmd_check"), \
-        "cmd_deploy must end by calling cmd_check"
+    i_check = dep.index("cmd_check")
+    i_restart = dep.index("systemctl restart forgeos-api")
+    i_success = dep.index('echo "API restarted and healthy"')
+    assert i_check < i_restart < i_success, \
+        "cmd_deploy must verify, then restart, and only then report success"
     assert "set -euo pipefail" in text, "vm.sh must run under set -euo pipefail"

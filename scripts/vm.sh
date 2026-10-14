@@ -185,8 +185,36 @@ EOF
     printf '  copied %s\n' "$l"
   done <<< "$todo"
   echo "copied $n file(s); verifying by checksum"
-  # verification is the only thing allowed to print success
-  cmd_check
+  cmd_check || exit 1
+  # Syntax pre-flight: a module with a syntax error must never be able to
+  # brick the API. Compile every deployed .py on the box; on failure, leave
+  # the running service alone (old code beats no code) and exit 1.
+  local pyfail=0
+  while IFS=$'\t' read -r l r; do
+    [ -n "$l" ] || continue
+    case "$r" in
+      *.py)
+        ssh_vm "python3 -c \"import ast,sys; ast.parse(open('$r').read())\"" >/dev/null 2>&1 || {
+          echo "SYNTAX ERROR in $l — service NOT restarted (old code kept)" >&2
+          pyfail=1
+        } ;;
+    esac
+  done <<< "$todo"
+  [ "$pyfail" -eq 0 ] || exit 1
+  # Restart + prove the API is back (the header documents deploy as
+  # copy + restart + verify; a copy without a restart silently changes
+  # nothing — the same trap as the §2 shadowing incident).
+  echo "restarting forgeos-api"
+  ssh_vm "bash -s" <<EOF
+printf '%s\n' "$(sudo_pw)" | sudo -S -p '' systemctl restart forgeos-api
+for _ in \$(seq 1 20); do
+  curl -sk https://127.0.0.1/health >/dev/null 2>&1 && exit 0
+  sleep 1
+done
+echo "API did not answer /health within 20s of restart" >&2
+exit 1
+EOF
+  echo "API restarted and healthy"
 }
 
 cmd_check_shadow() {
