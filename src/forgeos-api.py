@@ -989,6 +989,19 @@ except ImportError as e:
     logger.error("NFS API failed to load: %s", e)
     raise
 
+# Incus — system containers and virtual machines. Its own module rather than
+# a rename of lxc_api: that one shells out to the `lxc` CLI, which Debian
+# trixie no longer ships. Incus is the runtime the installer already names as
+# future scope, so this targets `incus` directly.
+try:
+    from incus_api import router as incus_router, set_helpers as set_incus_helpers
+    set_incus_helpers(audit=_audit)
+    app.include_router(incus_router)
+    logger.info("Incus API loaded")
+except ImportError as e:
+    logger.error("Incus API failed to load: %s", e)
+    raise
+
 
 # ────────────────────────────────────────────────────────────
 # FIREWALL — config-DB backed (firewall_api.py, security P1)

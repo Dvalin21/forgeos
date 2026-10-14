@@ -70,7 +70,9 @@ def test_vm_script_verifies_before_reporting_success():
     """deploy must end in check(). That ordering is the whole point: a failed
     copy cannot print success."""
     text = _SCRIPT.read_text()
-    dep = text[text.index("cmd_deploy() {"):text.index("case \"${1:-}\"")]
+    start = text.index("cmd_deploy() {")
+    nxt = text.index("\ncmd_", start + 1) if "\ncmd_" in text[start + 1:] else start
+    dep = text[start:start + (nxt - start if nxt != start else len(text))]
     body = dep.rstrip().rstrip("}").rstrip()
     assert body.endswith("cmd_check"), \
         "cmd_deploy must end by calling cmd_check"

@@ -32,6 +32,23 @@ manifest() {
 src/forgeos-api.py	$APP/forgeos-api.py
 install/v2/forgeos_install.py	$APP/forgeos_install.py
 EOF
+  # API modules import from dist-packages (verified: python3 -c 'import
+  # samba_api' resolves there), NOT from $APP — but the ENTRYPOINT is
+  # $APP/forgeos-api.py, which is what systemd ExecStart runs. Copying the
+  # entrypoint to dist-packages is a no-op that looks like success.
+  for f in "$ROOT"/src/*.py; do
+    b="$(basename "$f")"
+    # __init__.py marks src/ as a package in the REPO; there is no
+    # `src` package on the box, and dropping it into dist-packages
+    # root would mark site-packages itself as a package.
+    case "$b" in forgeos-api.py|__init__.py) continue ;; esac
+    printf 'src/%s\t%s/%s\n' "$b" "$DIST" "$b"
+  done
+  for f in "$ROOT"/src/generators/*.py; do
+    [ -e "$f" ] || continue
+    b="generators/$(basename "$f")"
+    printf '%s\t%s/%s\n' "src/$b" "$DIST" "$b"
+  done
   # static assets are served straight out of the tree and must always match
   for f in "$ROOT"/web/desktop/*.html "$ROOT"/web/desktop/js/*.js \
            "$ROOT"/web/desktop/css/*.css; do
@@ -130,21 +147,24 @@ cmd_deploy() {
   [ ${#paths[@]} -eq 0 ] && paths=()
   local todo; todo="$(manifest)"
   if [ ${#paths[@]} -gt 0 ]; then
-    # -F -x: literal, whole-line match. A trailing "|" separator here used
-    # to add an empty alternative that matched every manifest line, so a
-    # one-file deploy rewrote the whole tree.
-    # Match the FIRST field (repo-relative path); the second is the remote
-    # path. Plain loop: the two-file awk form silently read only the first
-    # file here, which made every filter come back empty.
-    local want line keep=""
+    # Match the FIRST field (repo-relative path) against the FULL manifest,
+    # independently per path. Narrowing `todo` after each match meant the
+    # first path removed everything the later ones needed, so
+    # `deploy a.py b.py` reported "no manifest entry matches: b.py".
+    # Plain loop on purpose: the two-file awk form read only the first file
+    # here and silently returned nothing.
+    local want line keep="" all="$todo" sel=""
     for want in "${paths[@]}"; do
       keep=""
       while IFS= read -r line; do
-        [ "${line%%$'\t'*}" = "$want" ] && keep="$keep$line"$'\n'
-      done <<< "$todo"
+        if [ "${line%%$'\t'*}" = "$want" ]; then
+          keep="$keep$line"$'\n'
+        fi
+      done <<< "$all"
       [ -n "$keep" ] || { echo "no manifest entry matches: $want" >&2; exit 1; }
-      todo="$keep"
+      sel="$sel$keep"
     done
+    todo="$sel"
   fi
   ensure_conn
   local n=0
@@ -165,9 +185,37 @@ EOF
   cmd_check
 }
 
+cmd_check_shadow() {
+  # The entrypoint runs $APP/forgeos-api.py, so $APP is sys.path[0] and ANY
+  # module file left there wins over the installer's dist-packages copy. That
+  # shadowing silently ignored a correct deploy: the code landed in
+  # dist-packages, the service kept importing a stale copy from $APP, and the
+  # symptom was "the new code is deployed but nothing changed".
+  ensure_conn
+  local out
+  out=$(ssh_vm "D=$DIST; A=$APP; n=0; for f in \$A/*.py \$A/generators/*.py; do
+          [ -e \"\$f\" ] || continue
+          b=\$(basename \"\$f\")
+          case \"\$b\" in forgeos-api.py|forgeos-app.py|forgeos-generate.py) continue ;; esac
+          if [ -f \"\$D/\$b\" ] || [ -f \"\$D/generators/\$b\" ]; then echo \"\$b\"; n=\$((n+1)); fi
+        done; echo \"SHADOW_COUNT=\$n\"" 2>/dev/null)
+  local files count
+  files=$(printf '%s\n' "$out" | grep -v '^SHADOW_COUNT=' || true)
+  count=$(printf '%s\n' "$out" | sed -n 's/^SHADOW_COUNT=//p')
+  if [ "${count:-0}" -gt 0 ]; then
+    echo "SHADOWING: $count module file(s) in $APP override dist-packages:" >&2
+    printf '  %s\n' $files >&2
+    echo "  the service will import THESE, not what you just deployed." >&2
+    echo "  fix: remove them from $APP (they are duplicates of dist-packages)" >&2
+    return 1
+  fi
+  echo "no shadowing in $APP (0 stray module files)"
+}
+
 case "${1:-}" in
   facts)  shift; cmd_facts "$@" ;;
   check)  shift; cmd_check "$@" ;;
+  shadow) shift; cmd_check_shadow "$@" ;;
   deploy) shift; cmd_deploy "$@" ;;
   exec)   shift; ensure_conn; ssh_vm "$@" ;;
   *) sed -n '2,20p' "$0"; exit 1 ;;

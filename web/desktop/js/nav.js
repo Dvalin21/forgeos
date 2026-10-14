@@ -107,7 +107,13 @@
       { id: "shares",   label: "Shares (SMB)",  icon: "shares",  page: "shares.html" }
     ]},
     { title: "Apps & Containers", items: [
-      { id: "apps",     label: "Apps & Containers", icon: "apps", page: "apps.html" }
+      // The group and an item sharing a name was the confusion: a group called
+      // "Apps & Containers" holding a link called "Apps & Containers". Split
+      // by what the thing actually IS: an installed app, a container, or a
+      // virtual machine.
+      { id: "apps",       label: "Apps",             icon: "apps", page: "apps.html" },
+      { id: "containers",  label: "Containers",       icon: "apps", page: "containers.html" },
+      { id: "vms",        label: "Virtual Machines", icon: "apps", page: "vms.html" }
     ]},
     { title: "Network", items: [
       { id: "network",  label: "Network",       icon: "network",  page: "network.html" },

@@ -89,6 +89,36 @@ class UfwGenerator(ServiceGenerator):
                           "comment", f"ForgeOS Data Connect {d.name}"])
         return g
 
+    def _incus_rules(self, cfg) -> list[list[str]]:
+        """Carve-outs for the Incus bridge.
+
+        This is the THIRD instance of a pattern already documented twice in
+        this file (see the WireGuard guard above): a default-deny policy
+        silently swallows a service's control traffic, the service still
+        "runs", and the failure looks like the service is broken.
+
+        For Incus it is worse than a VPN handshake. `ufw --force reset` in
+        apply() wipes Incus's own nftables rules, and with INPUT policy DROP
+        the DHCP OFFER from dnsmasq is discarded before it reaches the
+        container. Verified on the box: the container starts, `incus exec`
+        works, and eth0 has no address, no route and no DNS — because
+        ufw-before-input never allows udp/67 on the bridge.
+
+        Three rules, matching what the bridge actually needs:
+          input  — dnsmasq's lease replies are locally delivered (INPUT)
+          route in / route out — the container's own traffic (FORWARD)
+        """
+        incus = getattr(cfg, "incus", None)
+        if incus is None or not incus.enabled:
+            return []
+        br = incus.bridge
+        c = f"ForgeOS Incus bridge {br}"
+        return [
+            ["allow", "in", "on", br, "comment", c],
+            ["route", "allow", "in", "on", br, "comment", c],
+            ["route", "allow", "out", "on", br, "comment", c],
+        ]
+
     # ── converge ─────────────────────────────────────────────────
     def apply(self, cfg, *, do_reload: bool = True) -> list[str]:
         fw = cfg.firewall
@@ -100,6 +130,8 @@ class UfwGenerator(ServiceGenerator):
             cmds += [["ufw"] + g for g in self._guard_rules(cfg)]
         if fw.enabled and fw.default_incoming != "allow":
             cmds += [["ufw"] + g for g in self._data_connect_rules(cfg)]
+        if fw.enabled and fw.default_incoming != "allow":
+            cmds += [["ufw"] + g for g in self._incus_rules(cfg)]
         cmds += [["ufw"] + self._rule_args(r) for r in fw.rules]
         cmds.append(["ufw", "--force", "enable" if fw.enabled else "disable"])
 

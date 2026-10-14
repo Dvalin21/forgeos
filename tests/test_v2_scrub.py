@@ -151,9 +151,12 @@ class TestConfigMigration:
         assert cfg.storage.scrub.pools == []
 
     def test_schema_version_bumped(self):
-        assert fc.SCHEMA_VERSION == 13
+        # Assert the migration PATH, not an absolute version: later features
+        # add schema blocks and a hardcoded == 13 breaks for them. A v12 file
+        # must still reach the current version.
         assert 12 in fc._MIGRATIONS
-        assert fc.migrate({"version": 12})["version"] == 13
+        assert fc.migrate({"version": 12})["version"] == fc.SCHEMA_VERSION
+        assert fc.SCHEMA_VERSION >= 13
 
     def test_existing_scrub_settings_survive_migration(self):
         raw = {"version": 12, "storage": {"scrub": {"enabled": True, "schedule": "weekly"}}}

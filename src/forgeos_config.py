@@ -501,6 +501,42 @@ class NfsConfig(BaseModel):
         return v
 
 
+# ---------------- Incus ----------------
+
+class IncusConfig(BaseModel):
+    """Incus (system containers + VMs) — settings ForgeOS owns.
+
+    Only SETTINGS live here. Instances are NOT tracked: like Docker, Incus is
+    its own source of truth (/var/lib/incus). Recording them in this DB would
+    mean two stores disagreeing — the exact bug the storage reconciler exists
+    to paper over.
+
+    `bridge` must match the Incus-managed bridge name; it is used to emit the
+    ufw carve-outs WITHOUT WHICH EVERY CONTAINER RUNS WITH NO IP ADDRESS
+    (verified on the box: ufw INPUT policy DROP swallows the DHCP reply,
+    dnsmasq never offers a lease, the container starts and is unreachable).
+    """
+    enabled: bool = False
+    bridge: str = "incusbr0"
+    storage_pool: str = "default"
+
+    @field_validator("bridge")
+    @classmethod
+    def _valid_bridge(cls, v: str) -> str:
+        v = v.strip()
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,23}", v):
+            raise ValueError(f"invalid bridge name: {v!r}")
+        return v
+
+    @field_validator("storage_pool")
+    @classmethod
+    def _valid_pool(cls, v: str) -> str:
+        v = v.strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}", v):
+            raise ValueError(f"invalid storage pool name: {v!r}")
+        return v
+
+
 # ---------------- SMTP ----------------
 
 
@@ -873,7 +909,7 @@ class AuthConfig(BaseModel):
     require_totp_new_users: bool = False
 
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 
 class ForgeOSConfig(BaseModel):
@@ -897,6 +933,7 @@ class ForgeOSConfig(BaseModel):
     updates: UpdatesConfig = Field(default_factory=UpdatesConfig)
     wireguard: WireGuardConfig = Field(default_factory=WireGuardConfig)
     nfs: NfsConfig = Field(default_factory=NfsConfig)
+    incus: IncusConfig = Field(default_factory=IncusConfig)
     smtp: SmtpConfig = Field(default_factory=SmtpConfig)
     apps: list[InstalledApp] = Field(default_factory=list)
     toggles: TogglesConfig = Field(default_factory=TogglesConfig)
@@ -1029,6 +1066,14 @@ def _migrate_v12_to_v13(data: dict) -> dict:
     return data
 
 
+def _migrate_v13_to_v14(data: dict) -> dict:
+    """v14: Incus settings block (enabled/bridge/storage_pool). Additive —
+    defaults keep Incus OFF, so no existing box changes behaviour."""
+    data.setdefault("incus", {})
+    data["version"] = 14
+    return data
+
+
 _MIGRATIONS = {
     1: _migrate_v1_to_v2,
     2: _migrate_v2_to_v3,
@@ -1042,6 +1087,7 @@ _MIGRATIONS = {
     10: _migrate_v10_to_v11,
     11: _migrate_v11_to_v12,
     12: _migrate_v12_to_v13,
+    13: _migrate_v13_to_v14,
 }
 
 

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width, initial-scale=1">
+<title>Containers · ForgeOS</title>
+<link rel="stylesheet" href="/css/forgeos.css">
+<style>
+input.fi,select.fi{width:100%;height:38px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);font:600 13px var(--font);color:var(--text)}
+input.fi:focus,select.fi:focus{outline:2px solid var(--primary-soft);border-color:var(--primary-text)}
+.chip.ok{background:rgba(16,166,106,.12);color:var(--success)}
+.chip.warn{background:rgba(216,138,0,.14);color:var(--warn)}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.stat>div{padding:14px 16px;border:1px solid var(--line);border-radius:15px;background:var(--surface-2)}
+.stat b{display:block;font-size:24px;font-weight:800;line-height:1.25}
+.stat span{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+.mrow{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--line);border-radius:15px;background:var(--surface-2);margin-bottom:8px}
+.mrow .sub{font-size:12.5px;color:var(--muted);margin-top:3px}
+.gate{text-align:center;padding:34px 20px;border:1px dashed var(--line);border-radius:15px;background:var(--surface-2)}
+.gate h4{margin:0 0 6px;font-size:16px;font-weight:800}
+.gate p{margin:0 auto 16px;max-width:480px;color:var(--muted);font-size:13px;line-height:1.6}
+.mono{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);padding:2px 7px;border-radius:6px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}}
+fieldset{border:0;padding:0;margin:0 0 14px}
+legend{font-size:12.5px;font-weight:800;margin-bottom:7px;padding:0;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+label.f{display:block;font-size:13px;font-weight:600;margin-bottom:5px}
+.hint{font-size:12px;color:var(--muted);margin:5px 0 0;line-height:1.5}
+.editable{border:2px dashed var(--primary);border-radius:11px;padding:11px 13px;background:var(--primary-soft);margin-bottom:12px}
+.editable .ed-head{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--primary-text);margin-bottom:9px}
+.hw{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:560px){.hw{grid-template-columns:1fr}}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.presets button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font:700 12px var(--font);color:var(--text);cursor:pointer}
+.presets button:hover{border-color:var(--primary-text);color:var(--primary-text)}
+</style>
+</head>
+<body>
+<div class="app"><main class="main" style="grid-column:1/-1">
+
+<header class="topbar" style="grid-template-columns:1fr auto">
+  <div class="section-head" style="margin:0"><div>
+    <h3 style="font-size:22px">Containers</h3>
+    <p>Lightweight Linux boxes. Each one runs a program all by itself.</p>
+  </div></div>
+  <div class="top-actions">
+    <button class="circle-btn" id="refresh" title="Refresh"><svg class="ico" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8M20 4v4h-4M20 12a8 8 0 0 1-13.7 5.7L4 16M4 20v-4h4"/></svg></button>
+    <button class="btn-pri" id="new-ctr">+ New container</button>
+  </div>
+</header>
+
+<!-- gate: Incus not installed -->
+<section class="panel pad" id="gate-install">
+  <div class="section-head"><div><h3>Not set up yet</h3><p>The container engine isn't installed on this NAS.</p></div></div>
+  <div class="gate" style="margin-top:14px">
+    <h4>Install the container engine</h4>
+    <p>ForgeOS installs and prepares Incus for you. A couple of minutes, and the NAS stays usable throughout. About 1&nbsp;GB free is needed.</p>
+    <button class="btn-pri" id="install-btn">Install and set up</button>
+    <p style="margin:18px 0 0;font-size:12px">Installing a program? Use <a href="apps.html" style="color:var(--primary-text);font-weight:700">Apps</a> instead — almost everyone wants that.
+      <span class="mono" id="gate-err"></span></p>
+  </div>
+</section>
+
+<!-- the list -->
+<section class="panel pad" id="panel-list" style="display:none">
+  <div class="section-head"><div><h3>Your containers</h3><p id="list-sub">Start and stop them freely — the NAS is unaffected either way.</p></div></div>
+  <div class="stat" style="margin-top:14px">
+    <div><b id="s-total">0</b><span>Total</span></div>
+    <div><b id="s-running" style="color:var(--success)">0</b><span>Running</span></div>
+    <div><b id="s-mem">0 B</b><span>RAM in use</span></div>
+    <div><b id="s-disk">0 B</b><span>Disk used</span></div>
+  </div>
+  <div id="rows" style="margin-top:14px"></div>
+  <details style="margin-top:12px">
+    <summary style="cursor:pointer;font-size:12.5px;color:var(--muted);font-weight:700">Advanced tools</summary>
+    <p style="font-size:12.5px;color:var(--muted);line-height:1.7;margin:10px 0 0">
+      <b>Run a command</b> — a terminal inside the container.<br>
+      <b>Snapshots</b> — save a restore point before an update.<br>
+      <b>Network</b> — change its address on your network.<br>
+      <b>Delete</b> — removes the container and everything in it. Cannot be undone.
+    </p>
+  </details>
+</section>
+
+<!-- create -->
+<section class="panel pad" id="panel-create" style="display:none;margin-top:18px">
+  <div class="section-head"><div><h3>New container</h3><p>Pick a system, set the size, name it. You can change all of this later.</p></div></div>
+  <div class="grid2" style="margin-top:14px">
+
+    <fieldset>
+      <legend>Operating system</legend>
+      <select class="fi" id="f-image">
+        <option value="images:debian/13">Debian 13 — stable and light</option>
+        <option value="images:ubuntu/26.04">Ubuntu 26.04 — most guides online</option>
+        <option value="images:alpine/3.22">Alpine 3.22 — very small</option>
+      </select>
+      <p class="hint">All free and open-source. Nothing here costs anything.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Name</legend>
+      <input class="fi" id="f-name" placeholder="my-container" spellcheck="false">
+      <p class="hint">Letters, numbers and dashes. No spaces.</p>
+    </fieldset>
+
+    <div style="grid-column:1/-1">
+      <!-- THE EDITABLE BLOCK. A preset only fills these in; it never locks
+           them. Picking "Small" then wanting 3GB must not mean creating the
+           container, stopping it, editing, and starting it again. -->
+      <div class="editable">
+        <div class="ed-head">Size — change anything below</div>
+        <div class="presets">
+          <button type="button" data-preset="1|20">Small</button>
+          <button type="button" data-preset="2|40">Medium</button>
+          <button type="button" data-preset="4|80">Large</button>
+        </div>
+        <div class="hw">
+          <div>
+            <label class="f" for="f-cpu">Processor cores</label>
+            <input class="fi" id="f-cpu" inputmode="numeric" placeholder="2">
+          </div>
+          <div>
+            <label class="f" for="f-mem">Memory</label>
+            <input class="fi" id="f-mem" placeholder="2GiB">
+          </div>
+          <div style="grid-column:1/-1">
+            <label class="f" for="f-disk">Disk space</label>
+            <input class="fi" id="f-disk" placeholder="40GiB">
+            <p class="hint">Write it exactly how you want it — 3GiB, 512MB, 3GB, all fine.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="grid-column:1/-1;display:flex;gap:10px;justify-content:flex-end">
+      <button class="button" id="cancel">Cancel</button>
+      <button class="btn-pri" id="create">Create</button>
+    </div>
+  </div>
+</section>
+
+</main></div>
+<div id="toasts"></div>
+<script src="/js/containers.js"></script>
+<script src="/js/health.js"></script>
+<script src="/js/nav.js"></script>
+</body></html>

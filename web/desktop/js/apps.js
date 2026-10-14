@@ -487,12 +487,15 @@
     if(!raw)return{};if(typeof raw==='object')return raw;
     var o={};String(raw).split(',').forEach(function(kv){var i=kv.indexOf('=');if(i>0)o[kv.slice(0,i)]=kv.slice(i+1)});return o}
   async function refresh(){
-    var [svc,docker,lxc,st]=await Promise.all([api('/api/services'),api('/api/docker/containers?all=true'),api('/api/lxc/containers'),api('/api/docker/settings')]);
+    // /api/lxc/containers was removed from this call: it shelled out to the
+    // `lxc` CLI, which Debian trixie does not ship, so it always 503'd and
+    // merged as an empty list - silently. Incus containers have their own
+    // page now (containers.html).
+    var [svc,docker,st]=await Promise.all([api('/api/services'),api('/api/docker/containers?all=true'),api('/api/docker/settings')]);
     STATE.services=(svc.data&&svc.data.services)||[];
     STATE.appsRoot=(st.data&&st.data.apps_root)||'/srv/apps';
     var docks=((docker.data&&docker.data.containers)||[]).map(function(c){var labels=parseLabels(c.Labels||c.labels);return {name:(c.Names&&c.Names.replace(/^\//,''))||c.name,image:c.Image||c.image,running:(c.State||c.state||'').toLowerCase()==='running',status:c.Status||c.state,runtime:'docker',composeProject:labels['com.docker.compose.project'],fromCatalog:labels['forgeos.catalog']}});
-    var incs=((lxc.data&&lxc.data.containers)||[]).map(function(c){return {name:c.name,image:c.image||c.type||'container',running:c.status==='Running',status:c.status,runtime:'container'}});
-    STATE.containers=docks.concat(incs);
+    STATE.containers=docks;
     recalc();renderCatalog();renderContainers();renderServices();
   }
 

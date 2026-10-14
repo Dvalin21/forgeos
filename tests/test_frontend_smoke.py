@@ -143,3 +143,41 @@ def test_every_class_used_is_actually_defined():
 
     assert problems == {}, (
         f"classes used but defined nowhere - they render unstyled: {problems}")
+
+
+def test_hardware_fields_are_editable_not_preset_locked():
+    """The explicit requirement: a size preset must FILL the fields, never
+    replace them with a fixed value the user cannot change. Someone who wants
+    3GB after tapping "Medium" must be able to just type it, not create the
+    container, stop it, edit, and start it again.
+
+    Pinned in the UI because the natural implementation (preset = the value)
+    still looks right in a screenshot."""
+    html = (_ROOT / "web" / "desktop" / "containers.html").read_text()
+    js = (_ROOT / "web" / "desktop" / "js" / "containers.js").read_text()
+
+    # real, editable inputs for each hardware field
+    for field in ("f-cpu", "f-mem", "f-disk"):
+        assert f'id="{field}"' in html, f"{field} is not an editable input"
+        assert "disabled" not in html.split(f'id="{field}"')[1].split(">")[0], \
+            f"{field} ships disabled"
+
+    # Presets must write INTO each input. Assert this INSIDE the preset
+    # handler: a substring check over the whole file passes as long as the
+    # create body mentions the field, which is exactly how the first version
+    # of this test was fooled.
+    start = js.index("data-preset")
+    handler = js[start:js.index("async function create", start)]
+    for field in ("f-cpu", "f-mem", "f-disk"):
+        assert f"$('#{field}').value" in handler, \
+            f"the preset handler never writes {field} — presets must fill " \
+            "the inputs, not replace the form"
+
+    # and the values in those inputs are what gets POSTed
+    body = js[js.index("async function create"):js.index("document.addEventListener")]
+    assert "$('#f-cpu').value" in body and "cpu_limit:" in body
+    assert "$('#f-mem').value" in body and "memory:" in body
+    assert "$('#f-disk').value" in body and "disk:" in body
+    # no client-side clamp that would silently rewrite the user's number
+    assert "Math.min" not in js and "Math.max" not in js, \
+        "client-side clamping would rewrite a value the user typed"
