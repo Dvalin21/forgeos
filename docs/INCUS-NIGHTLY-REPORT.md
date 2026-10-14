@@ -201,3 +201,52 @@ send within a minute or nginx cuts it.
    shells out to a binary Debian no longer ships. Nothing calls it now.
 6. **Clean-install verification.** Every finding here came from a box with
    accumulated history. A fresh install is the only real test of the installer.
+---
+
+## 9 · Clean-install verification (2026-10-14, §8.6)
+
+Ran the report's own last recommendation, twice, on the test box:
+
+- deleted the `forgeos-test` container and the `default` Incus pool (the
+  pool refused deletion until the default profile's root disk device was
+  removed — `used_by: /1.0/profiles/default`)
+- stopped and disabled forgeos-api / incus / scrub timer, unmounted
+  `/srv/nas/tank` and `/mnt/backup`, cleaned their fstab entries
+- wiped `/dev/sda /dev/sdb /dev/sdc /dev/sdd` (wipefs -a + sgdisk --zap-all
+  + 4 MiB zero). `/dev/sde` (boot) excluded by construction; Docker app
+  data lives on the root fs (`/srv/apps`, `/srv/nas`) and was untouched
+- wiped ForgeOS state (`/etc/forgeos`, `/opt/forgeos`, nginx forgeos.d,
+  pip-uninstalled the package)
+- ran the real install path from a synced repo copy:
+  `bootstrap.sh --unattended --hostname forgeos --timezone America/Chicago
+  --lan-cidr 10.0.0.0/24 --profile medium`
+
+**First run: installer PASSED all 9 phases** — including `verify` (login
+200 + token) and `secaudit` — and then `vm.sh shadow` failed: **64 module
+files shadowing dist-packages**. The installer itself re-created the §2
+incident on a box that had never been hand-deployed to:
+`_default_deploy_web` copied the whole `src/` tree into `/opt/forgeos`,
+which is `sys.path[0]` for `ExecStart=/usr/bin/python3
+/opt/forgeos/forgeos-api.py`. Every future deploy to such a box silently
+does nothing.
+
+**Fixed** (`d90493c`+): `_default_deploy_web` now copies only the
+entrypoint and web assets; the pip package is the single copy of the
+modules. Guard test `test_deploy_web_copies_only_entrypoint_and_web` pins
+the layout.
+
+**Second run: all 9 phases ✓ again, and `vm.sh shadow` clean** (0 stray
+files), `vm.sh check` IN SYNC (109 files), `/opt/forgeos` contains exactly
+`forgeos-api.py` + `web/`.
+
+Verified live on the fresh box: login → token (157 chars), `/health` ok,
+UI serves over nginx, `forgeos-generate all` clean, journal free of
+tracebacks, `/api/net/interfaces` hides `incusbr0`, `/api/lxc/*` now 404,
+schema v14 seeded, and all four wiped drives visible in
+`/api/storage/drives` for the LHSR flow to claim.
+
+Also fixed: `vm.sh`'s manifest still expected the three old entrypoints
+in `/opt/forgeos` — they are pip console scripts / repo-tree artifacts
+since the layout correction, and the check false-alarmed until updated.
+
+The §8 list is now fully closed: 1–5 fixed in `d90493c`, 6 verified here.

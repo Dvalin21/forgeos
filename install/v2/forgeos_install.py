@@ -650,20 +650,25 @@ class Installer:
 
     @staticmethod
     def _default_deploy_web(repo_root, opt_dir):
-        """Copy the API modules + web assets from the repo to /opt/forgeos."""
+        """Copy the API entrypoint + web assets to /opt/forgeos.
+
+        ONLY the entrypoint and web assets. ExecStart runs
+        /opt/forgeos/forgeos-api.py, which makes /opt/forgeos sys.path[0] —
+        every .py sitting here shadows the pip-installed module in
+        dist-packages, so a deploy that lands here appears to change nothing
+        (that is exactly how the ufw fix looked broken, INCUS-NIGHTLY-REPORT
+        §2). The pip package is the single copy of the modules; this dir is
+        the service entrypoint and static assets only. `vm.sh shadow` exits 1
+        if anything else ever lands here.
+        """
         import shutil
         from pathlib import Path
 
         src = Path(repo_root) / "src"
         opt = Path(opt_dir)
         opt.mkdir(parents=True, exist_ok=True)
-        # copy every python module + the generators package
-        for item in src.iterdir():
-            dest = opt / item.name
-            if item.is_dir():
-                shutil.copytree(item, dest, dirs_exist_ok=True)
-            else:
-                shutil.copy2(item, dest)
+        # entrypoint named by the forgeos-api unit's ExecStart — nothing else
+        shutil.copy2(src / "forgeos-api.py", opt / "forgeos-api.py")
         # web assets
         web_src = Path(repo_root) / "web"
         if web_src.exists():

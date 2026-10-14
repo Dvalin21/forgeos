@@ -101,3 +101,10 @@ docs/DSM-UI-RESEARCH.md
 forgeos-installer-amd64.iso
 # users.json holds a real bcrypt hash — never track it
 .config/users.json
+
+# build/test artifacts — multi-GB, never commit
+*.iso
+*.qcow2
+PRODUCTION_REVIEW.md
+build/
+*.egg-info/

@@ -572,3 +572,31 @@ def test_generator_etc_targets_are_writable_by_the_service():
         f"the write fail at runtime: {list(unwritable)}\n"
         "Add each to RUNTIME_DIRS and to the unit's ReadWritePaths."
     )
+
+
+def test_deploy_web_copies_only_entrypoint_and_web(tmp_path):
+    """A fresh install must not re-create module shadowing.
+
+    ExecStart runs /opt/forgeos/forgeos-api.py, so /opt/forgeos is
+    sys.path[0]: every .py parked there silently overrides the pip-installed
+    module in dist-packages. The installer used to copy the whole src/ tree
+    there, which broke every subsequent deploy exactly once per box
+    (INCUS-NIGHTLY-REPORT §2 — verified by a clean-install run on the VM:
+    `vm.sh shadow` listed 64 shadowed modules on a box that had never been
+    deployed to by hand). Only the entrypoint and static assets belong here.
+    """
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "src" / "forgeos-api.py").write_text("# entrypoint\n")
+    (repo / "src" / "samba_api.py").write_text("# module\n")
+    (repo / "src" / "generators").mkdir()
+    (repo / "src" / "generators" / "nginx.py").write_text("# generator\n")
+    (repo / "web" / "desktop").mkdir(parents=True)
+    (repo / "web" / "desktop" / "index.html").write_text("<html></html>\n")
+
+    opt = tmp_path / "opt"
+    fi.Installer._default_deploy_web(str(repo), str(opt))
+
+    landed = sorted(p.relative_to(opt).as_posix()
+                    for p in opt.rglob("*") if p.is_file())
+    assert landed == ["forgeos-api.py", "web/desktop/index.html"], landed

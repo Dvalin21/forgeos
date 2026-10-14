@@ -30,10 +30,12 @@ APP="/opt/forgeos"
 manifest() {
   cat <<EOF
 src/forgeos-api.py	$APP/forgeos-api.py
-src/forgeos-app.py	$APP/forgeos-app.py
-src/forgeos-generate.py	$APP/forgeos-generate.py
-install/v2/forgeos_install.py	$APP/forgeos_install.py
 EOF
+  # Only the entrypoint lives in $APP — ExecStart runs it, which makes $APP
+  # sys.path[0], so a single stray .py there shadows dist-packages (the
+  # §2 incident; `vm.sh shadow` guards it). The other old entrypoints are
+  # pip console scripts ([project.scripts] → /usr/local/bin) and the
+  # installer runs from a repo tree — none of them are deployed to $APP.
   # API modules import from dist-packages (verified: python3 -c 'import
   # samba_api' resolves there), NOT from $APP — but the ENTRYPOINT is
   # $APP/forgeos-api.py, which is what systemd ExecStart runs. Copying the
