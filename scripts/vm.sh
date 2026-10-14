@@ -30,6 +30,8 @@ APP="/opt/forgeos"
 manifest() {
   cat <<EOF
 src/forgeos-api.py	$APP/forgeos-api.py
+src/forgeos-app.py	$APP/forgeos-app.py
+src/forgeos-generate.py	$APP/forgeos-generate.py
 install/v2/forgeos_install.py	$APP/forgeos_install.py
 EOF
   # API modules import from dist-packages (verified: python3 -c 'import
@@ -41,7 +43,7 @@ EOF
     # __init__.py marks src/ as a package in the REPO; there is no
     # `src` package on the box, and dropping it into dist-packages
     # root would mark site-packages itself as a package.
-    case "$b" in forgeos-api.py|__init__.py) continue ;; esac
+    case "$b" in forgeos-api.py|forgeos-app.py|forgeos-generate.py|__init__.py) continue ;; esac
     printf 'src/%s\t%s/%s\n' "$b" "$DIST" "$b"
   done
   for f in "$ROOT"/src/generators/*.py; do
@@ -121,7 +123,7 @@ cmd_check() {
   manifest | awk -F'\t' '{print $2"\t"$1}' > /tmp/.forgeos-pathmap
   ssh_vm "sudo -S md5sum $rem" <<<"$(sudo_pw)" 2>/dev/null \
     | awk 'NR==FNR{m[$1]=$2;next}{ if ($2 in m) print $1"  "m[$2]; else print $1"  UNMAPPED:"$2 }' \
-      /tmp/.forgeos-pathmap - | sort > "$rsum"
+      /tmp/.forgeos-pathmap - | sort > "$rsum" || true
 
   if [ ! -s "$rsum" ]; then
     echo "VM returned no checksums - refusing to report success" >&2
