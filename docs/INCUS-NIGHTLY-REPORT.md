@@ -277,3 +277,26 @@ Fix details in commit `fix: five live-testing findings on the clean-install
 box`. Post-fix, verified live: pool create→mount(fstab+config)→destroy
 (unmount+wipefs+fstab cleanup), service restart of docker/nginx/self,
 RustFS noted as the one endpoint needing a running service.
+
+---
+
+## 11 · "invalid btrfs raid profile" — every RAID create from the UI
+
+Reported from the live box: *"I keep getting invalid profile btrfs every
+time I try to build any raid set."* Root cause: `plan_pool` stored
+`raid_level=str(raid_level)`, and the UI's create form sends
+`parseInt(level)` — integers 0/1/5/6/10. `str(1)` == `"1"` is not a valid
+profile, and the plan carries that value into `execute_pool`'s guard
+re-check, so every RAID create 400'd. `"single"` worked (str of a str is
+itself), and the form has no `single` option at all — so the bug was
+total, not partial. Latent since the UI shipped; masked in testing by
+string levels.
+
+Fix: `_canonical_level()` normalizes the UI's integers to btrfs profile
+names at the single entry point (`plan_pool`), so the plan, the guard
+re-check, `mkfs.btrfs -d/-m`, the config record and the audit all agree.
+`PooPlan.raid_level` no longer coerces.
+
+Verified live with the exact UI payloads — level=1/5/6/10/0 each:
+create 200 → listed with the right raid level → mounted (host-visible) →
+fstab line → destroy 200 → unmounted + fstab cleaned.

@@ -228,10 +228,23 @@ def _require_tools(*tools: str) -> None:
             "the ForgeOS base set; `sudo apt-get install -y btrfs-progs`).")
 
 
+def _canonical_level(raid_level):
+    """Accept the UI's integers (parseInt of the RAID select: 0/1/5/6/10) and
+    the btrfs profile names alike; return the canonical profile NAME.
+
+    Without this the UI's integer level became str(1) == "1" in the plan and
+    failed the guard's valid_levels re-check inside execute_pool — every RAID
+    create from the web UI 400'd "invalid btrfs raid profile: '1'". String
+    levels like "single" masked it (str() of a str is itself)."""
+    return {0: "raid0", 1: "raid1", 5: "raid5", 6: "raid6",
+            10: "raid10"}.get(raid_level, raid_level)
+
+
 def plan_pool(name: str, raid_level, disks: list[DiskInfo],
               *, mountpoint: str = "", force: bool = False) -> PoolPlan:
     """Validate the WHOLE request (guards), then build the ordered destructive
     plan WITHOUT running anything. Raises DiskGuardError if unsafe."""
+    raid_level = _canonical_level(raid_level)
     guard_pool_request(name, raid_level, disks, force=force)
     _require_tools("mkfs.btrfs", "mount", "blkid")
     profile = _BTRFS_PROFILE.get(raid_level)
@@ -240,7 +253,7 @@ def plan_pool(name: str, raid_level, disks: list[DiskInfo],
     mp = mountpoint or f"/srv/nas/{name}"
     devs = [d.stable_path for d in disks]
 
-    plan = PoolPlan(name=name, raid_level=str(raid_level), devices=devs, mountpoint=mp)
+    plan = PoolPlan(name=name, raid_level=raid_level, devices=devs, mountpoint=mp)
     # mkfs.btrfs handles multi-device + raid in one shot; data AND metadata
     # profiles set so a single-disk-loss is survivable per the chosen level.
     plan.steps.append((

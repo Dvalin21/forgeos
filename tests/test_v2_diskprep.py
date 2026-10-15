@@ -294,3 +294,27 @@ def test_execute_pool_cleans_nothing_on_failure(stub_tools, tmp_path):
                         runner=lambda c: None, blkid=lambda d: "U-x",
                         fstab_path=str(fs), record=rec)
     assert "U-x" in fs.read_text()
+
+
+def test_plan_pool_accepts_ui_integer_levels(stub_tools):
+    """The web UI sends parseInt(level) — 0/1/5/6/10. Those integers must
+    normalize to btrfs profile names: str(1) == "1" is not a valid profile,
+    and the plan carries raid_level into execute_pool's guard re-check, so
+    every RAID create from the UI 400'd (only "single" — a string — worked).
+    The create form has no 'single' option at all."""
+    for lvl, canon in [(1, "raid1"), (5, "raid5"), (6, "raid6"),
+                       (10, "raid10"), (0, "raid0")]:
+        plan = dp.plan_pool("tank", lvl, [_disk("sda"), _disk("sdb"),
+                                          _disk("sdc"), _disk("sdd")])
+        assert plan.raid_level == canon, (lvl, plan.raid_level)
+        mkfs = plan.steps[0][1]
+        assert f"-d {canon}" in " ".join(mkfs) or canon in mkfs
+
+
+def test_execute_pool_recheck_passes_with_ui_integer_level(stub_tools, tmp_path):
+    # end-to-end shape of the bug: plan from the UI's integer level, fresh
+    # inspection that (like every real box) also contains the system disk.
+    plan = dp.plan_pool("tank", 1, [_disk("sda"), _disk("sdc")])
+    dp.execute_pool(plan, [_disk("sda"), _disk("sdc"), _disk("sde", is_system=True)],
+                    runner=lambda c: None, blkid=lambda d: "U-i",
+                    fstab_path=str(tmp_path / "fstab"))
