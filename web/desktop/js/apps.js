@@ -49,42 +49,42 @@
   // homarr-labs/dashboard-icons at /img/apps/{id}.png (emoji = fallback).
   var CATALOG=[
     // ── Media ──
-    {id:'jellyfin',name:'Jellyfin',cat:'Media',icon:'🎬',desc:'Free media server for movies, TV, music.',image:'jellyfin/jellyfin:latest',ports:['8096:8096'],vols:function(r){return [r+'/jellyfin/config:/config',r+'/jellyfin/cache:/cache','/srv/nas:/media:ro']}},
-    {id:'plex',name:'Plex',cat:'Media',icon:'▶',desc:'Personal media library with mobile/TV apps.',image:'plexinc/pms-docker:latest',ports:['32400:32400'],vols:function(r){return [r+'/plex:/config','/srv/nas:/media:ro']}},
-    {id:'navidrome',name:'Navidrome',cat:'Media',icon:'🎵',desc:'Modern music server & streamer (Subsonic-compatible).',image:'deluan/navidrome:latest',ports:['4533:4533'],vols:function(r){return [r+'/navidrome:/data','/srv/nas/music:/music:ro']}},
-    {id:'audiobookshelf',name:'Audiobookshelf',cat:'Media',icon:'🎧',desc:'Audiobook & podcast server with apps.',image:'ghcr.io/advplyr/audiobookshelf:latest',ports:['13378:80'],vols:function(r){return [r+'/audiobookshelf/config:/config',r+'/audiobookshelf/metadata:/metadata','/srv/nas/audiobooks:/audiobooks']}},
-    {id:'photoprism',name:'PhotoPrism',cat:'Media',icon:'📷',desc:'AI-powered photo library. Set the admin password before first run.',image:'photoprism/photoprism:latest',ports:['2342:2342'],env:['PHOTOPRISM_ADMIN_PASSWORD=change-me-now'],vols:function(r){return [r+'/photoprism:/photoprism/storage','/srv/nas/photos:/photoprism/originals']}},
+    {id:'jellyfin',name:'Jellyfin',cat:'Media',icon:'🎬',desc:'Free media server for movies, TV, music.',image:'jellyfin/jellyfin:latest',ports:['8096:8096'],vols:function(r,p){var POOLROOT=p;return [r+'/jellyfin/config:/config',r+'/jellyfin/cache:/cache',POOLROOT+':/media:ro']}},
+    {id:'plex',name:'Plex',cat:'Media',icon:'▶',desc:'Personal media library with mobile/TV apps.',image:'plexinc/pms-docker:latest',ports:['32400:32400'],vols:function(r,p){var POOLROOT=p;return [r+'/plex:/config',POOLROOT+':/media:ro']}},
+    {id:'navidrome',name:'Navidrome',cat:'Media',icon:'🎵',desc:'Modern music server & streamer (Subsonic-compatible).',image:'deluan/navidrome:latest',ports:['4533:4533'],vols:function(r,p){var POOLROOT=p;return [r+'/navidrome:/data',POOLROOT+'/music:/music:ro']}},
+    {id:'audiobookshelf',name:'Audiobookshelf',cat:'Media',icon:'🎧',desc:'Audiobook & podcast server with apps.',image:'ghcr.io/advplyr/audiobookshelf:latest',ports:['13378:80'],vols:function(r,p){var POOLROOT=p;return [r+'/audiobookshelf/config:/config',r+'/audiobookshelf/metadata:/metadata',POOLROOT+'/audiobooks:/audiobooks']}},
+    {id:'photoprism',name:'PhotoPrism',cat:'Media',icon:'📷',desc:'AI-powered photo library. Set the admin password before first run.',image:'photoprism/photoprism:latest',ports:['2342:2342'],env:['PHOTOPRISM_ADMIN_PASSWORD=change-me-now'],vols:function(r,p){var POOLROOT=p;return [r+'/photoprism:/photoprism/storage',POOLROOT+'/photos:/photoprism/originals']}},
     // ── *arr / downloads ──
-    {id:'sonarr',name:'Sonarr',cat:'Downloads',icon:'📺',desc:'TV series management and automation.',image:'lscr.io/linuxserver/sonarr:latest',ports:['8989:8989'],vols:function(r){return [r+'/sonarr:/config','/srv/nas:/data']}},
-    {id:'radarr',name:'Radarr',cat:'Downloads',icon:'🎥',desc:'Movie collection management and automation.',image:'lscr.io/linuxserver/radarr:latest',ports:['7878:7878'],vols:function(r){return [r+'/radarr:/config','/srv/nas:/data']}},
-    {id:'prowlarr',name:'Prowlarr',cat:'Downloads',icon:'🔎',desc:'Indexer manager for the *arr stack.',image:'lscr.io/linuxserver/prowlarr:latest',ports:['9696:9696'],vols:function(r){return [r+'/prowlarr:/config']}},
-    {id:'qbittorrent',name:'qBittorrent',cat:'Downloads',icon:'⬇',desc:'BitTorrent client with web UI.',image:'lscr.io/linuxserver/qbittorrent:latest',ports:['8090:8080'],vols:function(r){return [r+'/qbittorrent:/config','/srv/nas/downloads:/downloads']}},
-    {id:'jellyseerr',name:'Jellyseerr',cat:'Downloads',icon:'🍿',desc:'Media requests for Jellyfin/Plex users.',image:'fallenbagel/jellyseerr:latest',ports:['5055:5055'],vols:function(r){return [r+'/jellyseerr:/app/config']}},
+    {id:'sonarr',name:'Sonarr',cat:'Downloads',icon:'📺',desc:'TV series management and automation.',image:'lscr.io/linuxserver/sonarr:latest',ports:['8989:8989'],vols:function(r,p){var POOLROOT=p;return [r+'/sonarr:/config',POOLROOT+':/data']}},
+    {id:'radarr',name:'Radarr',cat:'Downloads',icon:'🎥',desc:'Movie collection management and automation.',image:'lscr.io/linuxserver/radarr:latest',ports:['7878:7878'],vols:function(r,p){var POOLROOT=p;return [r+'/radarr:/config',POOLROOT+':/data']}},
+    {id:'prowlarr',name:'Prowlarr',cat:'Downloads',icon:'🔎',desc:'Indexer manager for the *arr stack.',image:'lscr.io/linuxserver/prowlarr:latest',ports:['9696:9696'],vols:function(r,p){var POOLROOT=p;return [r+'/prowlarr:/config']}},
+    {id:'qbittorrent',name:'qBittorrent',cat:'Downloads',icon:'⬇',desc:'BitTorrent client with web UI.',image:'lscr.io/linuxserver/qbittorrent:latest',ports:['8090:8080'],vols:function(r,p){var POOLROOT=p;return [r+'/qbittorrent:/config',POOLROOT+'/downloads:/downloads']}},
+    {id:'jellyseerr',name:'Jellyseerr',cat:'Downloads',icon:'🍿',desc:'Media requests for Jellyfin/Plex users.',image:'fallenbagel/jellyseerr:latest',ports:['5055:5055'],vols:function(r,p){var POOLROOT=p;return [r+'/jellyseerr:/app/config']}},
     // ── Productivity ──
-    {id:'nextcloud',name:'Nextcloud',cat:'Productivity',icon:'☁',desc:'Files, calendar, contacts, collaboration.',image:'nextcloud:latest',ports:['8080:80'],vols:function(r){return [r+'/nextcloud:/var/www/html']}},
-    {id:'gitea',name:'Gitea',cat:'Productivity',icon:'🍵',desc:'Lightweight self-hosted Git service.',image:'gitea/gitea:latest',ports:['3003:3000'],vols:function(r){return [r+'/gitea:/data']}},
-    {id:'n8n',name:'n8n',cat:'Productivity',icon:'🔗',desc:'Workflow automation (self-hosted Zapier).',image:'n8nio/n8n:latest',ports:['5678:5678'],vols:function(r){return [r+'/n8n:/home/node/.n8n']}},
-    {id:'freshrss',name:'FreshRSS',cat:'Productivity',icon:'📰',desc:'Self-hosted RSS reader.',image:'freshrss/freshrss:latest',ports:['8083:80'],vols:function(r){return [r+'/freshrss:/var/www/FreshRSS/data']}},
-    {id:'mealie',name:'Mealie',cat:'Productivity',icon:'🍲',desc:'Recipe manager and meal planner.',image:'ghcr.io/mealie-recipes/mealie:latest',ports:['9925:9000'],vols:function(r){return [r+'/mealie:/app/data']}},
-    {id:'stirling-pdf',name:'Stirling PDF',cat:'Productivity',icon:'📄',desc:'Web-based PDF toolbox: merge, split, convert.',image:'stirlingtools/stirling-pdf:latest',ports:['8084:8080'],vols:function(r){return [r+'/stirling-pdf/configs:/configs',r+'/stirling-pdf/data:/usr/share/tessdata']}},
-    {id:'code-server',name:'Code Server',cat:'Productivity',icon:'💻',desc:'VS Code in the browser on your NAS.',image:'codercom/code-server:latest',ports:['8443:8080'],vols:function(r){return [r+'/code-server:/home/coder']}},
+    {id:'nextcloud',name:'Nextcloud',cat:'Productivity',icon:'☁',desc:'Files, calendar, contacts, collaboration.',image:'nextcloud:latest',ports:['8080:80'],vols:function(r,p){var POOLROOT=p;return [r+'/nextcloud:/var/www/html']}},
+    {id:'gitea',name:'Gitea',cat:'Productivity',icon:'🍵',desc:'Lightweight self-hosted Git service.',image:'gitea/gitea:latest',ports:['3003:3000'],vols:function(r,p){var POOLROOT=p;return [r+'/gitea:/data']}},
+    {id:'n8n',name:'n8n',cat:'Productivity',icon:'🔗',desc:'Workflow automation (self-hosted Zapier).',image:'n8nio/n8n:latest',ports:['5678:5678'],vols:function(r,p){var POOLROOT=p;return [r+'/n8n:/home/node/.n8n']}},
+    {id:'freshrss',name:'FreshRSS',cat:'Productivity',icon:'📰',desc:'Self-hosted RSS reader.',image:'freshrss/freshrss:latest',ports:['8083:80'],vols:function(r,p){var POOLROOT=p;return [r+'/freshrss:/var/www/FreshRSS/data']}},
+    {id:'mealie',name:'Mealie',cat:'Productivity',icon:'🍲',desc:'Recipe manager and meal planner.',image:'ghcr.io/mealie-recipes/mealie:latest',ports:['9925:9000'],vols:function(r,p){var POOLROOT=p;return [r+'/mealie:/app/data']}},
+    {id:'stirling-pdf',name:'Stirling PDF',cat:'Productivity',icon:'📄',desc:'Web-based PDF toolbox: merge, split, convert.',image:'stirlingtools/stirling-pdf:latest',ports:['8084:8080'],vols:function(r,p){var POOLROOT=p;return [r+'/stirling-pdf/configs:/configs',r+'/stirling-pdf/data:/usr/share/tessdata']}},
+    {id:'code-server',name:'Code Server',cat:'Productivity',icon:'💻',desc:'VS Code in the browser on your NAS.',image:'codercom/code-server:latest',ports:['8443:8080'],vols:function(r,p){var POOLROOT=p;return [r+'/code-server:/home/coder']}},
     // ── Security & network ──
-    {id:'vaultwarden',name:'Vaultwarden',cat:'Security',icon:'🔐',desc:'Bitwarden-compatible password manager.',image:'vaultwarden/server:latest',ports:['8200:80'],vols:function(r){return [r+'/vaultwarden:/data']}},
-    {id:'adguardhome',name:'AdGuard Home',cat:'Network',icon:'🛡',desc:'Network-wide ad blocking. Add 53:53 in the wizard only if THIS box should serve DNS.',image:'adguard/adguardhome:latest',ports:['3000:3000'],vols:function(r){return [r+'/adguard/work:/opt/adguardhome/work',r+'/adguard/conf:/opt/adguardhome/conf']}},
-    {id:'pihole',name:'Pi-hole',cat:'Network',icon:'🕳',desc:'DNS ad blocking. Add 53:53 in the wizard only if THIS box should serve DNS.',image:'pihole/pihole:latest',ports:['8181:80'],vols:function(r){return [r+'/pihole/etc:/etc/pihole']}},
+    {id:'vaultwarden',name:'Vaultwarden',cat:'Security',icon:'🔐',desc:'Bitwarden-compatible password manager.',image:'vaultwarden/server:latest',ports:['8200:80'],vols:function(r,p){var POOLROOT=p;return [r+'/vaultwarden:/data']}},
+    {id:'adguardhome',name:'AdGuard Home',cat:'Network',icon:'🛡',desc:'Network-wide ad blocking. Add 53:53 in the wizard only if THIS box should serve DNS.',image:'adguard/adguardhome:latest',ports:['3000:3000'],vols:function(r,p){var POOLROOT=p;return [r+'/adguard/work:/opt/adguardhome/work',r+'/adguard/conf:/opt/adguardhome/conf']}},
+    {id:'pihole',name:'Pi-hole',cat:'Network',icon:'🕳',desc:'DNS ad blocking. Add 53:53 in the wizard only if THIS box should serve DNS.',image:'pihole/pihole:latest',ports:['8181:80'],vols:function(r,p){var POOLROOT=p;return [r+'/pihole/etc:/etc/pihole']}},
     // ── Home & dashboards ──
-    {id:'homeassistant',name:'Home Assistant',cat:'Automation',icon:'🏠',desc:'Open-source home automation.',image:'ghcr.io/home-assistant/home-assistant:stable',ports:['8123:8123'],vols:function(r){return [r+'/homeassistant:/config']}},
-    {id:'homepage',name:'Homepage',cat:'Dashboards',icon:'🗂',desc:'Fast, static-feeling services dashboard.',image:'ghcr.io/gethomepage/homepage:latest',ports:['3004:3000'],vols:function(r){return [r+'/homepage:/app/config']}},
-    {id:'homarr',name:'Homarr',cat:'Dashboards',icon:'🧭',desc:'Drag-and-drop dashboard for your services.',image:'ghcr.io/homarr-labs/homarr:latest',ports:['7575:7575'],vols:function(r){return [r+'/homarr:/appdata']}},
+    {id:'homeassistant',name:'Home Assistant',cat:'Automation',icon:'🏠',desc:'Open-source home automation.',image:'ghcr.io/home-assistant/home-assistant:stable',ports:['8123:8123'],vols:function(r,p){var POOLROOT=p;return [r+'/homeassistant:/config']}},
+    {id:'homepage',name:'Homepage',cat:'Dashboards',icon:'🗂',desc:'Fast, static-feeling services dashboard.',image:'ghcr.io/gethomepage/homepage:latest',ports:['3004:3000'],vols:function(r,p){var POOLROOT=p;return [r+'/homepage:/app/config']}},
+    {id:'homarr',name:'Homarr',cat:'Dashboards',icon:'🧭',desc:'Drag-and-drop dashboard for your services.',image:'ghcr.io/homarr-labs/homarr:latest',ports:['7575:7575'],vols:function(r,p){var POOLROOT=p;return [r+'/homarr:/appdata']}},
     // ── Files, sync, backup ──
-    {id:'syncthing',name:'Syncthing',cat:'Sync',icon:'🔄',desc:'Continuous folder sync between devices.',image:'syncthing/syncthing:latest',ports:['8384:8384','22000:22000'],vols:function(r){return [r+'/syncthing:/var/syncthing']}},
-    {id:'filebrowser',name:'File Browser',cat:'Files',icon:'📁',desc:'Web file manager over your NAS shares.',image:'filebrowser/filebrowser:latest',ports:['8082:80'],vols:function(r){return [r+'/filebrowser:/database','/srv/nas:/srv']}},
-    {id:'duplicati',name:'Duplicati',cat:'Backup',icon:'💾',desc:'Encrypted backups to cloud or local targets.',image:'lscr.io/linuxserver/duplicati:latest',ports:['8201:8200'],vols:function(r){return [r+'/duplicati:/config','/srv/nas:/source:ro']}},
+    {id:'syncthing',name:'Syncthing',cat:'Sync',icon:'🔄',desc:'Continuous folder sync between devices.',image:'syncthing/syncthing:latest',ports:['8384:8384','22000:22000'],vols:function(r,p){var POOLROOT=p;return [r+'/syncthing:/var/syncthing']}},
+    {id:'filebrowser',name:'File Browser',cat:'Files',icon:'📁',desc:'Web file manager over your NAS shares.',image:'filebrowser/filebrowser:latest',ports:['8082:80'],vols:function(r,p){var POOLROOT=p;return [r+'/filebrowser:/database',POOLROOT+':/srv']}},
+    {id:'duplicati',name:'Duplicati',cat:'Backup',icon:'💾',desc:'Encrypted backups to cloud or local targets.',image:'lscr.io/linuxserver/duplicati:latest',ports:['8201:8200'],vols:function(r,p){var POOLROOT=p;return [r+'/duplicati:/config',POOLROOT+':/source:ro']}},
     // ── Monitoring & tools ──
-    {id:'uptime-kuma',name:'Uptime Kuma',cat:'Monitoring',icon:'📈',desc:'Self-hosted uptime monitoring with alerts.',image:'louislam/uptime-kuma:1',ports:['3001:3001'],vols:function(r){return [r+'/uptime-kuma:/app/data']}},
-    {id:'grafana',name:'Grafana',cat:'Monitoring',icon:'📊',desc:'Dashboards and metrics visualization.',image:'grafana/grafana:latest',ports:['3002:3000'],vols:function(r){return [r+'/grafana:/var/lib/grafana']}},
-    {id:'dozzle',name:'Dozzle',cat:'Monitoring',icon:'🪵',desc:'Live container log viewer.',image:'amir20/dozzle:latest',ports:['8085:8080'],vols:function(r){return ['/var/run/docker.sock:/var/run/docker.sock:ro']}},
-    {id:'portainer',name:'Portainer',cat:'Tools',icon:'⚓',desc:'Advanced container management UI.',image:'portainer/portainer-ce:latest',ports:['9443:9443'],vols:function(r){return [r+'/portainer:/data','/var/run/docker.sock:/var/run/docker.sock']}}
+    {id:'uptime-kuma',name:'Uptime Kuma',cat:'Monitoring',icon:'📈',desc:'Self-hosted uptime monitoring with alerts.',image:'louislam/uptime-kuma:1',ports:['3001:3001'],vols:function(r,p){var POOLROOT=p;return [r+'/uptime-kuma:/app/data']}},
+    {id:'grafana',name:'Grafana',cat:'Monitoring',icon:'📊',desc:'Dashboards and metrics visualization.',image:'grafana/grafana:latest',ports:['3002:3000'],vols:function(r,p){var POOLROOT=p;return [r+'/grafana:/var/lib/grafana']}},
+    {id:'dozzle',name:'Dozzle',cat:'Monitoring',icon:'🪵',desc:'Live container log viewer.',image:'amir20/dozzle:latest',ports:['8085:8080'],vols:function(r,p){var POOLROOT=p;return ['/var/run/docker.sock:/var/run/docker.sock:ro']}},
+    {id:'portainer',name:'Portainer',cat:'Tools',icon:'⚓',desc:'Advanced container management UI.',image:'portainer/portainer-ce:latest',ports:['9443:9443'],vols:function(r,p){var POOLROOT=p;return [r+'/portainer:/data','/var/run/docker.sock:/var/run/docker.sock']}}
   ];
 
 
@@ -100,7 +100,7 @@
     {key:'smartd',name:'SMART monitoring',unit:'smartd',desc:'Drive SMART monitoring.',icon:'svc'}
   ];
 
-  var STATE={containers:[],services:[],updateMap:{},appsRoot:'/srv/apps'};
+  var STATE={containers:[],services:[],updateMap:{},appsRoot:'',poolRoot:''};
   function recalc(){
     var svcUp=STATE.services.filter(function(s){return s.status==='running'}).length;
     var ctrUp=STATE.containers.filter(function(c){return c.running}).length;
@@ -135,6 +135,7 @@
     $$('[data-uninstall]').forEach(function(b){b.onclick=function(){wipeContainer(b.getAttribute('data-uninstall'))}});
   }
   async function installApp(id){
+    if(!STATE.poolRoot){toast('Create a storage pool first — app data lives on the pool','warn');return}
     var a=CATALOG.filter(function(x){return x.id===id})[0];if(!a)return;
     // Ask the server for conflict-free host ports so defaults never collide
     // with ForgeOS services (80/443/445/5432…) or other containers.
@@ -149,7 +150,7 @@
         if(moved.length)toast('Port in use — moved '+moved.join(', '),'warn');
       }
     }
-    var vols=typeof a.vols==='function'?a.vols(STATE.appsRoot):(a.vols||[]);
+    var vols=typeof a.vols==='function'?a.vols(STATE.appsRoot,STATE.poolRoot):(a.vols||[]);
     containerWizard({name:a.id,image:a.image,restart:'unless-stopped',ports:ports,volumes:vols,env:a.env||[],labels:[['forgeos.catalog',id]]});
   }
 
@@ -305,7 +306,7 @@
         toast(r.ok?'Pruned':(r.data&&r.data.detail)||'Prune failed',r.ok?'ok':'err');if(r.ok)refresh();return r.ok}});
   }
   function appFolderModal(){
-    var html='<div class="fld"><label>Default app data folder</label><input id="af-root" class="wz-input" value="'+esc(STATE.appsRoot)+'"></div>'+
+    var html='<div class="fld"><label>Default app data folder</label><input id="af-root" class="wz-input" value="'+esc(STATE.appsRoot||'/srv/<pool>/apps')+'"></div>'+
       '<p class="sub" style="margin-top:8px">New catalog installs store their data under this folder ({folder}/{app}). Existing containers are not moved.</p>';
     modal({title:'Default app folder',html:html,cta:'Save',
       onSubmit:async function(back){
@@ -354,7 +355,7 @@
   function sambaWizard(){
     modal({title:'Add Samba share',sub:'Path must exist on a pool.',html:
       '<div class="field"><label>Share name</label><input id="sb-name" placeholder="family-photos"></div>'+
-      '<div class="field"><label>Folder on the NAS</label><input id="sb-path" placeholder="/srv/nas/main/Photos"></div>'+
+      '<div class="field"><label>Folder on the NAS</label><input id="sb-path" placeholder="/srv/<pool>/Photos"></div>'+
       '<div class="field"><label>Template</label><select id="sb-type"><option value="standard">Standard (read/write)</option><option value="timemachine">Time Machine</option><option value="media">Media (read-only)</option><option value="private">Private (specific users)</option></select></div>'+
       '<label class="checkbox-field"><input type="checkbox" id="sb-w" checked>Allow writes from network</label>',cta:'Create',
       onSubmit:async function(back){var b={name:$('#sb-name',back).value.trim(),path:$('#sb-path',back).value.trim(),type:$('#sb-type',back).value,writable:$('#sb-w',back).checked};
@@ -367,7 +368,7 @@
     var tier='simple';
     var html='<div class="wz-tier" id="fs-tier"><button class="active" data-tier="simple">Simple</button><button data-tier="standard">Standard</button><button data-tier="advanced" class="advanced">Advanced</button></div>'+
       '<div id="fs-simple">'+
-        '<div class="field"><label>Data directory (where buckets live)</label><input id="fs-data" placeholder="/srv/nas/main/object-storage" value="/srv/nas/main/object-storage"></div>'+
+        '<div class="field"><label>Data directory (where buckets live)</label><input id="fs-data" placeholder="/srv/<pool>/object-storage" value="/srv/<pool>/object-storage"></div>'+
         '<div class="field"><label>Admin access key</label><input id="fs-ak" placeholder="forgeadmin"></div>'+
         '<div class="field"><label>Admin secret key (16+ chars)</label><input id="fs-sk" type="password" placeholder="••••••••••••••••"></div>'+
       '</div>'+
@@ -379,7 +380,7 @@
       '</div>'+
       '<div id="fs-advanced" class="hidden">'+
         '<div class="warn-box">Direct config edit. Restart of the service is required after save.</div>'+
-        '<div class="field"><label>config.yaml</label><textarea id="fs-raw" style="min-height:280px"># Forge Object Storage configuration\nendpoint: 0.0.0.0:9000\nconsole: 0.0.0.0:9001\ndata: /srv/nas/main/object-storage\nregion: us-east-1\ntls:\n  enabled: false\n</textarea></div>'+
+        '<div class="field"><label>config.yaml</label><textarea id="fs-raw" style="min-height:280px"># Forge Object Storage configuration\nendpoint: 0.0.0.0:9000\nconsole: 0.0.0.0:9001\ndata: /srv/<pool>/object-storage\nregion: us-east-1\ntls:\n  enabled: false\n</textarea></div>'+
       '</div>';
     var m=modal({title:'Forge Object Storage',sub:'S3-compatible buckets backed by ForgeRAID.',size:'big',html:html,cta:'Save & restart',
       onSubmit:async function(back){
@@ -491,9 +492,10 @@
     // `lxc` CLI, which Debian trixie does not ship, so it always 503'd and
     // merged as an empty list - silently. Incus containers have their own
     // page now (containers.html).
-    var [svc,docker,st]=await Promise.all([api('/api/services'),api('/api/docker/containers?all=true'),api('/api/docker/settings')]);
+    var [svc,docker,st,fr]=await Promise.all([api('/api/services'),api('/api/docker/containers?all=true'),api('/api/docker/settings'),api('/api/files/roots')]);
+    STATE.poolRoot=((fr.data&&fr.data.roots)||[])[0]||'';
     STATE.services=(svc.data&&svc.data.services)||[];
-    STATE.appsRoot=(st.data&&st.data.apps_root)||'/srv/apps';
+    STATE.appsRoot=(st.data&&st.data.apps_root)||'';
     var docks=((docker.data&&docker.data.containers)||[]).map(function(c){var labels=parseLabels(c.Labels||c.labels);return {name:(c.Names&&c.Names.replace(/^\//,''))||c.name,image:c.Image||c.image,running:(c.State||c.state||'').toLowerCase()==='running',status:c.Status||c.state,runtime:'docker',composeProject:labels['com.docker.compose.project'],fromCatalog:labels['forgeos.catalog']}});
     STATE.containers=docks;
     recalc();renderCatalog();renderContainers();renderServices();

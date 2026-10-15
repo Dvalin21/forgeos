@@ -106,7 +106,7 @@ def test_storage_field_backward_compatible_no_bump():
 def test_storage_pool_validation_and_mountpoint():
     p = fc.StoragePool(name="tank", raid_level="raid1",
                        devices=["/dev/disk/by-id/a", "/dev/disk/by-id/b"])
-    assert p.resolved_mountpoint() == "/srv/nas/tank"
+    assert p.resolved_mountpoint() == "/srv/tank"
     import pytest
     with pytest.raises(Exception):
         fc.StoragePool(name="x")  # too short

@@ -32,6 +32,7 @@ import json
 import re
 import shutil
 import subprocess
+from pathlib import Path
 from typing import Callable, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -77,6 +78,39 @@ def _installed() -> bool:
 def _require_incus() -> None:
     if not _installed():
         raise HTTPException(503, detail="incus is not installed on this system")
+
+
+def _forgeos_pool() -> str:
+    """The ForgeOS pool mountpoint — the only place user data may live.
+    Incus storage lives ON it (<pool>/containers, <pool>/vms), never on the
+    OS disk's /var/lib/incus."""
+    try:
+        import forgeos_config as _fc
+        pools = [p.resolved_mountpoint() for p in _fc.load().storage.pools]
+    except Exception:
+        pools = []
+    if not pools:
+        raise HTTPException(
+            409, "No storage pool yet — create one first; containers and VMs "
+                 "live on the pool, not the OS disk.")
+    return pools[0]
+
+
+def _ensure_storage_pool(kind: str) -> str:
+    """Create the Incus dir storage pool for `kind` on the ForgeOS pool if
+    missing, and return its name. Idempotent; never touches /var/lib/incus."""
+    pool_root = _forgeos_pool()
+    name = f"forgeos-{kind}"
+    src = f"{pool_root}/{kind}"
+    Path(src).mkdir(parents=True, exist_ok=True)
+    res = _run_json(["storage", "list", "--format", "json"], timeout=30) or []
+    existing = {p.get("name") for p in res if isinstance(p, dict)}
+    if name not in existing:
+        r = _run(["storage", "create", name, "dir", f"source={src}"], timeout=60)
+        if not r["success"]:
+            raise HTTPException(400, detail=r.get("stderr") or
+                                f"could not create Incus pool {name}")
+    return name
 
 
 def _run(args: list[str], timeout: int = 60) -> dict:
@@ -257,7 +291,14 @@ async def create_instance(body: dict, user=Depends(verify_token)):
     if res["success"] and res["stdout"].strip():
         raise HTTPException(409, detail=f"an instance called {name} already exists")
 
-    args = ["launch", image, name]
+    # Storage lives on the ForgeOS pool: containers in <pool>/containers,
+    # VMs in <pool>/vms. Creating the Incus dir pool here (idempotent) is
+    # what keeps instance data off the OS disk. Also the pool gate: no
+    # ForgeOS pool -> nothing can be created (see _forgeos_pool).
+    pool = _ensure_storage_pool("vms" if vtype == "virtual-machine"
+                                else "containers")
+
+    args = ["launch", image, name, "-s", pool]
     if vtype == "virtual-machine":
         args.append("--vm")
 
@@ -268,7 +309,7 @@ async def create_instance(body: dict, user=Depends(verify_token)):
     if mem:
         args += ["--config", f"limits.memory={mem}"]
     if disk:
-        args += ["--device", f"{name},root,disk,path=/,size={disk}"]
+        args += ["--device", f"{name},root,disk,path=/,size={disk},pool={pool}"]
 
     profile = str(body.get("profile", "")).strip()
     if profile:

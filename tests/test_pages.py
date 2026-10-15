@@ -382,3 +382,50 @@ class TestServiceControl:
         r = test_client.post("/api/service/hack",
                              json={"name": "nginx"}, headers=auth_headers)
         assert r.status_code == 400, r.text
+
+
+class TestFileStationRootsArePools:
+    """File Station browses the POOLS — /srv/<pool> and below. With no pool
+    there is nothing to browse and no OS filesystem exposure."""
+
+    def test_roots_are_pool_mountpoints(self, test_client, auth_headers,
+                                        monkeypatch):
+        import forgeos_pages_api as fp
+        import forgeos_config as fc
+        monkeypatch.setattr(fp, "_FILE_ROOTS_ENV", "")
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(name="vol1", uuid="u"))
+        monkeypatch.setattr(fc, "load", lambda: cfg)
+        r = test_client.get("/api/files/roots", headers=auth_headers)
+        assert r.status_code == 200
+        assert r.json()["roots"] == ["/srv/vol1"]
+
+    def test_no_pool_means_no_roots(self, test_client, auth_headers, monkeypatch):
+        import forgeos_pages_api as fp
+        import forgeos_config as fc
+        monkeypatch.setattr(fp, "_FILE_ROOTS_ENV", "")
+        monkeypatch.setattr(fc, "load", lambda: fc.ForgeOSConfig())
+        r = test_client.get("/api/files/roots", headers=auth_headers)
+        assert r.json()["roots"] == []
+
+    def test_listing_without_pool_is_a_409(self, test_client, auth_headers,
+                                           monkeypatch):
+        import forgeos_pages_api as fp
+        import forgeos_config as fc
+        monkeypatch.setattr(fp, "_FILE_ROOTS_ENV", "")
+        monkeypatch.setattr(fc, "load", lambda: fc.ForgeOSConfig())
+        r = test_client.get("/api/files/list", headers=auth_headers)
+        assert r.status_code == 409, r.text
+        assert "pool" in r.json()["detail"].lower()
+
+    def test_path_outside_pools_rejected(self, test_client, auth_headers,
+                                         monkeypatch):
+        import forgeos_pages_api as fp
+        import forgeos_config as fc
+        monkeypatch.setattr(fp, "_FILE_ROOTS_ENV", "")
+        cfg = fc.ForgeOSConfig()
+        cfg.storage.pools.append(fc.StoragePool(name="vol1", uuid="u"))
+        monkeypatch.setattr(fc, "load", lambda: cfg)
+        r = test_client.get("/api/files/list",
+                            params={"path": "/etc"}, headers=auth_headers)
+        assert r.status_code == 403, r.text

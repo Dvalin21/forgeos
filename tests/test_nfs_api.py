@@ -69,7 +69,7 @@ class TestRead:
         d = r.json()
         assert d["enabled"] is False
         assert d["exports"] == []
-        assert d["nas_root"] == "/srv/nas"
+        assert d["nas_root"] == "/srv"
 
     def test_requires_auth(self, test_client, cfgfile, applied):
         assert test_client.get("/api/nfs").status_code in (401, 403)

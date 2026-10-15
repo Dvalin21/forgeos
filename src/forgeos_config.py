@@ -487,7 +487,7 @@ class NfsExport(BaseModel):
 
 class NfsConfig(BaseModel):
     enabled: bool = False
-    nas_root: str = "/srv/nas"
+    nas_root: str = "/srv"
     lan_cidr: str = "10.0.0.0/24"
     exports: list[NfsExport] = Field(default_factory=list)
 
@@ -518,7 +518,11 @@ class IncusConfig(BaseModel):
     """
     enabled: bool = False
     bridge: str = "incusbr0"
-    storage_pool: str = "default"
+    # Name of the Incus storage pool for system containers. VMs use
+    # "forgeos-vms". Both are dir pools ON the ForgeOS storage pool
+    # (<pool>/containers, <pool>/vms) — created on demand by incus_api.
+    # "default" is the legacy OS-disk pool and must never come back.
+    storage_pool: str = "forgeos-containers"
 
     @field_validator("bridge")
     @classmethod
@@ -772,7 +776,7 @@ class StoragePool(BaseModel):
     name: str
     raid_level: str = "single"          # single|raid0|raid1|raid10|raid5|raid6
     devices: list[str] = Field(default_factory=list)  # stable /dev/disk/by-id/*
-    mountpoint: str = ""                # default /srv/nas/<name> if empty
+    mountpoint: str = ""                # default /srv/<name> if empty
     uuid: str = ""                      # btrfs FS UUID — mount by THIS, not /dev
 
     @field_validator("name")
@@ -784,7 +788,7 @@ class StoragePool(BaseModel):
         return v
 
     def resolved_mountpoint(self) -> str:
-        return self.mountpoint or f"/srv/nas/{self.name}"
+        return self.mountpoint or f"/srv/{self.name}"
 
 
 class LhsrGroup(BaseModel):

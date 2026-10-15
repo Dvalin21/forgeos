@@ -576,6 +576,17 @@ async def wipe_container(body: dict, user=Depends(verify_token)):
     return {"ok": True, "container": name, "image_removed": img_removed}
 
 
+def _pool_mounts() -> list[str]:
+    """Storage-pool mountpoints — the ONLY permitted locations for user data.
+    The pool is the single user-data root; the OS disk holds the OS, deps,
+    the install and system config, nothing else."""
+    try:
+        import forgeos_config as _fc
+        return [p.resolved_mountpoint() for p in _fc.load().storage.pools]
+    except Exception:
+        return []
+
+
 @router.post("/run")
 async def run_container(body: dict, background_tasks: BackgroundTasks,
                         user=Depends(verify_token)):
@@ -616,6 +627,27 @@ async def run_container(body: dict, background_tasks: BackgroundTasks,
                 or not parts[1].startswith("/") \
                 or (len(parts) > 2 and parts[2] not in ("ro", "rw")):
             raise HTTPException(status_code=400, detail=f"invalid volume {v!r}")
+        # Architecture gate: no user data on the OS disk. Host binds must
+        # live under a pool mountpoint, and named volumes (docker-managed,
+        # OS-disk storage) are refused outright.
+        host = parts[0]
+        if host.startswith("/"):
+            mounts = _pool_mounts()
+            if not mounts:
+                raise HTTPException(
+                    status_code=409,
+                    detail="No storage pool yet — create one first; "
+                           "container data lives on the pool, not the OS disk.")
+            if not any(host == m or host.startswith(m + "/") for m in mounts):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"host path {host!r} is not on a storage pool — "
+                           f"bind a path under one of: {', '.join(mounts)}")
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"named volumes live on the OS disk — bind a host path "
+                       f"under /srv/<pool>/ instead of {host!r}")
         args += ["-v", str(v)]
     for e in body.get("env") or []:
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", str(e), re.S):

@@ -57,10 +57,10 @@ class TestBackupDefaults:
     def test_derives_from_first_pool(self, test_client, auth_headers):
         import forgeos_config as fcfg
         cfg = fcfg.load()
-        cfg.storage.pools.append(fcfg.StoragePool(name="tank", uuid="u", mountpoint="/srv/nas/tank"))
+        cfg.storage.pools.append(fcfg.StoragePool(name="tank", uuid="u", mountpoint="/srv/tank"))
         fcfg.save(cfg)
         d = test_client.get("/api/backup/defaults", headers=auth_headers).json()
-        assert d["destination_base"] == "/srv/nas/tank/backups"
+        assert d["destination_base"] == "/srv/tank/backups"
 
     def test_empty_mountpoint_uses_derived_default(self, test_client, auth_headers):
         import forgeos_config as fcfg
@@ -68,7 +68,7 @@ class TestBackupDefaults:
         cfg.storage.pools.append(fcfg.StoragePool(name="tank", uuid="u"))
         fcfg.save(cfg)
         d = test_client.get("/api/backup/defaults", headers=auth_headers).json()
-        assert d["destination_base"] == "/srv/nas/tank/backups"
+        assert d["destination_base"] == "/srv/tank/backups"
 
     def test_no_pools_empty(self, test_client, auth_headers):
         d = test_client.get("/api/backup/defaults", headers=auth_headers).json()

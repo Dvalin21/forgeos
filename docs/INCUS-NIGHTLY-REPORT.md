@@ -300,3 +300,35 @@ re-check, `mkfs.btrfs -d/-m`, the config record and the audit all agree.
 Verified live with the exact UI payloads — level=1/5/6/10/0 each:
 create 200 → listed with the right raid level → mounted (host-visible) →
 fstab line → destroy 200 → unmounted + fstab cleaned.
+
+---
+
+## 12 · Pool-rooted architecture — no user data on the OS disk (2026-10-15)
+
+The standing rule, now enforced end to end: **the pool is the only
+user-data root; the OS disk holds the OS, dependencies, the install and
+system config only.** Before this, `/srv/nas` mixed pool dirs with Docker
+folders, app data bound to `/srv/apps`, Incus stored at `/var/lib/incus`,
+and every surface worked with zero pools.
+
+End state on the box:
+
+```
+/srv/Volume1/          ← the user's pool (/srv/<pool>, data disks only)
+    apps/              ← Docker app data (apps/photoprism, apps/navidrome)
+    containers/        ← Incus system containers (forgeos-containers pool)
+    vms/               ← Incus VMs (forgeos-vms pool)
+    photos/ music/     ← media libraries
+```
+
+Gates: File Station roots = pool mountpoints (no pool → 409, outside-pool
+paths → 403); `/api/docker/run` refuses OS-disk binds, named volumes and
+all creation with no pool; Incus creates its dir pools on the ForgeOS
+pool and refuses instance creation without one; pool creation scaffolds
+`apps/containers/vms` and points `docker.apps_root` at `<pool>/apps`.
+
+The box was migrated live: pool remounted `/srv/nas/Volume1` →
+`/srv/Volume1` (fstab + config), both apps' state moved into
+`<pool>/apps/<app>` and their containers recreated on pool binds,
+`/srv/apps` and `/srv/forgeos` removed — `/srv` now contains only
+`Volume1`.

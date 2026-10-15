@@ -33,7 +33,7 @@ class TestIncusConfig:
         c = fc.IncusConfig()
         assert c.enabled is False
         assert c.bridge == "incusbr0"
-        assert c.storage_pool == "default"
+        assert c.storage_pool == "forgeos-containers"
 
     def test_bridge_name_is_validated(self):
         import forgeos_config as fc
@@ -178,6 +178,10 @@ class TestIncusApiBehaviour:
                     "returncode": 0}
 
         monkeypatch.setattr(incus_api, "_run", fake_run)
+        # storage lives on the ForgeOS pool — the dir pool is created there
+        # (mocked here; the real one proves itself on the box)
+        monkeypatch.setattr(incus_api, "_ensure_storage_pool",
+                            lambda kind: "forgeos-containers")
         test_client.post("/api/incus/instances", headers=auth_headers, json={
             "name": "mine", "image": "images:debian/13",
             "cpu_limit": "3", "memory": "3GiB", "disk": "77GB",
@@ -186,7 +190,8 @@ class TestIncusApiBehaviour:
         args = launch
         assert "limits.cpu=3" in args
         assert "limits.memory=3GiB" in args
-        assert any(a.endswith("size=77GB") for a in args), args
+        assert any("size=77GB,pool=forgeos-containers" in a for a in args), args
+        assert "-s" in args and "forgeos-containers" in args, args
 
     def test_garbage_hardware_is_rejected_not_sanitised(self, test_client,
                                                         auth_headers, monkeypatch):
@@ -240,3 +245,73 @@ class TestIncusApiBehaviour:
         assert v["disk_display"] == "20.0 GiB"
         assert v["memory_display"] == "512.0 MiB"
         assert v["snapshots"] == 1
+
+def test_instance_create_requires_pool(test_client, auth_headers, monkeypatch):
+    """Containers and VMs live on the ForgeOS pool (<pool>/containers,
+    <pool>/vms). With no pool, nothing can be created."""
+    import incus_api
+    monkeypatch.setattr(incus_api, "_require_incus", lambda: None)
+    monkeypatch.setattr(incus_api, "_run",
+                        lambda *a, **k: {"success": True, "stdout": "",
+                                         "stderr": "", "returncode": 0})
+    r = test_client.post("/api/incus/instances", headers=auth_headers, json={
+        "name": "c1", "image": "images:debian/13"})
+    assert r.status_code == 409, r.text
+    assert "pool" in r.json()["detail"].lower()
+
+
+def test_instance_create_uses_pool_storage(test_client, auth_headers,
+                                           monkeypatch):
+    """The instance storage pool is created ON the ForgeOS pool, per kind:
+    forgeos-containers / forgeos-vms — never the OS-disk default pool."""
+    import incus_api
+    monkeypatch.setattr(incus_api, "_require_incus", lambda: None)
+    calls = []
+
+    def fake_run(args, timeout=60):
+        calls.append(args)
+        out = "" if args[:1] == ["list"] else "[]"
+        return {"success": True, "stdout": out, "stderr": "",
+                "returncode": 0}
+
+    monkeypatch.setattr(incus_api, "_run", fake_run)
+    monkeypatch.setattr(incus_api, "_forgeos_pool", lambda: "/srv/vol1")
+    created = {}
+    real_mkdir = incus_api.Path.mkdir
+
+    def fake_mkdir(self, *a, **k):
+        return None
+    monkeypatch.setattr(incus_api.Path, "mkdir", fake_mkdir)
+
+    import json as _json
+    orig = incus_api._run
+
+    inst = _json.dumps([{"name": "c1", "status": "Running",
+                        "type": "container", "architecture": "x86_64",
+                        "config": {}, "devices": {}, "expanded_config": {},
+                        "state": {"network": None}}])
+
+    def run_and_record(args, timeout=60):
+        calls.append(args)
+        if args[:2] == ["storage", "create"]:
+            created["name"] = args[2]
+            created["source"] = args[-1]
+        if args[:2] == ["list", "c1"] and "json" in args:
+            out = inst          # the post-create view read
+        elif args[:2] == ["list", "c1"]:
+            out = ""            # the existence probe: no such instance
+        elif args[:1] == ["list"]:
+            out = "[]"
+        else:
+            out = ""
+        return {"success": True, "stdout": out, "stderr": "",
+                "returncode": 0}
+
+    monkeypatch.setattr(incus_api, "_run", run_and_record)
+    r = test_client.post("/api/incus/instances", headers=auth_headers, json={
+        "name": "c1", "image": "images:debian/13"})
+    assert r.status_code == 200, r.text
+    assert created["name"] == "forgeos-containers", created
+    assert created["source"] == "source=/srv/vol1/containers", created
+    launch = next(c for c in calls if c[:1] == ["launch"])
+    assert "-s" in launch and "forgeos-containers" in launch

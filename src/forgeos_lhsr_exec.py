@@ -150,7 +150,7 @@ def execute_layout(
         if not parts:
             raise LhsrExecError(f"No partitions for tier {tier_idx}")
 
-        mp = f"/srv/nas/lhsr_tier_{tier_idx}"
+        mp = f"/srv/lhsr_tier_{tier_idx}"
         Path(mp).mkdir(parents=True, exist_ok=True)
 
         profile = {"raid5": "raid5", "raid6": "raid6", "raid1": "raid1", "single": "single"}.get(tier.raid_type, "raid1")
@@ -174,7 +174,7 @@ def execute_layout(
         logger.info("  Installing mergerfs...")
         run(["apt-get", "install", "-y", "mergerfs"])
 
-    combined_mp = "/srv/nas/lhsr"
+    combined_mp = "/srv/lhsr"
     Path(combined_mp).mkdir(parents=True, exist_ok=True)
 
     # Mount with mergerfs. The tier filesystems STAY MOUNTED — mergerfs merges
@@ -201,13 +201,13 @@ def execute_layout(
     fstab_lines = ["\n# ForgeOS LHSR"]
     for i, uuid in enumerate(tier_uuids):
         if uuid:
-            fstab_lines.append(f"UUID={uuid}  /srv/nas/lhsr_tier_{i}  btrfs  defaults,noatime  0  0")
+            fstab_lines.append(f"UUID={uuid}  /srv/lhsr_tier_{i}  btrfs  defaults,noatime  0  0")
         else:
             # An empty UUID would write a poison `UUID=` line that breaks boot.
             logger.warning("Tier %d has no UUID — leaving it out of fstab", i)
 
-    tier_mounts_str = ":".join([f"/srv/nas/lhsr_tier_{i}" for i in range(layout.tier_count)])
-    fstab_lines.append(f"{tier_mounts_str}  /srv/nas/lhsr  fuse.mergerfs  defaults,allow_other,use_ino,category.create=mfs  0  0")
+    tier_mounts_str = ":".join([f"/srv/lhsr_tier_{i}" for i in range(layout.tier_count)])
+    fstab_lines.append(f"{tier_mounts_str}  /srv/lhsr  fuse.mergerfs  defaults,allow_other,use_ino,category.create=mfs  0  0")
 
     # Idempotent: strip any previous ForgeOS LHSR block before appending, so a
     # re-run replaces the stanza instead of stacking a second copy (the tier
@@ -230,7 +230,7 @@ def execute_layout(
             {
                 "index": t.tier_idx,
                 "raid_type": t.raid_type,
-                "mountpoint": f"/srv/nas/lhsr_tier_{t.tier_idx}",
+                "mountpoint": f"/srv/lhsr_tier_{t.tier_idx}",
                 "usable_bytes": t.usable_sectors * 512,
             }
             for t in layout.tiers

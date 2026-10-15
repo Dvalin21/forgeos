@@ -140,7 +140,7 @@
       '<h3>Import a database</h3>' +
       '<p class="hint">Track an existing file-based database directory. Data Connect auto-detects the database family; you tag which app owns it.</p>' +
       '<div class="fld"><label>Name</label><input class="wz-input" id="i-name" placeholder="pos-main" autocomplete="off"></div>' +
-      '<div class="fld"><label>Directory / data path</label><input class="wz-input" id="i-path" placeholder="/srv/nas/tank/databases/pos" autocomplete="off">' +
+      '<div class="fld"><label>Directory / data path</label><input class="wz-input" id="i-path" placeholder="/srv/<pool>/databases/pos" autocomplete="off">' +
         '<div class="hint" id="i-detect"></div></div>' +
       '<div class="fld"><label>App (owner)</label><input class="wz-input" id="i-app" placeholder="Atrex, QuickBooks, ..." autocomplete="off"></div>' +
       '<div class="fld"><label>Comment (optional)</label><input class="wz-input" id="i-comment" autocomplete="off"></div>' +

@@ -463,7 +463,7 @@ async def backup_defaults(user=Depends(verify_token)):
     cfg = fcfg.load()
     if cfg.storage.pools:
         pool = cfg.storage.pools[0]
-        base = pool.mountpoint or f"/srv/nas/{pool.name}"   # model: "" = derived
+        base = pool.resolved_mountpoint()          # model: "" = derived (/srv/<pool>)
         return {"destination_base": f"{base.rstrip('/')}/backups", "pool": pool.name}
     return {"destination_base": "", "pool": None}
 

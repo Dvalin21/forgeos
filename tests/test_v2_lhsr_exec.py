@@ -102,13 +102,13 @@ class TestMountOrder:
         # order: every tier mount happens before mergerfs runs
         first_merge = calls.index(merges[0])
         tier_mounts = [i for i, c in enumerate(calls)
-                       if c[0] == "mount" and c[2].startswith("/srv/nas/lhsr_tier")]
+                       if c[0] == "mount" and c[2].startswith("/srv/lhsr_tier")]
         assert tier_mounts, "no tier was mounted at all"
         assert max(tier_mounts) < first_merge, \
             "every tier must be mounted BEFORE mergerfs runs"
         # and mergerfs is handed exactly the tier mountpoints we mounted
         assert branches == [c[2] for c in calls
-                            if c[0] == "mount" and c[2].startswith("/srv/nas/lhsr_tier")]
+                            if c[0] == "mount" and c[2].startswith("/srv/lhsr_tier")]
 
     def test_each_tier_is_mounted_once(self, layout, no_guards, tmp_path,
                                        monkeypatch):
@@ -117,7 +117,7 @@ class TestMountOrder:
         monkeypatch.setattr("builtins.open", _FakeOpen(tmp_path))
         exec_mod.execute_layout(layout, runner=run)
         tier_mounts = [c for c in calls
-                       if c[0] == "mount" and c[2].startswith("/srv/nas/lhsr_tier")]
+                       if c[0] == "mount" and c[2].startswith("/srv/lhsr_tier")]
         assert len(tier_mounts) == layout.tier_count
 
 
@@ -174,7 +174,7 @@ class TestFstab:
         the old tiers mounted forever)."""
         fstab = tmp_path / "fstab"
         fstab.write_text("UUID=ROOT / ext4 defaults 0 1\n"
-                         "# ForgeOS LHSR\nUUID=OLD /srv/nas/lhsr_tier_0 btrfs defaults,noatime 0 0\n")
+                         "# ForgeOS LHSR\nUUID=OLD /srv/lhsr_tier_0 btrfs defaults,noatime 0 0\n")
         monkeypatch.setattr(Path, "mkdir", lambda self, *a, **k: None)
         monkeypatch.setattr("builtins.open", _FakeOpen(tmp_path))
         calls, run = _runner()

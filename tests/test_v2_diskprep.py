@@ -161,7 +161,7 @@ def test_plan_pool_builds_steps_without_running(stub_tools):
     disks = [_disk("sda"), _disk("sdc")]
     plan = dp.plan_pool("tank", "raid1", disks)
     assert plan.name == "tank"
-    assert plan.mountpoint == "/srv/nas/tank"
+    assert plan.mountpoint == "/srv/tank"
     # mkfs.btrfs is the first destructive step, across both devices
     desc = plan.describe()
     assert any("mkfs.btrfs" in s and "/dev/sda" in s and "/dev/sdc" in s for s in desc)
@@ -234,7 +234,7 @@ def test_execute_pool_calls_record_with_result(stub_tools, tmp_path):
                     fstab_path=str(tmp_path / "fstab"),
                     record=lambda r: recorded.update(r))
     assert recorded["uuid"] == "U-3"
-    assert recorded["mountpoint"] == "/srv/nas/tank"
+    assert recorded["mountpoint"] == "/srv/tank"
 
 
 def test_missing_btrfs_tool_reported_cleanly(monkeypatch):
@@ -271,8 +271,8 @@ def test_remove_fstab_drops_the_pool_line(tmp_path):
     # a destroyed pool whose fstab line survives fails to mount every boot
     fs = tmp_path / "fstab"
     fs.write_text("UUID=keep1 / btrfs defaults 0 0\n"
-                  "UUID=gone9 /srv/nas/pool btrfs defaults,compress=zstd 0 2\n"
-                  "UUID=keep2 /srv/nas/other btrfs defaults 0 2\n")
+                  "UUID=gone9 /srv/pool btrfs defaults,compress=zstd 0 2\n"
+                  "UUID=keep2 /srv/other btrfs defaults 0 2\n")
     dp._remove_fstab("gone9", str(fs))
     left = fs.read_text()
     assert "gone9" not in left and "keep1" in left and "keep2" in left

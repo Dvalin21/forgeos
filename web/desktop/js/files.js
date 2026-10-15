@@ -52,8 +52,10 @@
 
   // ── tree ──
   async function loadRoots(){
-    var d=(await api('/api/files/roots')).data;ROOTS=(d&&d.roots)||['/srv/nas'];
-    var tb=$('#tree-body');tb.innerHTML=ROOTS.map(function(r){
+    var d=(await api('/api/files/roots')).data;ROOTS=(d&&d.roots)||[];
+    var tb=$('#tree-body');
+    if(!ROOTS.length){tb.innerHTML='<p class="empty-state">No storage pool yet — create one first. All files live on the pool.</p>';return}
+    tb.innerHTML=ROOTS.map(function(r){
       return '<div class="tree-node" data-go="'+esc(r)+'"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'+esc(r.split('/').pop()||r)+'</div>'+
         '<div class="tree-children" data-children="'+esc(r)+'"></div>'}).join('');
     $$('#tree-body .tree-node').forEach(function(n){n.onclick=function(){go(n.getAttribute('data-go'))}});

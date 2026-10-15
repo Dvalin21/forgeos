@@ -416,16 +416,18 @@ class TestRun:
         # the test fails whenever 8080 happens to be bound ON THE TEST HOST —
         # a false negative that says nothing about the product.
         monkeypatch.setattr(d, "_used_host_ports", lambda: set())
+        # the pool gate: container binds must live under a pool mountpoint
+        monkeypatch.setattr(d, "_pool_mounts", lambda: ["/srv/tank"])
         calls = _docker_fake(monkeypatch,
                              images={"nginx:1": {"Id": "sha256:x", "Config": {}}})
         r = test_client.post("/api/docker/run", headers=auth_headers, json={
             "name": "web", "image": "nginx:1", "restart": "always",
-            "ports": ["8080:80"], "volumes": ["/srv/w:/data:ro"],
+            "ports": ["8080:80"], "volumes": ["/srv/tank/w:/data:ro"],
             "env": ["A=1"], "command": "nginx -g 'daemon off;'"})
         assert r.status_code == 200, r.text
         run = next(c for c in calls if c[0] == "run")
         joined = " ".join(run)
-        for frag in ("--restart always", "-p 8080:80", "-v /srv/w:/data:ro",
+        for frag in ("--restart always", "-p 8080:80", "-v /srv/tank/w:/data:ro",
                      "-e A=1", "nginx:1 nginx -g daemon off;"):
             assert frag in joined, (frag, joined)
 
@@ -604,3 +606,48 @@ class TestAppsRootAllowlist:
         import forgeos_config as fc
         # a legit-looking path that resolves INTO an allowed prefix keeps working
         assert fc.DockerConfig(apps_root="/srv/nas/../apps").apps_root == "/srv/apps"
+
+
+class TestPoolGate:
+    """Container data must live on a storage pool — never the OS disk. A
+    bind outside a pool, a named volume (docker-managed, OS-disk storage),
+    or any create with no pool at all is refused."""
+
+    def _run(self, test_client, auth_headers, monkeypatch, volumes):
+        import docker_lxc_api as d
+        monkeypatch.setattr(d, "_used_host_ports", lambda: set())
+        monkeypatch.setattr(d, "_pool_mounts",
+                            lambda: self._mounts)
+        _docker_fake(monkeypatch, images={"nginx:1": {"Id": "x", "Config": {}}})
+        return test_client.post("/api/docker/run", headers=auth_headers, json={
+            "name": "web", "image": "nginx:1", "volumes": volumes})
+
+    _mounts = ["/srv/vol1"]
+
+    def test_bind_inside_pool_ok(self, test_client, auth_headers, monkeypatch):
+        r = self._run(test_client, auth_headers, monkeypatch,
+                      ["/srv/vol1/apps/web:/data"])
+        assert r.status_code == 200, r.text
+
+    def test_bind_outside_pool_refused(self, test_client, auth_headers,
+                                       monkeypatch):
+        r = self._run(test_client, auth_headers, monkeypatch,
+                      ["/srv/other:/data"])
+        assert r.status_code == 400, r.text
+        assert "not on a storage pool" in r.json()["detail"]
+
+    def test_named_volume_refused(self, test_client, auth_headers, monkeypatch):
+        r = self._run(test_client, auth_headers, monkeypatch,
+                      ["webdata:/data"])
+        assert r.status_code == 400, r.text
+        assert "OS disk" in r.json()["detail"]
+
+    def test_no_pool_refused(self, test_client, auth_headers, monkeypatch):
+        self._mounts = []
+        try:
+            r = self._run(test_client, auth_headers, monkeypatch,
+                          ["/srv/vol1/x:/data"])
+            assert r.status_code == 409, r.text
+            assert "create one first" in r.json()["detail"]
+        finally:
+            self._mounts = ["/srv/vol1"]

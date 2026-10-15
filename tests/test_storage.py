@@ -13,6 +13,7 @@ call. Monkeypatch subprocess directly before the client routes to the handler.
 from __future__ import annotations
 
 import json
+import os
 from unittest.mock import MagicMock
 
 import pytest
@@ -738,3 +739,50 @@ class TestUnmanagedExcludesIncus:
         assert r.status_code == 200
         names = {p["name"] for p in r.json()["unmanaged"]}
         assert names == {"legacy-tank"}
+
+
+class TestPoolScaffoldsLayout:
+    """The pool is the only user-data root. Creating it scaffolds the standard
+    layout (apps/containers/vms) and points the Docker surface at
+    <pool>/apps — nothing user-facing may live on the OS disk."""
+
+    def _create(self, test_client, auth_headers, monkeypatch, tmp_path):
+        import storage_api, forgeos_diskprep as dp, forgeos_config as fc
+        def fake_execute(plan, disks, *, force=False, record=None, **k):
+            # exercise the real record callback so the pool lands in config
+            result = {"mountpoint": "/srv/vol1", "uuid": "u-1",
+                      "devices": ["/dev/sda"]}
+            if record:
+                record(result)
+            return result
+        monkeypatch.setattr(dp, "execute_pool", fake_execute)
+        monkeypatch.setattr(dp, "inspect_disks", lambda: [])
+        monkeypatch.setattr(dp, "find_disk",
+                            lambda disks, ident: dp.DiskInfo(
+                                name="sda", path="/dev/sda"))
+        monkeypatch.setattr(dp, "plan_pool", lambda *a, **k: type(
+            "P", (), {"name": "vol1", "raid_level": "raid1",
+                      "devices": ["/dev/sda"], "mountpoint": "/srv/p"})())
+        made = []
+        monkeypatch.setattr(storage_api.os, "makedirs",
+                            lambda p, *a, **k: made.append(str(p)))
+        r = test_client.post("/api/storage/pool", headers=auth_headers,
+                             json={"name": "vol1", "level": "raid1",
+                                   "drives": ["/dev/sda"]})
+        return r, made
+
+    def test_create_makes_apps_containers_vms(self, test_client, auth_headers,
+                                              monkeypatch, tmp_path):
+        r, made = self._create(test_client, auth_headers, monkeypatch, tmp_path)
+        assert r.status_code == 200, r.text
+        for sub in ("apps", "containers", "vms"):
+            assert f"/srv/vol1/{sub}" in made, made
+
+    def test_create_points_docker_apps_root_at_pool(self, test_client,
+                                                    auth_headers, monkeypatch,
+                                                    tmp_path):
+        import forgeos_config as fc
+        r, _ = self._create(test_client, auth_headers, monkeypatch, tmp_path)
+        assert r.status_code == 200, r.text
+        cfg = fc.load()
+        assert cfg.docker.apps_root == "/srv/vol1/apps", cfg.docker.apps_root

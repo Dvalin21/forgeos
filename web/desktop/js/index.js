@@ -338,7 +338,7 @@ if (pools.length) {
       cta: "Create share",
       fields: [
         { id: "name", label: "Share name", placeholder: "clients" },
-        { id: "path", label: "Path", placeholder: "/srv/nas/clients" },
+        { id: "path", label: "Path", placeholder: "/srv/<pool>/clients" },
         { id: "type", label: "Template", type: "select", options: [
           { value: "standard", label: "Standard" }, { value: "timemachine", label: "Time Machine" },
           { value: "data-connect", label: "Data Connect (database share)" }, { value: "media", label: "Media" }, { value: "private", label: "Private" }

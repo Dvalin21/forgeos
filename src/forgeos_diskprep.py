@@ -250,7 +250,7 @@ def plan_pool(name: str, raid_level, disks: list[DiskInfo],
     profile = _BTRFS_PROFILE.get(raid_level)
     if profile is None:
         raise DiskGuardError(f"unsupported btrfs profile: {raid_level!r}")
-    mp = mountpoint or f"/srv/nas/{name}"
+    mp = mountpoint or f"/srv/{name}"
     devs = [d.stable_path for d in disks]
 
     plan = PoolPlan(name=name, raid_level=raid_level, devices=devs, mountpoint=mp)

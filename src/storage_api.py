@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import sqlite3
 import subprocess
@@ -633,6 +634,22 @@ async def create_pool(body: dict, user=Depends(verify_token)):
     _audit(user["sub"], "storage.pool.create", "success",
            f"btrfs {level} pool '{name}' at {result['mountpoint']} "
            f"({len(plan.devices)} drives)")
+
+    # The pool is the ONLY user-data root — nothing user-facing may live on
+    # the OS disk. Scaffold the standard layout and point the Docker surface
+    # at <pool>/apps (unless it already points inside a pool).
+    for sub in ("apps", "containers", "vms"):
+        os.makedirs(os.path.join(result["mountpoint"], sub), exist_ok=True)
+    cfg = fc.load()
+    mounts = [p.resolved_mountpoint() for p in cfg.storage.pools]
+
+    def _in_pool(p):
+        return any(p == m or p.startswith(m + "/") for m in mounts)
+
+    if mounts and not _in_pool(cfg.docker.apps_root):
+        cfg.docker.apps_root = os.path.join(mounts[0], "apps")
+        fc.save(cfg)
+
     return {"ok": True, "pool": {"name": name, "mountpoint": result["mountpoint"],
                                  "uuid": result["uuid"]}}
 
@@ -685,7 +702,7 @@ async def storage_df(user=Depends(verify_token)):
     filesystem legitimately appears there more than once: bind mounts,
     subvolume mounts, or — as this service hits — a systemd
     ProtectSystem=strict + ReadWritePaths=/srv namespace that reflects the
-    /srv/nas/<pool> submount a second time when it binds /srv back read-write.
+    /srv/<pool> submount a second time when it binds /srv back read-write.
     So one findmnt line != one filesystem; dedup by mountpoint.
     """
     results = []

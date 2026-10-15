@@ -100,7 +100,7 @@
         TYPES.map(function (t) { return '<div class="svc-opt" data-type="' + t.id + '"><h5>' + esc(t.label) + '</h5><p>' + esc(t.desc) + '</p></div>'; }).join('') +
       '</div></div>' +
       '<div class="fld"><label>Share name</label><input class="wz-input" id="s-name" placeholder="e.g. Media" autocomplete="off"><div class="hint">The name people see on the network. Letters, numbers, _ and - only.</div></div>' +
-      '<div class="fld"><label>Folder path</label><input class="wz-input" id="s-path" placeholder="/srv/nas/tank/media" autocomplete="off"><div class="hint">Absolute path on this NAS to share.</div></div>' +
+      '<div class="fld"><label>Folder path</label><input class="wz-input" id="s-path" placeholder="/srv/<pool>/media" autocomplete="off"><div class="hint">Absolute path on this NAS to share.</div></div>' +
       '<div class="fld"><label>Who can access</label><input class="wz-input" id="s-users" placeholder="@users   (or: keith lorri)" autocomplete="off"><div class="hint">Groups start with @. Space-separated. Ignored for Public shares.</div></div>' +
       '<div class="fld"><label>File permissions</label><div class="seg" id="perm">' +
         '<button data-p="private">Private</button><button data-p="group">Group</button><button data-p="public">Public</button></div>' +

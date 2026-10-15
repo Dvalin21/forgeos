@@ -8,7 +8,7 @@ Mounts under the existing FastAPI app via:
 
 Provides endpoints the original API was missing:
   • File Station   — browse / read / write / upload / mkdir / rename / delete,
-                     scoped strictly to allowed roots (default /srv/nas).
+                     scoped strictly to the storage-pool roots (nothing on the OS disk).
   • Permissions    — POSIX chmod / chown (Linux-native).
   • Firewall       — rule list / add / delete / reload, IPv4 *and* IPv6,
                      fronted by the same `ufw` tooling already installed
@@ -93,20 +93,38 @@ def _admin(user) -> None:
 # ──────────────────────────────────────────────────────────────
 # Restrict every path operation to these roots. Anything resolving
 # outside them (via .., symlinks, absolute paths) is rejected.
-ALLOWED_ROOTS = [Path(p).resolve() for p in
-                 os.environ.get("FORGEOS_FILE_ROOTS", "/srv/nas").split(":")
-                 if p.strip()]
+#
+# The roots ARE the storage pools: /srv/<pool> and below. The pool is the
+# only user-data location on the box — nothing user-facing lives on the OS
+# disk. No pools yet → no roots, and the UI shows "create a pool first"
+# rather than exposing the OS filesystem.
+_FILE_ROOTS_ENV = os.environ.get("FORGEOS_FILE_ROOTS", "").strip()
+
+
+def _allowed_roots() -> list[Path]:
+    if _FILE_ROOTS_ENV:                     # explicit operator override
+        return [Path(p).resolve() for p in _FILE_ROOTS_ENV.split(":") if p.strip()]
+    try:
+        import forgeos_config as _fc
+        return [Path(p.resolved_mountpoint()).resolve()
+                for p in _fc.load().storage.pools]
+    except Exception:
+        return []
 
 
 def _safe(path: str) -> Path:
     """Resolve `path` and guarantee it stays within an allowed root."""
+    roots = _allowed_roots()
+    if not roots:
+        raise HTTPException(
+            409, "No storage pool yet — create one first; all files live on it.")
     if not path:
-        path = str(ALLOWED_ROOTS[0])
+        path = str(roots[0])
     p = Path(path)
     if not p.is_absolute():
-        p = ALLOWED_ROOTS[0] / p
+        p = roots[0] / p
     rp = p.resolve()
-    for root in ALLOWED_ROOTS:
+    for root in roots:
         if rp == root or root in rp.parents:
             return rp
     raise HTTPException(403, "Path outside permitted storage roots")
@@ -151,8 +169,8 @@ def _gid_name(gid: int) -> str:
 
 @router.get("/api/files/roots")
 async def file_roots(user=Depends(verify_token)):
-    """Top-level roots the browser is allowed to enter."""
-    return {"roots": [str(r) for r in ALLOWED_ROOTS]}
+    """Top-level roots the browser is allowed to enter — the storage pools."""
+    return {"roots": [str(r) for r in _allowed_roots()]}
 
 
 @router.get("/api/files/list")
@@ -172,7 +190,8 @@ async def file_list(path: str = "", user=Depends(verify_token)):
         raise HTTPException(403, "Permission denied")
     # breadcrumb trail back to the nearest allowed root
     crumbs, cur = [], d
-    root = next((r for r in ALLOWED_ROOTS if r == d or r in d.parents), ALLOWED_ROOTS[0])
+    roots = _allowed_roots()
+    root = next((r for r in roots if r == d or r in d.parents), roots[0] if roots else d)
     while True:
         crumbs.append({"name": cur.name or str(cur), "path": str(cur)})
         if cur == root or cur.parent == cur:
@@ -239,7 +258,7 @@ async def file_rename(body: dict, user=Depends(verify_token)):
 async def file_delete(body: dict, user=Depends(verify_token)):
     _admin(user)
     p = _safe(body.get("path", ""))
-    if p in ALLOWED_ROOTS:
+    if p in _allowed_roots():
         raise HTTPException(400, "Refusing to delete a storage root")
     if p.is_dir() and not p.is_symlink():
         shutil.rmtree(p)

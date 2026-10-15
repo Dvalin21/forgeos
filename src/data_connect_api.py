@@ -39,7 +39,7 @@ router = APIRouter()
 # Root under which file-based DB directories are tracked (mirrors the NAS pool).
 logger = logging.getLogger("forgeos.data_connect")
 
-WATCH_ROOT = Path(os.environ.get("DATA_CONNECT_ROOT", "/srv/nas"))
+WATCH_ROOT = Path(os.environ.get("DATA_CONNECT_ROOT", "/srv"))
 
 # File-DB extension -> family table lives in forgeos_config (the Samba
 # generator builds veto patterns from it). Re-exported here for callers/tests.
