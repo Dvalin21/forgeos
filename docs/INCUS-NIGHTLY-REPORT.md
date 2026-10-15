@@ -332,3 +332,38 @@ The box was migrated live: pool remounted `/srv/nas/Volume1` →
 `<pool>/apps/<app>` and their containers recreated on pool binds,
 `/srv/apps` and `/srv/forgeos` removed — `/srv` now contains only
 `Volume1`.
+
+---
+
+## 13 · Complete uninstall + first-install mimic (2026-10-15)
+
+Full teardown to virgin Debian (services, units, pip package, /etc/forgeos,
+/opt/forgeos, /var/lib|log/forgeos, nginx vhosts, NFS export, systemd-network
+config, samba smb.conf, ufw rules → stock OpenSSH, docker apps removed, all
+four data drives wiped), then a fresh `bootstrap.sh --unattended` install
+and a first-user walkthrough. **There is no uninstaller in the repo** — the
+teardown was manual and its steps are recorded here as the spec for one.
+
+Install: 9/9 phases on the virgin box. First-boot battery:
+
+- login with the installer-generated password, health, UI, setup wizard
+  (`pending_steps: os_drive, lhsr_groups`) all correct
+- no-pool gates: files 409, docker 409, incus 409 — nothing creatable
+- pool create → `/srv/tank` + `apps/containers/vms` scaffold, `apps_root`
+  repointed at `/srv/tank/apps`, File Station roots become `['/srv/tank']`
+- full read battery 80/87 (the 7 are the known-correct 422/404 + RustFS)
+
+**Two real bugs found and fixed by the mimic:**
+
+1. `docker run` accepted 1-character container names that the daemon itself
+   rejects — a 500 from mid-create instead of a clean 400. Validator now
+   matches docker's 2+ char rule.
+2. **Every non-root app died on first run.** Docker auto-creates missing
+   bind sources as root:root 0755, so filebrowser exited 1 with
+   `permission denied` on `/database/filebrowser.db`. Per-app dirs under
+   `apps_root` are now pre-created 0777 by the run path (media paths keep
+   the user's modes). Verified live: filebrowser comes up and stays up.
+
+Also confirmed: the 202 pull-then-retry flow (retries correctly 409 while
+the container exists), and that `docker rm` of a stale same-named container
+is required before recreate — the 409s are correct behavior.

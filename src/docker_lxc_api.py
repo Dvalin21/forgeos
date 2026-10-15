@@ -32,7 +32,10 @@ router = APIRouter(prefix="/api/docker", tags=["Docker Management"],
 # Argument injection is real even without shell=True — a name like "-foo" could
 # be read as a flag. Docker names/images allow [a-zA-Z0-9][a-zA-Z0-9_.-/:@] but
 # must not start with '-'. Keep it strict.
-_DOCKER_NAME_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._/:@-]{0,127}\Z")
+# Docker's own rule is 2+ chars: [a-zA-Z0-9][a-zA-Z0-9_.-]+ (the daemon
+# rejects a 1-char name with "Invalid container name"). Match it exactly so
+# a too-short name is a clean 400 here, not a 500 from the daemon.
+_DOCKER_NAME_RE = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._/:@-]{1,127}\Z")
 
 
 def _valid_ref(ref: str, what: str = "name") -> str:
@@ -587,6 +590,35 @@ def _pool_mounts() -> list[str]:
         return []
 
 
+def _ensure_appdata_dirs(volumes: list[str]) -> None:
+    """Pre-create per-app bind sources as 0777.
+
+    Docker auto-creates missing bind sources as root:root 0755 — and every
+    app that runs as a non-root user (filebrowser, navidrome, photoprism,
+    plex…) then dies on first run with "permission denied" (verified on a
+    first-install box: filebrowser exited 1 on /database/filebrowser.db).
+    Only dirs under the configured apps_root get 0777; pool media paths are
+    the user's own and keep their modes."""
+    try:
+        import forgeos_config as _fc
+        apps_root = _fc.load().docker.apps_root
+    except Exception:
+        return
+    if not apps_root:
+        return
+    for v in volumes:
+        host = str(v).split(":")[0]
+        if not host.startswith("/"):
+            continue
+        if host != apps_root and not host.startswith(apps_root + "/"):
+            continue
+        try:
+            os.makedirs(host, mode=0o777, exist_ok=True)
+            os.chmod(host, 0o777)
+        except OSError:
+            pass
+
+
 @router.post("/run")
 async def run_container(body: dict, background_tasks: BackgroundTasks,
                         user=Depends(verify_token)):
@@ -689,6 +721,11 @@ async def run_container(body: dict, background_tasks: BackgroundTasks,
     if _image_local_id(image) is None:
         _start_pull(image, background_tasks)
         return _pull_202(image)
+
+    # Per-app data dirs: 0777 so non-root container users can write (docker
+    # would otherwise create them root:root 0755 and the app dies on first
+    # run — filebrowser "permission denied" on a first-install box).
+    _ensure_appdata_dirs([str(v) for v in body.get("volumes") or []])
 
     r = _run_docker(args, timeout=120)
     if not r["success"]:

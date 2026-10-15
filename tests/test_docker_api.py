@@ -167,7 +167,7 @@ class TestAdminGates:
                                                    "stdout": "out-line",
                                                    "stderr": "err-line",
                                                    "returncode": 0})
-        r = test_client.get("/api/docker/containers/x/logs", headers=auth_headers)
+        r = test_client.get("/api/docker/containers/ab/logs", headers=auth_headers)
         assert "out-line" in r.json()["logs"] and "err-line" in r.json()["logs"]
 
 
@@ -651,3 +651,35 @@ class TestPoolGate:
             assert "create one first" in r.json()["detail"]
         finally:
             self._mounts = ["/srv/vol1"]
+
+
+def test_short_container_name_is_a_clean_400(test_client, auth_headers,
+                                             monkeypatch):
+    """Docker's daemon requires 2+ chars for a container name; accepting
+    't' here turned into a 500 from the daemon mid-create."""
+    import docker_lxc_api as d
+    monkeypatch.setattr(d, "_used_host_ports", lambda: set())
+    monkeypatch.setattr(d, "_pool_mounts", lambda: ["/srv/tank"])
+    r = test_client.post("/api/docker/run", headers=auth_headers, json={
+        "name": "t", "image": "nginx:1",
+        "volumes": ["/srv/tank/apps/t:/d"]})
+    assert r.status_code == 400, r.text
+    assert "invalid" in r.json()["detail"]
+
+
+def test_appdata_dirs_precreated_writable(test_client, auth_headers,
+                                          monkeypatch, tmp_path):
+    """Per-app bind sources must be 0777: docker auto-creates them root:root
+    0755 and every non-root app dies on first run (filebrowser did, on a
+    first-install box)."""
+    import docker_lxc_api as d
+    apps = tmp_path / "apps"
+    monkeypatch.setattr(d, "_pool_mounts", lambda: [str(tmp_path)])
+    import forgeos_config as fc
+    cfg = fc.ForgeOSConfig()
+    cfg.docker.apps_root = str(apps)
+    monkeypatch.setattr(fc, "load", lambda: cfg)
+    d._ensure_appdata_dirs([f"{apps}/filebrowser:/database"])
+    p = apps / "filebrowser"
+    assert p.is_dir()
+    assert oct(p.stat().st_mode & 0o777) == "0o777", oct(p.stat().st_mode)
