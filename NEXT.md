@@ -1,8 +1,25 @@
-# ForgeOS — NEXT (updated 2026-10-12, post-green-suite)
+# ForgeOS — NEXT (updated 2026-10-15, post first-install mimic)
 
 ## HEAD
 
-Branch `v2-rearchitect` @ `051b74a`.
+Branch `v2-rearchitect` @ `2fd2adc`. Suite: **1110 passed / 0 failed / 2 skipped**.
+
+## When work resumes — do these first, in this order
+
+1. **Build the uninstaller.** There is none. A full uninstall was performed
+   manually on 2026-10-15 (complete teardown spec in
+   `docs/INCUS-NIGHTLY-REPORT.md` §13 — services, units, pip package,
+   /etc/forgeos, /opt/forgeos, /var/lib|log/forgeos, nginx vhosts, NFS
+   export, systemd-network config, samba smb.conf, ufw rules → stock
+   OpenSSH, docker apps, drive wipe). Turn that spec into a real
+   uninstaller.
+2. **RustFS enabling.** `/api/storage/buckets` 500s on a fresh box — RustFS
+   is not running and nothing enables it. The whole rustfs_api surface
+   (11 endpoints) is unreachable through the UI.
+3. **Appstore appdata 0777 fix.** The one-click + run paths pre-create
+   per-app dirs as 0777 (`_ensure_appdata_dirs`), but the appstore
+   compose/converge path does not — catalog installs of non-root apps will
+   hit the same first-run permission failure until it does.
 
 ## Suite: GREEN — 1037 passed / 0 failed / 2 skipped
 
@@ -113,6 +130,8 @@ Storage page turns it off.
 
 ## Next
 
+0. **The three items at the top of this file, in order** (uninstaller,
+   RustFS enabling, appstore appdata 0777).
 1. Hardware verification on real iron (installer, LHSR exec on real disks,
    WireGuard, backup restore, mDNS) — the biggest remaining gap, and the
    only one that needs hardware you own.
